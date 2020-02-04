@@ -42,10 +42,25 @@ func (err ircError) Error() string {
 type conn struct {
 	net        net.Conn
 	irc        *irc.Conn
+	srv        *Server
 	registered bool
+	closed     bool
 	nick       string
 	username   string
 	realname   string
+}
+
+func (c *conn) Close() error {
+	if err := c.net.Close(); err != nil {
+		return err
+	}
+	c.closed = true
+	return nil
+}
+
+func (c *conn) WriteMessage(msg *irc.Message) error {
+	msg.Prefix = c.srv.prefix()
+	return c.irc.WriteMessage(msg)
 }
 
 func (c *conn) handleMessageUnregistered(msg *irc.Message) error {
@@ -61,10 +76,52 @@ func (c *conn) handleMessageUnregistered(msg *irc.Message) error {
 		}
 		c.username = "~" + msg.Params[0]
 		c.realname = msg.Params[3]
-		c.registered = true
+	case "QUIT":
+		return c.Close()
 	default:
 		return newUnknownCommandError(msg.Command)
 	}
+	if c.username != "" && c.nick != "" {
+		return c.register()
+	}
+	return nil
+}
+
+func (c *conn) register() error {
+	c.registered = true
+
+	err := c.WriteMessage(&irc.Message{
+		Command: irc.RPL_WELCOME,
+		Params:  []string{c.nick, "Welcome to jounce, " + c.nick},
+	})
+	if err != nil {
+		return err
+	}
+
+	err = c.WriteMessage(&irc.Message{
+		Command: irc.RPL_YOURHOST,
+		Params:  []string{c.nick, "Your host is " + c.srv.Hostname},
+	})
+	if err != nil {
+		return err
+	}
+
+	err = c.WriteMessage(&irc.Message{
+		Command: irc.RPL_CREATED,
+		Params:  []string{c.nick, "This server was created <datetime>"}, // TODO
+	})
+	if err != nil {
+		return err
+	}
+
+	err = c.WriteMessage(&irc.Message{
+		Command: irc.RPL_MYINFO,
+		Params:  []string{c.nick, c.srv.Hostname, "unknown", "", ""},
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -78,17 +135,24 @@ func (c *conn) handleMessage(msg *irc.Message) error {
 				"You may not reregister",
 			},
 		}}
+	case "QUIT":
+		return c.Close()
 	default:
 		return newUnknownCommandError(msg.Command)
 	}
 }
 
-type Server struct{}
+type Server struct{
+	Hostname string
+}
+
+func (s *Server) prefix() *irc.Prefix {
+	return &irc.Prefix{Name: s.Hostname}
+}
 
 func (s *Server) handleConn(netConn net.Conn) error {
-	defer netConn.Close()
-
-	c := conn{net: netConn, irc: irc.NewConn(netConn)}
+	c := conn{net: netConn, irc: irc.NewConn(netConn), srv: s}
+	defer c.Close()
 	for {
 		msg, err := c.irc.ReadMessage()
 		if err == io.EOF {
@@ -104,15 +168,20 @@ func (s *Server) handleConn(netConn net.Conn) error {
 			err = c.handleMessageUnregistered(msg)
 		}
 		if ircErr, ok := err.(ircError); ok {
-			if err := c.irc.WriteMessage(ircErr.Message); err != nil {
+			ircErr.Message.Prefix = s.prefix()
+			if err := c.WriteMessage(ircErr.Message); err != nil {
 				return fmt.Errorf("failed to write IRC reply: %v", err)
 			}
 		} else if err != nil {
 			return fmt.Errorf("failed to handle IRC command %q: %v", msg.Command, err)
 		}
+
+		if c.closed {
+			return nil
+		}
 	}
 
-	return netConn.Close()
+	return c.Close()
 }
 
 func (s *Server) Serve(ln net.Listener) error {
