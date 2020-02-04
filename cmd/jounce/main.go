@@ -15,6 +15,8 @@ func main() {
 		log.Fatalf("failed to start listener: %v", err)
 	}
 
+	s := jounce.Server{}
+
 	log.Printf("Server listening on %v", addr)
-	log.Fatal(jounce.Serve(ln))
+	log.Fatal(s.Serve(ln))
 }

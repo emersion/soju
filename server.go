@@ -2,35 +2,58 @@ package jounce
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 
 	"gopkg.in/irc.v3"
 )
 
-func handleConn(conn net.Conn) error {
-	defer conn.Close()
-
-	ircConn := irc.NewConn(conn)
-	for {
-		msg, err := ircConn.ReadMessage()
-		if err != nil {
-			return err
-		}
-
-		log.Println(msg)
-	}
+type conn struct {
+	net net.Conn
+	irc *irc.Conn
 }
 
-func Serve(ln net.Listener) error {
+type Server struct{}
+
+func (s *Server) handleConn(netConn net.Conn) error {
+	defer netConn.Close()
+
+	conn := conn{netConn, irc.NewConn(netConn)}
 	for {
-		conn, err := ln.Accept()
+		msg, err := conn.irc.ReadMessage()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		log.Println(msg)
+
+		switch msg.Command {
+		default:
+			err = conn.irc.WriteMessage(&irc.Message{
+				Command: irc.ERR_UNKNOWNCOMMAND,
+				Params: []string{
+					"*",
+					msg.Command,
+					"Unknown command",
+				},
+			})
+		}
+	}
+
+	return netConn.Close()
+}
+
+func (s *Server) Serve(ln net.Listener) error {
+	for {
+		c, err := ln.Accept()
 		if err != nil {
 			return fmt.Errorf("failed to accept connection: %v", err)
 		}
 
 		go func() {
-			if err := handleConn(conn); err != nil {
+			if err := s.handleConn(c); err != nil {
 				log.Printf("error handling connection: %v", err)
 			}
 		}()
