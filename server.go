@@ -17,6 +17,7 @@ type Upstream struct {
 	Nick     string
 	Username string
 	Realname string
+	Channels []string
 }
 
 type Server struct {

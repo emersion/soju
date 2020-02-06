@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/irc.v3"
 )
 
 const (
-	rpl_localusers  = "265"
-	rpl_globalusers = "266"
+	rpl_localusers   = "265"
+	rpl_globalusers  = "266"
+	rpl_topicwhotime = "333"
 )
 
 type modeSet string
@@ -54,18 +57,78 @@ func (ms *modeSet) Apply(s string) error {
 	return nil
 }
 
+type channelStatus byte
+
+const (
+	channelPublic  channelStatus = '='
+	channelSecret  channelStatus = '@'
+	channelPrivate channelStatus = '*'
+)
+
+func parseChannelStatus(s string) (channelStatus, error) {
+	if len(s) > 1 {
+		return 0, fmt.Errorf("invalid channel status %q: more than one character", s)
+	}
+	switch cs := channelStatus(s[0]); cs {
+	case channelPublic, channelSecret, channelPrivate:
+		return cs, nil
+	default:
+		return 0, fmt.Errorf("invalid channel status %q: unknown status", s)
+	}
+}
+
+type membership byte
+
+const (
+	membershipFounder   membership = '~'
+	membershipProtected membership = '&'
+	membershipOperator  membership = '@'
+	membershipHalfOp    membership = '%'
+	membershipVoice     membership = '+'
+)
+
+const stdMembershipPrefixes = "~&@%+"
+
+func parseMembershipPrefix(s string) (prefix membership, nick string) {
+	// TODO: any prefix from PREFIX RPL_ISUPPORT
+	if strings.IndexByte(stdMembershipPrefixes, s[0]) >= 0 {
+		return membership(s[0]), s[1:]
+	} else {
+		return 0, s
+	}
+}
+
+type upstreamChannel struct {
+	Name      string
+	Topic     string
+	TopicWho  string
+	TopicTime time.Time
+	Status    channelStatus
+	Members   map[string]membership
+}
+
 type upstreamConn struct {
-	upstream   *Upstream
-	net        net.Conn
-	irc        *irc.Conn
-	srv        *Server
-	registered bool
-	modes      modeSet
+	upstream *Upstream
+	net      net.Conn
+	irc      *irc.Conn
+	srv      *Server
 
 	serverName            string
 	availableUserModes    string
 	availableChannelModes string
 	channelModesWithParam string
+
+	registered bool
+	modes      modeSet
+	channels   map[string]*upstreamChannel
+}
+
+func (c *upstreamConn) getChannel(name string) (*upstreamChannel, error) {
+	ch, ok := c.channels[name]
+	if !ok {
+		return nil, fmt.Errorf("unknown channel %q", name)
+	}
+	return ch, nil
 }
 
 func (c *upstreamConn) handleMessage(msg *irc.Message) error {
@@ -89,6 +152,16 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 	case irc.RPL_WELCOME:
 		c.registered = true
 		c.srv.Logger.Printf("Connection to %q registered", c.upstream.Addr)
+
+		for _, ch := range c.upstream.Channels {
+			err := c.irc.WriteMessage(&irc.Message{
+				Command: "JOIN",
+				Params:  []string{ch},
+			})
+			if err != nil {
+				return err
+			}
+		}
 	case irc.RPL_MYINFO:
 		if len(msg.Params) < 5 {
 			return newNeedMoreParamsError(msg.Command)
@@ -99,6 +172,78 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		if len(msg.Params) > 5 {
 			c.channelModesWithParam = msg.Params[5]
 		}
+	case "JOIN":
+		if len(msg.Params) < 1 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		for _, ch := range strings.Split(msg.Params[0], ",") {
+			c.srv.Logger.Printf("Joined channel %q", ch)
+			c.channels[ch] = &upstreamChannel{
+				Name:    ch,
+				Members: make(map[string]membership),
+			}
+		}
+	case irc.RPL_TOPIC, irc.RPL_NOTOPIC:
+		if len(msg.Params) < 3 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		ch, err := c.getChannel(msg.Params[1])
+		if err != nil {
+			return err
+		}
+		if msg.Command == irc.RPL_TOPIC {
+			ch.Topic = msg.Params[2]
+		} else {
+			ch.Topic = ""
+		}
+	case "TOPIC":
+		if len(msg.Params) < 1 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		ch, err := c.getChannel(msg.Params[0])
+		if err != nil {
+			return err
+		}
+		if len(msg.Params) > 1 {
+			ch.Topic = msg.Params[1]
+		} else {
+			ch.Topic = ""
+		}
+	case rpl_topicwhotime:
+		if len(msg.Params) < 4 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		ch, err := c.getChannel(msg.Params[1])
+		if err != nil {
+			return err
+		}
+		ch.TopicWho = msg.Params[2]
+		sec, err := strconv.ParseInt(msg.Params[3], 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse topic time: %v", err)
+		}
+		ch.TopicTime = time.Unix(sec, 0)
+	case irc.RPL_NAMREPLY:
+		if len(msg.Params) < 4 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		ch, err := c.getChannel(msg.Params[2])
+		if err != nil {
+			return err
+		}
+
+		status, err := parseChannelStatus(msg.Params[1])
+		if err != nil {
+			return err
+		}
+		ch.Status = status
+
+		for _, s := range strings.Split(msg.Params[3], " ") {
+			membership, nick := parseMembershipPrefix(s)
+			ch.Members[nick] = membership
+		}
+	case irc.RPL_ENDOFNAMES:
+		// TODO
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
@@ -128,6 +273,7 @@ func connect(s *Server, upstream *Upstream) error {
 		net:      netConn,
 		irc:      irc.NewConn(netConn),
 		srv:      s,
+		channels: make(map[string]*upstreamChannel),
 	}
 	defer netConn.Close()
 

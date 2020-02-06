@@ -24,6 +24,7 @@ func main() {
 			Nick:     "jounce",
 			Username: "jounce",
 			Realname: "jounce",
+			Channels: []string{"#jounce"},
 		}},
 	}
 
