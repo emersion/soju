@@ -132,7 +132,7 @@ func (c *downstreamConn) register() error {
 
 	err = c.WriteMessage(&irc.Message{
 		Command: irc.RPL_MYINFO,
-		Params:  []string{c.nick, c.srv.Hostname, "unknown", "", ""},
+		Params:  []string{c.nick, c.srv.Hostname, "unknown", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
 	if err != nil {
 		return err
