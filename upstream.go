@@ -19,6 +19,7 @@ type upstreamChannel struct {
 	TopicTime time.Time
 	Status    channelStatus
 	Members   map[string]membership
+	complete  bool
 }
 
 type upstreamConn struct {
@@ -158,7 +159,15 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			ch.Members[nick] = membership
 		}
 	case irc.RPL_ENDOFNAMES:
-		// TODO
+		if len(msg.Params) < 2 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		ch, err := c.getChannel(msg.Params[1])
+		if err != nil {
+			return err
+		}
+
+		ch.complete = true
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
