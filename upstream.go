@@ -9,10 +9,16 @@ import (
 	"gopkg.in/irc.v3"
 )
 
+const (
+	rpl_localusers = "265"
+	rpl_globalusers = "266"
+)
+
 type upstreamConn struct {
 	net net.Conn
 	irc *irc.Conn
 	srv *Server
+	registered bool
 }
 
 func (c *upstreamConn) handleMessage(msg *irc.Message) error {
@@ -23,10 +29,22 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			Command: "PONG",
 			Params:  []string{c.srv.Hostname},
 		})
+	case irc.RPL_WELCOME:
+		c.registered = true
+	case irc.RPL_YOURHOST, irc.RPL_CREATED, irc.RPL_MYINFO:
+		// Ignore
+	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
+		// Ignore
+	case irc.RPL_MOTDSTART, irc.RPL_MOTD, irc.RPL_ENDOFMOTD:
+		// Ignore
+	case rpl_localusers, rpl_globalusers:
+		// Ignore
+	case irc.RPL_STATSVLINE, irc.RPL_STATSPING, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
+		// Ignore
 	default:
 		c.srv.Logger.Printf("Unhandled upstream message: %v", msg)
-		return nil
 	}
+	return nil
 }
 
 func connect(s *Server, upstream *Upstream) error {
