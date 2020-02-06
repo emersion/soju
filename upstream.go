@@ -175,28 +175,12 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 	return nil
 }
 
-func connect(s *Server, upstream *Upstream) error {
-	logger := &prefixLogger{s.Logger, fmt.Sprintf("upstream %q: ", upstream.Addr)}
-	logger.Printf("connecting to server")
+func (c *upstreamConn) readMessages() error {
+	defer c.net.Close()
 
-	netConn, err := tls.Dial("tcp", upstream.Addr, nil)
-	if err != nil {
-		return fmt.Errorf("failed to dial %q: %v", upstream.Addr, err)
-	}
-
-	c := upstreamConn{
-		upstream: upstream,
-		logger:   logger,
-		net:      netConn,
-		irc:      irc.NewConn(netConn),
-		srv:      s,
-		channels: make(map[string]*upstreamChannel),
-	}
-	defer netConn.Close()
-
-	err = c.irc.WriteMessage(&irc.Message{
+	err := c.irc.WriteMessage(&irc.Message{
 		Command: "NICK",
-		Params:  []string{upstream.Nick},
+		Params:  []string{c.upstream.Nick},
 	})
 	if err != nil {
 		return err
@@ -204,7 +188,7 @@ func connect(s *Server, upstream *Upstream) error {
 
 	err = c.irc.WriteMessage(&irc.Message{
 		Command: "USER",
-		Params:  []string{upstream.Username, "0", "*", upstream.Realname},
+		Params:  []string{c.upstream.Username, "0", "*", c.upstream.Realname},
 	})
 	if err != nil {
 		return err
@@ -223,5 +207,24 @@ func connect(s *Server, upstream *Upstream) error {
 		}
 	}
 
-	return netConn.Close()
+	return c.net.Close()
+}
+
+func connectToUpstream(s *Server, upstream *Upstream) (*upstreamConn, error) {
+	logger := &prefixLogger{s.Logger, fmt.Sprintf("upstream %q: ", upstream.Addr)}
+	logger.Printf("connecting to server")
+
+	netConn, err := tls.Dial("tcp", upstream.Addr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial %q: %v", upstream.Addr, err)
+	}
+
+	return &upstreamConn{
+		upstream: upstream,
+		logger:   logger,
+		net:      netConn,
+		irc:      irc.NewConn(netConn),
+		srv:      s,
+		channels: make(map[string]*upstreamChannel),
+	}, nil
 }

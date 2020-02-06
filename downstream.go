@@ -39,10 +39,10 @@ func (err ircError) Error() string {
 }
 
 type downstreamConn struct {
-	net        net.Conn
-	irc        *irc.Conn
-	srv        *Server
-	logger     Logger
+	net    net.Conn
+	irc    *irc.Conn
+	srv    *Server
+	logger Logger
 
 	registered bool
 	closed     bool
@@ -53,9 +53,9 @@ type downstreamConn struct {
 
 func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 	return &downstreamConn{
-		net: netConn,
-		irc: irc.NewConn(netConn),
-		srv: srv,
+		net:    netConn,
+		irc:    irc.NewConn(netConn),
+		srv:    srv,
 		logger: &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
 	}
 }

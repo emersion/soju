@@ -54,8 +54,13 @@ func (s *Server) Run() {
 		upstream := &s.Upstreams[i]
 		// TODO: retry connecting
 		go func() {
-			if err := connect(s, upstream); err != nil {
-				s.Logger.Printf("Failed to connect to upstream server %q: %v", upstream.Addr, err)
+			conn, err := connectToUpstream(s, upstream)
+			if err != nil {
+				s.Logger.Printf("failed to connect to upstream server %q: %v", upstream.Addr, err)
+				return
+			}
+			if err := conn.readMessages(); err != nil {
+				conn.logger.Printf("failed to handle messages: %v", err)
 			}
 		}()
 	}
@@ -72,7 +77,7 @@ func (s *Server) Serve(ln net.Listener) error {
 		s.downstreamConns = append(s.downstreamConns, conn)
 		go func() {
 			if err := conn.readMessages(); err != nil {
-				conn.logger.Printf("Error handling messages: %v", err)
+				conn.logger.Printf("failed to handle messages: %v", err)
 			}
 		}()
 	}
