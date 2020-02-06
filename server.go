@@ -45,6 +45,7 @@ type Server struct {
 
 	lock            sync.Mutex
 	downstreamConns []*downstreamConn
+	upstreamConns   []*upstreamConn
 }
 
 func (s *Server) prefix() *irc.Prefix {
@@ -61,9 +62,23 @@ func (s *Server) Run() {
 				s.Logger.Printf("failed to connect to upstream server %q: %v", upstream.Addr, err)
 				return
 			}
+
+			s.lock.Lock()
+			s.upstreamConns = append(s.upstreamConns, conn)
+			s.lock.Unlock()
+
 			if err := conn.readMessages(); err != nil {
 				conn.logger.Printf("failed to handle messages: %v", err)
 			}
+
+			s.lock.Lock()
+			for i, c := range s.upstreamConns {
+				if c == conn {
+					s.upstreamConns = append(s.upstreamConns[:i], s.upstreamConns[i+1:]...)
+					break
+				}
+			}
+			s.lock.Unlock()
 		}()
 	}
 }
@@ -80,9 +95,11 @@ func (s *Server) Serve(ln net.Listener) error {
 			s.lock.Lock()
 			s.downstreamConns = append(s.downstreamConns, conn)
 			s.lock.Unlock()
+
 			if err := conn.readMessages(); err != nil {
 				conn.logger.Printf("failed to handle messages: %v", err)
 			}
+
 			s.lock.Lock()
 			for i, c := range s.downstreamConns {
 				if c == conn {
