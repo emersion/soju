@@ -39,10 +39,11 @@ func (err ircError) Error() string {
 }
 
 type downstreamConn struct {
-	net    net.Conn
-	irc    *irc.Conn
-	srv    *Server
-	logger Logger
+	net      net.Conn
+	irc      *irc.Conn
+	srv      *Server
+	logger   Logger
+	messages chan<- *irc.Message
 
 	registered bool
 	closed     bool
@@ -52,12 +53,24 @@ type downstreamConn struct {
 }
 
 func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
-	return &downstreamConn{
-		net:    netConn,
-		irc:    irc.NewConn(netConn),
-		srv:    srv,
-		logger: &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
+	msgs := make(chan *irc.Message, 64)
+	conn := &downstreamConn{
+		net:      netConn,
+		irc:      irc.NewConn(netConn),
+		srv:      srv,
+		logger:   &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
+		messages: msgs,
 	}
+
+	go func() {
+		for msg := range msgs {
+			if err := conn.irc.WriteMessage(msg); err != nil {
+				conn.logger.Printf("failed to write message: %v", err)
+			}
+		}
+	}()
+
+	return conn
 }
 
 func (c *downstreamConn) readMessages() error {
@@ -75,9 +88,7 @@ func (c *downstreamConn) readMessages() error {
 		err = c.handleMessage(msg)
 		if ircErr, ok := err.(ircError); ok {
 			ircErr.Message.Prefix = c.srv.prefix()
-			if err := c.WriteMessage(ircErr.Message); err != nil {
-				return fmt.Errorf("failed to write IRC reply: %v", err)
-			}
+			c.messages <- ircErr.Message
 		} else if err != nil {
 			return fmt.Errorf("failed to handle IRC command %q: %v", msg.Command, err)
 		}
@@ -91,26 +102,31 @@ func (c *downstreamConn) readMessages() error {
 }
 
 func (c *downstreamConn) Close() error {
+	if c.closed {
+		return fmt.Errorf("downstream connection already closed")
+	}
 	if err := c.net.Close(); err != nil {
 		return err
 	}
+	close(c.messages)
 	c.closed = true
 	return nil
 }
 
-func (c *downstreamConn) WriteMessage(msg *irc.Message) error {
+func (c *downstreamConn) WriteMessage(msg *irc.Message) {
 	msg.Prefix = c.srv.prefix()
-	return c.irc.WriteMessage(msg)
+	c.messages <- msg
 }
 
 func (c *downstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "PING":
 		// TODO: handle params
-		return c.WriteMessage(&irc.Message{
+		c.WriteMessage(&irc.Message{
 			Command: "PONG",
 			Params:  []string{c.srv.Hostname},
 		})
+		return nil
 	default:
 		if c.registered {
 			return c.handleMessageRegistered(msg)
@@ -148,45 +164,30 @@ func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 func (c *downstreamConn) register() error {
 	c.registered = true
 
-	err := c.WriteMessage(&irc.Message{
+	c.WriteMessage(&irc.Message{
 		Command: irc.RPL_WELCOME,
 		Params:  []string{c.nick, "Welcome to jounce, " + c.nick},
 	})
-	if err != nil {
-		return err
-	}
 
-	err = c.WriteMessage(&irc.Message{
+	c.WriteMessage(&irc.Message{
 		Command: irc.RPL_YOURHOST,
 		Params:  []string{c.nick, "Your host is " + c.srv.Hostname},
 	})
-	if err != nil {
-		return err
-	}
 
-	err = c.WriteMessage(&irc.Message{
+	c.WriteMessage(&irc.Message{
 		Command: irc.RPL_CREATED,
 		Params:  []string{c.nick, "This server was created <datetime>"}, // TODO
 	})
-	if err != nil {
-		return err
-	}
 
-	err = c.WriteMessage(&irc.Message{
+	c.WriteMessage(&irc.Message{
 		Command: irc.RPL_MYINFO,
 		Params:  []string{c.nick, c.srv.Hostname, "unknown", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
-	if err != nil {
-		return err
-	}
 
-	err = c.WriteMessage(&irc.Message{
+	c.WriteMessage(&irc.Message{
 		Command: irc.ERR_NOMOTD,
 		Params:  []string{c.nick, "No MOTD"},
 	})
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
