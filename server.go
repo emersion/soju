@@ -287,8 +287,13 @@ func (s *Server) connect(upstream *Upstream) error {
 
 func (s *Server) Run() {
 	for i := range s.Upstreams {
+		upstream := &s.Upstreams[i]
 		// TODO: retry connecting
-		go s.connect(&s.Upstreams[i])
+		go func() {
+			if err := s.connect(upstream); err != nil {
+				s.Logger.Printf("Failed to connect to upstream server %q: %v", upstream.Addr, err)
+			}
+		}()
 	}
 }
 
