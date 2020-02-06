@@ -128,6 +128,8 @@ func (c *downstreamConn) WriteMessage(msg *irc.Message) {
 
 func (c *downstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
+	case "QUIT":
+		return c.Close()
 	case "PING":
 		// TODO: handle params
 		c.WriteMessage(&irc.Message{
@@ -157,8 +159,6 @@ func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		}
 		c.username = "~" + msg.Params[0]
 		c.realname = msg.Params[3]
-	case "QUIT":
-		return c.Close()
 	default:
 		c.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
@@ -189,7 +189,7 @@ func (c *downstreamConn) register() error {
 
 	c.WriteMessage(&irc.Message{
 		Command: irc.RPL_MYINFO,
-		Params:  []string{c.nick, c.srv.Hostname, "unknown", "aiwroO", "OovaimnqpsrtklbeI"},
+		Params:  []string{c.nick, c.srv.Hostname, "jounce", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
 
 	c.WriteMessage(&irc.Message{
@@ -210,8 +210,6 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				"You may not reregister",
 			},
 		}}
-	case "QUIT":
-		return c.Close()
 	default:
 		c.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
