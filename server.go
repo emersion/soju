@@ -39,7 +39,7 @@ func (err ircError) Error() string {
 	return err.Message.String()
 }
 
-type conn struct {
+type downstreamConn struct {
 	net        net.Conn
 	irc        *irc.Conn
 	srv        *Server
@@ -50,7 +50,7 @@ type conn struct {
 	realname   string
 }
 
-func (c *conn) Close() error {
+func (c *downstreamConn) Close() error {
 	if err := c.net.Close(); err != nil {
 		return err
 	}
@@ -58,12 +58,12 @@ func (c *conn) Close() error {
 	return nil
 }
 
-func (c *conn) WriteMessage(msg *irc.Message) error {
+func (c *downstreamConn) WriteMessage(msg *irc.Message) error {
 	msg.Prefix = c.srv.prefix()
 	return c.irc.WriteMessage(msg)
 }
 
-func (c *conn) handleMessage(msg *irc.Message) error {
+func (c *downstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "PING":
 		// TODO: handle params
@@ -80,7 +80,7 @@ func (c *conn) handleMessage(msg *irc.Message) error {
 	}
 }
 
-func (c *conn) handleMessageUnregistered(msg *irc.Message) error {
+func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 	switch msg.Command {
 	case "NICK":
 		if len(msg.Params) != 1 {
@@ -104,7 +104,7 @@ func (c *conn) handleMessageUnregistered(msg *irc.Message) error {
 	return nil
 }
 
-func (c *conn) register() error {
+func (c *downstreamConn) register() error {
 	c.registered = true
 
 	err := c.WriteMessage(&irc.Message{
@@ -150,7 +150,7 @@ func (c *conn) register() error {
 	return nil
 }
 
-func (c *conn) handleMessageRegistered(msg *irc.Message) error {
+func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 	switch msg.Command {
 	case "NICK", "USER":
 		return ircError{&irc.Message{
@@ -176,7 +176,7 @@ func (s *Server) prefix() *irc.Prefix {
 }
 
 func (s *Server) handleConn(netConn net.Conn) error {
-	c := conn{net: netConn, irc: irc.NewConn(netConn), srv: s}
+	c := downstreamConn{net: netConn, irc: irc.NewConn(netConn), srv: s}
 	defer c.Close()
 	for {
 		msg, err := c.irc.ReadMessage()
