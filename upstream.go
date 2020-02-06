@@ -10,15 +10,21 @@ import (
 )
 
 const (
-	rpl_localusers = "265"
+	rpl_localusers  = "265"
 	rpl_globalusers = "266"
 )
 
 type upstreamConn struct {
-	net net.Conn
-	irc *irc.Conn
-	srv *Server
+	upstream   *Upstream
+	net        net.Conn
+	irc        *irc.Conn
+	srv        *Server
 	registered bool
+
+	serverName            string
+	availableUserModes    string
+	availableChannelModes string
+	channelModesWithParam string
 }
 
 func (c *upstreamConn) handleMessage(msg *irc.Message) error {
@@ -31,7 +37,18 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		})
 	case irc.RPL_WELCOME:
 		c.registered = true
-	case irc.RPL_YOURHOST, irc.RPL_CREATED, irc.RPL_MYINFO:
+		c.srv.Logger.Printf("Connection to %q registered", c.upstream.Addr)
+	case irc.RPL_MYINFO:
+		if len(msg.Params) < 5 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		c.serverName = msg.Params[1]
+		c.availableUserModes = msg.Params[3]
+		c.availableChannelModes = msg.Params[4]
+		if len(msg.Params) > 5 {
+			c.channelModesWithParam = msg.Params[5]
+		}
+	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
 		// Ignore
@@ -55,7 +72,12 @@ func connect(s *Server, upstream *Upstream) error {
 		return fmt.Errorf("failed to dial %q: %v", upstream.Addr, err)
 	}
 
-	c := upstreamConn{net: netConn, irc: irc.NewConn(netConn), srv: s}
+	c := upstreamConn{
+		upstream: upstream,
+		net:      netConn,
+		irc:      irc.NewConn(netConn),
+		srv:      s,
+	}
 	defer netConn.Close()
 
 	err = c.irc.WriteMessage(&irc.Message{
@@ -83,7 +105,7 @@ func connect(s *Server, upstream *Upstream) error {
 		}
 
 		if err := c.handleMessage(msg); err != nil {
-			return err
+			c.srv.Logger.Printf("Failed to handle message %q from %q: %v", msg, upstream.Addr, err)
 		}
 	}
 
