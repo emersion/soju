@@ -84,6 +84,8 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			return fmt.Errorf("received MODE message for unknow nick %q", nick)
 		}
 		return c.modes.Apply(msg.Params[1])
+	case "NOTICE":
+		c.srv.Logger.Printf("%q: %v", c.upstream.Addr, msg)
 	case irc.RPL_WELCOME:
 		c.registered = true
 		c.srv.Logger.Printf("Connection to %q registered", c.upstream.Addr)
