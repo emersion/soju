@@ -197,6 +197,20 @@ func (c *downstreamConn) register() error {
 		Params:  []string{c.nick, "No MOTD"},
 	})
 
+	c.srv.lock.Lock()
+	for _, uc := range c.srv.upstreamConns {
+		// TODO: fix races accessing upstream connection data
+		if !uc.registered {
+			continue
+		}
+		for _, ch := range uc.channels {
+			if ch.complete {
+				forwardChannel(c, ch)
+			}
+		}
+	}
+	c.srv.lock.Unlock()
+
 	return nil
 }
 
