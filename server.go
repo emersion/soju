@@ -9,6 +9,11 @@ import (
 	"gopkg.in/irc.v3"
 )
 
+type Logger interface {
+	Print(v ...interface{})
+	Printf(format string, v ...interface{})
+}
+
 type ircError struct {
 	Message *irc.Message
 }
@@ -169,6 +174,7 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 type Server struct{
 	Hostname string
+	Logger   Logger
 }
 
 func (s *Server) prefix() *irc.Prefix {
@@ -176,6 +182,8 @@ func (s *Server) prefix() *irc.Prefix {
 }
 
 func (s *Server) handleConn(netConn net.Conn) error {
+	s.Logger.Printf("Handling connection from %v", netConn.RemoteAddr())
+
 	c := downstreamConn{net: netConn, irc: irc.NewConn(netConn), srv: s}
 	defer c.Close()
 	for {
@@ -185,7 +193,7 @@ func (s *Server) handleConn(netConn net.Conn) error {
 		} else if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)
 		}
-		log.Println(msg)
+		s.Logger.Print(msg)
 
 		err = c.handleMessage(msg)
 		if ircErr, ok := err.(ircError); ok {
