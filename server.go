@@ -3,6 +3,7 @@ package jounce
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	"gopkg.in/irc.v3"
 )
@@ -42,6 +43,7 @@ type Server struct {
 	Logger    Logger
 	Upstreams []Upstream // TODO: per-user
 
+	lock            sync.Mutex
 	downstreamConns []*downstreamConn
 }
 
@@ -74,11 +76,21 @@ func (s *Server) Serve(ln net.Listener) error {
 		}
 
 		conn := newDownstreamConn(s, netConn)
-		s.downstreamConns = append(s.downstreamConns, conn)
 		go func() {
+			s.lock.Lock()
+			s.downstreamConns = append(s.downstreamConns, conn)
+			s.lock.Unlock()
 			if err := conn.readMessages(); err != nil {
 				conn.logger.Printf("failed to handle messages: %v", err)
 			}
+			s.lock.Lock()
+			for i, c := range s.downstreamConns {
+				if c == conn {
+					s.downstreamConns = append(s.downstreamConns[:i], s.downstreamConns[i+1:]...)
+					break
+				}
+			}
+			s.lock.Unlock()
 		}()
 	}
 }
