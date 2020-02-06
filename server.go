@@ -122,6 +122,14 @@ func (c *conn) register() error {
 		return err
 	}
 
+	err = c.WriteMessage(&irc.Message{
+		Command: irc.ERR_NOMOTD,
+		Params: []string{c.nick, "No MOTD"},
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
