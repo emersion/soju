@@ -63,6 +63,23 @@ func (c *conn) WriteMessage(msg *irc.Message) error {
 	return c.irc.WriteMessage(msg)
 }
 
+func (c *conn) handleMessage(msg *irc.Message) error {
+	switch msg.Command {
+	case "PING":
+		// TODO: handle params
+		return c.WriteMessage(&irc.Message{
+			Command: "PONG",
+			Params: []string{c.srv.Hostname},
+		})
+	default:
+		if c.registered {
+			return c.handleMessageRegistered(msg)
+		} else {
+			return c.handleMessageUnregistered(msg)
+		}
+	}
+}
+
 func (c *conn) handleMessageUnregistered(msg *irc.Message) error {
 	switch msg.Command {
 	case "NICK":
@@ -133,7 +150,7 @@ func (c *conn) register() error {
 	return nil
 }
 
-func (c *conn) handleMessage(msg *irc.Message) error {
+func (c *conn) handleMessageRegistered(msg *irc.Message) error {
 	switch msg.Command {
 	case "NICK", "USER":
 		return ircError{&irc.Message{
@@ -170,11 +187,7 @@ func (s *Server) handleConn(netConn net.Conn) error {
 		}
 		log.Println(msg)
 
-		if c.registered {
-			err = c.handleMessage(msg)
-		} else {
-			err = c.handleMessageUnregistered(msg)
-		}
+		err = c.handleMessage(msg)
 		if ircErr, ok := err.(ircError); ok {
 			ircErr.Message.Prefix = s.prefix()
 			if err := c.WriteMessage(ircErr.Message); err != nil {
