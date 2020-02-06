@@ -23,6 +23,7 @@ type upstreamChannel struct {
 
 type upstreamConn struct {
 	upstream *Upstream
+	logger   Logger
 	net      net.Conn
 	irc      *irc.Conn
 	srv      *Server
@@ -62,10 +63,10 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		return c.modes.Apply(msg.Params[1])
 	case "NOTICE":
-		c.srv.Logger.Printf("%q: %v", c.upstream.Addr, msg)
+		c.logger.Print(msg)
 	case irc.RPL_WELCOME:
 		c.registered = true
-		c.srv.Logger.Printf("Connection to %q registered", c.upstream.Addr)
+		c.logger.Printf("connection registered")
 
 		for _, ch := range c.upstream.Channels {
 			err := c.irc.WriteMessage(&irc.Message{
@@ -91,7 +92,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			return newNeedMoreParamsError(msg.Command)
 		}
 		for _, ch := range strings.Split(msg.Params[0], ",") {
-			c.srv.Logger.Printf("Joined channel %q", ch)
+			c.logger.Printf("joined channel %q", ch)
 			c.channels[ch] = &upstreamChannel{
 				Name:    ch,
 				Members: make(map[string]membership),
@@ -169,13 +170,14 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 	case irc.RPL_STATSVLINE, irc.RPL_STATSPING, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
 		// Ignore
 	default:
-		c.srv.Logger.Printf("Unhandled upstream message: %v", msg)
+		c.logger.Printf("unhandled upstream message: %v", msg)
 	}
 	return nil
 }
 
 func connect(s *Server, upstream *Upstream) error {
-	s.Logger.Printf("Connecting to %v", upstream.Addr)
+	logger := &prefixLogger{s.Logger, fmt.Sprintf("upstream %q: ", upstream.Addr)}
+	logger.Printf("connecting to server")
 
 	netConn, err := tls.Dial("tcp", upstream.Addr, nil)
 	if err != nil {
@@ -184,6 +186,7 @@ func connect(s *Server, upstream *Upstream) error {
 
 	c := upstreamConn{
 		upstream: upstream,
+		logger:   logger,
 		net:      netConn,
 		irc:      irc.NewConn(netConn),
 		srv:      s,
@@ -216,7 +219,7 @@ func connect(s *Server, upstream *Upstream) error {
 		}
 
 		if err := c.handleMessage(msg); err != nil {
-			c.srv.Logger.Printf("Failed to handle message %q from %q: %v", msg, upstream.Addr, err)
+			c.logger.Printf("failed to handle message %q: %v", msg, err)
 		}
 	}
 

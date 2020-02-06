@@ -12,6 +12,23 @@ type Logger interface {
 	Printf(format string, v ...interface{})
 }
 
+type prefixLogger struct {
+	logger Logger
+	prefix string
+}
+
+var _ Logger = (*prefixLogger)(nil)
+
+func (l *prefixLogger) Print(v ...interface{}) {
+	v = append([]interface{}{l.prefix}, v...)
+	l.logger.Print(v...)
+}
+
+func (l *prefixLogger) Printf(format string, v ...interface{}) {
+	v = append([]interface{}{l.prefix}, v...)
+	l.logger.Printf("%v"+format, v...)
+}
+
 type Upstream struct {
 	Addr     string
 	Nick     string
