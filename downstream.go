@@ -42,11 +42,52 @@ type downstreamConn struct {
 	net        net.Conn
 	irc        *irc.Conn
 	srv        *Server
+	logger     Logger
+
 	registered bool
 	closed     bool
 	nick       string
 	username   string
 	realname   string
+}
+
+func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
+	return &downstreamConn{
+		net: netConn,
+		irc: irc.NewConn(netConn),
+		srv: srv,
+		logger: &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
+	}
+}
+
+func (c *downstreamConn) readMessages() error {
+	c.logger.Printf("new connection")
+	defer c.Close()
+
+	for {
+		msg, err := c.irc.ReadMessage()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return fmt.Errorf("failed to read IRC command: %v", err)
+		}
+
+		err = c.handleMessage(msg)
+		if ircErr, ok := err.(ircError); ok {
+			ircErr.Message.Prefix = c.srv.prefix()
+			if err := c.WriteMessage(ircErr.Message); err != nil {
+				return fmt.Errorf("failed to write IRC reply: %v", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("failed to handle IRC command %q: %v", msg.Command, err)
+		}
+
+		if c.closed {
+			return nil
+		}
+	}
+
+	return c.Close()
 }
 
 func (c *downstreamConn) Close() error {
@@ -95,6 +136,7 @@ func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 	case "QUIT":
 		return c.Close()
 	default:
+		c.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
 	if c.username != "" && c.nick != "" {
@@ -162,38 +204,7 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 	case "QUIT":
 		return c.Close()
 	default:
+		c.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
-}
-
-func handleConn(s *Server, netConn net.Conn) error {
-	s.Logger.Printf("Handling connection from %v", netConn.RemoteAddr())
-
-	c := downstreamConn{net: netConn, irc: irc.NewConn(netConn), srv: s}
-	defer c.Close()
-	for {
-		msg, err := c.irc.ReadMessage()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return fmt.Errorf("failed to read IRC command: %v", err)
-		}
-		s.Logger.Printf("Downstream message: %v", msg)
-
-		err = c.handleMessage(msg)
-		if ircErr, ok := err.(ircError); ok {
-			ircErr.Message.Prefix = s.prefix()
-			if err := c.WriteMessage(ircErr.Message); err != nil {
-				return fmt.Errorf("failed to write IRC reply: %v", err)
-			}
-		} else if err != nil {
-			return fmt.Errorf("failed to handle IRC command %q: %v", msg.Command, err)
-		}
-
-		if c.closed {
-			return nil
-		}
-	}
-
-	return c.Close()
 }

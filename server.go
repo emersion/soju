@@ -41,6 +41,8 @@ type Server struct {
 	Hostname  string
 	Logger    Logger
 	Upstreams []Upstream // TODO: per-user
+
+	downstreamConns []*downstreamConn
 }
 
 func (s *Server) prefix() *irc.Prefix {
@@ -61,14 +63,16 @@ func (s *Server) Run() {
 
 func (s *Server) Serve(ln net.Listener) error {
 	for {
-		c, err := ln.Accept()
+		netConn, err := ln.Accept()
 		if err != nil {
 			return fmt.Errorf("failed to accept connection: %v", err)
 		}
 
+		conn := newDownstreamConn(s, netConn)
+		s.downstreamConns = append(s.downstreamConns, conn)
 		go func() {
-			if err := handleConn(s, c); err != nil {
-				s.Logger.Printf("Error handling connection: %v", err)
+			if err := conn.readMessages(); err != nil {
+				conn.logger.Printf("Error handling messages: %v", err)
 			}
 		}()
 	}
