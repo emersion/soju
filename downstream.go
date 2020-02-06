@@ -73,6 +73,14 @@ func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 	return conn
 }
 
+func (c *downstreamConn) prefix() *irc.Prefix {
+	return &irc.Prefix{
+		Name: c.nick,
+		User: c.username,
+		// TODO: fill the host?
+	}
+}
+
 func (c *downstreamConn) readMessages() error {
 	c.logger.Printf("new connection")
 	defer c.Close()
