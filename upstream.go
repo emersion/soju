@@ -28,6 +28,7 @@ type upstreamConn struct {
 	net      net.Conn
 	irc      *irc.Conn
 	srv      *Server
+	messages chan<- *irc.Message
 
 	serverName            string
 	availableUserModes    string
@@ -35,8 +36,52 @@ type upstreamConn struct {
 	channelModesWithParam string
 
 	registered bool
+	closed     bool
 	modes      modeSet
 	channels   map[string]*upstreamChannel
+}
+
+func connectToUpstream(s *Server, upstream *Upstream) (*upstreamConn, error) {
+	logger := &prefixLogger{s.Logger, fmt.Sprintf("upstream %q: ", upstream.Addr)}
+	logger.Printf("connecting to server")
+
+	netConn, err := tls.Dial("tcp", upstream.Addr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial %q: %v", upstream.Addr, err)
+	}
+
+	msgs := make(chan *irc.Message, 64)
+	conn := &upstreamConn{
+		upstream: upstream,
+		logger:   logger,
+		net:      netConn,
+		irc:      irc.NewConn(netConn),
+		srv:      s,
+		messages: msgs,
+		channels: make(map[string]*upstreamChannel),
+	}
+
+	go func() {
+		for msg := range msgs {
+			if err := conn.irc.WriteMessage(msg); err != nil {
+				conn.logger.Printf("failed to write message: %v", err)
+			}
+		}
+	}()
+
+	return conn, nil
+}
+
+func (c *upstreamConn) Close() error {
+	if c.closed {
+		return fmt.Errorf("upstream connection already closed")
+	}
+	if err := c.net.Close(); err != nil {
+		return err
+	}
+	close(c.messages)
+	c.closed = true
+	return nil
 }
 
 func (c *upstreamConn) getChannel(name string) (*upstreamChannel, error) {
@@ -51,10 +96,11 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "PING":
 		// TODO: handle params
-		return c.irc.WriteMessage(&irc.Message{
+		c.messages <- &irc.Message{
 			Command: "PONG",
 			Params:  []string{c.srv.Hostname},
-		})
+		}
+		return nil
 	case "MODE":
 		if len(msg.Params) < 2 {
 			return newNeedMoreParamsError(msg.Command)
@@ -70,12 +116,9 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		c.logger.Printf("connection registered")
 
 		for _, ch := range c.upstream.Channels {
-			err := c.irc.WriteMessage(&irc.Message{
+			c.messages <- &irc.Message{
 				Command: "JOIN",
 				Params:  []string{ch},
-			})
-			if err != nil {
-				return err
 			}
 		}
 	case irc.RPL_MYINFO:
@@ -191,22 +234,16 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 }
 
 func (c *upstreamConn) readMessages() error {
-	defer c.net.Close()
+	defer c.Close()
 
-	err := c.irc.WriteMessage(&irc.Message{
+	c.messages <- &irc.Message{
 		Command: "NICK",
 		Params:  []string{c.upstream.Nick},
-	})
-	if err != nil {
-		return err
 	}
 
-	err = c.irc.WriteMessage(&irc.Message{
+	c.messages <- &irc.Message{
 		Command: "USER",
 		Params:  []string{c.upstream.Username, "0", "*", c.upstream.Realname},
-	})
-	if err != nil {
-		return err
 	}
 
 	for {
@@ -222,24 +259,5 @@ func (c *upstreamConn) readMessages() error {
 		}
 	}
 
-	return c.net.Close()
-}
-
-func connectToUpstream(s *Server, upstream *Upstream) (*upstreamConn, error) {
-	logger := &prefixLogger{s.Logger, fmt.Sprintf("upstream %q: ", upstream.Addr)}
-	logger.Printf("connecting to server")
-
-	netConn, err := tls.Dial("tcp", upstream.Addr, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial %q: %v", upstream.Addr, err)
-	}
-
-	return &upstreamConn{
-		upstream: upstream,
-		logger:   logger,
-		net:      netConn,
-		irc:      irc.NewConn(netConn),
-		srv:      s,
-		channels: make(map[string]*upstreamChannel),
-	}, nil
+	return c.Close()
 }
