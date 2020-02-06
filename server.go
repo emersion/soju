@@ -179,6 +179,20 @@ type upstreamConn struct {
 	srv *Server
 }
 
+func (c *upstreamConn) handleMessage(msg *irc.Message) error {
+	switch msg.Command {
+	case "PING":
+		// TODO: handle params
+		return c.irc.WriteMessage(&irc.Message{
+			Command: "PONG",
+			Params:  []string{c.srv.Hostname},
+		})
+	default:
+		c.srv.Logger.Printf("Unhandled upstream message: %v", msg)
+		return nil
+	}
+}
+
 type Upstream struct {
 	Addr     string
 	Nick     string
@@ -262,7 +276,10 @@ func (s *Server) connect(upstream *Upstream) error {
 		} else if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)
 		}
-		log.Printf("Upstream message: %v", msg)
+
+		if err := c.handleMessage(msg); err != nil {
+			return err
+		}
 	}
 
 	return netConn.Close()
