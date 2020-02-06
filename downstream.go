@@ -121,21 +121,17 @@ func (c *downstreamConn) Close() error {
 	return nil
 }
 
-func (c *downstreamConn) WriteMessage(msg *irc.Message) {
-	msg.Prefix = c.srv.prefix()
-	c.messages <- msg
-}
-
 func (c *downstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "QUIT":
 		return c.Close()
 	case "PING":
 		// TODO: handle params
-		c.WriteMessage(&irc.Message{
+		c.messages <- &irc.Message{
+			Prefix:  c.srv.prefix(),
 			Command: "PONG",
 			Params:  []string{c.srv.Hostname},
-		})
+		}
 		return nil
 	default:
 		if c.registered {
@@ -172,30 +168,35 @@ func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 func (c *downstreamConn) register() error {
 	c.registered = true
 
-	c.WriteMessage(&irc.Message{
+	c.messages <- &irc.Message{
+		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_WELCOME,
 		Params:  []string{c.nick, "Welcome to jounce, " + c.nick},
-	})
+	}
 
-	c.WriteMessage(&irc.Message{
+	c.messages <- &irc.Message{
+		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_YOURHOST,
 		Params:  []string{c.nick, "Your host is " + c.srv.Hostname},
-	})
+	}
 
-	c.WriteMessage(&irc.Message{
+	c.messages <- &irc.Message{
+		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_CREATED,
 		Params:  []string{c.nick, "This server was created <datetime>"}, // TODO
-	})
+	}
 
-	c.WriteMessage(&irc.Message{
+	c.messages <- &irc.Message{
+		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_MYINFO,
 		Params:  []string{c.nick, c.srv.Hostname, "jounce", "aiwroO", "OovaimnqpsrtklbeI"},
-	})
+	}
 
-	c.WriteMessage(&irc.Message{
+	c.messages <- &irc.Message{
+		Prefix:  c.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
 		Params:  []string{c.nick, "No MOTD"},
-	})
+	}
 
 	c.srv.lock.Lock()
 	for _, uc := range c.srv.upstreamConns {
