@@ -43,7 +43,7 @@ type user struct {
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	u.lock.Lock()
 	for _, uc := range u.upstreamConns {
-		if !uc.registered {
+		if !uc.registered || uc.closed {
 			continue
 		}
 		f(uc)
