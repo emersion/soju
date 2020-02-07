@@ -135,13 +135,51 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		if len(msg.Params) < 1 {
 			return newNeedMoreParamsError(msg.Command)
 		}
+
 		for _, ch := range strings.Split(msg.Params[0], ",") {
-			c.logger.Printf("joined channel %q", ch)
-			c.channels[ch] = &upstreamChannel{
-				Name:    ch,
-				Members: make(map[string]membership),
+			if msg.Prefix.Name == c.upstream.Nick {
+				c.logger.Printf("joined channel %q", ch)
+				c.channels[ch] = &upstreamChannel{
+					Name:    ch,
+					Members: make(map[string]membership),
+				}
+			} else {
+				ch, err := c.getChannel(ch)
+				if err != nil {
+					return err
+				}
+				ch.Members[msg.Prefix.Name] = 0
 			}
 		}
+
+		c.srv.lock.Lock()
+		for _, dc := range c.srv.downstreamConns {
+			dc.messages <- msg
+		}
+		c.srv.lock.Unlock()
+	case "PART":
+		if len(msg.Params) < 1 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+
+		for _, ch := range strings.Split(msg.Params[0], ",") {
+			if msg.Prefix.Name == c.upstream.Nick {
+				c.logger.Printf("parted channel %q", ch)
+				delete(c.channels, ch)
+			} else {
+				ch, err := c.getChannel(ch)
+				if err != nil {
+					return err
+				}
+				delete(ch.Members, msg.Prefix.Name)
+			}
+		}
+
+		c.srv.lock.Lock()
+		for _, dc := range c.srv.downstreamConns {
+			dc.messages <- msg
+		}
+		c.srv.lock.Unlock()
 	case irc.RPL_TOPIC, irc.RPL_NOTOPIC:
 		if len(msg.Params) < 3 {
 			return newNeedMoreParamsError(msg.Command)
@@ -210,6 +248,9 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
+		if ch.complete {
+			return fmt.Errorf("received unexpected RPL_ENDOFNAMES")
+		}
 		ch.complete = true
 
 		c.srv.lock.Lock()
