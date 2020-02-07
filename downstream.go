@@ -128,6 +128,12 @@ func (c *downstreamConn) Close() error {
 			}
 		}
 		u.lock.Unlock()
+
+		// TODO: figure out a better way to advance the ring buffer consumer cursor
+		u.forEachUpstream(func(uc *upstreamConn) {
+			// TODO: let clients specify the ring buffer name in their username
+			uc.ring.Consumer("").Reset()
+		})
 	}
 
 	close(c.messages)
@@ -232,8 +238,10 @@ func (c *downstreamConn) register() error {
 			}
 		}
 
-		consumer := uc.ring.Consumer()
+		// TODO: let clients specify the ring buffer name in their username
+		consumer := uc.ring.Consumer("")
 		for {
+			// TODO: these messages will get lost if the connection is closed
 			msg := consumer.Consume()
 			if msg == nil {
 				break

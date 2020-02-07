@@ -10,13 +10,14 @@ type Ring struct {
 	buffer   []*irc.Message
 	cap, cur uint64
 
-	consumers []RingConsumer
+	consumers map[string]*RingConsumer
 }
 
 func NewRing(capacity int) *Ring {
 	return &Ring{
-		buffer: make([]*irc.Message, capacity),
-		cap:    uint64(capacity),
+		buffer:    make([]*irc.Message, capacity),
+		cap:       uint64(capacity),
+		consumers: make(map[string]*RingConsumer),
 	}
 }
 
@@ -26,11 +27,18 @@ func (r *Ring) Produce(msg *irc.Message) {
 	r.cur++
 }
 
-func (r *Ring) Consumer() *RingConsumer {
-	return &RingConsumer{
-		ring: r,
-		cur:  0, // r.cur
+func (r *Ring) Consumer(name string) *RingConsumer {
+	consumer, ok := r.consumers[name]
+	if ok {
+		return consumer
 	}
+
+	consumer = &RingConsumer{
+		ring: r,
+		cur:  r.cur,
+	}
+	r.consumers[name] = consumer
+	return consumer
 }
 
 type RingConsumer struct {
@@ -68,4 +76,8 @@ func (rc *RingConsumer) Consume() *irc.Message {
 		rc.cur++
 	}
 	return msg
+}
+
+func (rc *RingConsumer) Reset() {
+	rc.cur = rc.ring.cur
 }
