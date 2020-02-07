@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 
 	"gopkg.in/irc.v3"
 )
@@ -167,8 +168,9 @@ func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 }
 
 func (c *downstreamConn) register() error {
-	u := c.srv.getUser(c.username)
+	u := c.srv.getUser(strings.TrimPrefix(c.username, "~"))
 	if u == nil {
+		c.logger.Printf("failed authentication: unknown username %q", c.username)
 		c.messages <- &irc.Message{
 			Prefix:  c.srv.prefix(),
 			Command: irc.ERR_PASSWDMISMATCH,
@@ -206,20 +208,14 @@ func (c *downstreamConn) register() error {
 		Params:  []string{c.nick, "No MOTD"},
 	}
 
-	u.lock.Lock()
-	for _, uc := range u.upstreamConns {
+	u.forEachUpstream(func(uc *upstreamConn) {
 		// TODO: fix races accessing upstream connection data
-		if !uc.registered {
-			continue
-		}
 		for _, ch := range uc.channels {
 			if ch.complete {
 				forwardChannel(c, ch)
 			}
 		}
-	}
-	u.lock.Unlock()
-
+	})
 	return nil
 }
 

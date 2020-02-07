@@ -39,6 +39,17 @@ type user struct {
 	upstreamConns []*upstreamConn
 }
 
+func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
+	u.lock.Lock()
+	for _, uc := range u.upstreamConns {
+		if !uc.registered {
+			continue
+		}
+		f(uc)
+	}
+	u.lock.Unlock()
+}
+
 type Upstream struct {
 	Addr     string
 	Nick     string
