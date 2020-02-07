@@ -231,7 +231,17 @@ func (c *downstreamConn) register() error {
 				forwardChannel(c, ch)
 			}
 		}
+
+		consumer := uc.ring.Consumer()
+		for {
+			msg := consumer.Consume()
+			if msg == nil {
+				break
+			}
+			c.messages <- msg
+		}
 	})
+
 	return nil
 }
 

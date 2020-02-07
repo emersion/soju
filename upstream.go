@@ -32,6 +32,7 @@ type upstreamConn struct {
 	srv      *Server
 	user     *user
 	messages chan<- *irc.Message
+	ring     *Ring
 
 	serverName            string
 	availableUserModes    string
@@ -63,6 +64,7 @@ func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
 		srv:      u.srv,
 		user:     u,
 		messages: msgs,
+		ring:     NewRing(u.srv.RingCap),
 		channels: make(map[string]*upstreamChannel),
 	}
 
@@ -302,6 +304,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			forwardChannel(dc, ch)
 		})
 	case "PRIVMSG":
+		c.ring.Produce(msg)
 		c.user.forEachDownstream(func(dc *downstreamConn) {
 			dc.messages <- msg
 		})

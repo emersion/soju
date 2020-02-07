@@ -94,6 +94,7 @@ type Upstream struct {
 type Server struct {
 	Hostname  string
 	Logger    Logger
+	RingCap   int
 	Upstreams []Upstream // TODO: per-user
 
 	lock            sync.Mutex
@@ -103,8 +104,9 @@ type Server struct {
 
 func NewServer() *Server {
 	return &Server{
-		Logger: log.New(log.Writer(), "", log.LstdFlags),
-		users:  make(map[string]*user),
+		Logger:  log.New(log.Writer(), "", log.LstdFlags),
+		RingCap: 4096,
+		users:   make(map[string]*user),
 	}
 }
 
