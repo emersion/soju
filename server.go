@@ -75,7 +75,10 @@ func (u *user) getChannel(name string) (*upstreamChannel, error) {
 		}
 	})
 	if channel == nil {
-		return nil, fmt.Errorf("unknown channel %q", name)
+		return nil, ircError{&irc.Message{
+			Command: irc.ERR_NOSUCHCHANNEL,
+			Params:  []string{name, "No such channel"},
+		}}
 	}
 	return channel, nil
 }

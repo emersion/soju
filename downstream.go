@@ -261,6 +261,19 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Command: irc.ERR_NOSUCHCHANNEL,
 			Params:  []string{name, "Channel name ambiguous"},
 		}}
+	case "PART":
+		var name string
+		if err := parseMessageParams(msg, &name); err != nil {
+			return err
+		}
+
+		ch, err := c.user.getChannel(name)
+		if err != nil {
+			return err
+		}
+
+		ch.conn.messages <- msg
+		// TODO: remove channel from upstream config
 	case "MODE":
 		var name string
 		if err := parseMessageParams(msg, &name); err != nil {
