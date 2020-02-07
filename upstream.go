@@ -38,6 +38,7 @@ type upstreamConn struct {
 	channelModesWithParam string
 
 	registered bool
+	nick       string
 	closed     bool
 	modes      modeSet
 	channels   map[string]*upstreamChannel
@@ -112,7 +113,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		modeStr := msg.Params[1]
 
 		if name == msg.Prefix.Name { // user mode change
-			if name != c.upstream.Nick {
+			if name != c.nick {
 				return fmt.Errorf("received MODE message for unknow nick %q", name)
 			}
 			return c.modes.Apply(modeStr)
@@ -151,13 +152,34 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		if len(msg.Params) > 5 {
 			c.channelModesWithParam = msg.Params[5]
 		}
+	case "NICK":
+		if len(msg.Params) < 1 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		newNick := msg.Params[0]
+
+		if msg.Prefix.Name == c.nick {
+			c.logger.Printf("changed nick from %q to %q", c.nick, newNick)
+			c.nick = newNick
+		}
+
+		for _, ch := range c.channels {
+			if membership, ok := ch.Members[msg.Prefix.Name]; ok {
+				delete(ch.Members, msg.Prefix.Name)
+				ch.Members[newNick] = membership
+			}
+		}
+
+		c.user.forEachDownstream(func(dc *downstreamConn) {
+			dc.messages <- msg
+		})
 	case "JOIN":
 		if len(msg.Params) < 1 {
 			return newNeedMoreParamsError(msg.Command)
 		}
 
 		for _, ch := range strings.Split(msg.Params[0], ",") {
-			if msg.Prefix.Name == c.upstream.Nick {
+			if msg.Prefix.Name == c.nick {
 				c.logger.Printf("joined channel %q", ch)
 				c.channels[ch] = &upstreamChannel{
 					Name:    ch,
@@ -181,7 +203,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		for _, ch := range strings.Split(msg.Params[0], ",") {
-			if msg.Prefix.Name == c.upstream.Nick {
+			if msg.Prefix.Name == c.nick {
 				c.logger.Printf("parted channel %q", ch)
 				delete(c.channels, ch)
 			} else {
@@ -295,6 +317,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 func (c *upstreamConn) readMessages() error {
 	defer c.Close()
 
+	c.nick = c.upstream.Nick
 	c.messages <- &irc.Message{
 		Command: "NICK",
 		Params:  []string{c.upstream.Nick},

@@ -234,16 +234,18 @@ func (c *downstreamConn) register() error {
 
 func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 	switch msg.Command {
-	case "NICK", "USER":
+	case "USER":
 		return ircError{&irc.Message{
 			Command: irc.ERR_ALREADYREGISTERED,
-			Params: []string{
-				c.nick,
-				"You may not reregister",
-			},
+			Params:  []string{c.nick, "You may not reregister"},
 		}}
+	case "NICK":
+		c.user.forEachUpstream(func(uc *upstreamConn) {
+			uc.messages <- msg
+		})
 	default:
 		c.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
+	return nil
 }
