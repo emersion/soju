@@ -167,11 +167,8 @@ func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 }
 
 func (c *downstreamConn) register() error {
-	c.srv.lock.Lock()
-	u, ok := c.srv.users[c.username]
-	c.srv.lock.Unlock()
-
-	if !ok {
+	u := c.srv.getUser(c.username)
+	if u == nil {
 		c.messages <- &irc.Message{
 			Prefix:  c.srv.prefix(),
 			Command: irc.ERR_PASSWDMISMATCH,

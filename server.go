@@ -106,6 +106,13 @@ func (s *Server) Run() {
 	}
 }
 
+func (s *Server) getUser(name string) *user {
+	s.lock.Lock()
+	u := s.users[name]
+	s.lock.Unlock()
+	return u
+}
+
 func (s *Server) Serve(ln net.Listener) error {
 	for {
 		netConn, err := ln.Accept()
