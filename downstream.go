@@ -211,7 +211,7 @@ func (c *downstreamConn) register() error {
 	c.messages <- &irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_CREATED,
-		Params:  []string{c.nick, "This server was created <datetime>"}, // TODO
+		Params:  []string{c.nick, "Who cares when the server was created?"},
 	}
 	c.messages <- &irc.Message{
 		Prefix:  c.srv.prefix(),
