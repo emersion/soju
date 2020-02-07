@@ -246,6 +246,52 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		c.user.forEachUpstream(func(uc *upstreamConn) {
 			uc.messages <- msg
 		})
+	case "MODE":
+		var name string
+		if err := parseMessageParams(msg, &name); err != nil {
+			return err
+		}
+
+		var modeStr string
+		if len(msg.Params) > 1 {
+			modeStr = msg.Params[1]
+		}
+
+		if msg.Prefix.Name != name {
+			ch, err := c.user.getChannel(name)
+			if err != nil {
+				return err
+			}
+
+			if modeStr != "" {
+				ch.conn.messages <- msg
+			} else {
+				c.messages <- &irc.Message{
+					Prefix:  c.srv.prefix(),
+					Command: irc.RPL_CHANNELMODEIS,
+					Params:  []string{ch.Name, string(ch.modes)},
+				}
+			}
+		} else {
+			if name != c.nick {
+				return ircError{&irc.Message{
+					Command: irc.ERR_USERSDONTMATCH,
+					Params:  []string{c.nick, "Cannot change mode for other users"},
+				}}
+			}
+
+			if modeStr != "" {
+				c.user.forEachUpstream(func(uc *upstreamConn) {
+					uc.messages <- msg
+				})
+			} else {
+				c.messages <- &irc.Message{
+					Prefix:  c.srv.prefix(),
+					Command: irc.RPL_UMODEIS,
+					Params:  []string{""}, // TODO
+				}
+			}
+		}
 	default:
 		c.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)

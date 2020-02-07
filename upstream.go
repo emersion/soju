@@ -14,6 +14,7 @@ import (
 
 type upstreamChannel struct {
 	Name      string
+	conn      *upstreamConn
 	Topic     string
 	TopicWho  string
 	TopicTime time.Time
@@ -126,11 +127,11 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			if err := ch.modes.Apply(modeStr); err != nil {
 				return err
 			}
-
-			c.user.forEachDownstream(func(dc *downstreamConn) {
-				dc.messages <- msg
-			})
 		}
+
+		c.user.forEachDownstream(func(dc *downstreamConn) {
+			dc.messages <- msg
+		})
 	case "NOTICE":
 		c.logger.Print(msg)
 	case irc.RPL_WELCOME:
@@ -182,6 +183,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 				c.logger.Printf("joined channel %q", ch)
 				c.channels[ch] = &upstreamChannel{
 					Name:    ch,
+					conn:    c,
 					Members: make(map[string]membership),
 				}
 			} else {

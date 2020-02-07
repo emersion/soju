@@ -59,6 +59,27 @@ func (u *user) forEachDownstream(f func(dc *downstreamConn)) {
 	u.lock.Unlock()
 }
 
+func (u *user) getChannel(name string) (*upstreamChannel, error) {
+	var channel *upstreamChannel
+	var err error
+	u.forEachUpstream(func(uc *upstreamConn) {
+		if err != nil {
+			return
+		}
+		if ch, ok := uc.channels[name]; ok {
+			if channel != nil {
+				err = fmt.Errorf("ambiguous channel name %q", name)
+			} else {
+				channel = ch
+			}
+		}
+	})
+	if channel == nil {
+		return nil, fmt.Errorf("unknown channel %q", name)
+	}
+	return channel, nil
+}
+
 type Upstream struct {
 	Addr     string
 	Nick     string
