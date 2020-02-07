@@ -4,4 +4,6 @@ An IRC bouncer.
 
 ## License
 
-MIT
+AGPLv3, see LICENSE.
+
+Copyright (C) 2020 Simon Ser
