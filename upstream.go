@@ -18,6 +18,7 @@ type upstreamChannel struct {
 	TopicWho  string
 	TopicTime time.Time
 	Status    channelStatus
+	modes     modeSet
 	Members   map[string]membership
 	complete  bool
 }
@@ -105,10 +106,29 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		if len(msg.Params) < 2 {
 			return newNeedMoreParamsError(msg.Command)
 		}
-		if nick := msg.Params[0]; nick != c.upstream.Nick {
-			return fmt.Errorf("received MODE message for unknow nick %q", nick)
+		name := msg.Params[0]
+		modeStr := msg.Params[1]
+
+		if name == msg.Prefix.Name { // user mode change
+			if name != c.upstream.Nick {
+				return fmt.Errorf("received MODE message for unknow nick %q", name)
+			}
+			return c.modes.Apply(modeStr)
+		} else { // channel mode change
+			ch, err := c.getChannel(name)
+			if err != nil {
+				return err
+			}
+			if err := ch.modes.Apply(modeStr); err != nil {
+				return err
+			}
+
+			c.srv.lock.Lock()
+			for _, dc := range c.srv.downstreamConns {
+				dc.messages <- msg
+			}
+			c.srv.lock.Unlock()
 		}
-		return c.modes.Apply(msg.Params[1])
 	case "NOTICE":
 		c.logger.Print(msg)
 	case irc.RPL_WELCOME:
