@@ -71,6 +71,11 @@ func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
 				conn.logger.Printf("failed to write message: %v", err)
 			}
 		}
+		if err := conn.net.Close(); err != nil {
+			conn.logger.Printf("failed to close connection: %v", err)
+		} else {
+			conn.logger.Printf("connection closed")
+		}
 	}()
 
 	return conn, nil
@@ -79,9 +84,6 @@ func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
 func (c *upstreamConn) Close() error {
 	if c.closed {
 		return fmt.Errorf("upstream connection already closed")
-	}
-	if err := c.net.Close(); err != nil {
-		return err
 	}
 	close(c.messages)
 	c.closed = true
@@ -330,8 +332,6 @@ func (c *upstreamConn) register() {
 }
 
 func (c *upstreamConn) readMessages() error {
-	defer c.Close()
-
 	for {
 		msg, err := c.irc.ReadMessage()
 		if err == io.EOF {
@@ -345,5 +345,5 @@ func (c *upstreamConn) readMessages() error {
 		}
 	}
 
-	return c.Close()
+	return nil
 }

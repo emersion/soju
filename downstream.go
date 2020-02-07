@@ -70,6 +70,11 @@ func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 				conn.logger.Printf("failed to write message: %v", err)
 			}
 		}
+		if err := conn.net.Close(); err != nil {
+			conn.logger.Printf("failed to close connection: %v", err)
+		} else {
+			conn.logger.Printf("connection closed")
+		}
 	}()
 
 	return conn
@@ -85,7 +90,6 @@ func (c *downstreamConn) prefix() *irc.Prefix {
 
 func (c *downstreamConn) readMessages() error {
 	c.logger.Printf("new connection")
-	defer c.Close()
 
 	for {
 		msg, err := c.irc.ReadMessage()
@@ -108,7 +112,7 @@ func (c *downstreamConn) readMessages() error {
 		}
 	}
 
-	return c.Close()
+	return nil
 }
 
 func (c *downstreamConn) Close() error {
@@ -129,7 +133,7 @@ func (c *downstreamConn) Close() error {
 	close(c.messages)
 	c.closed = true
 
-	return c.net.Close()
+	return nil
 }
 
 func (c *downstreamConn) handleMessage(msg *irc.Message) error {
