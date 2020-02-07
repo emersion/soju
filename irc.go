@@ -3,6 +3,8 @@ package jounce
 import (
 	"fmt"
 	"strings"
+
+	"gopkg.in/irc.v3"
 )
 
 const (
@@ -89,4 +91,16 @@ func parseMembershipPrefix(s string) (prefix membership, nick string) {
 	} else {
 		return 0, s
 	}
+}
+
+func parseMessageParams(msg *irc.Message, out ...*string) error {
+	if len(msg.Params) < len(out) {
+		return newNeedMoreParamsError(msg.Command)
+	}
+	for i := range out {
+		if out[i] != nil {
+			*out[i] = msg.Params[i]
+		}
+	}
+	return nil
 }

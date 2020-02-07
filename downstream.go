@@ -156,16 +156,15 @@ func (c *downstreamConn) handleMessage(msg *irc.Message) error {
 func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 	switch msg.Command {
 	case "NICK":
-		if len(msg.Params) != 1 {
-			return newNeedMoreParamsError(msg.Command)
+		if err := parseMessageParams(msg, &c.nick); err != nil {
+			return err
 		}
-		c.nick = msg.Params[0]
 	case "USER":
-		if len(msg.Params) != 4 {
-			return newNeedMoreParamsError(msg.Command)
+		var username string
+		if err := parseMessageParams(msg, &username, nil, nil, &c.realname); err != nil {
+			return err
 		}
-		c.username = "~" + msg.Params[0]
-		c.realname = msg.Params[3]
+		c.username = "~" + username
 	default:
 		c.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
