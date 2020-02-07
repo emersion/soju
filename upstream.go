@@ -278,6 +278,12 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			forwardChannel(dc, ch)
 		}
 		c.srv.lock.Unlock()
+	case "PRIVMSG":
+		c.srv.lock.Lock()
+		for _, dc := range c.srv.downstreamConns {
+			dc.messages <- msg
+		}
+		c.srv.lock.Unlock()
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
