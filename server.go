@@ -35,8 +35,9 @@ type user struct {
 	username string
 	srv      *Server
 
-	lock          sync.Mutex
-	upstreamConns []*upstreamConn
+	lock            sync.Mutex
+	upstreamConns   []*upstreamConn
+	downstreamConns []*downstreamConn
 }
 
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
@@ -46,6 +47,14 @@ func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 			continue
 		}
 		f(uc)
+	}
+	u.lock.Unlock()
+}
+
+func (u *user) forEachDownstream(f func(dc *downstreamConn)) {
+	u.lock.Lock()
+	for _, dc := range u.downstreamConns {
+		f(dc)
 	}
 	u.lock.Unlock()
 }

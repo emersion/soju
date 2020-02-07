@@ -125,11 +125,9 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 				return err
 			}
 
-			c.srv.lock.Lock()
-			for _, dc := range c.srv.downstreamConns {
+			c.user.forEachDownstream(func(dc *downstreamConn) {
 				dc.messages <- msg
-			}
-			c.srv.lock.Unlock()
+			})
 		}
 	case "NOTICE":
 		c.logger.Print(msg)
@@ -174,11 +172,9 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 		}
 
-		c.srv.lock.Lock()
-		for _, dc := range c.srv.downstreamConns {
+		c.user.forEachDownstream(func(dc *downstreamConn) {
 			dc.messages <- msg
-		}
-		c.srv.lock.Unlock()
+		})
 	case "PART":
 		if len(msg.Params) < 1 {
 			return newNeedMoreParamsError(msg.Command)
@@ -197,11 +193,9 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 		}
 
-		c.srv.lock.Lock()
-		for _, dc := range c.srv.downstreamConns {
+		c.user.forEachDownstream(func(dc *downstreamConn) {
 			dc.messages <- msg
-		}
-		c.srv.lock.Unlock()
+		})
 	case irc.RPL_TOPIC, irc.RPL_NOTOPIC:
 		if len(msg.Params) < 3 {
 			return newNeedMoreParamsError(msg.Command)
@@ -275,17 +269,13 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		ch.complete = true
 
-		c.srv.lock.Lock()
-		for _, dc := range c.srv.downstreamConns {
+		c.user.forEachDownstream(func(dc *downstreamConn) {
 			forwardChannel(dc, ch)
-		}
-		c.srv.lock.Unlock()
+		})
 	case "PRIVMSG":
-		c.srv.lock.Lock()
-		for _, dc := range c.srv.downstreamConns {
+		c.user.forEachDownstream(func(dc *downstreamConn) {
 			dc.messages <- msg
-		}
-		c.srv.lock.Unlock()
+		})
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:

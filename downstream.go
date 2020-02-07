@@ -115,12 +115,21 @@ func (c *downstreamConn) Close() error {
 	if c.closed {
 		return fmt.Errorf("downstream connection already closed")
 	}
-	if err := c.net.Close(); err != nil {
-		return err
+
+	if u := c.user; u != nil {
+		u.lock.Lock()
+		for i := range u.downstreamConns {
+			if u.downstreamConns[i] == c {
+				u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
+			}
+		}
+		u.lock.Unlock()
 	}
+
 	close(c.messages)
 	c.closed = true
-	return nil
+
+	return c.net.Close()
 }
 
 func (c *downstreamConn) handleMessage(msg *irc.Message) error {
@@ -181,6 +190,10 @@ func (c *downstreamConn) register() error {
 
 	c.registered = true
 	c.user = u
+
+	u.lock.Lock()
+	u.downstreamConns = append(u.downstreamConns, c)
+	u.lock.Unlock()
 
 	c.messages <- &irc.Message{
 		Prefix:  c.srv.prefix(),
