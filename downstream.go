@@ -246,6 +246,21 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		c.user.forEachUpstream(func(uc *upstreamConn) {
 			uc.messages <- msg
 		})
+	case "JOIN":
+		var name string
+		if err := parseMessageParams(msg, &name); err != nil {
+			return err
+		}
+
+		if ch, _ := c.user.getChannel(name); ch != nil {
+			break // already joined
+		}
+
+		// TODO: extract network name from channel name
+		return ircError{&irc.Message{
+			Command: irc.ERR_NOSUCHCHANNEL,
+			Params:  []string{name, "Channel name ambiguous"},
+		}}
 	case "MODE":
 		var name string
 		if err := parseMessageParams(msg, &name); err != nil {
