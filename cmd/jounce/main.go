@@ -15,20 +15,18 @@ func main() {
 		log.Fatalf("failed to start listener: %v", err)
 	}
 
+	srv := jounce.NewServer()
 	// TODO: load from config/DB
-	s := jounce.Server{
-		Hostname: "localhost",
-		Logger:   log.New(log.Writer(), "", log.LstdFlags),
-		Upstreams: []jounce.Upstream{{
-			Addr:     "chat.freenode.net:6697",
-			Nick:     "jounce",
-			Username: "jounce",
-			Realname: "jounce",
-			Channels: []string{"#jounce"},
-		}},
-	}
+	srv.Hostname = "localhost"
+	srv.Upstreams = []jounce.Upstream{{
+		Addr:     "chat.freenode.net:6697",
+		Nick:     "jounce",
+		Username: "jounce",
+		Realname: "jounce",
+		Channels: []string{"#jounce"},
+	}}
 
 	log.Printf("Server listening on %v", addr)
-	go s.Run()
-	log.Fatal(s.Serve(ln))
+	go srv.Run()
+	log.Fatal(srv.Serve(ln))
 }

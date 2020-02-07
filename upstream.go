@@ -29,6 +29,7 @@ type upstreamConn struct {
 	net      net.Conn
 	irc      *irc.Conn
 	srv      *Server
+	user     *user
 	messages chan<- *irc.Message
 
 	serverName            string
@@ -42,8 +43,8 @@ type upstreamConn struct {
 	channels   map[string]*upstreamChannel
 }
 
-func connectToUpstream(s *Server, upstream *Upstream) (*upstreamConn, error) {
-	logger := &prefixLogger{s.Logger, fmt.Sprintf("upstream %q: ", upstream.Addr)}
+func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
+	logger := &prefixLogger{u.srv.Logger, fmt.Sprintf("upstream %q: ", upstream.Addr)}
 	logger.Printf("connecting to server")
 
 	netConn, err := tls.Dial("tcp", upstream.Addr, nil)
@@ -57,7 +58,8 @@ func connectToUpstream(s *Server, upstream *Upstream) (*upstreamConn, error) {
 		logger:   logger,
 		net:      netConn,
 		irc:      irc.NewConn(netConn),
-		srv:      s,
+		srv:      u.srv,
+		user:     u,
 		messages: msgs,
 		channels: make(map[string]*upstreamChannel),
 	}

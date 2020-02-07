@@ -2,6 +2,7 @@ package jounce
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"sync"
 
@@ -30,6 +31,14 @@ func (l *prefixLogger) Printf(format string, v ...interface{}) {
 	l.logger.Printf("%v"+format, v...)
 }
 
+type user struct {
+	username string
+	srv      *Server
+
+	lock          sync.Mutex
+	upstreamConns []*upstreamConn
+}
+
 type Upstream struct {
 	Addr     string
 	Nick     string
@@ -44,8 +53,15 @@ type Server struct {
 	Upstreams []Upstream // TODO: per-user
 
 	lock            sync.Mutex
+	users           map[string]*user
 	downstreamConns []*downstreamConn
-	upstreamConns   []*upstreamConn
+}
+
+func NewServer() *Server {
+	return &Server{
+		Logger: log.New(log.Writer(), "", log.LstdFlags),
+		users:  make(map[string]*user),
+	}
 }
 
 func (s *Server) prefix() *irc.Prefix {
@@ -53,32 +69,39 @@ func (s *Server) prefix() *irc.Prefix {
 }
 
 func (s *Server) Run() {
+	// TODO: multi-user
+	u := &user{username: "jounce", srv: s}
+
+	s.lock.Lock()
+	s.users[u.username] = u
+	s.lock.Unlock()
+
 	for i := range s.Upstreams {
 		upstream := &s.Upstreams[i]
 		// TODO: retry connecting
 		go func() {
-			conn, err := connectToUpstream(s, upstream)
+			conn, err := connectToUpstream(u, upstream)
 			if err != nil {
 				s.Logger.Printf("failed to connect to upstream server %q: %v", upstream.Addr, err)
 				return
 			}
 
-			s.lock.Lock()
-			s.upstreamConns = append(s.upstreamConns, conn)
-			s.lock.Unlock()
+			u.lock.Lock()
+			u.upstreamConns = append(u.upstreamConns, conn)
+			u.lock.Unlock()
 
 			if err := conn.readMessages(); err != nil {
 				conn.logger.Printf("failed to handle messages: %v", err)
 			}
 
-			s.lock.Lock()
-			for i, c := range s.upstreamConns {
+			u.lock.Lock()
+			for i, c := range u.upstreamConns {
 				if c == conn {
-					s.upstreamConns = append(s.upstreamConns[:i], s.upstreamConns[i+1:]...)
+					u.upstreamConns = append(u.upstreamConns[:i], u.upstreamConns[i+1:]...)
 					break
 				}
 			}
-			s.lock.Unlock()
+			u.lock.Unlock()
 		}()
 	}
 }

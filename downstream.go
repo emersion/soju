@@ -46,6 +46,7 @@ type downstreamConn struct {
 	messages chan<- *irc.Message
 
 	registered bool
+	user       *user
 	closed     bool
 	nick       string
 	username   string
@@ -166,40 +167,50 @@ func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 }
 
 func (c *downstreamConn) register() error {
+	c.srv.lock.Lock()
+	u, ok := c.srv.users[c.username]
+	c.srv.lock.Unlock()
+
+	if !ok {
+		c.messages <- &irc.Message{
+			Prefix:  c.srv.prefix(),
+			Command: irc.ERR_PASSWDMISMATCH,
+			Params:  []string{"*", "Invalid username or password"},
+		}
+		return nil
+	}
+
 	c.registered = true
+	c.user = u
 
 	c.messages <- &irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_WELCOME,
 		Params:  []string{c.nick, "Welcome to jounce, " + c.nick},
 	}
-
 	c.messages <- &irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_YOURHOST,
 		Params:  []string{c.nick, "Your host is " + c.srv.Hostname},
 	}
-
 	c.messages <- &irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_CREATED,
 		Params:  []string{c.nick, "This server was created <datetime>"}, // TODO
 	}
-
 	c.messages <- &irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_MYINFO,
 		Params:  []string{c.nick, c.srv.Hostname, "jounce", "aiwroO", "OovaimnqpsrtklbeI"},
 	}
-
 	c.messages <- &irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
 		Params:  []string{c.nick, "No MOTD"},
 	}
 
-	c.srv.lock.Lock()
-	for _, uc := range c.srv.upstreamConns {
+	u.lock.Lock()
+	for _, uc := range u.upstreamConns {
 		// TODO: fix races accessing upstream connection data
 		if !uc.registered {
 			continue
@@ -210,7 +221,7 @@ func (c *downstreamConn) register() error {
 			}
 		}
 	}
-	c.srv.lock.Unlock()
+	u.lock.Unlock()
 
 	return nil
 }
