@@ -317,9 +317,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 	return nil
 }
 
-func (c *upstreamConn) readMessages() error {
-	defer c.Close()
-
+func (c *upstreamConn) register() {
 	c.nick = c.upstream.Nick
 	c.messages <- &irc.Message{
 		Command: "NICK",
@@ -329,6 +327,10 @@ func (c *upstreamConn) readMessages() error {
 		Command: "USER",
 		Params:  []string{c.upstream.Username, "0", "*", c.upstream.Realname},
 	}
+}
+
+func (c *upstreamConn) readMessages() error {
+	defer c.Close()
 
 	for {
 		msg, err := c.irc.ReadMessage()

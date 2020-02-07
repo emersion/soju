@@ -106,6 +106,8 @@ func (s *Server) Run() {
 				return
 			}
 
+			conn.register()
+
 			u.lock.Lock()
 			u.upstreamConns = append(u.upstreamConns, conn)
 			u.lock.Unlock()
