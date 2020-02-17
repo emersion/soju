@@ -287,7 +287,7 @@ func (dc *downstreamConn) register() error {
 			}
 		}
 
-		consumer, ch := uc.ring.Consumer(seqPtr)
+		consumer, ch := uc.ring.NewConsumer(seqPtr)
 		go func() {
 			for {
 				var closed bool
