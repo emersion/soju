@@ -44,7 +44,7 @@ type downstreamConn struct {
 	irc      *irc.Conn
 	srv      *Server
 	logger   Logger
-	messages chan<- *irc.Message
+	messages chan *irc.Message
 
 	registered bool
 	user       *user
@@ -55,20 +55,17 @@ type downstreamConn struct {
 }
 
 func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
-	msgs := make(chan *irc.Message, 64)
 	dc := &downstreamConn{
 		net:      netConn,
 		irc:      irc.NewConn(netConn),
 		srv:      srv,
 		logger:   &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
-		messages: msgs,
+		messages: make(chan *irc.Message, 64),
 	}
 
 	go func() {
-		for msg := range msgs {
-			if err := dc.irc.WriteMessage(msg); err != nil {
-				dc.logger.Printf("failed to write message: %v", err)
-			}
+		if err := dc.writeMessages(); err != nil {
+			dc.logger.Printf("failed to write message: %v", err)
 		}
 		if err := dc.net.Close(); err != nil {
 			dc.logger.Printf("failed to close connection: %v", err)
@@ -112,6 +109,15 @@ func (dc *downstreamConn) readMessages() error {
 		}
 	}
 
+	return nil
+}
+
+func (dc *downstreamConn) writeMessages() error {
+	for msg := range dc.messages {
+		if err := dc.irc.WriteMessage(msg); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
