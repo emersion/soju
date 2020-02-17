@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net"
 
@@ -8,7 +9,10 @@ import (
 )
 
 func main() {
-	addr := ":6667"
+	var addr, hostname string
+	flag.StringVar(&addr, "addr", ":6667", "listening address")
+	flag.StringVar(&hostname, "hostname", "localhost", "server hostname")
+	flag.Parse()
 
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -17,7 +21,7 @@ func main() {
 
 	srv := jounce.NewServer()
 	// TODO: load from config/DB
-	srv.Hostname = "localhost"
+	srv.Hostname = hostname
 	srv.Upstreams = []jounce.Upstream{{
 		Addr:     "chat.freenode.net:6697",
 		Nick:     "jounce",
@@ -26,7 +30,7 @@ func main() {
 		Channels: []string{"#jounce"},
 	}}
 
-	log.Printf("Server listening on %v", addr)
+	log.Printf("server listening on %v", addr)
 	go srv.Run()
 	log.Fatal(srv.Serve(ln))
 }
