@@ -40,15 +40,16 @@ func (err ircError) Error() string {
 }
 
 type downstreamConn struct {
-	net      net.Conn
-	irc      *irc.Conn
-	srv      *Server
-	logger   Logger
-	messages chan *irc.Message
+	net       net.Conn
+	irc       *irc.Conn
+	srv       *Server
+	logger    Logger
+	messages  chan *irc.Message
+	consumers chan *RingConsumer
+	closed    chan struct{}
 
 	registered bool
 	user       *user
-	closed     bool
 	nick       string
 	username   string
 	realname   string
@@ -56,11 +57,13 @@ type downstreamConn struct {
 
 func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 	dc := &downstreamConn{
-		net:      netConn,
-		irc:      irc.NewConn(netConn),
-		srv:      srv,
-		logger:   &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
-		messages: make(chan *irc.Message, 64),
+		net:       netConn,
+		irc:       irc.NewConn(netConn),
+		srv:       srv,
+		logger:    &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
+		messages:  make(chan *irc.Message, 64),
+		consumers: make(chan *RingConsumer),
+		closed:    make(chan struct{}),
 	}
 
 	go func() {
@@ -85,6 +88,15 @@ func (dc *downstreamConn) prefix() *irc.Prefix {
 	}
 }
 
+func (dc *downstreamConn) isClosed() bool {
+	select {
+	case <-dc.closed:
+		return true
+	default:
+		return false
+	}
+}
+
 func (dc *downstreamConn) readMessages() error {
 	dc.logger.Printf("new connection")
 
@@ -104,7 +116,7 @@ func (dc *downstreamConn) readMessages() error {
 			return fmt.Errorf("failed to handle IRC command %q: %v", msg.Command, err)
 		}
 
-		if dc.closed {
+		if dc.isClosed() {
 			return nil
 		}
 	}
@@ -113,16 +125,39 @@ func (dc *downstreamConn) readMessages() error {
 }
 
 func (dc *downstreamConn) writeMessages() error {
-	for msg := range dc.messages {
-		if err := dc.irc.WriteMessage(msg); err != nil {
+	for {
+		var err error
+		var closed bool
+		select {
+		case msg := <-dc.messages:
+			err = dc.irc.WriteMessage(msg)
+		case consumer := <-dc.consumers:
+			for {
+				msg := consumer.Peek()
+				if msg == nil {
+					break
+				}
+				err = dc.irc.WriteMessage(msg)
+				if err != nil {
+					break
+				}
+				consumer.Consume()
+			}
+		case <-dc.closed:
+			closed = true
+		}
+		if err != nil {
 			return err
+		}
+		if closed {
+			break
 		}
 	}
 	return nil
 }
 
 func (dc *downstreamConn) Close() error {
-	if dc.closed {
+	if dc.isClosed() {
 		return fmt.Errorf("downstream connection already closed")
 	}
 
@@ -134,17 +169,9 @@ func (dc *downstreamConn) Close() error {
 			}
 		}
 		u.lock.Unlock()
-
-		// TODO: figure out a better way to advance the ring buffer consumer cursor
-		u.forEachUpstream(func(uc *upstreamConn) {
-			// TODO: let clients specify the ring buffer name in their username
-			uc.ring.Consumer("").Reset()
-		})
 	}
 
-	close(dc.messages)
-	dc.closed = true
-
+	close(dc.closed)
 	return nil
 }
 
@@ -211,6 +238,7 @@ func (dc *downstreamConn) register() error {
 	dc.user = u
 
 	u.lock.Lock()
+	firstDownstream := len(u.downstreamConns) == 0
 	u.downstreamConns = append(u.downstreamConns, dc)
 	u.lock.Unlock()
 
@@ -249,15 +277,41 @@ func (dc *downstreamConn) register() error {
 		}
 
 		// TODO: let clients specify the ring buffer name in their username
-		consumer := uc.ring.Consumer("")
-		for {
-			// TODO: these messages will get lost if the connection is closed
-			msg := consumer.Consume()
-			if msg == nil {
-				break
+		historyName := ""
+
+		var seqPtr *uint64
+		if firstDownstream {
+			seq, ok := uc.history[historyName]
+			if ok {
+				seqPtr = &seq
 			}
-			dc.SendMessage(msg)
 		}
+
+		consumer, ch := uc.ring.Consumer(seqPtr)
+		go func() {
+			for {
+				var closed bool
+				select {
+				case <-ch:
+					dc.consumers <- consumer
+				case <-dc.closed:
+					closed = true
+				}
+				if closed {
+					break
+				}
+			}
+
+			seq := consumer.Close()
+
+			dc.user.lock.Lock()
+			lastDownstream := len(dc.user.downstreamConns) == 0
+			dc.user.lock.Unlock()
+
+			if lastDownstream {
+				uc.history[historyName] = seq
+			}
+		}()
 	})
 
 	return nil

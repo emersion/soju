@@ -40,6 +40,13 @@ type user struct {
 	downstreamConns []*downstreamConn
 }
 
+func newUser(srv *Server, username string) *user {
+	return &user{
+		username: username,
+		srv:      srv,
+	}
+}
+
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	u.lock.Lock()
 	for _, uc := range u.upstreamConns {
@@ -116,7 +123,7 @@ func (s *Server) prefix() *irc.Prefix {
 
 func (s *Server) Run() {
 	// TODO: multi-user
-	u := &user{username: "jounce", srv: s}
+	u := newUser(s, "jounce")
 
 	s.lock.Lock()
 	s.users[u.username] = u

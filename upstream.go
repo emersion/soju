@@ -44,6 +44,7 @@ type upstreamConn struct {
 	closed     bool
 	modes      modeSet
 	channels   map[string]*upstreamChannel
+	history    map[string]uint64
 }
 
 func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
@@ -66,6 +67,7 @@ func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
 		messages: msgs,
 		ring:     NewRing(u.srv.RingCap),
 		channels: make(map[string]*upstreamChannel),
+		history:  make(map[string]uint64),
 	}
 
 	go func() {
@@ -305,9 +307,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		})
 	case "PRIVMSG":
 		uc.ring.Produce(msg)
-		uc.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.SendMessage(msg)
-		})
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
