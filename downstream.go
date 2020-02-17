@@ -326,7 +326,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}}
 	case "NICK":
 		dc.user.forEachUpstream(func(uc *upstreamConn) {
-			uc.messages <- msg
+			uc.SendMessage(msg)
 		})
 	case "JOIN":
 		var name string
@@ -354,7 +354,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return err
 		}
 
-		ch.conn.messages <- msg
+		ch.conn.SendMessage(msg)
 		// TODO: remove channel from upstream config
 	case "MODE":
 		var name string
@@ -374,7 +374,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			if modeStr != "" {
-				ch.conn.messages <- msg
+				ch.conn.SendMessage(msg)
 			} else {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
@@ -392,7 +392,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 			if modeStr != "" {
 				dc.user.forEachUpstream(func(uc *upstreamConn) {
-					uc.messages <- msg
+					uc.SendMessage(msg)
 				})
 			} else {
 				dc.SendMessage(&irc.Message{
@@ -414,11 +414,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return err
 			}
 
-			ch.conn.messages <- &irc.Message{
+			ch.conn.SendMessage(&irc.Message{
 				Prefix:  msg.Prefix,
 				Command: "PRIVMSG",
 				Params:  []string{name, text},
-			}
+			})
 		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)

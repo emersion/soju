@@ -107,10 +107,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "PING":
 		// TODO: handle params
-		uc.messages <- &irc.Message{
+		uc.SendMessage(&irc.Message{
 			Command: "PONG",
 			Params:  []string{uc.srv.Hostname},
-		}
+		})
 		return nil
 	case "MODE":
 		var name, modeStr string
@@ -143,10 +143,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		uc.logger.Printf("connection registered")
 
 		for _, ch := range uc.upstream.Channels {
-			uc.messages <- &irc.Message{
+			uc.SendMessage(&irc.Message{
 				Command: "JOIN",
 				Params:  []string{ch},
-			}
+			})
 		}
 	case irc.RPL_MYINFO:
 		if err := parseMessageParams(msg, nil, &uc.serverName, nil, &uc.availableUserModes, &uc.availableChannelModes); err != nil {
@@ -325,14 +325,14 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 func (uc *upstreamConn) register() {
 	uc.nick = uc.upstream.Nick
-	uc.messages <- &irc.Message{
+	uc.SendMessage(&irc.Message{
 		Command: "NICK",
 		Params:  []string{uc.upstream.Nick},
-	}
-	uc.messages <- &irc.Message{
+	})
+	uc.SendMessage(&irc.Message{
 		Command: "USER",
 		Params:  []string{uc.upstream.Username, "0", "*", uc.upstream.Realname},
-	}
+	})
 }
 
 func (uc *upstreamConn) readMessages() error {
@@ -350,4 +350,8 @@ func (uc *upstreamConn) readMessages() error {
 	}
 
 	return nil
+}
+
+func (uc *upstreamConn) SendMessage(msg *irc.Message) {
+	uc.messages <- msg
 }
