@@ -56,7 +56,7 @@ type downstreamConn struct {
 
 func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 	msgs := make(chan *irc.Message, 64)
-	conn := &downstreamConn{
+	dc := &downstreamConn{
 		net:      netConn,
 		irc:      irc.NewConn(netConn),
 		srv:      srv,
@@ -66,48 +66,48 @@ func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 
 	go func() {
 		for msg := range msgs {
-			if err := conn.irc.WriteMessage(msg); err != nil {
-				conn.logger.Printf("failed to write message: %v", err)
+			if err := dc.irc.WriteMessage(msg); err != nil {
+				dc.logger.Printf("failed to write message: %v", err)
 			}
 		}
-		if err := conn.net.Close(); err != nil {
-			conn.logger.Printf("failed to close connection: %v", err)
+		if err := dc.net.Close(); err != nil {
+			dc.logger.Printf("failed to close connection: %v", err)
 		} else {
-			conn.logger.Printf("connection closed")
+			dc.logger.Printf("connection closed")
 		}
 	}()
 
-	return conn
+	return dc
 }
 
-func (c *downstreamConn) prefix() *irc.Prefix {
+func (dc *downstreamConn) prefix() *irc.Prefix {
 	return &irc.Prefix{
-		Name: c.nick,
-		User: c.username,
+		Name: dc.nick,
+		User: dc.username,
 		// TODO: fill the host?
 	}
 }
 
-func (c *downstreamConn) readMessages() error {
-	c.logger.Printf("new connection")
+func (dc *downstreamConn) readMessages() error {
+	dc.logger.Printf("new connection")
 
 	for {
-		msg, err := c.irc.ReadMessage()
+		msg, err := dc.irc.ReadMessage()
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)
 		}
 
-		err = c.handleMessage(msg)
+		err = dc.handleMessage(msg)
 		if ircErr, ok := err.(ircError); ok {
-			ircErr.Message.Prefix = c.srv.prefix()
-			c.SendMessage(ircErr.Message)
+			ircErr.Message.Prefix = dc.srv.prefix()
+			dc.SendMessage(ircErr.Message)
 		} else if err != nil {
 			return fmt.Errorf("failed to handle IRC command %q: %v", msg.Command, err)
 		}
 
-		if c.closed {
+		if dc.closed {
 			return nil
 		}
 	}
@@ -115,15 +115,15 @@ func (c *downstreamConn) readMessages() error {
 	return nil
 }
 
-func (c *downstreamConn) Close() error {
-	if c.closed {
+func (dc *downstreamConn) Close() error {
+	if dc.closed {
 		return fmt.Errorf("downstream connection already closed")
 	}
 
-	if u := c.user; u != nil {
+	if u := dc.user; u != nil {
 		u.lock.Lock()
 		for i := range u.downstreamConns {
-			if u.downstreamConns[i] == c {
+			if u.downstreamConns[i] == dc {
 				u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
 			}
 		}
@@ -136,109 +136,109 @@ func (c *downstreamConn) Close() error {
 		})
 	}
 
-	close(c.messages)
-	c.closed = true
+	close(dc.messages)
+	dc.closed = true
 
 	return nil
 }
 
-func (c *downstreamConn) SendMessage(msg *irc.Message) {
-	c.messages <- msg
+func (dc *downstreamConn) SendMessage(msg *irc.Message) {
+	dc.messages <- msg
 }
 
-func (c *downstreamConn) handleMessage(msg *irc.Message) error {
+func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "QUIT":
-		return c.Close()
+		return dc.Close()
 	case "PING":
 		// TODO: handle params
-		c.SendMessage(&irc.Message{
-			Prefix:  c.srv.prefix(),
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
 			Command: "PONG",
-			Params:  []string{c.srv.Hostname},
+			Params:  []string{dc.srv.Hostname},
 		})
 		return nil
 	default:
-		if c.registered {
-			return c.handleMessageRegistered(msg)
+		if dc.registered {
+			return dc.handleMessageRegistered(msg)
 		} else {
-			return c.handleMessageUnregistered(msg)
+			return dc.handleMessageUnregistered(msg)
 		}
 	}
 }
 
-func (c *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
+func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 	switch msg.Command {
 	case "NICK":
-		if err := parseMessageParams(msg, &c.nick); err != nil {
+		if err := parseMessageParams(msg, &dc.nick); err != nil {
 			return err
 		}
 	case "USER":
 		var username string
-		if err := parseMessageParams(msg, &username, nil, nil, &c.realname); err != nil {
+		if err := parseMessageParams(msg, &username, nil, nil, &dc.realname); err != nil {
 			return err
 		}
-		c.username = "~" + username
+		dc.username = "~" + username
 	default:
-		c.logger.Printf("unhandled message: %v", msg)
+		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
-	if c.username != "" && c.nick != "" {
-		return c.register()
+	if dc.username != "" && dc.nick != "" {
+		return dc.register()
 	}
 	return nil
 }
 
-func (c *downstreamConn) register() error {
-	u := c.srv.getUser(strings.TrimPrefix(c.username, "~"))
+func (dc *downstreamConn) register() error {
+	u := dc.srv.getUser(strings.TrimPrefix(dc.username, "~"))
 	if u == nil {
-		c.logger.Printf("failed authentication: unknown username %q", c.username)
-		c.SendMessage(&irc.Message{
-			Prefix:  c.srv.prefix(),
+		dc.logger.Printf("failed authentication: unknown username %q", dc.username)
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
 			Command: irc.ERR_PASSWDMISMATCH,
 			Params:  []string{"*", "Invalid username or password"},
 		})
 		return nil
 	}
 
-	c.registered = true
-	c.user = u
+	dc.registered = true
+	dc.user = u
 
 	u.lock.Lock()
-	u.downstreamConns = append(u.downstreamConns, c)
+	u.downstreamConns = append(u.downstreamConns, dc)
 	u.lock.Unlock()
 
-	c.SendMessage(&irc.Message{
-		Prefix:  c.srv.prefix(),
+	dc.SendMessage(&irc.Message{
+		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_WELCOME,
-		Params:  []string{c.nick, "Welcome to jounce, " + c.nick},
+		Params:  []string{dc.nick, "Welcome to jounce, " + dc.nick},
 	})
-	c.SendMessage(&irc.Message{
-		Prefix:  c.srv.prefix(),
+	dc.SendMessage(&irc.Message{
+		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_YOURHOST,
-		Params:  []string{c.nick, "Your host is " + c.srv.Hostname},
+		Params:  []string{dc.nick, "Your host is " + dc.srv.Hostname},
 	})
-	c.SendMessage(&irc.Message{
-		Prefix:  c.srv.prefix(),
+	dc.SendMessage(&irc.Message{
+		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_CREATED,
-		Params:  []string{c.nick, "Who cares when the server was created?"},
+		Params:  []string{dc.nick, "Who cares when the server was created?"},
 	})
-	c.SendMessage(&irc.Message{
-		Prefix:  c.srv.prefix(),
+	dc.SendMessage(&irc.Message{
+		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_MYINFO,
-		Params:  []string{c.nick, c.srv.Hostname, "jounce", "aiwroO", "OovaimnqpsrtklbeI"},
+		Params:  []string{dc.nick, dc.srv.Hostname, "jounce", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
-	c.SendMessage(&irc.Message{
-		Prefix:  c.srv.prefix(),
+	dc.SendMessage(&irc.Message{
+		Prefix:  dc.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
-		Params:  []string{c.nick, "No MOTD"},
+		Params:  []string{dc.nick, "No MOTD"},
 	})
 
 	u.forEachUpstream(func(uc *upstreamConn) {
 		// TODO: fix races accessing upstream connection data
 		for _, ch := range uc.channels {
 			if ch.complete {
-				forwardChannel(c, ch)
+				forwardChannel(dc, ch)
 			}
 		}
 
@@ -250,22 +250,22 @@ func (c *downstreamConn) register() error {
 			if msg == nil {
 				break
 			}
-			c.SendMessage(msg)
+			dc.SendMessage(msg)
 		}
 	})
 
 	return nil
 }
 
-func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
+func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 	switch msg.Command {
 	case "USER":
 		return ircError{&irc.Message{
 			Command: irc.ERR_ALREADYREGISTERED,
-			Params:  []string{c.nick, "You may not reregister"},
+			Params:  []string{dc.nick, "You may not reregister"},
 		}}
 	case "NICK":
-		c.user.forEachUpstream(func(uc *upstreamConn) {
+		dc.user.forEachUpstream(func(uc *upstreamConn) {
 			uc.messages <- msg
 		})
 	case "JOIN":
@@ -274,7 +274,7 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return err
 		}
 
-		if ch, _ := c.user.getChannel(name); ch != nil {
+		if ch, _ := dc.user.getChannel(name); ch != nil {
 			break // already joined
 		}
 
@@ -289,7 +289,7 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return err
 		}
 
-		ch, err := c.user.getChannel(name)
+		ch, err := dc.user.getChannel(name)
 		if err != nil {
 			return err
 		}
@@ -308,7 +308,7 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 
 		if msg.Prefix.Name != name {
-			ch, err := c.user.getChannel(name)
+			ch, err := dc.user.getChannel(name)
 			if err != nil {
 				return err
 			}
@@ -316,34 +316,34 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if modeStr != "" {
 				ch.conn.messages <- msg
 			} else {
-				c.SendMessage(&irc.Message{
-					Prefix:  c.srv.prefix(),
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_CHANNELMODEIS,
 					Params:  []string{ch.Name, string(ch.modes)},
 				})
 			}
 		} else {
-			if name != c.nick {
+			if name != dc.nick {
 				return ircError{&irc.Message{
 					Command: irc.ERR_USERSDONTMATCH,
-					Params:  []string{c.nick, "Cannot change mode for other users"},
+					Params:  []string{dc.nick, "Cannot change mode for other users"},
 				}}
 			}
 
 			if modeStr != "" {
-				c.user.forEachUpstream(func(uc *upstreamConn) {
+				dc.user.forEachUpstream(func(uc *upstreamConn) {
 					uc.messages <- msg
 				})
 			} else {
-				c.SendMessage(&irc.Message{
-					Prefix:  c.srv.prefix(),
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_UMODEIS,
 					Params:  []string{""}, // TODO
 				})
 			}
 		}
 	default:
-		c.logger.Printf("unhandled message: %v", msg)
+		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
 	return nil
