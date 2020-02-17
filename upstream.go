@@ -132,7 +132,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		c.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.messages <- msg
+			dc.SendMessage(msg)
 		})
 	case "NOTICE":
 		c.logger.Print(msg)
@@ -172,7 +172,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		c.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.messages <- msg
+			dc.SendMessage(msg)
 		})
 	case "JOIN":
 		var channels string
@@ -198,7 +198,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		c.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.messages <- msg
+			dc.SendMessage(msg)
 		})
 	case "PART":
 		var channels string
@@ -220,7 +220,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		c.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.messages <- msg
+			dc.SendMessage(msg)
 		})
 	case irc.RPL_TOPIC, irc.RPL_NOTOPIC:
 		var name, topic string
@@ -306,7 +306,7 @@ func (c *upstreamConn) handleMessage(msg *irc.Message) error {
 	case "PRIVMSG":
 		c.ring.Produce(msg)
 		c.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.messages <- msg
+			dc.SendMessage(msg)
 		})
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore

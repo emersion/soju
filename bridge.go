@@ -9,24 +9,24 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 		panic("Tried to forward a partial channel")
 	}
 
-	dc.messages <- &irc.Message{
+	dc.SendMessage(&irc.Message{
 		Prefix:  dc.prefix(),
 		Command: "JOIN",
 		Params:  []string{ch.Name},
-	}
+	})
 
 	if ch.Topic != "" {
-		dc.messages <- &irc.Message{
+		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_TOPIC,
 			Params:  []string{dc.nick, ch.Name, ch.Topic},
-		}
+		})
 	} else {
-		dc.messages <- &irc.Message{
+		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_NOTOPIC,
 			Params:  []string{dc.nick, ch.Name, "No topic is set"},
-		}
+		})
 	}
 
 	// TODO: rpl_topicwhotime
@@ -38,16 +38,16 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 			s = string(membership) + nick
 		}
 
-		dc.messages <- &irc.Message{
+		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_NAMREPLY,
 			Params:  []string{dc.nick, string(ch.Status), ch.Name, s},
-		}
+		})
 	}
 
-	dc.messages <- &irc.Message{
+	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_ENDOFNAMES,
 		Params:  []string{dc.nick, ch.Name, "End of /NAMES list"},
-	}
+	})
 }

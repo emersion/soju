@@ -102,7 +102,7 @@ func (c *downstreamConn) readMessages() error {
 		err = c.handleMessage(msg)
 		if ircErr, ok := err.(ircError); ok {
 			ircErr.Message.Prefix = c.srv.prefix()
-			c.messages <- ircErr.Message
+			c.SendMessage(ircErr.Message)
 		} else if err != nil {
 			return fmt.Errorf("failed to handle IRC command %q: %v", msg.Command, err)
 		}
@@ -142,17 +142,21 @@ func (c *downstreamConn) Close() error {
 	return nil
 }
 
+func (c *downstreamConn) SendMessage(msg *irc.Message) {
+	c.messages <- msg
+}
+
 func (c *downstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "QUIT":
 		return c.Close()
 	case "PING":
 		// TODO: handle params
-		c.messages <- &irc.Message{
+		c.SendMessage(&irc.Message{
 			Prefix:  c.srv.prefix(),
 			Command: "PONG",
 			Params:  []string{c.srv.Hostname},
-		}
+		})
 		return nil
 	default:
 		if c.registered {
@@ -189,11 +193,11 @@ func (c *downstreamConn) register() error {
 	u := c.srv.getUser(strings.TrimPrefix(c.username, "~"))
 	if u == nil {
 		c.logger.Printf("failed authentication: unknown username %q", c.username)
-		c.messages <- &irc.Message{
+		c.SendMessage(&irc.Message{
 			Prefix:  c.srv.prefix(),
 			Command: irc.ERR_PASSWDMISMATCH,
 			Params:  []string{"*", "Invalid username or password"},
-		}
+		})
 		return nil
 	}
 
@@ -204,31 +208,31 @@ func (c *downstreamConn) register() error {
 	u.downstreamConns = append(u.downstreamConns, c)
 	u.lock.Unlock()
 
-	c.messages <- &irc.Message{
+	c.SendMessage(&irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_WELCOME,
 		Params:  []string{c.nick, "Welcome to jounce, " + c.nick},
-	}
-	c.messages <- &irc.Message{
+	})
+	c.SendMessage(&irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_YOURHOST,
 		Params:  []string{c.nick, "Your host is " + c.srv.Hostname},
-	}
-	c.messages <- &irc.Message{
+	})
+	c.SendMessage(&irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_CREATED,
 		Params:  []string{c.nick, "Who cares when the server was created?"},
-	}
-	c.messages <- &irc.Message{
+	})
+	c.SendMessage(&irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.RPL_MYINFO,
 		Params:  []string{c.nick, c.srv.Hostname, "jounce", "aiwroO", "OovaimnqpsrtklbeI"},
-	}
-	c.messages <- &irc.Message{
+	})
+	c.SendMessage(&irc.Message{
 		Prefix:  c.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
 		Params:  []string{c.nick, "No MOTD"},
-	}
+	})
 
 	u.forEachUpstream(func(uc *upstreamConn) {
 		// TODO: fix races accessing upstream connection data
@@ -246,7 +250,7 @@ func (c *downstreamConn) register() error {
 			if msg == nil {
 				break
 			}
-			c.messages <- msg
+			c.SendMessage(msg)
 		}
 	})
 
@@ -312,11 +316,11 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if modeStr != "" {
 				ch.conn.messages <- msg
 			} else {
-				c.messages <- &irc.Message{
+				c.SendMessage(&irc.Message{
 					Prefix:  c.srv.prefix(),
 					Command: irc.RPL_CHANNELMODEIS,
 					Params:  []string{ch.Name, string(ch.modes)},
-				}
+				})
 			}
 		} else {
 			if name != c.nick {
@@ -331,11 +335,11 @@ func (c *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					uc.messages <- msg
 				})
 			} else {
-				c.messages <- &irc.Message{
+				c.SendMessage(&irc.Message{
 					Prefix:  c.srv.prefix(),
 					Command: irc.RPL_UMODEIS,
 					Params:  []string{""}, // TODO
-				}
+				})
 			}
 		}
 	default:
