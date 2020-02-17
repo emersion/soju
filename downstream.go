@@ -402,6 +402,24 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				})
 			}
 		}
+	case "PRIVMSG":
+		var targetsStr, text string
+		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
+			return err
+		}
+
+		for _, name := range strings.Split(targetsStr, ",") {
+			ch, err := dc.user.getChannel(name)
+			if err != nil {
+				return err
+			}
+
+			ch.conn.messages <- &irc.Message{
+				Prefix:  msg.Prefix,
+				Command: "PRIVMSG",
+				Params:  []string{name, text},
+			}
+		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
