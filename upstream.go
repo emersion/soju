@@ -111,25 +111,9 @@ func (uc *upstreamConn) getChannel(name string) (*upstreamChannel, error) {
 func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "PING":
-		var from, to string
-		if len(msg.Params) >= 1 {
-			from = msg.Params[0]
-		}
-		if len(msg.Params) >= 2 {
-			to = msg.Params[1]
-		}
-
-		if to != "" && to != uc.srv.Hostname {
-			return fmt.Errorf("invalid PING destination %q", to)
-		}
-
-		params := []string{uc.srv.Hostname}
-		if from != "" {
-			params = append(params, from)
-		}
 		uc.SendMessage(&irc.Message{
 			Command: "PONG",
-			Params:  params,
+			Params:  msg.Params,
 		})
 		return nil
 	case "MODE":
