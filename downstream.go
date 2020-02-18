@@ -195,11 +195,29 @@ func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
 	case "QUIT":
 		return dc.Close()
 	case "PING":
-		// TODO: handle params
+		var from, to string
+		if len(msg.Params) >= 1 {
+			from = msg.Params[0]
+		}
+		if len(msg.Params) >= 2 {
+			to = msg.Params[1]
+		}
+
+		if to != "" && to != dc.srv.Hostname {
+			return ircError{&irc.Message{
+				Command: irc.ERR_NOSUCHSERVER,
+				Params:  []string{to, "No such server"},
+			}}
+		}
+
+		params := []string{dc.srv.Hostname}
+		if from != "" {
+			params = append(params, from)
+		}
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "PONG",
-			Params:  []string{dc.srv.Hostname},
+			Params:  params,
 		})
 		return nil
 	default:
