@@ -166,6 +166,7 @@ func (dc *downstreamConn) Close() error {
 		for i := range u.downstreamConns {
 			if u.downstreamConns[i] == dc {
 				u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
+				break
 			}
 		}
 		u.lock.Unlock()
