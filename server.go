@@ -134,25 +134,26 @@ func (s *Server) Run() {
 		upstream := &s.Upstreams[i]
 		// TODO: retry connecting
 		go func() {
-			conn, err := connectToUpstream(u, upstream)
+			uc, err := connectToUpstream(u, upstream)
 			if err != nil {
 				s.Logger.Printf("failed to connect to upstream server %q: %v", upstream.Addr, err)
 				return
 			}
 
-			conn.register()
+			uc.register()
 
 			u.lock.Lock()
-			u.upstreamConns = append(u.upstreamConns, conn)
+			u.upstreamConns = append(u.upstreamConns, uc)
 			u.lock.Unlock()
 
-			if err := conn.readMessages(); err != nil {
-				conn.logger.Printf("failed to handle messages: %v", err)
+			if err := uc.readMessages(); err != nil {
+				uc.logger.Printf("failed to handle messages: %v", err)
 			}
+			uc.Close()
 
 			u.lock.Lock()
-			for i, c := range u.upstreamConns {
-				if c == conn {
+			for i := range u.upstreamConns {
+				if u.upstreamConns[i] == uc {
 					u.upstreamConns = append(u.upstreamConns[:i], u.upstreamConns[i+1:]...)
 					break
 				}
@@ -176,19 +177,20 @@ func (s *Server) Serve(ln net.Listener) error {
 			return fmt.Errorf("failed to accept connection: %v", err)
 		}
 
-		conn := newDownstreamConn(s, netConn)
+		dc := newDownstreamConn(s, netConn)
 		go func() {
 			s.lock.Lock()
-			s.downstreamConns = append(s.downstreamConns, conn)
+			s.downstreamConns = append(s.downstreamConns, dc)
 			s.lock.Unlock()
 
-			if err := conn.readMessages(); err != nil {
-				conn.logger.Printf("failed to handle messages: %v", err)
+			if err := dc.readMessages(); err != nil {
+				dc.logger.Printf("failed to handle messages: %v", err)
 			}
+			dc.Close()
 
 			s.lock.Lock()
-			for i, c := range s.downstreamConns {
-				if c == conn {
+			for i := range s.downstreamConns {
+				if s.downstreamConns[i] == dc {
 					s.downstreamConns = append(s.downstreamConns[:i], s.downstreamConns[i+1:]...)
 					break
 				}
