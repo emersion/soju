@@ -108,6 +108,10 @@ func (dc *downstreamConn) readMessages() error {
 			return fmt.Errorf("failed to read IRC command: %v", err)
 		}
 
+		if dc.srv.Debug {
+			dc.logger.Printf("received: %v", msg)
+		}
+
 		err = dc.handleMessage(msg)
 		if ircErr, ok := err.(ircError); ok {
 			ircErr.Message.Prefix = dc.srv.prefix()
@@ -130,12 +134,18 @@ func (dc *downstreamConn) writeMessages() error {
 		var closed bool
 		select {
 		case msg := <-dc.messages:
+			if dc.srv.Debug {
+				dc.logger.Printf("sent: %v", msg)
+			}
 			err = dc.irc.WriteMessage(msg)
 		case consumer := <-dc.consumers:
 			for {
 				msg := consumer.Peek()
 				if msg == nil {
 					break
+				}
+				if dc.srv.Debug {
+					dc.logger.Printf("sent: %v", msg)
 				}
 				err = dc.irc.WriteMessage(msg)
 				if err != nil {

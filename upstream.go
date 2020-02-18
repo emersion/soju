@@ -72,6 +72,9 @@ func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
 
 	go func() {
 		for msg := range msgs {
+			if uc.srv.Debug {
+				uc.logger.Printf("sent: %v", msg)
+			}
 			if err := uc.irc.WriteMessage(msg); err != nil {
 				uc.logger.Printf("failed to write message: %v", err)
 			}
@@ -342,6 +345,10 @@ func (uc *upstreamConn) readMessages() error {
 			break
 		} else if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)
+		}
+
+		if uc.srv.Debug {
+			uc.logger.Printf("received: %v", msg)
 		}
 
 		if err := uc.handleMessage(msg); err != nil {

@@ -102,6 +102,7 @@ type Server struct {
 	Hostname  string
 	Logger    Logger
 	RingCap   int
+	Debug     bool
 	Upstreams []Upstream // TODO: per-user
 
 	lock            sync.Mutex

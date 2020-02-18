@@ -12,8 +12,10 @@ import (
 
 func main() {
 	var addr, configPath string
+	var debug bool
 	flag.StringVar(&addr, "listen", "", "listening address")
 	flag.StringVar(&configPath, "config", "", "path to configuration file")
+	flag.BoolVar(&debug, "debug", false, "enable debug logging")
 	flag.Parse()
 
 	var cfg *config.Server
@@ -54,6 +56,7 @@ func main() {
 	srv := jounce.NewServer()
 	// TODO: load from config/DB
 	srv.Hostname = cfg.Hostname
+	srv.Debug = debug
 	srv.Upstreams = []jounce.Upstream{{
 		Addr:     "chat.freenode.net:6697",
 		Nick:     "jounce",
