@@ -56,6 +56,8 @@ func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
 		return nil, fmt.Errorf("failed to dial %q: %v", upstream.Addr, err)
 	}
 
+	setKeepAlive(netConn)
+
 	msgs := make(chan *irc.Message, 64)
 	uc := &upstreamConn{
 		upstream: upstream,
