@@ -91,6 +91,14 @@ func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
 	return uc, nil
 }
 
+func (uc *upstreamConn) prefix() *irc.Prefix {
+	return &irc.Prefix{
+		Name: uc.nick,
+		User: uc.upstream.Username,
+		// TODO: fill the host?
+	}
+}
+
 func (uc *upstreamConn) Close() error {
 	if uc.closed {
 		return fmt.Errorf("upstream connection already closed")
@@ -117,6 +125,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		})
 		return nil
 	case "MODE":
+		if msg.Prefix == nil {
+			return fmt.Errorf("missing prefix")
+		}
+
 		var name, modeStr string
 		if err := parseMessageParams(msg, &name, &modeStr); err != nil {
 			return err
@@ -135,11 +147,15 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if err := ch.modes.Apply(modeStr); err != nil {
 				return err
 			}
-		}
 
-		uc.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.SendMessage(msg)
-		})
+			uc.user.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+					Command: "MODE",
+					Params:  []string{dc.marshalChannel(uc, name), modeStr},
+				})
+			})
+		}
 	case "NOTICE":
 		uc.logger.Print(msg)
 	case irc.RPL_WELCOME:
@@ -176,11 +192,11 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				ch.Members[newNick] = membership
 			}
 		}
-
-		uc.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.SendMessage(msg)
-		})
 	case "JOIN":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
 		var channels string
 		if err := parseMessageParams(msg, &channels); err != nil {
 			return err
@@ -201,12 +217,20 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				}
 				ch.Members[msg.Prefix.Name] = 0
 			}
+
+			uc.user.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+					Command: "JOIN",
+					Params:  []string{dc.marshalChannel(uc, ch)},
+				})
+			})
+		}
+	case "PART":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
 		}
 
-		uc.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.SendMessage(msg)
-		})
-	case "PART":
 		var channels string
 		if err := parseMessageParams(msg, &channels); err != nil {
 			return err
@@ -223,11 +247,15 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				}
 				delete(ch.Members, msg.Prefix.Name)
 			}
-		}
 
-		uc.user.forEachDownstream(func(dc *downstreamConn) {
-			dc.SendMessage(msg)
-		})
+			uc.user.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+					Command: "PART",
+					Params:  []string{dc.marshalChannel(uc, ch)},
+				})
+			})
+		}
 	case irc.RPL_TOPIC, irc.RPL_NOTOPIC:
 		var name, topic string
 		if err := parseMessageParams(msg, nil, &name, &topic); err != nil {
@@ -310,6 +338,9 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			forwardChannel(dc, ch)
 		})
 	case "PRIVMSG":
+		if err := parseMessageParams(msg, nil, nil); err != nil {
+			return err
+		}
 		uc.ring.Produce(msg)
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
@@ -331,7 +362,7 @@ func (uc *upstreamConn) register() {
 	uc.nick = uc.upstream.Nick
 	uc.SendMessage(&irc.Message{
 		Command: "NICK",
-		Params:  []string{uc.upstream.Nick},
+		Params:  []string{uc.nick},
 	})
 	uc.SendMessage(&irc.Message{
 		Command: "USER",

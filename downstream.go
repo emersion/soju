@@ -39,14 +39,19 @@ func (err ircError) Error() string {
 	return err.Message.String()
 }
 
+type consumption struct {
+	consumer     *RingConsumer
+	upstreamConn *upstreamConn
+}
+
 type downstreamConn struct {
-	net       net.Conn
-	irc       *irc.Conn
-	srv       *Server
-	logger    Logger
-	messages  chan *irc.Message
-	consumers chan *RingConsumer
-	closed    chan struct{}
+	net          net.Conn
+	irc          *irc.Conn
+	srv          *Server
+	logger       Logger
+	messages     chan *irc.Message
+	consumptions chan consumption
+	closed       chan struct{}
 
 	registered bool
 	user       *user
@@ -57,13 +62,13 @@ type downstreamConn struct {
 
 func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 	dc := &downstreamConn{
-		net:       netConn,
-		irc:       irc.NewConn(netConn),
-		srv:       srv,
-		logger:    &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
-		messages:  make(chan *irc.Message, 64),
-		consumers: make(chan *RingConsumer),
-		closed:    make(chan struct{}),
+		net:          netConn,
+		irc:          irc.NewConn(netConn),
+		srv:          srv,
+		logger:       &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
+		messages:     make(chan *irc.Message, 64),
+		consumptions: make(chan consumption),
+		closed:       make(chan struct{}),
 	}
 
 	go func() {
@@ -86,6 +91,33 @@ func (dc *downstreamConn) prefix() *irc.Prefix {
 		User: dc.username,
 		// TODO: fill the host?
 	}
+}
+
+func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
+	return name
+}
+
+func (dc *downstreamConn) unmarshalChannel(name string) (*upstreamConn, string, error) {
+	// TODO: extract network name from channel name
+	ch, err := dc.user.getChannel(name)
+	if err != nil {
+		return nil, "", err
+	}
+	return ch.conn, ch.Name, nil
+}
+
+func (dc *downstreamConn) marshalNick(uc *upstreamConn, nick string) string {
+	if nick == uc.nick {
+		return dc.nick
+	}
+	return nick
+}
+
+func (dc *downstreamConn) marshalUserPrefix(uc *upstreamConn, prefix *irc.Prefix) *irc.Prefix {
+	if prefix.Name == uc.nick {
+		return dc.prefix()
+	}
+	return prefix
 }
 
 func (dc *downstreamConn) isClosed() bool {
@@ -138,11 +170,20 @@ func (dc *downstreamConn) writeMessages() error {
 				dc.logger.Printf("sent: %v", msg)
 			}
 			err = dc.irc.WriteMessage(msg)
-		case consumer := <-dc.consumers:
+		case consumption := <-dc.consumptions:
+			consumer, uc := consumption.consumer, consumption.upstreamConn
 			for {
 				msg := consumer.Peek()
 				if msg == nil {
 					break
+				}
+				msg = msg.Copy()
+				switch msg.Command {
+				case "PRIVMSG":
+					// TODO: detect whether it's a user or a channel
+					msg.Params[0] = dc.marshalChannel(uc, msg.Params[0])
+				default:
+					panic("expected to consume a PRIVMSG message")
 				}
 				if dc.srv.Debug {
 					dc.logger.Printf("sent: %v", msg)
@@ -303,7 +344,7 @@ func (dc *downstreamConn) register() error {
 				var closed bool
 				select {
 				case <-ch:
-					dc.consumers <- consumer
+					dc.consumptions <- consumption{consumer, uc}
 				case <-dc.closed:
 					closed = true
 				}
@@ -338,35 +379,30 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		dc.user.forEachUpstream(func(uc *upstreamConn) {
 			uc.SendMessage(msg)
 		})
-	case "JOIN":
+	case "JOIN", "PART":
 		var name string
 		if err := parseMessageParams(msg, &name); err != nil {
 			return err
 		}
 
-		if ch, _ := dc.user.getChannel(name); ch != nil {
-			break // already joined
-		}
-
-		// TODO: extract network name from channel name
-		return ircError{&irc.Message{
-			Command: irc.ERR_NOSUCHCHANNEL,
-			Params:  []string{name, "Channel name ambiguous"},
-		}}
-	case "PART":
-		var name string
-		if err := parseMessageParams(msg, &name); err != nil {
-			return err
-		}
-
-		ch, err := dc.user.getChannel(name)
+		uc, upstreamName, err := dc.unmarshalChannel(name)
 		if err != nil {
-			return err
+			return ircError{&irc.Message{
+				Command: irc.ERR_NOSUCHCHANNEL,
+				Params:  []string{name, err.Error()},
+			}}
 		}
 
-		ch.conn.SendMessage(msg)
-		// TODO: remove channel from upstream config
+		uc.SendMessage(&irc.Message{
+			Command: msg.Command,
+			Params:  []string{upstreamName},
+		})
+		// TODO: add/remove channel from upstream config
 	case "MODE":
+		if msg.Prefix == nil {
+			return fmt.Errorf("missing prefix")
+		}
+
 		var name string
 		if err := parseMessageParams(msg, &name); err != nil {
 			return err
@@ -378,18 +414,30 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 
 		if msg.Prefix.Name != name {
-			ch, err := dc.user.getChannel(name)
+			uc, upstreamName, err := dc.unmarshalChannel(name)
 			if err != nil {
 				return err
 			}
 
 			if modeStr != "" {
-				ch.conn.SendMessage(msg)
+				uc.SendMessage(&irc.Message{
+					Prefix:  uc.prefix(),
+					Command: "MODE",
+					Params:  []string{upstreamName, modeStr},
+				})
 			} else {
+				ch, ok := uc.channels[upstreamName]
+				if !ok {
+					return ircError{&irc.Message{
+						Command: irc.ERR_NOSUCHCHANNEL,
+						Params:  []string{name, "No such channel"},
+					}}
+				}
+
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_CHANNELMODEIS,
-					Params:  []string{ch.Name, string(ch.modes)},
+					Params:  []string{name, string(ch.modes)},
 				})
 			}
 		} else {
@@ -402,7 +450,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 			if modeStr != "" {
 				dc.user.forEachUpstream(func(uc *upstreamConn) {
-					uc.SendMessage(msg)
+					uc.SendMessage(&irc.Message{
+						Prefix:  uc.prefix(),
+						Command: "MODE",
+						Params:  []string{uc.nick, modeStr},
+					})
 				})
 			} else {
 				dc.SendMessage(&irc.Message{
@@ -419,15 +471,15 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 
 		for _, name := range strings.Split(targetsStr, ",") {
-			ch, err := dc.user.getChannel(name)
+			uc, upstreamName, err := dc.unmarshalChannel(name)
 			if err != nil {
 				return err
 			}
 
-			ch.conn.SendMessage(&irc.Message{
-				Prefix:  msg.Prefix,
+			uc.SendMessage(&irc.Message{
+				Prefix:  uc.prefix(),
 				Command: "PRIVMSG",
-				Params:  []string{name, text},
+				Params:  []string{upstreamName, text},
 			})
 		}
 	default:
