@@ -421,7 +421,6 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 			if modeStr != "" {
 				uc.SendMessage(&irc.Message{
-					Prefix:  uc.prefix(),
 					Command: "MODE",
 					Params:  []string{upstreamName, modeStr},
 				})
@@ -451,7 +450,6 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if modeStr != "" {
 				dc.user.forEachUpstream(func(uc *upstreamConn) {
 					uc.SendMessage(&irc.Message{
-						Prefix:  uc.prefix(),
 						Command: "MODE",
 						Params:  []string{uc.nick, modeStr},
 					})
@@ -477,7 +475,6 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			uc.SendMessage(&irc.Message{
-				Prefix:  uc.prefix(),
 				Command: "PRIVMSG",
 				Params:  []string{upstreamName, text},
 			})

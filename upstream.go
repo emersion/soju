@@ -91,14 +91,6 @@ func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
 	return uc, nil
 }
 
-func (uc *upstreamConn) prefix() *irc.Prefix {
-	return &irc.Prefix{
-		Name: uc.nick,
-		User: uc.upstream.Username,
-		// TODO: fill the host?
-	}
-}
-
 func (uc *upstreamConn) Close() error {
 	if uc.closed {
 		return fmt.Errorf("upstream connection already closed")
