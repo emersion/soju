@@ -47,7 +47,7 @@ func main() {
 		}
 	} else {
 		var err error
-		ln, err = net.Listen("tcp", addr)
+		ln, err = net.Listen("tcp", cfg.Addr)
 		if err != nil {
 			log.Fatalf("failed to start listener: %v", err)
 		}
