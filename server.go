@@ -12,6 +12,7 @@ import (
 
 // TODO: make configurable
 var keepAlivePeriod = time.Minute
+var retryConnectMinDelay = time.Minute
 
 func setKeepAlive(c net.Conn) error {
 	tcpConn, ok := c.(*net.TCPConn)
@@ -137,6 +138,44 @@ func (s *Server) prefix() *irc.Prefix {
 	return &irc.Prefix{Name: s.Hostname}
 }
 
+func (s *Server) runUpstream(u *user, upstream *Upstream) {
+	var lastTry time.Time
+	for {
+		if dur := time.Now().Sub(lastTry); dur < retryConnectMinDelay {
+			delay := retryConnectMinDelay - dur
+			s.Logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), upstream.Addr)
+			time.Sleep(delay)
+		}
+		lastTry = time.Now()
+
+		uc, err := connectToUpstream(u, upstream)
+		if err != nil {
+			s.Logger.Printf("failed to connect to upstream server %q: %v", upstream.Addr, err)
+			continue
+		}
+
+		uc.register()
+
+		u.lock.Lock()
+		u.upstreamConns = append(u.upstreamConns, uc)
+		u.lock.Unlock()
+
+		if err := uc.readMessages(); err != nil {
+			uc.logger.Printf("failed to handle messages: %v", err)
+		}
+		uc.Close()
+
+		u.lock.Lock()
+		for i := range u.upstreamConns {
+			if u.upstreamConns[i] == uc {
+				u.upstreamConns = append(u.upstreamConns[:i], u.upstreamConns[i+1:]...)
+				break
+			}
+		}
+		u.lock.Unlock()
+	}
+}
+
 func (s *Server) Run() {
 	// TODO: multi-user
 	u := newUser(s, "jounce")
@@ -146,35 +185,7 @@ func (s *Server) Run() {
 	s.lock.Unlock()
 
 	for i := range s.Upstreams {
-		upstream := &s.Upstreams[i]
-		// TODO: retry connecting
-		go func() {
-			uc, err := connectToUpstream(u, upstream)
-			if err != nil {
-				s.Logger.Printf("failed to connect to upstream server %q: %v", upstream.Addr, err)
-				return
-			}
-
-			uc.register()
-
-			u.lock.Lock()
-			u.upstreamConns = append(u.upstreamConns, uc)
-			u.lock.Unlock()
-
-			if err := uc.readMessages(); err != nil {
-				uc.logger.Printf("failed to handle messages: %v", err)
-			}
-			uc.Close()
-
-			u.lock.Lock()
-			for i := range u.upstreamConns {
-				if u.upstreamConns[i] == uc {
-					u.upstreamConns = append(u.upstreamConns[:i], u.upstreamConns[i+1:]...)
-					break
-				}
-			}
-			u.lock.Unlock()
-		}()
+		go s.runUpstream(u, &s.Upstreams[i])
 	}
 }
 
