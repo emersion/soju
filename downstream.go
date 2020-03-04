@@ -321,7 +321,7 @@ func (dc *downstreamConn) register() error {
 	}
 
 	if network != "" {
-		dc.upstream = dc.srv.getUpstream(network)
+		dc.upstream = dc.user.getUpstream(network)
 		if dc.upstream == nil {
 			dc.logger.Printf("failed registration: unknown upstream %q", network)
 			dc.SendMessage(&irc.Message{

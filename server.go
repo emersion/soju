@@ -82,31 +82,13 @@ func (u *user) forEachDownstream(f func(dc *downstreamConn)) {
 	u.lock.Unlock()
 }
 
-func (u *user) getChannel(name string, upstream *Upstream) (*upstreamChannel, error) {
-	var channel *upstreamChannel
-	var err error
-	u.forEachUpstream(func(uc *upstreamConn) {
-		if err != nil {
-			return
+func (u *user) getUpstream(name string) *Upstream {
+	for i, upstream := range u.srv.Upstreams {
+		if upstream.Addr == name {
+			return &u.srv.Upstreams[i]
 		}
-		if upstream != nil && uc.upstream != upstream {
-			return
-		}
-		if ch, ok := uc.channels[name]; ok {
-			if channel != nil {
-				err = fmt.Errorf("ambiguous channel name %q", name)
-			} else {
-				channel = ch
-			}
-		}
-	})
-	if channel == nil {
-		return nil, ircError{&irc.Message{
-			Command: irc.ERR_NOSUCHCHANNEL,
-			Params:  []string{name, "No such channel"},
-		}}
 	}
-	return channel, nil
+	return nil
 }
 
 type Upstream struct {
@@ -197,15 +179,6 @@ func (s *Server) getUser(name string) *user {
 	u := s.users[name]
 	s.lock.Unlock()
 	return u
-}
-
-func (s *Server) getUpstream(name string) *Upstream {
-	for i, upstream := range s.Upstreams {
-		if upstream.Addr == name {
-			return &s.Upstreams[i]
-		}
-	}
-	return nil
 }
 
 func (s *Server) Serve(ln net.Listener) error {
