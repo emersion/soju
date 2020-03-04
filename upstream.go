@@ -67,7 +67,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 
 	msgs := make(chan *irc.Message, 64)
 	uc := &upstreamConn{
-		network: network,
+		network:  network,
 		logger:   logger,
 		net:      netConn,
 		irc:      irc.NewConn(netConn),

@@ -95,7 +95,7 @@ func (net *network) run() {
 
 type user struct {
 	User
-	srv      *Server
+	srv *Server
 
 	lock            sync.Mutex
 	networks        []*network
@@ -156,10 +156,10 @@ func (u *user) run() {
 }
 
 type Server struct {
-	Hostname  string
-	Logger    Logger
-	RingCap   int
-	Debug     bool
+	Hostname string
+	Logger   Logger
+	RingCap  int
+	Debug    bool
 
 	db *DB
 
