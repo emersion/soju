@@ -47,26 +47,73 @@ func (l *prefixLogger) Printf(format string, v ...interface{}) {
 	l.logger.Printf("%v"+format, v...)
 }
 
+type network struct {
+	Network
+	user *user
+	conn *upstreamConn
+}
+
+func newNetwork(user *user, record *Network) *network {
+	return &network{
+		Network: *record,
+		user:    user,
+	}
+}
+
+func (net *network) run() {
+	var lastTry time.Time
+	for {
+		if dur := time.Now().Sub(lastTry); dur < retryConnectMinDelay {
+			delay := retryConnectMinDelay - dur
+			net.user.srv.Logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), net.Addr)
+			time.Sleep(delay)
+		}
+		lastTry = time.Now()
+
+		uc, err := connectToUpstream(net)
+		if err != nil {
+			net.user.srv.Logger.Printf("failed to connect to upstream server %q: %v", net.Addr, err)
+			continue
+		}
+
+		uc.register()
+
+		net.user.lock.Lock()
+		net.conn = uc
+		net.user.lock.Unlock()
+
+		if err := uc.readMessages(); err != nil {
+			uc.logger.Printf("failed to handle messages: %v", err)
+		}
+		uc.Close()
+
+		net.user.lock.Lock()
+		net.conn = nil
+		net.user.lock.Unlock()
+	}
+}
+
 type user struct {
-	username string
+	User
 	srv      *Server
 
 	lock            sync.Mutex
-	upstreamConns   []*upstreamConn
+	networks        []*network
 	downstreamConns []*downstreamConn
 }
 
-func newUser(srv *Server, username string) *user {
+func newUser(srv *Server, record *User) *user {
 	return &user{
-		username: username,
-		srv:      srv,
+		User: *record,
+		srv:  srv,
 	}
 }
 
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	u.lock.Lock()
-	for _, uc := range u.upstreamConns {
-		if !uc.registered || uc.closed {
+	for _, network := range u.networks {
+		uc := network.conn
+		if uc == nil || !uc.registered || uc.closed {
 			continue
 		}
 		f(uc)
@@ -82,21 +129,30 @@ func (u *user) forEachDownstream(f func(dc *downstreamConn)) {
 	u.lock.Unlock()
 }
 
-func (u *user) getUpstream(name string) *Upstream {
-	for i, upstream := range u.srv.Upstreams {
-		if upstream.Addr == name {
-			return &u.srv.Upstreams[i]
+func (u *user) getNetwork(name string) *network {
+	for _, network := range u.networks {
+		if network.Addr == name {
+			return network
 		}
 	}
 	return nil
 }
 
-type Upstream struct {
-	Addr     string
-	Nick     string
-	Username string
-	Realname string
-	Channels []string
+func (u *user) run() {
+	networks, err := u.srv.db.ListNetworks(u.Username)
+	if err != nil {
+		u.srv.Logger.Printf("failed to list networks for user %q: %v", u.Username, err)
+		return
+	}
+
+	u.lock.Lock()
+	for _, record := range networks {
+		network := newNetwork(u, &record)
+		u.networks = append(u.networks, network)
+
+		go network.run()
+	}
+	u.lock.Unlock()
 }
 
 type Server struct {
@@ -104,18 +160,20 @@ type Server struct {
 	Logger    Logger
 	RingCap   int
 	Debug     bool
-	Upstreams []Upstream // TODO: per-user
+
+	db *DB
 
 	lock            sync.Mutex
 	users           map[string]*user
 	downstreamConns []*downstreamConn
 }
 
-func NewServer() *Server {
+func NewServer(db *DB) *Server {
 	return &Server{
 		Logger:  log.New(log.Writer(), "", log.LstdFlags),
 		RingCap: 4096,
 		users:   make(map[string]*user),
+		db:      db,
 	}
 }
 
@@ -123,55 +181,23 @@ func (s *Server) prefix() *irc.Prefix {
 	return &irc.Prefix{Name: s.Hostname}
 }
 
-func (s *Server) runUpstream(u *user, upstream *Upstream) {
-	var lastTry time.Time
-	for {
-		if dur := time.Now().Sub(lastTry); dur < retryConnectMinDelay {
-			delay := retryConnectMinDelay - dur
-			s.Logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), upstream.Addr)
-			time.Sleep(delay)
-		}
-		lastTry = time.Now()
-
-		uc, err := connectToUpstream(u, upstream)
-		if err != nil {
-			s.Logger.Printf("failed to connect to upstream server %q: %v", upstream.Addr, err)
-			continue
-		}
-
-		uc.register()
-
-		u.lock.Lock()
-		u.upstreamConns = append(u.upstreamConns, uc)
-		u.lock.Unlock()
-
-		if err := uc.readMessages(); err != nil {
-			uc.logger.Printf("failed to handle messages: %v", err)
-		}
-		uc.Close()
-
-		u.lock.Lock()
-		for i := range u.upstreamConns {
-			if u.upstreamConns[i] == uc {
-				u.upstreamConns = append(u.upstreamConns[:i], u.upstreamConns[i+1:]...)
-				break
-			}
-		}
-		u.lock.Unlock()
+func (s *Server) Run() error {
+	users, err := s.db.ListUsers()
+	if err != nil {
+		return err
 	}
-}
-
-func (s *Server) Run() {
-	// TODO: multi-user
-	u := newUser(s, "jounce")
 
 	s.lock.Lock()
-	s.users[u.username] = u
+	for _, record := range users {
+		s.Logger.Printf("starting bouncer for user %q", record.Username)
+		u := newUser(s, &record)
+		s.users[u.Username] = u
+
+		go u.run()
+	}
 	s.lock.Unlock()
 
-	for i := range s.Upstreams {
-		go s.runUpstream(u, &s.Upstreams[i])
-	}
+	select {}
 }
 
 func (s *Server) getUser(name string) *user {

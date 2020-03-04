@@ -25,7 +25,7 @@ type upstreamChannel struct {
 }
 
 type upstreamConn struct {
-	upstream *Upstream
+	network  *network
 	logger   Logger
 	net      net.Conn
 	irc      *irc.Conn
@@ -41,33 +41,40 @@ type upstreamConn struct {
 
 	registered bool
 	nick       string
+	username   string
+	realname   string
 	closed     bool
 	modes      modeSet
 	channels   map[string]*upstreamChannel
 	history    map[string]uint64
 }
 
-func connectToUpstream(u *user, upstream *Upstream) (*upstreamConn, error) {
-	logger := &prefixLogger{u.srv.Logger, fmt.Sprintf("upstream %q: ", upstream.Addr)}
-	logger.Printf("connecting to server")
+func connectToUpstream(network *network) (*upstreamConn, error) {
+	logger := &prefixLogger{network.user.srv.Logger, fmt.Sprintf("upstream %q: ", network.Addr)}
 
-	netConn, err := tls.Dial("tcp", upstream.Addr, nil)
+	addr := network.Addr
+	if !strings.ContainsRune(addr, ':') {
+		addr = addr + ":6697"
+	}
+
+	logger.Printf("connecting to TLS server at address %q", addr)
+	netConn, err := tls.Dial("tcp", addr, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial %q: %v", upstream.Addr, err)
+		return nil, fmt.Errorf("failed to dial %q: %v", addr, err)
 	}
 
 	setKeepAlive(netConn)
 
 	msgs := make(chan *irc.Message, 64)
 	uc := &upstreamConn{
-		upstream: upstream,
+		network: network,
 		logger:   logger,
 		net:      netConn,
 		irc:      irc.NewConn(netConn),
-		srv:      u.srv,
-		user:     u,
+		srv:      network.user.srv,
+		user:     network.user,
 		messages: msgs,
-		ring:     NewRing(u.srv.RingCap),
+		ring:     NewRing(network.user.srv.RingCap),
 		channels: make(map[string]*upstreamChannel),
 		history:  make(map[string]uint64),
 	}
@@ -102,7 +109,7 @@ func (uc *upstreamConn) Close() error {
 
 func (uc *upstreamConn) forEachDownstream(f func(*downstreamConn)) {
 	uc.user.forEachDownstream(func(dc *downstreamConn) {
-		if dc.upstream != nil && dc.upstream != uc.upstream {
+		if dc.network != nil && dc.network != uc.network {
 			return
 		}
 		f(dc)
@@ -163,10 +170,16 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		uc.registered = true
 		uc.logger.Printf("connection registered")
 
-		for _, ch := range uc.upstream.Channels {
+		channels, err := uc.srv.db.ListChannels(uc.network.ID)
+		if err != nil {
+			uc.logger.Printf("failed to list channels from database: %v", err)
+			break
+		}
+
+		for _, ch := range channels {
 			uc.SendMessage(&irc.Message{
 				Command: "JOIN",
-				Params:  []string{ch},
+				Params:  []string{ch.Name},
 			})
 		}
 	case irc.RPL_MYINFO:
@@ -371,14 +384,23 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 }
 
 func (uc *upstreamConn) register() {
-	uc.nick = uc.upstream.Nick
+	uc.nick = uc.network.Nick
+	uc.username = uc.network.Username
+	if uc.username == "" {
+		uc.username = uc.nick
+	}
+	uc.realname = uc.network.Realname
+	if uc.realname == "" {
+		uc.realname = uc.nick
+	}
+
 	uc.SendMessage(&irc.Message{
 		Command: "NICK",
 		Params:  []string{uc.nick},
 	})
 	uc.SendMessage(&irc.Message{
 		Command: "USER",
-		Params:  []string{uc.upstream.Username, "0", "*", uc.upstream.Realname},
+		Params:  []string{uc.username, "0", "*", uc.realname},
 	})
 }
 

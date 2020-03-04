@@ -14,9 +14,11 @@ type TLS struct {
 }
 
 type Server struct {
-	Addr     string
-	Hostname string
-	TLS      *TLS
+	Addr      string
+	Hostname  string
+	TLS       *TLS
+	SQLDriver string
+	SQLSource string
 }
 
 func Defaults() *Server {
@@ -25,8 +27,10 @@ func Defaults() *Server {
 		hostname = "localhost"
 	}
 	return &Server{
-		Addr:     ":6667",
-		Hostname: hostname,
+		Addr:      ":6667",
+		Hostname:  hostname,
+		SQLDriver: "sqlite3",
+		SQLSource: "jounce.db",
 	}
 }
 
@@ -64,6 +68,10 @@ func Parse(r io.Reader) (*Server, error) {
 				return nil, err
 			}
 			srv.TLS = tls
+		case "sql":
+			if err := d.parseParams(&srv.SQLDriver, &srv.SQLSource); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)
 		}

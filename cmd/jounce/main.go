@@ -33,6 +33,11 @@ func main() {
 		cfg.Addr = addr
 	}
 
+	db, err := jounce.OpenSQLDB(cfg.SQLDriver, cfg.SQLSource)
+	if err != nil {
+		log.Fatalf("failed to open database: %v", err)
+	}
+
 	var ln net.Listener
 	if cfg.TLS != nil {
 		cert, err := tls.LoadX509KeyPair(cfg.TLS.CertPath, cfg.TLS.KeyPath)
@@ -53,19 +58,16 @@ func main() {
 		}
 	}
 
-	srv := jounce.NewServer()
+	srv := jounce.NewServer(db)
 	// TODO: load from config/DB
 	srv.Hostname = cfg.Hostname
 	srv.Debug = debug
-	srv.Upstreams = []jounce.Upstream{{
-		Addr:     "chat.freenode.net:6697",
-		Nick:     "jounce",
-		Username: "jounce",
-		Realname: "jounce",
-		Channels: []string{"#jounce"},
-	}}
 
 	log.Printf("server listening on %q", cfg.Addr)
-	go srv.Run()
+	go func() {
+		if err := srv.Run(); err != nil {
+			log.Fatal(err)
+		}
+	}()
 	log.Fatal(srv.Serve(ln))
 }
