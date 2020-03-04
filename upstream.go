@@ -273,7 +273,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 	case "TOPIC":
 		var name string
-		if err := parseMessageParams(msg, nil, &name); err != nil {
+		if err := parseMessageParams(msg, &name); err != nil {
 			return err
 		}
 		ch, err := uc.getChannel(name)
@@ -285,6 +285,17 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		} else {
 			ch.Topic = ""
 		}
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			params := []string{dc.marshalChannel(uc, name)}
+			if ch.Topic != "" {
+				params = append(params, ch.Topic)
+			}
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+				Command: "TOPIC",
+				Params:  params,
+			})
+		})
 	case rpl_topicwhotime:
 		var name, who, timeStr string
 		if err := parseMessageParams(msg, nil, &name, &who, &timeStr); err != nil {
