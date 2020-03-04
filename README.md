@@ -10,7 +10,7 @@ A user-friendly IRC bouncer.
 
 ## Usage
 
-    sqlite3 -init schema.sql jounce.db
+    sqlite3 jounce.db <schema.sql
     # Insert users, networks, channels to database
     go run ./cmd/jounce
 
