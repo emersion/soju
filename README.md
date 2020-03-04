@@ -8,6 +8,12 @@ A user-friendly IRC bouncer.
 - Support connecting to multiple upstream servers via a single IRC connection
   to the bouncer
 
+## Usage
+
+    sqlite3 -init schema.sql jounce.db
+    # Insert users, networks, channels to database
+    go run ./cmd/jounce
+
 ## Contributing
 
 Send patches on the [mailing list], report bugs on the [issue tracker].
