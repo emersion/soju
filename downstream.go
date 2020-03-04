@@ -301,9 +301,9 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 
 func (dc *downstreamConn) register() error {
 	username := strings.TrimPrefix(dc.username, "~")
-	var network string
+	var upstreamName string
 	if i := strings.LastIndexAny(username, "/@"); i >= 0 {
-		network = username[i+1:]
+		upstreamName = username[i+1:]
 	}
 	if i := strings.IndexAny(username, "/@"); i >= 0 {
 		username = username[:i]
@@ -320,14 +320,14 @@ func (dc *downstreamConn) register() error {
 		return nil
 	}
 
-	if network != "" {
-		dc.upstream = dc.user.getUpstream(network)
+	if upstreamName != "" {
+		dc.upstream = dc.user.getUpstream(upstreamName)
 		if dc.upstream == nil {
-			dc.logger.Printf("failed registration: unknown upstream %q", network)
+			dc.logger.Printf("failed registration: unknown upstream %q", upstreamName)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_PASSWDMISMATCH,
-				Params:  []string{"*", fmt.Sprintf("Unknown upstream server %q", network)},
+				Params:  []string{"*", fmt.Sprintf("Unknown upstream server %q", upstreamName)},
 			})
 			return nil
 		}
