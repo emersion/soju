@@ -82,11 +82,14 @@ func (u *user) forEachDownstream(f func(dc *downstreamConn)) {
 	u.lock.Unlock()
 }
 
-func (u *user) getChannel(name string) (*upstreamChannel, error) {
+func (u *user) getChannel(name string, upstream *Upstream) (*upstreamChannel, error) {
 	var channel *upstreamChannel
 	var err error
 	u.forEachUpstream(func(uc *upstreamConn) {
 		if err != nil {
+			return
+		}
+		if upstream != nil && uc.upstream != upstream {
 			return
 		}
 		if ch, ok := uc.channels[name]; ok {
@@ -194,6 +197,15 @@ func (s *Server) getUser(name string) *user {
 	u := s.users[name]
 	s.lock.Unlock()
 	return u
+}
+
+func (s *Server) getUpstream(name string) *Upstream {
+	for i, upstream := range s.Upstreams {
+		if upstream.Addr == name {
+			return &s.Upstreams[i]
+		}
+	}
+	return nil
 }
 
 func (s *Server) Serve(ln net.Listener) error {

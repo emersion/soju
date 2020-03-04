@@ -100,6 +100,15 @@ func (uc *upstreamConn) Close() error {
 	return nil
 }
 
+func (uc *upstreamConn) forEachDownstream(f func(*downstreamConn)) {
+	uc.user.forEachDownstream(func(dc *downstreamConn) {
+		if dc.upstream != nil && dc.upstream != uc.upstream {
+			return
+		}
+		f(dc)
+	})
+}
+
 func (uc *upstreamConn) getChannel(name string) (*upstreamChannel, error) {
 	ch, ok := uc.channels[name]
 	if !ok {
@@ -140,7 +149,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				return err
 			}
 
-			uc.user.forEachDownstream(func(dc *downstreamConn) {
+			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
 					Command: "MODE",
@@ -210,7 +219,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				ch.Members[msg.Prefix.Name] = 0
 			}
 
-			uc.user.forEachDownstream(func(dc *downstreamConn) {
+			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
 					Command: "JOIN",
@@ -240,7 +249,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				delete(ch.Members, msg.Prefix.Name)
 			}
 
-			uc.user.forEachDownstream(func(dc *downstreamConn) {
+			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
 					Command: "PART",
@@ -326,7 +335,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		ch.complete = true
 
-		uc.user.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstream(func(dc *downstreamConn) {
 			forwardChannel(dc, ch)
 		})
 	case "PRIVMSG":
