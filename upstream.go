@@ -206,6 +206,16 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				ch.Members[newNick] = membership
 			}
 		}
+
+		if msg.Prefix.Name != uc.nick {
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+					Command: "NICK",
+					Params:  []string{newNick},
+				})
+			})
+		}
 	case "JOIN":
 		if msg.Prefix == nil {
 			return fmt.Errorf("expected a prefix")
