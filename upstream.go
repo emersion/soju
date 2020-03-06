@@ -190,6 +190,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			uc.channelModesWithParam = msg.Params[5]
 		}
 	case "NICK":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
 		var newNick string
 		if err := parseMessageParams(msg, &newNick); err != nil {
 			return err
@@ -277,6 +281,28 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
 					Command: "PART",
 					Params:  []string{dc.marshalChannel(uc, ch)},
+				})
+			})
+		}
+	case "QUIT":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
+		if msg.Prefix.Name == uc.nick {
+			uc.logger.Printf("quit")
+		}
+
+		for _, ch := range uc.channels {
+			delete(ch.Members, msg.Prefix.Name)
+		}
+
+		if msg.Prefix.Name != uc.nick {
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+					Command: "QUIT",
+					Params:  msg.Params,
 				})
 			})
 		}
