@@ -9,7 +9,7 @@ import (
 
 type User struct {
 	Username string
-	Password string
+	Password string // hashed
 }
 
 type Network struct {

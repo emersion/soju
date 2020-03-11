@@ -6,11 +6,16 @@ import (
 	"net"
 	"strings"
 
+	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
 )
 
 type ircError struct {
 	Message *irc.Message
+}
+
+func (err ircError) Error() string {
+	return err.Message.String()
 }
 
 func newUnknownCommandError(cmd string) ircError {
@@ -35,9 +40,10 @@ func newNeedMoreParamsError(cmd string) ircError {
 	}}
 }
 
-func (err ircError) Error() string {
-	return err.Message.String()
-}
+var errAuthFailed = ircError{&irc.Message{
+	Command: irc.ERR_PASSWDMISMATCH,
+	Params:  []string{"*", "Invalid username or password"},
+}}
 
 type consumption struct {
 	consumer     *RingConsumer
@@ -58,6 +64,7 @@ type downstreamConn struct {
 	nick       string
 	username   string
 	realname   string
+	password   string   // empty after authentication
 	network    *network // can be nil
 }
 
@@ -289,6 +296,10 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 			return err
 		}
 		dc.username = "~" + username
+	case "PASS":
+		if err := parseMessageParams(msg, &dc.password); err != nil {
+			return err
+		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
@@ -309,15 +320,19 @@ func (dc *downstreamConn) register() error {
 		username = username[:i]
 	}
 
+	password := dc.password
+	dc.password = ""
+
 	u := dc.srv.getUser(username)
 	if u == nil {
-		dc.logger.Printf("failed authentication: unknown username %q", username)
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.srv.prefix(),
-			Command: irc.ERR_PASSWDMISMATCH,
-			Params:  []string{"*", "Invalid username or password"},
-		})
-		return nil
+		dc.logger.Printf("failed authentication for %q: unknown username", username)
+		return errAuthFailed
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	if err != nil {
+		dc.logger.Printf("failed authentication for %q: %v", username, err)
+		return errAuthFailed
 	}
 
 	if networkName != "" {
