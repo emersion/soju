@@ -73,6 +73,28 @@ func (db *DB) ListUsers() ([]User, error) {
 	return users, nil
 }
 
+func (db *DB) CreateUser(user *User) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var password *string
+	if user.Password != "" {
+		password = &user.Password
+	}
+	_, err = tx.Exec("INSERT INTO User(username, password) VALUES (?, ?)", user.Username, password)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (db *DB) ListNetworks(username string) ([]Network, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
