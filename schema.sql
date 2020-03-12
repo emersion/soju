@@ -10,12 +10,14 @@ CREATE TABLE Network (
 	nick VARCHAR(255) NOT NULL,
 	username VARCHAR(255),
 	realname VARCHAR(255),
-	FOREIGN KEY(user) REFERENCES User(username)
+	FOREIGN KEY(user) REFERENCES User(username),
+	UNIQUE(user, addr, nick)
 );
 
 CREATE TABLE Channel (
 	id INTEGER PRIMARY KEY,
 	network INTEGER NOT NULL,
 	name VARCHAR(255) NOT NULL,
-	FOREIGN KEY(network) REFERENCES Network(id)
+	FOREIGN KEY(network) REFERENCES Network(id),
+	UNIQUE(network, name)
 );
