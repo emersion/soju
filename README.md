@@ -11,7 +11,7 @@ A user-friendly IRC bouncer.
 ## Usage
 
     sqlite3 jounce.db <schema.sql
-    # Insert users, networks, channels to database
+    go run ./cmd/jouncectl create-user jounce
     go run ./cmd/jounce
 
 ## Contributing
