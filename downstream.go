@@ -105,6 +105,14 @@ func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
 	return name
 }
 
+func (dc *downstreamConn) forEachNetwork(f func(*network)) {
+	if dc.network != nil {
+		f(dc.network)
+	} else {
+		dc.user.forEachNetwork(f)
+	}
+}
+
 func (dc *downstreamConn) forEachUpstream(f func(*upstreamConn)) {
 	dc.user.forEachUpstream(func(uc *upstreamConn) {
 		if dc.network != nil && uc.network != dc.network {
@@ -458,6 +466,23 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Params:  []string{dc.nick, "You may not reregister"},
 		}}
 	case "NICK":
+		var nick string
+		if err := parseMessageParams(msg, &nick); err != nil {
+			return err
+		}
+
+		var err error
+		dc.forEachNetwork(func(n *network) {
+			if err != nil {
+				return
+			}
+			n.Nick = nick
+			err = dc.srv.db.StoreNetwork(dc.user.Username, &n.Network)
+		})
+		if err != nil {
+			return err
+		}
+
 		dc.forEachUpstream(func(uc *upstreamConn) {
 			uc.SendMessage(msg)
 		})

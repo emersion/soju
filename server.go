@@ -109,6 +109,14 @@ func newUser(srv *Server, record *User) *user {
 	}
 }
 
+func (u *user) forEachNetwork(f func(*network)) {
+	u.lock.Lock()
+	for _, network := range u.networks {
+		f(network)
+	}
+	u.lock.Unlock()
+}
+
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	u.lock.Lock()
 	for _, network := range u.networks {

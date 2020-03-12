@@ -117,6 +117,32 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	return networks, nil
 }
 
+func (db *DB) StoreNetwork(username string, network *Network) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	var netUsername, netRealname *string
+	if network.Username != "" {
+		netUsername = &network.Username
+	}
+	if network.Realname != "" {
+		netRealname = &network.Realname
+	}
+
+	var err error
+	if network.ID != 0 {
+		_, err = db.db.Exec("UPDATE Network SET addr = ?, nick = ?, username = ?, realname = ? WHERE id = ?", network.Addr, network.Nick, netUsername, netRealname, network.ID)
+	} else {
+		var res sql.Result
+		res, err = db.db.Exec("INSERT INTO Network(user, addr, nick, username, realname) VALUES (?, ?, ?, ?, ?)", username, network.Addr, network.Nick, netUsername, netRealname)
+		if err != nil {
+			return err
+		}
+		network.ID, err = res.LastInsertId()
+	}
+	return err
+}
+
 func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
