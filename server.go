@@ -163,6 +163,22 @@ func (u *user) run() {
 	u.lock.Unlock()
 }
 
+func (u *user) createNetwork(addr, nick string) (*network, error) {
+	network := newNetwork(u, &Network{
+		Addr: addr,
+		Nick: nick,
+	})
+	err := u.srv.db.StoreNetwork(u.Username, &network.Network)
+	if err != nil {
+		return nil, err
+	}
+	u.lock.Lock()
+	u.networks = append(u.networks, network)
+	u.lock.Unlock()
+	go network.run()
+	return network, nil
+}
+
 type Server struct {
 	Hostname string
 	Logger   Logger

@@ -1,10 +1,12 @@
 package jounce
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
@@ -336,6 +338,15 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 	return nil
 }
 
+func sanityCheckServer(addr string) error {
+	dialer := net.Dialer{Timeout: 30 * time.Second}
+	conn, err := tls.DialWithDialer(&dialer, "tcp", addr, nil)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
+}
+
 func (dc *downstreamConn) register() error {
 	username := strings.TrimPrefix(dc.username, "~")
 	var networkName string
@@ -365,13 +376,25 @@ func (dc *downstreamConn) register() error {
 	if networkName != "" {
 		network = u.getNetwork(networkName)
 		if network == nil {
-			dc.logger.Printf("failed registration: unknown network %q", networkName)
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.ERR_PASSWDMISMATCH,
-				Params:  []string{"*", fmt.Sprintf("Unknown network %q", networkName)},
-			})
-			return nil
+			addr := networkName
+			if !strings.ContainsRune(addr, ':') {
+				addr = addr + ":6697"
+			}
+
+			dc.logger.Printf("trying to connect to new upstream server %q", addr)
+			if err := sanityCheckServer(addr); err != nil {
+				dc.logger.Printf("failed to connect to %q: %v", addr, err)
+				return ircError{&irc.Message{
+					Command: irc.ERR_PASSWDMISMATCH,
+					Params:  []string{"*", fmt.Sprintf("Failed to connect to %q", networkName)},
+				}}
+			}
+
+			dc.logger.Printf("auto-adding network %q", networkName)
+			network, err = u.createNetwork(networkName, dc.nick)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

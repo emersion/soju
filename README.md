@@ -14,6 +14,8 @@ A user-friendly IRC bouncer.
     go run ./cmd/jouncectl create-user jounce
     go run ./cmd/jounce
 
+Then connect with username `jounce@chat.freenode.net` and join `#jounce`.
+
 ## Contributing
 
 Send patches on the [mailing list], report bugs on the [issue tracker].
