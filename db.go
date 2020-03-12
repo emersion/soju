@@ -77,22 +77,12 @@ func (db *DB) CreateUser(user *User) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	tx, err := db.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
 	var password *string
 	if user.Password != "" {
 		password = &user.Password
 	}
-	_, err = tx.Exec("INSERT INTO User(username, password) VALUES (?, ?)", user.Username, password)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
+	_, err := db.db.Exec("INSERT INTO User(username, password) VALUES (?, ?)", user.Username, password)
+	return err
 }
 
 func (db *DB) ListNetworks(username string) ([]Network, error) {
@@ -150,4 +140,20 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	}
 
 	return channels, nil
+}
+
+func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	_, err := db.db.Exec("INSERT OR REPLACE INTO Channel(network, name) VALUES (?, ?)", networkID, ch.Name)
+	return err
+}
+
+func (db *DB) DeleteChannel(networkID int64, name string) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	_, err := db.db.Exec("DELETE FROM Channel WHERE network = ? AND name = ?", networkID, name)
+	return err
 }

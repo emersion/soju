@@ -114,7 +114,25 @@ func (dc *downstreamConn) forEachUpstream(f func(*upstreamConn)) {
 	})
 }
 
+// upstream returns the upstream connection, if any. If there are zero or if
+// there are multiple upstream connections, it returns nil.
+func (dc *downstreamConn) upstream() *upstreamConn {
+	if dc.network == nil {
+		return nil
+	}
+
+	var upstream *upstreamConn
+	dc.forEachUpstream(func(uc *upstreamConn) {
+		upstream = uc
+	})
+	return upstream
+}
+
 func (dc *downstreamConn) unmarshalChannel(name string) (*upstreamConn, string, error) {
+	if uc := dc.upstream(); uc != nil {
+		return uc, name, nil
+	}
+
 	// TODO: extract network name from channel name if dc.upstream == nil
 	var channel *upstreamChannel
 	var err error
@@ -461,7 +479,20 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Command: msg.Command,
 			Params:  []string{upstreamName},
 		})
-		// TODO: add/remove channel from upstream config
+
+		switch msg.Command {
+		case "JOIN":
+			err := dc.srv.db.StoreChannel(uc.network.ID, &Channel{
+				Name: upstreamName,
+			})
+			if err != nil {
+				dc.logger.Printf("failed to create channel %q in DB: %v", upstreamName, err)
+			}
+		case "PART":
+			if err := dc.srv.db.DeleteChannel(uc.network.ID, upstreamName); err != nil {
+				dc.logger.Printf("failed to delete channel %q in DB: %v", upstreamName, err)
+			}
+		}
 	case "MODE":
 		if msg.Prefix == nil {
 			return fmt.Errorf("missing prefix")
