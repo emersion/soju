@@ -335,9 +335,10 @@ func (dc *downstreamConn) register() error {
 		return errAuthFailed
 	}
 
+	var network *network
 	if networkName != "" {
-		dc.network = dc.user.getNetwork(networkName)
-		if dc.network == nil {
+		network = u.getNetwork(networkName)
+		if network == nil {
 			dc.logger.Printf("failed registration: unknown network %q", networkName)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -350,6 +351,7 @@ func (dc *downstreamConn) register() error {
 
 	dc.registered = true
 	dc.user = u
+	dc.network = network
 
 	u.lock.Lock()
 	firstDownstream := len(u.downstreamConns) == 0
