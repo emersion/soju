@@ -30,7 +30,7 @@ func Defaults() *Server {
 		Addr:      ":6667",
 		Hostname:  hostname,
 		SQLDriver: "sqlite3",
-		SQLSource: "jounce.db",
+		SQLSource: "soju.db",
 	}
 }
 

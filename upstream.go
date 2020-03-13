@@ -1,4 +1,4 @@
-package jounce
+package soju
 
 import (
 	"crypto/tls"

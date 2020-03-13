@@ -1,4 +1,4 @@
-module git.sr.ht/~emersion/jounce
+module git.sr.ht/~emersion/soju
 
 go 1.13
 

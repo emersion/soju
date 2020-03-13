@@ -1,4 +1,4 @@
-package jounce
+package soju
 
 import (
 	"gopkg.in/irc.v3"

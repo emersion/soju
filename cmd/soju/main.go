@@ -6,8 +6,8 @@ import (
 	"log"
 	"net"
 
-	"git.sr.ht/~emersion/jounce"
-	"git.sr.ht/~emersion/jounce/config"
+	"git.sr.ht/~emersion/soju"
+	"git.sr.ht/~emersion/soju/config"
 )
 
 func main() {
@@ -33,7 +33,7 @@ func main() {
 		cfg.Addr = addr
 	}
 
-	db, err := jounce.OpenSQLDB(cfg.SQLDriver, cfg.SQLSource)
+	db, err := soju.OpenSQLDB(cfg.SQLDriver, cfg.SQLSource)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
@@ -58,7 +58,7 @@ func main() {
 		}
 	}
 
-	srv := jounce.NewServer(db)
+	srv := soju.NewServer(db)
 	// TODO: load from config/DB
 	srv.Hostname = cfg.Hostname
 	srv.Debug = debug

@@ -1,4 +1,4 @@
-# jounce
+# soju
 
 A user-friendly IRC bouncer.
 
@@ -10,11 +10,11 @@ A user-friendly IRC bouncer.
 
 ## Usage
 
-    sqlite3 jounce.db <schema.sql
-    go run ./cmd/jouncectl create-user jounce
-    go run ./cmd/jounce
+    sqlite3 soju.db <schema.sql
+    go run ./cmd/sojuctl create-user soju
+    go run ./cmd/soju
 
-Then connect with username `jounce@chat.freenode.net` and join `#jounce`.
+Then connect with username `soju@chat.freenode.net` and join `#soju`.
 
 ## Contributing
 
@@ -27,4 +27,4 @@ AGPLv3, see LICENSE.
 Copyright (C) 2020 Simon Ser
 
 [mailing list]: https://lists.sr.ht/~emersion/public-inbox
-[issue tracker]: https://todo.sr.ht/~emersion/jounce
+[issue tracker]: https://todo.sr.ht/~emersion/soju

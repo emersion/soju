@@ -1,4 +1,4 @@
-package jounce
+package soju
 
 import (
 	"crypto/tls"
@@ -410,7 +410,7 @@ func (dc *downstreamConn) register() error {
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_WELCOME,
-		Params:  []string{dc.nick, "Welcome to jounce, " + dc.nick},
+		Params:  []string{dc.nick, "Welcome to soju, " + dc.nick},
 	})
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
@@ -425,7 +425,7 @@ func (dc *downstreamConn) register() error {
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_MYINFO,
-		Params:  []string{dc.nick, dc.srv.Hostname, "jounce", "aiwroO", "OovaimnqpsrtklbeI"},
+		Params:  []string{dc.nick, dc.srv.Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
 	// TODO: RPL_ISUPPORT
 	dc.SendMessage(&irc.Message{

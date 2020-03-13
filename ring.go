@@ -1,4 +1,4 @@
-package jounce
+package soju
 
 import (
 	"sync"
@@ -86,7 +86,7 @@ type RingConsumer struct {
 // diff returns the number of pending messages. It assumes the Ring is locked.
 func (rc *RingConsumer) diff() uint64 {
 	if rc.cur > rc.ring.cur {
-		panic("jounce: consumer cursor greater than producer cursor")
+		panic("soju: consumer cursor greater than producer cursor")
 	}
 	return rc.ring.cur - rc.cur
 }
@@ -95,7 +95,7 @@ func (rc *RingConsumer) diff() uint64 {
 // message is returned if no message is available.
 func (rc *RingConsumer) Peek() *irc.Message {
 	if rc.closed {
-		panic("jounce: RingConsumer.Peek called after Close")
+		panic("soju: RingConsumer.Peek called after Close")
 	}
 
 	rc.ring.lock.Lock()
@@ -112,7 +112,7 @@ func (rc *RingConsumer) Peek() *irc.Message {
 	i := int(rc.cur % rc.ring.cap)
 	msg := rc.ring.buffer[i]
 	if msg == nil {
-		panic("jounce: unexpected nil ring buffer entry")
+		panic("soju: unexpected nil ring buffer entry")
 	}
 	return msg
 }

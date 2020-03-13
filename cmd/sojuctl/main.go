@@ -6,13 +6,13 @@ import (
 	"log"
 	"os"
 
-	"git.sr.ht/~emersion/jounce"
-	"git.sr.ht/~emersion/jounce/config"
+	"git.sr.ht/~emersion/soju"
+	"git.sr.ht/~emersion/soju/config"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-const usage = `usage: jouncectl [-config path] <action> [options...]
+const usage = `usage: sojuctl [-config path] <action> [options...]
 
   create-user <username>  Create a new user
   help                    Show this help message
@@ -40,7 +40,7 @@ func main() {
 		cfg = config.Defaults()
 	}
 
-	db, err := jounce.OpenSQLDB(cfg.SQLDriver, cfg.SQLSource)
+	db, err := soju.OpenSQLDB(cfg.SQLDriver, cfg.SQLSource)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
@@ -65,7 +65,7 @@ func main() {
 			log.Fatalf("failed to hash password: %v", err)
 		}
 
-		user := jounce.User{
+		user := soju.User{
 			Username: username,
 			Password: string(hashed),
 		}
