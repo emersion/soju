@@ -563,7 +563,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		// Ignore
 	case rpl_localusers, rpl_globalusers:
 		// Ignore
-	case irc.RPL_STATSVLINE, irc.RPL_STATSPING, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
+	case irc.RPL_STATSVLINE, rpl_statsping, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
 		// Ignore
 	default:
 		uc.logger.Printf("unhandled message: %v", msg)

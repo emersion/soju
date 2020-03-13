@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	rpl_statsping    = "246"
 	rpl_localusers   = "265"
 	rpl_globalusers  = "266"
 	rpl_topicwhotime = "333"
