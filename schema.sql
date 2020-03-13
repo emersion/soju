@@ -11,6 +11,9 @@ CREATE TABLE Network (
 	username VARCHAR(255),
 	realname VARCHAR(255),
 	pass VARCHAR(255),
+	sasl_mechanism VARCHAR(255),
+	sasl_plain_username VARCHAR(255),
+	sasl_plain_password VARCHAR(255),
 	FOREIGN KEY(user) REFERENCES User(username),
 	UNIQUE(user, addr, nick)
 );

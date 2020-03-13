@@ -2,6 +2,7 @@ package jounce
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emersion/go-sasl"
 	"gopkg.in/irc.v3"
 )
 
@@ -48,6 +50,9 @@ type upstreamConn struct {
 	channels   map[string]*upstreamChannel
 	history    map[string]uint64
 	caps       map[string]string
+
+	saslClient  sasl.Client
+	saslStarted bool
 }
 
 func connectToUpstream(network *network) (*upstreamConn, error) {
@@ -169,28 +174,150 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	case "NOTICE":
 		uc.logger.Print(msg)
 	case "CAP":
-		if len(msg.Params) < 2 {
-			return newNeedMoreParamsError(msg.Command)
+		var subCmd string
+		if err := parseMessageParams(msg, nil, &subCmd); err != nil {
+			return err
 		}
-		caps := strings.Fields(msg.Params[len(msg.Params)-1])
-		more := msg.Params[len(msg.Params)-2] == "*"
-
-		for _, s := range caps {
-			kv := strings.SplitN(s, "=", 2)
-			k := strings.ToLower(kv[0])
-			var v string
-			if len(kv) >= 2 {
-				v = kv[1]
+		subCmd = strings.ToUpper(subCmd)
+		subParams := msg.Params[2:]
+		switch subCmd {
+		case "LS":
+			if len(subParams) < 1 {
+				return newNeedMoreParamsError(msg.Command)
 			}
-			uc.caps[k] = v
-		}
+			caps := strings.Fields(subParams[len(subParams)-1])
+			more := len(subParams) >= 2 && msg.Params[len(subParams)-2] == "*"
 
-		if !more {
+			for _, s := range caps {
+				kv := strings.SplitN(s, "=", 2)
+				k := strings.ToLower(kv[0])
+				var v string
+				if len(kv) == 2 {
+					v = kv[1]
+				}
+				uc.caps[k] = v
+			}
+
+			if more {
+				break // wait to receive all capabilities
+			}
+
+			if uc.requestSASL() {
+				uc.SendMessage(&irc.Message{
+					Command: "CAP",
+					Params:  []string{"REQ", "sasl"},
+				})
+				break // we'll send CAP END after authentication is completed
+			}
+
 			uc.SendMessage(&irc.Message{
 				Command: "CAP",
 				Params:  []string{"END"},
 			})
+		case "ACK", "NAK":
+			if len(subParams) < 1 {
+				return newNeedMoreParamsError(msg.Command)
+			}
+			caps := strings.Fields(subParams[0])
+
+			for _, name := range caps {
+				if err := uc.handleCapAck(strings.ToLower(name), subCmd == "ACK"); err != nil {
+					return err
+				}
+			}
+
+			if uc.saslClient == nil {
+				uc.SendMessage(&irc.Message{
+					Command: "CAP",
+					Params:  []string{"END"},
+				})
+			}
+		default:
+			uc.logger.Printf("unhandled message: %v", msg)
 		}
+	case "AUTHENTICATE":
+		if uc.saslClient == nil {
+			return fmt.Errorf("received unexpected AUTHENTICATE message")
+		}
+
+		// TODO: if a challenge is 400 bytes long, buffer it
+		var challengeStr string
+		if err := parseMessageParams(msg, &challengeStr); err != nil {
+			uc.SendMessage(&irc.Message{
+				Command: "AUTHENTICATE",
+				Params:  []string{"*"},
+			})
+			return err
+		}
+
+		var challenge []byte
+		if challengeStr != "+" {
+			var err error
+			challenge, err = base64.StdEncoding.DecodeString(challengeStr)
+			if err != nil {
+				uc.SendMessage(&irc.Message{
+					Command: "AUTHENTICATE",
+					Params:  []string{"*"},
+				})
+				return err
+			}
+		}
+
+		var resp []byte
+		var err error
+		if !uc.saslStarted {
+			_, resp, err = uc.saslClient.Start()
+			uc.saslStarted = true
+		} else {
+			resp, err = uc.saslClient.Next(challenge)
+		}
+		if err != nil {
+			uc.SendMessage(&irc.Message{
+				Command: "AUTHENTICATE",
+				Params:  []string{"*"},
+			})
+			return err
+		}
+
+		// TODO: send response in multiple chunks if >= 400 bytes
+		var respStr = "+"
+		if resp != nil {
+			respStr = base64.StdEncoding.EncodeToString(resp)
+		}
+
+		uc.SendMessage(&irc.Message{
+			Command: "AUTHENTICATE",
+			Params:  []string{respStr},
+		})
+	case rpl_loggedin:
+		var account string
+		if err := parseMessageParams(msg, nil, nil, &account); err != nil {
+			return err
+		}
+		uc.logger.Printf("logged in with account %q", account)
+	case rpl_loggedout:
+		uc.logger.Printf("logged out")
+	case err_nicklocked, rpl_saslsuccess, err_saslfail, err_sasltoolong, err_saslaborted:
+		var info string
+		if err := parseMessageParams(msg, nil, &info); err != nil {
+			return err
+		}
+		switch msg.Command {
+		case err_nicklocked:
+			uc.logger.Printf("invalid nick used with SASL authentication: %v", info)
+		case err_saslfail:
+			uc.logger.Printf("SASL authentication failed: %v", info)
+		case err_sasltoolong:
+			uc.logger.Printf("SASL message too long: %v", info)
+		}
+
+		uc.saslClient = nil
+		uc.saslStarted = false
+
+		uc.SendMessage(&irc.Message{
+			Command: "CAP",
+			Params:  []string{"END"},
+		})
 	case irc.RPL_WELCOME:
 		uc.registered = true
 		uc.logger.Printf("connection registered")
@@ -439,7 +566,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	case irc.RPL_STATSVLINE, irc.RPL_STATSPING, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
 		// Ignore
 	default:
-		uc.logger.Printf("unhandled upstream message: %v", msg)
+		uc.logger.Printf("unhandled message: %v", msg)
 	}
 	return nil
 }
@@ -475,6 +602,57 @@ func (uc *upstreamConn) register() {
 		Command: "USER",
 		Params:  []string{uc.username, "0", "*", uc.realname},
 	})
+}
+
+func (uc *upstreamConn) requestSASL() bool {
+	if uc.network.SASL.Mechanism == "" {
+		return false
+	}
+
+	v, ok := uc.caps["sasl"]
+	if !ok {
+		return false
+	}
+	if v != "" {
+		mechanisms := strings.Split(v, ",")
+		found := false
+		for _, mech := range mechanisms {
+			if strings.EqualFold(mech, uc.network.SASL.Mechanism) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
+	auth := &uc.network.SASL
+	switch name {
+	case "sasl":
+		if !ok {
+			uc.logger.Printf("server refused to acknowledge the SASL capability")
+			return nil
+		}
+
+		switch auth.Mechanism {
+		case "PLAIN":
+			uc.logger.Printf("starting SASL PLAIN authentication with username %q", auth.Plain.Username)
+			uc.saslClient = sasl.NewPlainClient("", auth.Plain.Username, auth.Plain.Password)
+		default:
+			return fmt.Errorf("unsupported SASL mechanism %q", name)
+		}
+
+		uc.SendMessage(&irc.Message{
+			Command: "AUTHENTICATE",
+			Params:  []string{auth.Mechanism},
+		})
+	}
+	return nil
 }
 
 func (uc *upstreamConn) readMessages() error {

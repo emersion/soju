@@ -381,7 +381,7 @@ func (dc *downstreamConn) register() error {
 				addr = addr + ":6697"
 			}
 
-			dc.logger.Printf("trying to connect to new upstream server %q", addr)
+			dc.logger.Printf("trying to connect to new network %q", addr)
 			if err := sanityCheckServer(addr); err != nil {
 				dc.logger.Printf("failed to connect to %q: %v", addr, err)
 				return ircError{&irc.Message{
@@ -390,7 +390,7 @@ func (dc *downstreamConn) register() error {
 				}}
 			}
 
-			dc.logger.Printf("auto-adding network %q", networkName)
+			dc.logger.Printf("auto-saving network %q", networkName)
 			network, err = u.createNetwork(networkName, dc.nick)
 			if err != nil {
 				return err
@@ -618,6 +618,10 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return err
 			}
 
+			if upstreamName == "NickServ" {
+				dc.handleNickServPRIVMSG(uc, text)
+			}
+
 			uc.SendMessage(&irc.Message{
 				Command: "PRIVMSG",
 				Params:  []string{upstreamName, text},
@@ -628,4 +632,42 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		return newUnknownCommandError(msg.Command)
 	}
 	return nil
+}
+
+func (dc *downstreamConn) handleNickServPRIVMSG(uc *upstreamConn, text string) {
+	username, password, ok := parseNickServCredentials(text, uc.nick)
+	if !ok {
+		return
+	}
+
+	dc.logger.Printf("auto-saving NickServ credentials with username %q", username)
+	n := uc.network
+	n.SASL.Mechanism = "PLAIN"
+	n.SASL.Plain.Username = username
+	n.SASL.Plain.Password = password
+	if err := dc.srv.db.StoreNetwork(dc.user.Username, &n.Network); err != nil {
+		dc.logger.Printf("failed to save NickServ credentials: %v", err)
+	}
+}
+
+func parseNickServCredentials(text, nick string) (username, password string, ok bool) {
+	fields := strings.Fields(text)
+	if len(fields) < 2 {
+		return "", "", false
+	}
+	cmd := strings.ToUpper(fields[0])
+	params := fields[1:]
+	switch cmd {
+	case "REGISTER":
+		username = nick
+		password = params[0]
+	case "IDENTIFY":
+		if len(params) == 1 {
+			username = nick
+		} else {
+			username = params[0]
+		}
+		password = params[1]
+	}
+	return username, password, true
 }
