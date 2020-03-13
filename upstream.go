@@ -173,6 +173,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 	case "NOTICE":
 		uc.logger.Print(msg)
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			dc.SendMessage(msg)
+		})
 	case "CAP":
 		var subCmd string
 		if err := parseMessageParams(msg, nil, &subCmd); err != nil {
