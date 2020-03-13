@@ -19,6 +19,7 @@ CREATE TABLE Channel (
 	id INTEGER PRIMARY KEY,
 	network INTEGER NOT NULL,
 	name VARCHAR(255) NOT NULL,
+	key VARCHAR(255),
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, name)
 );
