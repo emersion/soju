@@ -47,6 +47,7 @@ type upstreamConn struct {
 	modes      modeSet
 	channels   map[string]*upstreamChannel
 	history    map[string]uint64
+	caps       map[string]string
 }
 
 func connectToUpstream(network *network) (*upstreamConn, error) {
@@ -77,6 +78,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		ring:     NewRing(network.user.srv.RingCap),
 		channels: make(map[string]*upstreamChannel),
 		history:  make(map[string]uint64),
+		caps:     make(map[string]string),
 	}
 
 	go func() {
@@ -166,6 +168,29 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 	case "NOTICE":
 		uc.logger.Print(msg)
+	case "CAP":
+		if len(msg.Params) < 2 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		caps := strings.Fields(msg.Params[len(msg.Params) - 1])
+		more := msg.Params[len(msg.Params) - 2] == "*"
+
+		for _, s := range caps {
+			kv := strings.SplitN(s, "=", 2)
+			k := strings.ToLower(kv[0])
+			var v string
+			if len(kv) >= 2 {
+				v = kv[1]
+			}
+			uc.caps[k] = v
+		}
+
+		if !more {
+			uc.SendMessage(&irc.Message{
+				Command: "CAP",
+				Params:  []string{"END"},
+			})
+		}
 	case irc.RPL_WELCOME:
 		uc.registered = true
 		uc.logger.Printf("connection registered")
@@ -429,6 +454,11 @@ func (uc *upstreamConn) register() {
 	if uc.realname == "" {
 		uc.realname = uc.nick
 	}
+
+	uc.SendMessage(&irc.Message{
+		Command: "CAP",
+		Params:  []string{"LS", "302"},
+	})
 
 	uc.SendMessage(&irc.Message{
 		Command: "NICK",
