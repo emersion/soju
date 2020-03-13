@@ -18,6 +18,7 @@ type Network struct {
 	Nick     string
 	Username string
 	Realname string
+	Pass     string
 }
 
 type Channel struct {
@@ -89,7 +90,7 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	rows, err := db.db.Query("SELECT id, addr, nick, username, realname FROM Network WHERE user = ?", username)
+	rows, err := db.db.Query("SELECT id, addr, nick, username, realname, pass FROM Network WHERE user = ?", username)
 	if err != nil {
 		return nil, err
 	}
@@ -98,8 +99,8 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	var networks []Network
 	for rows.Next() {
 		var net Network
-		var username, realname *string
-		if err := rows.Scan(&net.ID, &net.Addr, &net.Nick, &username, &realname); err != nil {
+		var username, realname, pass *string
+		if err := rows.Scan(&net.ID, &net.Addr, &net.Nick, &username, &realname, &pass); err != nil {
 			return nil, err
 		}
 		if username != nil {
@@ -107,6 +108,9 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 		}
 		if realname != nil {
 			net.Realname = *realname
+		}
+		if pass != nil {
+			net.Pass = *pass
 		}
 		networks = append(networks, net)
 	}
@@ -121,20 +125,29 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	var netUsername, netRealname *string
+	var netUsername, realname, pass *string
 	if network.Username != "" {
 		netUsername = &network.Username
 	}
 	if network.Realname != "" {
-		netRealname = &network.Realname
+		realname = &network.Realname
+	}
+	if network.Pass != "" {
+		pass = &network.Pass
 	}
 
 	var err error
 	if network.ID != 0 {
-		_, err = db.db.Exec("UPDATE Network SET addr = ?, nick = ?, username = ?, realname = ? WHERE id = ?", network.Addr, network.Nick, netUsername, netRealname, network.ID)
+		_, err = db.db.Exec(`UPDATE Network
+			SET addr = ?, nick = ?, username = ?, realname = ?, pass = ?
+			WHERE id = ?`,
+			network.Addr, network.Nick, netUsername, realname, pass, network.ID)
 	} else {
 		var res sql.Result
-		res, err = db.db.Exec("INSERT INTO Network(user, addr, nick, username, realname) VALUES (?, ?, ?, ?, ?)", username, network.Addr, network.Nick, netUsername, netRealname)
+		res, err = db.db.Exec(`INSERT INTO Network(user, addr, nick, username,
+				realname, pass)
+			VALUES (?, ?, ?, ?, ?, ?)`,
+			username, network.Addr, network.Nick, netUsername, realname, pass)
 		if err != nil {
 			return err
 		}

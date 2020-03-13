@@ -10,6 +10,7 @@ CREATE TABLE Network (
 	nick VARCHAR(255) NOT NULL,
 	username VARCHAR(255),
 	realname VARCHAR(255),
+	pass VARCHAR(255),
 	FOREIGN KEY(user) REFERENCES User(username),
 	UNIQUE(user, addr, nick)
 );

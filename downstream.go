@@ -427,6 +427,7 @@ func (dc *downstreamConn) register() error {
 		Command: irc.RPL_MYINFO,
 		Params:  []string{dc.nick, dc.srv.Hostname, "jounce", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
+	// TODO: RPL_ISUPPORT
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.ERR_NOMOTD,

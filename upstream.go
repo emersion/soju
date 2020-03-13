@@ -172,8 +172,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if len(msg.Params) < 2 {
 			return newNeedMoreParamsError(msg.Command)
 		}
-		caps := strings.Fields(msg.Params[len(msg.Params) - 1])
-		more := msg.Params[len(msg.Params) - 2] == "*"
+		caps := strings.Fields(msg.Params[len(msg.Params)-1])
+		more := msg.Params[len(msg.Params)-2] == "*"
 
 		for _, s := range caps {
 			kv := strings.SplitN(s, "=", 2)
@@ -459,6 +459,13 @@ func (uc *upstreamConn) register() {
 		Command: "CAP",
 		Params:  []string{"LS", "302"},
 	})
+
+	if uc.network.Pass != "" {
+		uc.SendMessage(&irc.Message{
+			Command: "PASS",
+			Params:  []string{uc.network.Pass},
+		})
+	}
 
 	uc.SendMessage(&irc.Message{
 		Command: "NICK",
