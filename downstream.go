@@ -47,7 +47,7 @@ var errAuthFailed = ircError{&irc.Message{
 	Params:  []string{"*", "Invalid username or password"},
 }}
 
-type consumption struct {
+type ringMessage struct {
 	consumer     *RingConsumer
 	upstreamConn *upstreamConn
 }
@@ -58,7 +58,7 @@ type downstreamConn struct {
 	srv          *Server
 	logger       Logger
 	outgoing     chan *irc.Message
-	consumptions chan consumption
+	ringMessages chan ringMessage
 	closed       chan struct{}
 
 	registered  bool
@@ -78,7 +78,7 @@ func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 		srv:          srv,
 		logger:       &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
 		outgoing:     make(chan *irc.Message, 64),
-		consumptions: make(chan consumption),
+		ringMessages: make(chan ringMessage),
 		closed:       make(chan struct{}),
 	}
 
@@ -222,8 +222,8 @@ func (dc *downstreamConn) writeMessages() error {
 				dc.logger.Printf("sent: %v", msg)
 			}
 			err = dc.irc.WriteMessage(msg)
-		case consumption := <-dc.consumptions:
-			consumer, uc := consumption.consumer, consumption.upstreamConn
+		case ringMessage := <-dc.ringMessages:
+			consumer, uc := ringMessage.consumer, ringMessage.upstreamConn
 			for {
 				msg := consumer.Peek()
 				if msg == nil {
@@ -427,7 +427,6 @@ func (dc *downstreamConn) register() error {
 	})
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
-		// TODO: fix races accessing upstream connection data
 		for _, ch := range uc.channels {
 			if ch.complete {
 				forwardChannel(dc, ch)
@@ -450,7 +449,7 @@ func (dc *downstreamConn) register() error {
 				var closed bool
 				select {
 				case <-ch:
-					dc.consumptions <- consumption{consumer, uc}
+					dc.ringMessages <- ringMessage{consumer, uc}
 				case <-dc.closed:
 					closed = true
 				}
