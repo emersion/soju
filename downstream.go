@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -71,6 +72,10 @@ type downstreamConn struct {
 	password    string   // empty after authentication
 	network     *network // can be nil
 
+	negociatingCaps bool
+	capVersion      int
+	caps            map[string]bool
+
 	lock        sync.Mutex
 	ourMessages map[*irc.Message]struct{}
 }
@@ -84,6 +89,7 @@ func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 		outgoing:     make(chan *irc.Message, 64),
 		ringMessages: make(chan ringMessage),
 		closed:       make(chan struct{}),
+		caps:         make(map[string]bool),
 		ourMessages:  make(map[*irc.Message]struct{}),
 	}
 
@@ -328,12 +334,115 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		if err := parseMessageParams(msg, &dc.password); err != nil {
 			return err
 		}
+	case "CAP":
+		var subCmd string
+		if err := parseMessageParams(msg, &subCmd); err != nil {
+			return err
+		}
+		subCmd = strings.ToUpper(subCmd)
+		if err := dc.handleCapCommand(subCmd, msg.Params[1:]); err != nil {
+			return err
+		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
-	if dc.rawUsername != "" && dc.nick != "" {
+	if dc.rawUsername != "" && dc.nick != "" && !dc.negociatingCaps {
 		return dc.register()
+	}
+	return nil
+}
+
+func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
+	replyTo := dc.nick
+	if !dc.registered {
+		replyTo = "*"
+	}
+
+	switch cmd {
+	case "LS":
+		if len(args) > 0 {
+			var err error
+			if dc.capVersion, err = strconv.Atoi(args[0]); err != nil {
+				return err
+			}
+		}
+
+		var caps []string
+		/*if dc.capVersion >= 302 {
+			caps = append(caps, "sasl=PLAIN")
+		} else {
+			caps = append(caps, "sasl")
+		}*/
+
+		// TODO: multi-line replies
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "CAP",
+			Params:  []string{replyTo, "LS", strings.Join(caps, " ")},
+		})
+
+		if !dc.registered {
+			dc.negociatingCaps = true
+		}
+	case "LIST":
+		var caps []string
+		for name := range dc.caps {
+			caps = append(caps, name)
+		}
+
+		// TODO: multi-line replies
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "CAP",
+			Params:  []string{replyTo, "LIST", strings.Join(caps, " ")},
+		})
+	case "REQ":
+		if len(args) == 0 {
+			return ircError{&irc.Message{
+				Command: err_invalidcapcmd,
+				Params:  []string{replyTo, cmd, "Missing argument in CAP REQ command"},
+			}}
+		}
+
+		caps := strings.Fields(args[0])
+		ack := true
+		for _, name := range caps {
+			name = strings.ToLower(name)
+			enable := !strings.HasPrefix(name, "-")
+			if !enable {
+				name = strings.TrimPrefix(name, "-")
+			}
+
+			enabled := dc.caps[name]
+			if enable == enabled {
+				continue
+			}
+
+			switch name {
+			/*case "sasl":
+				dc.caps[name] = enable*/
+			default:
+				ack = false
+			}
+		}
+
+		reply := "NAK"
+		if ack {
+			reply = "ACK"
+		}
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "CAP",
+			Params:  []string{replyTo, reply, args[0]},
+		})
+	case "END":
+		dc.negociatingCaps = false
+	default:
+		return ircError{&irc.Message{
+			Command: err_invalidcapcmd,
+			Params:  []string{replyTo, cmd, "Unknown CAP command"},
+		}}
 	}
 	return nil
 }

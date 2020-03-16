@@ -8,19 +8,20 @@ import (
 )
 
 const (
-	rpl_statsping    = "246"
-	rpl_localusers   = "265"
-	rpl_globalusers  = "266"
-	rpl_topicwhotime = "333"
-	rpl_loggedin     = "900"
-	rpl_loggedout    = "901"
-	err_nicklocked   = "902"
-	rpl_saslsuccess  = "903"
-	err_saslfail     = "904"
-	err_sasltoolong  = "905"
-	err_saslaborted  = "906"
-	err_saslalready  = "907"
-	rpl_saslmechs    = "908"
+	rpl_statsping     = "246"
+	rpl_localusers    = "265"
+	rpl_globalusers   = "266"
+	rpl_topicwhotime  = "333"
+	err_invalidcapcmd = "410"
+	rpl_loggedin      = "900"
+	rpl_loggedout     = "901"
+	err_nicklocked    = "902"
+	rpl_saslsuccess   = "903"
+	err_saslfail      = "904"
+	err_sasltoolong   = "905"
+	err_saslaborted   = "906"
+	err_saslalready   = "907"
+	rpl_saslmechs     = "908"
 )
 
 type modeSet string
