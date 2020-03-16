@@ -339,7 +339,6 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		if err := parseMessageParams(msg, &subCmd); err != nil {
 			return err
 		}
-		subCmd = strings.ToUpper(subCmd)
 		if err := dc.handleCapCommand(subCmd, msg.Params[1:]); err != nil {
 			return err
 		}
@@ -354,6 +353,8 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 }
 
 func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
+	cmd = strings.ToUpper(cmd)
+
 	replyTo := dc.nick
 	if !dc.registered {
 		replyTo = "*"
@@ -620,6 +621,14 @@ func (dc *downstreamConn) runUntilRegistered() error {
 
 func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 	switch msg.Command {
+	case "CAP":
+		var subCmd string
+		if err := parseMessageParams(msg, &subCmd); err != nil {
+			return err
+		}
+		if err := dc.handleCapCommand(subCmd, msg.Params[1:]); err != nil {
+			return err
+		}
 	case "PING":
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
