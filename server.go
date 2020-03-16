@@ -114,8 +114,12 @@ func (s *Server) Serve(ln net.Listener) error {
 			s.downstreamConns = append(s.downstreamConns, dc)
 			s.lock.Unlock()
 
-			if err := dc.readMessages(); err != nil {
-				dc.logger.Printf("failed to handle messages: %v", err)
+			if err := dc.runUntilRegistered(); err != nil {
+				dc.logger.Print(err)
+			} else {
+				if err := dc.readMessages(dc.user.downstreamIncoming); err != nil {
+					dc.logger.Print(err)
+				}
 			}
 			dc.Close()
 

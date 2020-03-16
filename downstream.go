@@ -191,7 +191,7 @@ func (dc *downstreamConn) isClosed() bool {
 	}
 }
 
-func (dc *downstreamConn) readMessages() error {
+func (dc *downstreamConn) readMessages(ch chan<- downstreamIncomingMessage) error {
 	dc.logger.Printf("new connection")
 
 	for {
@@ -206,17 +206,7 @@ func (dc *downstreamConn) readMessages() error {
 			dc.logger.Printf("received: %v", msg)
 		}
 
-		err = dc.handleMessage(msg)
-		if ircErr, ok := err.(ircError); ok {
-			ircErr.Message.Prefix = dc.srv.prefix()
-			dc.SendMessage(ircErr.Message)
-		} else if err != nil {
-			return fmt.Errorf("failed to handle IRC command %q: %v", msg.Command, err)
-		}
-
-		if dc.isClosed() {
-			return nil
-		}
+		ch <- downstreamIncomingMessage{msg, dc}
 	}
 
 	return nil
@@ -480,6 +470,27 @@ func (dc *downstreamConn) register() error {
 			}
 		}()
 	})
+
+	return nil
+}
+
+func (dc *downstreamConn) runUntilRegistered() error {
+	for !dc.registered {
+		msg, err := dc.irc.ReadMessage()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return fmt.Errorf("failed to read IRC command: %v", err)
+		}
+
+		err = dc.handleMessage(msg)
+		if ircErr, ok := err.(ircError); ok {
+			ircErr.Message.Prefix = dc.srv.prefix()
+			dc.SendMessage(ircErr.Message)
+		} else if err != nil {
+			return fmt.Errorf("failed to handle IRC command %q: %v", msg, err)
+		}
+	}
 
 	return nil
 }

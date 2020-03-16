@@ -3,7 +3,19 @@ package soju
 import (
 	"sync"
 	"time"
+
+	"gopkg.in/irc.v3"
 )
+
+type upstreamIncomingMessage struct {
+	msg *irc.Message
+	uc  *upstreamConn
+}
+
+type downstreamIncomingMessage struct {
+	msg *irc.Message
+	dc  *downstreamConn
+}
 
 type network struct {
 	Network
@@ -40,7 +52,7 @@ func (net *network) run() {
 		net.conn = uc
 		net.user.lock.Unlock()
 
-		if err := uc.readMessages(); err != nil {
+		if err := uc.readMessages(net.user.upstreamIncoming); err != nil {
 			uc.logger.Printf("failed to handle messages: %v", err)
 		}
 		uc.Close()
@@ -55,6 +67,9 @@ type user struct {
 	User
 	srv *Server
 
+	upstreamIncoming   chan upstreamIncomingMessage
+	downstreamIncoming chan downstreamIncomingMessage
+
 	lock            sync.Mutex
 	networks        []*network
 	downstreamConns []*downstreamConn
@@ -62,8 +77,10 @@ type user struct {
 
 func newUser(srv *Server, record *User) *user {
 	return &user{
-		User: *record,
-		srv:  srv,
+		User:               *record,
+		srv:                srv,
+		upstreamIncoming:   make(chan upstreamIncomingMessage, 64),
+		downstreamIncoming: make(chan downstreamIncomingMessage, 64),
 	}
 }
 
@@ -119,6 +136,26 @@ func (u *user) run() {
 		go network.run()
 	}
 	u.lock.Unlock()
+
+	for {
+		select {
+		case upstreamMsg := <-u.upstreamIncoming:
+			msg, uc := upstreamMsg.msg, upstreamMsg.uc
+			if err := uc.handleMessage(msg); err != nil {
+				uc.logger.Printf("failed to handle message %q: %v", msg, err)
+			}
+		case downstreamMsg := <-u.downstreamIncoming:
+			msg, dc := downstreamMsg.msg, downstreamMsg.dc
+			err := dc.handleMessage(msg)
+			if ircErr, ok := err.(ircError); ok {
+				ircErr.Message.Prefix = dc.srv.prefix()
+				dc.SendMessage(ircErr.Message)
+			} else if err != nil {
+				dc.logger.Printf("failed to handle message %q: %v", msg, err)
+				dc.Close()
+			}
+		}
+	}
 }
 
 func (u *user) createNetwork(addr, nick string) (*network, error) {

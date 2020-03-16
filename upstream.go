@@ -659,7 +659,7 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 	return nil
 }
 
-func (uc *upstreamConn) readMessages() error {
+func (uc *upstreamConn) readMessages(ch chan<- upstreamIncomingMessage) error {
 	for {
 		msg, err := uc.irc.ReadMessage()
 		if err == io.EOF {
@@ -672,9 +672,7 @@ func (uc *upstreamConn) readMessages() error {
 			uc.logger.Printf("received: %v", msg)
 		}
 
-		if err := uc.handleMessage(msg); err != nil {
-			uc.logger.Printf("failed to handle message %q: %v", msg, err)
-		}
+		ch <- upstreamIncomingMessage{msg, uc}
 	}
 
 	return nil
