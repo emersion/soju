@@ -61,13 +61,14 @@ type downstreamConn struct {
 	consumptions chan consumption
 	closed       chan struct{}
 
-	registered bool
-	user       *user
-	nick       string
-	username   string
-	realname   string
-	password   string   // empty after authentication
-	network    *network // can be nil
+	registered  bool
+	user        *user
+	nick        string
+	username    string
+	rawUsername string
+	realname    string
+	password    string   // empty after authentication
+	network     *network // can be nil
 }
 
 func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
@@ -323,7 +324,7 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		if err := parseMessageParams(msg, &username, nil, nil, &dc.realname); err != nil {
 			return err
 		}
-		dc.username = "~" + username
+		dc.rawUsername = username
 	case "PASS":
 		if err := parseMessageParams(msg, &dc.password); err != nil {
 			return err
@@ -332,7 +333,7 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
-	if dc.username != "" && dc.nick != "" {
+	if dc.rawUsername != "" && dc.nick != "" {
 		return dc.register()
 	}
 	return nil
@@ -348,7 +349,7 @@ func sanityCheckServer(addr string) error {
 }
 
 func (dc *downstreamConn) register() error {
-	username := strings.TrimPrefix(dc.username, "~")
+	username := dc.rawUsername
 	var networkName string
 	if i := strings.LastIndexAny(username, "/@"); i >= 0 {
 		networkName = username[i+1:]
@@ -356,6 +357,7 @@ func (dc *downstreamConn) register() error {
 	if i := strings.IndexAny(username, "/@"); i >= 0 {
 		username = username[:i]
 	}
+	dc.username = "~" + username
 
 	password := dc.password
 	dc.password = ""
