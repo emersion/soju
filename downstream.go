@@ -492,9 +492,7 @@ func (dc *downstreamConn) register() error {
 func (dc *downstreamConn) runUntilRegistered() error {
 	for !dc.registered {
 		msg, err := dc.irc.ReadMessage()
-		if err == io.EOF {
-			break
-		} else if err != nil {
+		if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)
 		}
 
