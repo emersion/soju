@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/emersion/go-sasl"
@@ -48,11 +49,13 @@ type upstreamConn struct {
 	closed     bool
 	modes      modeSet
 	channels   map[string]*upstreamChannel
-	history    map[string]uint64
 	caps       map[string]string
 
 	saslClient  sasl.Client
 	saslStarted bool
+
+	lock    sync.Mutex
+	history map[string]uint64 // TODO: move to network
 }
 
 func connectToUpstream(network *network) (*upstreamConn, error) {
