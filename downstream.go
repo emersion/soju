@@ -57,7 +57,7 @@ type downstreamConn struct {
 	irc          *irc.Conn
 	srv          *Server
 	logger       Logger
-	messages     chan *irc.Message
+	outgoing     chan *irc.Message
 	consumptions chan consumption
 	closed       chan struct{}
 
@@ -77,7 +77,7 @@ func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 		irc:          irc.NewConn(netConn),
 		srv:          srv,
 		logger:       &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
-		messages:     make(chan *irc.Message, 64),
+		outgoing:     make(chan *irc.Message, 64),
 		consumptions: make(chan consumption),
 		closed:       make(chan struct{}),
 	}
@@ -227,7 +227,7 @@ func (dc *downstreamConn) writeMessages() error {
 		var err error
 		var closed bool
 		select {
-		case msg := <-dc.messages:
+		case msg := <-dc.outgoing:
 			if dc.srv.Debug {
 				dc.logger.Printf("sent: %v", msg)
 			}
@@ -290,7 +290,7 @@ func (dc *downstreamConn) Close() error {
 }
 
 func (dc *downstreamConn) SendMessage(msg *irc.Message) {
-	dc.messages <- msg
+	dc.outgoing <- msg
 }
 
 func (dc *downstreamConn) handleMessage(msg *irc.Message) error {

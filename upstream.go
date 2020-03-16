@@ -33,7 +33,7 @@ type upstreamConn struct {
 	irc      *irc.Conn
 	srv      *Server
 	user     *user
-	messages chan<- *irc.Message
+	outgoing chan<- *irc.Message
 	ring     *Ring
 
 	serverName            string
@@ -71,7 +71,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 
 	setKeepAlive(netConn)
 
-	msgs := make(chan *irc.Message, 64)
+	outgoing := make(chan *irc.Message, 64)
 	uc := &upstreamConn{
 		network:  network,
 		logger:   logger,
@@ -79,7 +79,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		irc:      irc.NewConn(netConn),
 		srv:      network.user.srv,
 		user:     network.user,
-		messages: msgs,
+		outgoing: outgoing,
 		ring:     NewRing(network.user.srv.RingCap),
 		channels: make(map[string]*upstreamChannel),
 		history:  make(map[string]uint64),
@@ -87,7 +87,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	}
 
 	go func() {
-		for msg := range msgs {
+		for msg := range outgoing {
 			if uc.srv.Debug {
 				uc.logger.Printf("sent: %v", msg)
 			}
@@ -109,7 +109,7 @@ func (uc *upstreamConn) Close() error {
 	if uc.closed {
 		return fmt.Errorf("upstream connection already closed")
 	}
-	close(uc.messages)
+	close(uc.outgoing)
 	uc.closed = true
 	return nil
 }
@@ -681,5 +681,5 @@ func (uc *upstreamConn) readMessages() error {
 }
 
 func (uc *upstreamConn) SendMessage(msg *irc.Message) {
-	uc.messages <- msg
+	uc.outgoing <- msg
 }
