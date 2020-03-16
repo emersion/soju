@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -69,6 +70,9 @@ type downstreamConn struct {
 	realname    string
 	password    string   // empty after authentication
 	network     *network // can be nil
+
+	lock        sync.Mutex
+	ourMessages map[*irc.Message]struct{}
 }
 
 func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
@@ -80,6 +84,7 @@ func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 		outgoing:     make(chan *irc.Message, 64),
 		ringMessages: make(chan ringMessage),
 		closed:       make(chan struct{}),
+		ourMessages:  make(map[*irc.Message]struct{}),
 	}
 
 	go func() {
@@ -229,6 +234,17 @@ func (dc *downstreamConn) writeMessages() error {
 				if msg == nil {
 					break
 				}
+
+				dc.lock.Lock()
+				_, ours := dc.ourMessages[msg]
+				delete(dc.ourMessages, msg)
+				dc.lock.Unlock()
+				if ours {
+					// The message comes from our connection, don't echo it
+					// back
+					continue
+				}
+
 				msg = msg.Copy()
 				switch msg.Command {
 				case "PRIVMSG":
@@ -638,6 +654,12 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Command: "PRIVMSG",
 				Params:  []string{upstreamName, text},
 			})
+
+			dc.lock.Lock()
+			dc.ourMessages[msg] = struct{}{}
+			dc.lock.Unlock()
+
+			uc.ring.Produce(msg)
 		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
