@@ -303,13 +303,6 @@ func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "QUIT":
 		return dc.Close()
-	case "PING":
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.srv.prefix(),
-			Command: "PONG",
-			Params:  msg.Params,
-		})
-		return nil
 	default:
 		if dc.registered {
 			return dc.handleMessageRegistered(msg)
@@ -510,6 +503,13 @@ func (dc *downstreamConn) runUntilRegistered() error {
 
 func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 	switch msg.Command {
+	case "PING":
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "PONG",
+			Params:  msg.Params,
+		})
+		return nil
 	case "USER":
 		return ircError{&irc.Message{
 			Command: irc.ERR_ALREADYREGISTERED,
