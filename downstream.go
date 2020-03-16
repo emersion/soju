@@ -602,6 +602,10 @@ func (dc *downstreamConn) runUntilRegistered() error {
 			return fmt.Errorf("failed to read IRC command: %v", err)
 		}
 
+		if dc.srv.Debug {
+			dc.logger.Printf("received: %v", msg)
+		}
+
 		err = dc.handleMessage(msg)
 		if ircErr, ok := err.(ircError); ok {
 			ircErr.Message.Prefix = dc.srv.prefix()
