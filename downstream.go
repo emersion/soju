@@ -909,7 +909,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					Name: uc.nick,
 					User: uc.username,
 				},
-				Command: "PRIMSG",
+				Command: "PRIVMSG",
 				Params:  []string{upstreamName, text},
 			}
 			dc.lock.Lock()
