@@ -252,6 +252,7 @@ func (dc *downstreamConn) writeMessages() error {
 				if ours {
 					// The message comes from our connection, don't echo it
 					// back
+					consumer.Consume()
 					continue
 				}
 
@@ -903,11 +904,19 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  []string{upstreamName, text},
 			})
 
+			echoMsg := &irc.Message{
+				Prefix: &irc.Prefix{
+					Name: uc.nick,
+					User: uc.username,
+				},
+				Command: "PRIMSG",
+				Params:  []string{upstreamName, text},
+			}
 			dc.lock.Lock()
-			dc.ourMessages[msg] = struct{}{}
+			dc.ourMessages[echoMsg] = struct{}{}
 			dc.lock.Unlock()
 
-			uc.ring.Produce(msg)
+			uc.ring.Produce(echoMsg)
 		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
