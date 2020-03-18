@@ -158,11 +158,8 @@ func (u *user) run() {
 	}
 }
 
-func (u *user) createNetwork(addr, nick string) (*network, error) {
-	network := newNetwork(u, &Network{
-		Addr: addr,
-		Nick: nick,
-	})
+func (u *user) createNetwork(net *Network) (*network, error) {
+	network := newNetwork(u, net)
 	err := u.srv.db.StoreNetwork(u.Username, &network.Network)
 	if err != nil {
 		return nil, err
