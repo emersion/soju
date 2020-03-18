@@ -562,6 +562,20 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 		uc.ring.Produce(msg)
+	case "INVITE":
+		var nick string
+		var channel string
+		if err := parseMessageParams(msg, &nick, &channel); err != nil {
+			return err
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+				Command: "INVITE",
+				Params:  []string{dc.marshalNick(uc, nick), dc.marshalChannel(uc, channel)},
+			})
+		})
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
