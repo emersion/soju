@@ -1,0 +1,9 @@
+image: alpine/edge
+packages:
+  - go
+sources:
+  - https://git.sr.ht/~emersion/soju
+tasks:
+  - build: |
+      cd soju
+      go test -v ./...
