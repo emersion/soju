@@ -638,7 +638,10 @@ func (dc *downstreamConn) setNetwork(networkName string) error {
 
 		dc.logger.Printf("auto-saving network %q", networkName)
 		var err error
-		network, err = dc.user.createNetwork(networkName, dc.nick)
+		network, err = dc.user.createNetwork(&Network{
+			Addr: networkName,
+			Nick: dc.nick,
+		})
 		if err != nil {
 			return err
 		}
