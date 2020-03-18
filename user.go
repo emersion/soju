@@ -160,6 +160,7 @@ func (u *user) run() {
 
 func (u *user) createNetwork(addr, nick string) (*network, error) {
 	network := newNetwork(u, &Network{
+		Name: addr,
 		Addr: addr,
 		Nick: nick,
 	})

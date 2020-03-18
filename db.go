@@ -23,6 +23,7 @@ type SASL struct {
 
 type Network struct {
 	ID       int64
+	Name     string
 	Addr     string
 	Nick     string
 	Username string
@@ -109,7 +110,7 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	rows, err := db.db.Query(`SELECT id, addr, nick, username, realname, pass,
+	rows, err := db.db.Query(`SELECT id, name, addr, nick, username, realname, pass,
 			sasl_mechanism, sasl_plain_username, sasl_plain_password
 		FROM Network
 		WHERE user = ?`,
@@ -122,13 +123,14 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	var networks []Network
 	for rows.Next() {
 		var net Network
-		var username, realname, pass *string
+		var name, username, realname, pass *string
 		var saslMechanism, saslPlainUsername, saslPlainPassword *string
-		err := rows.Scan(&net.ID, &net.Addr, &net.Nick, &username, &realname,
+		err := rows.Scan(&net.ID, &name, &net.Addr, &net.Nick, &username, &realname,
 			&pass, &saslMechanism, &saslPlainUsername, &saslPlainPassword)
 		if err != nil {
 			return nil, err
 		}
+		net.Name = fromStringPtr(name)
 		net.Username = fromStringPtr(username)
 		net.Realname = fromStringPtr(realname)
 		net.Pass = fromStringPtr(pass)
@@ -148,6 +150,7 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
+	netName := toStringPtr(network.Name)
 	netUsername := toStringPtr(network.Username)
 	realname := toStringPtr(network.Realname)
 	pass := toStringPtr(network.Pass)
@@ -165,18 +168,18 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 	var err error
 	if network.ID != 0 {
 		_, err = db.db.Exec(`UPDATE Network
-			SET addr = ?, nick = ?, username = ?, realname = ?, pass = ?,
+			SET name = ?, addr = ?, nick = ?, username = ?, realname = ?, pass = ?,
 				sasl_mechanism = ?, sasl_plain_username = ?, sasl_plain_password = ?
 			WHERE id = ?`,
-			network.Addr, network.Nick, netUsername, realname, pass,
+			netName, network.Addr, network.Nick, netUsername, realname, pass,
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.ID)
 	} else {
 		var res sql.Result
-		res, err = db.db.Exec(`INSERT INTO Network(user, addr, nick, username,
+		res, err = db.db.Exec(`INSERT INTO Network(user, name, addr, nick, username,
 				realname, pass, sasl_mechanism, sasl_plain_username,
 				sasl_plain_password)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			username, network.Addr, network.Nick, netUsername, realname, pass,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			username, netName, network.Addr, network.Nick, netUsername, realname, pass,
 			saslMechanism, saslPlainUsername, saslPlainPassword)
 		if err != nil {
 			return err
@@ -225,4 +228,11 @@ func (db *DB) DeleteChannel(networkID int64, name string) error {
 
 	_, err := db.db.Exec("DELETE FROM Channel WHERE network = ? AND name = ?", networkID, name)
 	return err
+}
+
+func (net *Network) GetName() string {
+	if net.Name != "" {
+		return net.Name
+	}
+	return net.Addr
 }
