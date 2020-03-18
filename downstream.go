@@ -326,15 +326,21 @@ func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
 func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 	switch msg.Command {
 	case "NICK":
-		if err := parseMessageParams(msg, &dc.nick); err != nil {
+		var nick string
+		if err := parseMessageParams(msg, &nick); err != nil {
 			return err
 		}
+		if nick == serviceNick {
+			return ircError{&irc.Message{
+				Command: irc.ERR_NICKNAMEINUSE,
+				Params:  []string{dc.nick, nick, "Nickname reserved for bouncer service"},
+			}}
+		}
+		dc.nick = nick
 	case "USER":
-		var username string
-		if err := parseMessageParams(msg, &username, nil, nil, &dc.realname); err != nil {
+		if err := parseMessageParams(msg, &dc.rawUsername, nil, nil, &dc.realname); err != nil {
 			return err
 		}
-		dc.rawUsername = username
 	case "PASS":
 		if err := parseMessageParams(msg, &dc.password); err != nil {
 			return err
@@ -890,6 +896,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 
 		for _, name := range strings.Split(targetsStr, ",") {
+			if name == serviceNick {
+				handleServicePRIVMSG(dc, text)
+				continue
+			}
+
 			uc, upstreamName, err := dc.unmarshalChannel(name)
 			if err != nil {
 				return err

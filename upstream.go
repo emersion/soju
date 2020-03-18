@@ -558,9 +558,24 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			forwardChannel(dc, ch)
 		})
 	case "PRIVMSG":
-		if err := parseMessageParams(msg, nil, nil); err != nil {
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
+		var nick string
+		if err := parseMessageParams(msg, &nick, nil); err != nil {
 			return err
 		}
+
+		if msg.Prefix.Name == serviceNick {
+			uc.logger.Printf("skipping PRIVMSG from soju's service: %v", msg)
+			break
+		}
+		if nick == serviceNick {
+			uc.logger.Printf("skipping PRIVMSG to soju's service: %v", msg)
+			break
+		}
+
 		uc.ring.Produce(msg)
 	case "INVITE":
 		var nick string
