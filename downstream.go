@@ -119,10 +119,6 @@ func (dc *downstreamConn) prefix() *irc.Prefix {
 	}
 }
 
-func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
-	return name
-}
-
 func (dc *downstreamConn) forEachNetwork(f func(*network)) {
 	if dc.network != nil {
 		f(dc.network)
@@ -154,12 +150,47 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 	return upstream
 }
 
+func (dc *downstreamConn) marshalEntity(uc *upstreamConn, name string) string {
+	for _, r := range name {
+		switch r {
+		// TODO: support upstream ISUPPORT channel prefixes
+		case '#', '&', '+', '!':
+			return dc.marshalChannel(uc, name)
+		}
+		break
+	}
+	return dc.marshalNick(uc, name)
+}
+
+func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
+	if dc.upstream() != nil {
+		return name
+	}
+	return name + "/" + uc.network.GetName()
+}
+
 func (dc *downstreamConn) unmarshalChannel(name string) (*upstreamConn, string, error) {
 	if uc := dc.upstream(); uc != nil {
 		return uc, name, nil
 	}
 
-	// TODO: extract network name from channel name if dc.upstream == nil
+	network := ""
+	if i := strings.LastIndexByte(name, '/'); i >= 0 {
+		network = name[i+1:]
+		name = name[:i]
+	}
+
+	if network != "" {
+		var conn *upstreamConn
+		dc.forEachUpstream(func(uc *upstreamConn) {
+			if network != uc.network.GetName() {
+				return
+			}
+			conn = uc
+		})
+		return conn, name, nil
+	}
+
 	var channel *upstreamChannel
 	var err error
 	dc.forEachUpstream(func(uc *upstreamConn) {
@@ -187,14 +218,24 @@ func (dc *downstreamConn) marshalNick(uc *upstreamConn, nick string) string {
 	if nick == uc.nick {
 		return dc.nick
 	}
-	return nick
+	if dc.upstream() != nil {
+		return nick
+	}
+	return nick + "/" + uc.network.GetName()
 }
 
 func (dc *downstreamConn) marshalUserPrefix(uc *upstreamConn, prefix *irc.Prefix) *irc.Prefix {
 	if prefix.Name == uc.nick {
 		return dc.prefix()
 	}
-	return prefix
+	if dc.upstream() != nil {
+		return prefix
+	}
+	return &irc.Prefix{
+		Name: prefix.Name + "/" + uc.network.GetName(),
+		User: prefix.User,
+		Host: prefix.Host,
+	}
 }
 
 func (dc *downstreamConn) isClosed() bool {
@@ -259,8 +300,8 @@ func (dc *downstreamConn) writeMessages() error {
 				msg = msg.Copy()
 				switch msg.Command {
 				case "PRIVMSG":
-					// TODO: detect whether it's a user or a channel
-					msg.Params[0] = dc.marshalChannel(uc, msg.Params[0])
+					msg.Prefix = dc.marshalUserPrefix(uc, msg.Prefix)
+					msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
 				default:
 					panic("expected to consume a PRIVMSG message")
 				}
