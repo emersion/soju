@@ -727,7 +727,7 @@ func (dc *downstreamConn) register() error {
 			}
 		}
 
-		historyName := dc.username
+		historyName := dc.rawUsername
 
 		var seqPtr *uint64
 		if firstDownstream {
