@@ -169,49 +169,31 @@ func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
 	return name + "/" + uc.network.GetName()
 }
 
-func (dc *downstreamConn) unmarshalChannel(name string) (*upstreamConn, string, error) {
+func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, error) {
 	if uc := dc.upstream(); uc != nil {
 		return uc, name, nil
 	}
 
-	network := ""
+	var conn *upstreamConn
 	if i := strings.LastIndexByte(name, '/'); i >= 0 {
-		network = name[i+1:]
+		network := name[i+1:]
 		name = name[:i]
-	}
 
-	if network != "" {
-		var conn *upstreamConn
 		dc.forEachUpstream(func(uc *upstreamConn) {
 			if network != uc.network.GetName() {
 				return
 			}
 			conn = uc
 		})
-		return conn, name, nil
 	}
 
-	var channel *upstreamChannel
-	var err error
-	dc.forEachUpstream(func(uc *upstreamConn) {
-		if err != nil {
-			return
-		}
-		if ch, ok := uc.channels[name]; ok {
-			if channel != nil {
-				err = fmt.Errorf("ambiguous channel name %q", name)
-			} else {
-				channel = ch
-			}
-		}
-	})
-	if channel == nil {
+	if conn == nil {
 		return nil, "", ircError{&irc.Message{
 			Command: irc.ERR_NOSUCHCHANNEL,
 			Params:  []string{name, "No such channel"},
 		}}
 	}
-	return channel.conn, channel.Name, nil
+	return conn, name, nil
 }
 
 func (dc *downstreamConn) marshalNick(uc *upstreamConn, nick string) string {
@@ -843,7 +825,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return err
 		}
 
-		uc, upstreamName, err := dc.unmarshalChannel(name)
+		uc, upstreamName, err := dc.unmarshalEntity(name)
 		if err != nil {
 			return ircError{&irc.Message{
 				Command: irc.ERR_NOSUCHCHANNEL,
@@ -885,7 +867,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 
 		if msg.Prefix.Name != name {
-			uc, upstreamName, err := dc.unmarshalChannel(name)
+			uc, upstreamName, err := dc.unmarshalEntity(name)
 			if err != nil {
 				return err
 			}
@@ -933,6 +915,36 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				})
 			}
 		}
+	case "WHO":
+		if len(msg.Params) == 0 {
+			// TODO: support WHO without parameters
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFWHO,
+				Params:  []string{dc.nick, "*", "End of /WHO list."},
+			})
+			return nil
+		}
+
+		// TODO: support WHO masks
+		entity := msg.Params[0]
+
+		uc, upstreamName, err := dc.unmarshalEntity(entity)
+		if err != nil {
+			return err
+		}
+
+		var params []string
+		if len(msg.Params) == 2 {
+			params = []string{upstreamName, msg.Params[1]}
+		} else {
+			params = []string{upstreamName}
+		}
+
+		uc.SendMessage(&irc.Message{
+			Command: "WHO",
+			Params:  params,
+		})
 	case "PRIVMSG":
 		var targetsStr, text string
 		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
@@ -945,7 +957,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				continue
 			}
 
-			uc, upstreamName, err := dc.unmarshalChannel(name)
+			uc, upstreamName, err := dc.unmarshalEntity(name)
 			if err != nil {
 				return err
 			}
