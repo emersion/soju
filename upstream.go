@@ -557,6 +557,55 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			forwardChannel(dc, ch)
 		})
+	case irc.RPL_WHOREPLY:
+		var channel, username, host, server, nick, mode, trailing string
+		if err := parseMessageParams(msg, nil, &channel, &username, &host, &server, &nick, &mode, &trailing); err != nil {
+			return err
+		}
+
+		parts := strings.SplitN(trailing, " ", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("received malformed RPL_WHOREPLY: wrong trailing parameter: %s", trailing)
+		}
+		realname := parts[1]
+		hops, err := strconv.Atoi(parts[0])
+		if err != nil {
+			return fmt.Errorf("received malformed RPL_WHOREPLY: wrong hop count: %s", parts[0])
+		}
+		hops++
+
+		trailing = strconv.Itoa(hops) + " " + realname
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			channel := channel
+			if channel != "*" {
+				channel = dc.marshalChannel(uc, channel)
+			}
+			nick := dc.marshalNick(uc, nick)
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOREPLY,
+				Params:  []string{dc.nick, channel, username, host, server, nick, mode, trailing},
+			})
+		})
+	case irc.RPL_ENDOFWHO:
+		var name string
+		if err := parseMessageParams(msg, nil, &name); err != nil {
+			return err
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			name := name
+			if name != "*" {
+				// TODO: support WHO masks
+				name = dc.marshalEntity(uc, name)
+			}
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFWHO,
+				Params:  []string{dc.nick, name, "End of /WHO list."},
+			})
+		})
 	case "PRIVMSG":
 		if msg.Prefix == nil {
 			return fmt.Errorf("expected a prefix")
