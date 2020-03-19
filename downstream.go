@@ -397,19 +397,19 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 	case "AUTHENTICATE":
 		if !dc.caps["sasl"] {
 			return ircError{&irc.Message{
-				Command: err_saslfail,
+				Command: irc.ERR_SASLFAIL,
 				Params:  []string{"*", "AUTHENTICATE requires the \"sasl\" capability to be enabled"},
 			}}
 		}
 		if len(msg.Params) == 0 {
 			return ircError{&irc.Message{
-				Command: err_saslfail,
+				Command: irc.ERR_SASLFAIL,
 				Params:  []string{"*", "Missing AUTHENTICATE argument"},
 			}}
 		}
 		if dc.nick == "" {
 			return ircError{&irc.Message{
-				Command: err_saslfail,
+				Command: irc.ERR_SASLFAIL,
 				Params:  []string{"*", "Expected NICK command before AUTHENTICATE"},
 			}}
 		}
@@ -424,14 +424,14 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 				}))
 			default:
 				return ircError{&irc.Message{
-					Command: err_saslfail,
+					Command: irc.ERR_SASLFAIL,
 					Params:  []string{"*", fmt.Sprintf("Unsupported SASL mechanism %q", mech)},
 				}}
 			}
 		} else if msg.Params[0] == "*" {
 			dc.saslServer = nil
 			return ircError{&irc.Message{
-				Command: err_saslaborted,
+				Command: irc.ERR_SASLABORTED,
 				Params:  []string{"*", "SASL authentication aborted"},
 			}}
 		} else if msg.Params[0] == "+" {
@@ -443,7 +443,7 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 			if err != nil {
 				dc.saslServer = nil
 				return ircError{&irc.Message{
-					Command: err_saslfail,
+					Command: irc.ERR_SASLFAIL,
 					Params:  []string{"*", "Invalid base64-encoded response"},
 				}}
 			}
@@ -454,13 +454,13 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 			dc.saslServer = nil
 			if ircErr, ok := err.(ircError); ok && ircErr.Message.Command == irc.ERR_PASSWDMISMATCH {
 				return ircError{&irc.Message{
-					Command: err_saslfail,
+					Command: irc.ERR_SASLFAIL,
 					Params:  []string{"*", ircErr.Message.Params[1]},
 				}}
 			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
-				Command: err_saslfail,
+				Command: irc.ERR_SASLFAIL,
 				Params:  []string{"*", "SASL error"},
 			})
 			return fmt.Errorf("SASL authentication failed: %v", err)
@@ -468,12 +468,12 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 			dc.saslServer = nil
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
-				Command: rpl_loggedin,
+				Command: irc.RPL_LOGGEDIN,
 				Params:  []string{dc.nick, dc.nick, dc.user.Username, "You are now logged in"},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
-				Command: rpl_saslsuccess,
+				Command: irc.RPL_SASLSUCCESS,
 				Params:  []string{dc.nick, "SASL authentication successful"},
 			})
 		} else {

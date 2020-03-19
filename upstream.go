@@ -296,25 +296,25 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			Command: "AUTHENTICATE",
 			Params:  []string{respStr},
 		})
-	case rpl_loggedin:
+	case irc.RPL_LOGGEDIN:
 		var account string
 		if err := parseMessageParams(msg, nil, nil, &account); err != nil {
 			return err
 		}
 		uc.logger.Printf("logged in with account %q", account)
-	case rpl_loggedout:
+	case irc.RPL_LOGGEDOUT:
 		uc.logger.Printf("logged out")
-	case err_nicklocked, rpl_saslsuccess, err_saslfail, err_sasltoolong, err_saslaborted:
+	case irc.ERR_NICKLOCKED, irc.RPL_SASLSUCCESS, irc.ERR_SASLFAIL, irc.ERR_SASLTOOLONG, irc.ERR_SASLABORTED:
 		var info string
 		if err := parseMessageParams(msg, nil, &info); err != nil {
 			return err
 		}
 		switch msg.Command {
-		case err_nicklocked:
+		case irc.ERR_NICKLOCKED:
 			uc.logger.Printf("invalid nick used with SASL authentication: %v", info)
-		case err_saslfail:
+		case irc.ERR_SASLFAIL:
 			uc.logger.Printf("SASL authentication failed: %v", info)
-		case err_sasltoolong:
+		case irc.ERR_SASLTOOLONG:
 			uc.logger.Printf("SASL message too long: %v", info)
 		}
 
