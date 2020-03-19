@@ -101,5 +101,5 @@ can be sent via regular private messages (_/msg BouncerServ <command> [args...]_
 # AUTHORS
 
 Maintained by Simon Ser <contact@emersion.fr>, who is assisted by other
-open-source contributors. For more information about mako development, see
+open-source contributors. For more information about soju development, see
 https://git.sr.ht/~emersion/soju.
