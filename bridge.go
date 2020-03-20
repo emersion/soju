@@ -29,10 +29,7 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 
 	// TODO: send multiple members in each message
 	for nick, membership := range ch.Members {
-		s := dc.marshalNick(ch.conn, nick)
-		if membership != 0 {
-			s = string(membership) + s
-		}
+		s := membership.String() + dc.marshalNick(ch.conn, nick)
 
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
