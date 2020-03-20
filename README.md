@@ -21,7 +21,7 @@ See the man page at `soju.1.scd` for more information.
 ## Contributing
 
 Send patches on the [mailing list] or on [GitHub], report bugs on the
-[issue tracker].
+[issue tracker]. Discuss in #soju on Freenode.
 
 ## License
 

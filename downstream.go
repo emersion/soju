@@ -108,6 +108,7 @@ func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 		}
 	}()
 
+	dc.logger.Printf("new connection")
 	return dc
 }
 
@@ -158,7 +159,7 @@ func (dc *downstreamConn) marshalEntity(uc *upstreamConn, entity string) string 
 }
 
 func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
-	if dc.upstream() != nil {
+	if dc.network != nil {
 		return name
 	}
 	return name + "/" + uc.network.GetName()
@@ -195,7 +196,7 @@ func (dc *downstreamConn) marshalNick(uc *upstreamConn, nick string) string {
 	if nick == uc.nick {
 		return dc.nick
 	}
-	if dc.upstream() != nil {
+	if dc.network != nil {
 		return nick
 	}
 	return nick + "/" + uc.network.GetName()
@@ -205,7 +206,7 @@ func (dc *downstreamConn) marshalUserPrefix(uc *upstreamConn, prefix *irc.Prefix
 	if prefix.Name == uc.nick {
 		return dc.prefix()
 	}
-	if dc.upstream() != nil {
+	if dc.network != nil {
 		return prefix
 	}
 	return &irc.Prefix{
@@ -225,8 +226,6 @@ func (dc *downstreamConn) isClosed() bool {
 }
 
 func (dc *downstreamConn) readMessages(ch chan<- downstreamIncomingMessage) error {
-	dc.logger.Printf("new connection")
-
 	for {
 		msg, err := dc.irc.ReadMessage()
 		if err == io.EOF {
@@ -664,6 +663,7 @@ func (dc *downstreamConn) register() error {
 
 	dc.registered = true
 	dc.username = dc.user.Username
+	dc.logger.Printf("registration complete for user %q", dc.username)
 
 	dc.user.lock.Lock()
 	firstDownstream := len(dc.user.downstreamConns) == 0
