@@ -150,16 +150,11 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 	return upstream
 }
 
-func (dc *downstreamConn) marshalEntity(uc *upstreamConn, name string) string {
-	for _, r := range name {
-		switch r {
-		// TODO: support upstream ISUPPORT channel prefixes
-		case '#', '&', '+', '!':
-			return dc.marshalChannel(uc, name)
-		}
-		break
+func (dc *downstreamConn) marshalEntity(uc *upstreamConn, entity string) string {
+	if uc.isChannel(entity) {
+		return dc.marshalChannel(uc, entity)
 	}
-	return dc.marshalNick(uc, name)
+	return dc.marshalNick(uc, entity)
 }
 
 func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
@@ -852,10 +847,6 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 		}
 	case "MODE":
-		if msg.Prefix == nil {
-			return fmt.Errorf("missing prefix")
-		}
-
 		var name string
 		if err := parseMessageParams(msg, &name); err != nil {
 			return err
@@ -866,12 +857,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			modeStr = msg.Params[1]
 		}
 
-		if msg.Prefix.Name != name {
-			uc, upstreamName, err := dc.unmarshalEntity(name)
-			if err != nil {
-				return err
-			}
+		uc, upstreamName, err := dc.unmarshalEntity(name)
+		if err != nil {
+			return err
+		}
 
+		if uc.isChannel(upstreamName) {
+			// TODO: handle MODE channel mode arguments
 			if modeStr != "" {
 				uc.SendMessage(&irc.Message{
 					Command: "MODE",
@@ -882,14 +874,14 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				if !ok {
 					return ircError{&irc.Message{
 						Command: irc.ERR_NOSUCHCHANNEL,
-						Params:  []string{name, "No such channel"},
+						Params:  []string{dc.nick, name, "No such channel"},
 					}}
 				}
 
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_CHANNELMODEIS,
-					Params:  []string{name, string(ch.modes)},
+					Params:  []string{dc.nick, name, string(ch.modes)},
 				})
 			}
 		} else {
@@ -911,7 +903,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_UMODEIS,
-					Params:  []string{""}, // TODO
+					Params:  []string{dc.nick, ""}, // TODO
 				})
 			}
 		}
