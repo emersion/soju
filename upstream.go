@@ -134,6 +134,18 @@ func (uc *upstreamConn) getChannel(name string) (*upstreamChannel, error) {
 	return ch, nil
 }
 
+func (uc *upstreamConn) isChannel(entity string) bool {
+	for _, r := range entity {
+		switch r {
+		// TODO: support upstream ISUPPORT channel prefixes
+		case '#', '&', '+', '!':
+			return true
+		}
+		break
+	}
+	return false
+}
+
 func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "PING":
@@ -143,21 +155,18 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		})
 		return nil
 	case "MODE":
-		if msg.Prefix == nil {
-			return fmt.Errorf("missing prefix")
-		}
-
 		var name, modeStr string
 		if err := parseMessageParams(msg, &name, &modeStr); err != nil {
 			return err
 		}
 
-		if name == msg.Prefix.Name { // user mode change
+		if !uc.isChannel(name) { // user mode change
 			if name != uc.nick {
-				return fmt.Errorf("received MODE message for unknow nick %q", name)
+				return fmt.Errorf("received MODE message for unknown nick %q", name)
 			}
 			return uc.modes.Apply(modeStr)
 		} else { // channel mode change
+			// TODO: handle MODE channel mode arguments
 			ch, err := uc.getChannel(name)
 			if err != nil {
 				return err
