@@ -945,6 +945,44 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Command: "WHO",
 			Params:  params,
 		})
+	case "WHOIS":
+		if len(msg.Params) == 0 {
+			return ircError{&irc.Message{
+				Command: irc.ERR_NONICKNAMEGIVEN,
+				Params:  []string{dc.nick, "No nickname given"},
+			}}
+		}
+
+		var target, mask string
+		if len(msg.Params) == 1 {
+			target = ""
+			mask = msg.Params[0]
+		} else {
+			target = msg.Params[0]
+			mask = msg.Params[1]
+		}
+		// TODO: support multiple WHOIS users
+		if i := strings.IndexByte(mask, ','); i >= 0 {
+			mask = mask[:i]
+		}
+
+		// TODO: support WHOIS masks
+		uc, upstreamNick, err := dc.unmarshalEntity(mask)
+		if err != nil {
+			return err
+		}
+
+		var params []string
+		if target != "" {
+			params = []string{target, upstreamNick}
+		} else {
+			params = []string{upstreamNick}
+		}
+
+		uc.SendMessage(&irc.Message{
+			Command: "WHOIS",
+			Params:  params,
+		})
 	case "PRIVMSG":
 		var targetsStr, text string
 		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {

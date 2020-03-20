@@ -86,6 +86,13 @@ const (
 
 const stdMembershipPrefixes = "~&@%+"
 
+func (m membership) String() string {
+	if m == 0 {
+		return ""
+	}
+	return string(m)
+}
+
 func parseMembershipPrefix(s string) (prefix membership, nick string) {
 	// TODO: any prefix from PREFIX RPL_ISUPPORT
 	if strings.IndexByte(stdMembershipPrefixes, s[0]) >= 0 {
