@@ -11,12 +11,6 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 
 	downstreamName := dc.marshalChannel(ch.conn, ch.Name)
 
-	dc.SendMessage(&irc.Message{
-		Prefix:  dc.prefix(),
-		Command: "JOIN",
-		Params:  []string{downstreamName},
-	})
-
 	if ch.Topic != "" {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),

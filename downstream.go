@@ -700,6 +700,12 @@ func (dc *downstreamConn) register() error {
 	dc.forEachUpstream(func(uc *upstreamConn) {
 		for _, ch := range uc.channels {
 			if ch.complete {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.prefix(),
+					Command: "JOIN",
+					Params:  []string{dc.marshalChannel(ch.conn, ch.Name)},
+				})
+
 				forwardChannel(dc, ch)
 			}
 		}
