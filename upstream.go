@@ -603,7 +603,101 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, name, "End of /WHO list."},
+				Params:  []string{dc.nick, name, "End of WHO list"},
+			})
+		})
+	case irc.RPL_WHOISUSER:
+		var nick, username, host, realname string
+		if err := parseMessageParams(msg, nil, &nick, &username, &host, nil, &realname); err != nil {
+			return err
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			nick := dc.marshalNick(uc, nick)
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISUSER,
+				Params:  []string{dc.nick, nick, username, host, "*", realname},
+			})
+		})
+	case irc.RPL_WHOISSERVER:
+		var nick, server, serverInfo string
+		if err := parseMessageParams(msg, nil, &nick, &server, &serverInfo); err != nil {
+			return err
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			nick := dc.marshalNick(uc, nick)
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISSERVER,
+				Params:  []string{dc.nick, nick, server, serverInfo},
+			})
+		})
+	case irc.RPL_WHOISOPERATOR:
+		var nick string
+		if err := parseMessageParams(msg, nil, &nick); err != nil {
+			return err
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			nick := dc.marshalNick(uc, nick)
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISOPERATOR,
+				Params:  []string{dc.nick, nick, "is an IRC operator"},
+			})
+		})
+	case irc.RPL_WHOISIDLE:
+		var nick string
+		if err := parseMessageParams(msg, nil, &nick, nil); err != nil {
+			return err
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			nick := dc.marshalNick(uc, nick)
+			params := []string{dc.nick, nick}
+			params = append(params, msg.Params[2:]...)
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISIDLE,
+				Params:  params,
+			})
+		})
+	case irc.RPL_WHOISCHANNELS:
+		var nick, channelList string
+		if err := parseMessageParams(msg, nil, &nick, &channelList); err != nil {
+			return err
+		}
+		channels := strings.Split(channelList, " ")
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			nick := dc.marshalNick(uc, nick)
+			channelList := make([]string, len(channels))
+			for i, channel := range channels {
+				prefix, channel := parseMembershipPrefix(channel)
+				channel = dc.marshalChannel(uc, channel)
+				channelList[i] = prefix.String() + channel
+			}
+			channels := strings.Join(channelList, " ")
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISCHANNELS,
+				Params:  []string{dc.nick, nick, channels},
+			})
+		})
+	case irc.RPL_ENDOFWHOIS:
+		var nick string
+		if err := parseMessageParams(msg, nil, &nick); err != nil {
+			return err
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			nick := dc.marshalNick(uc, nick)
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFWHOIS,
+				Params:  []string{dc.nick, nick, "End of WHOIS list"},
 			})
 		})
 	case "PRIVMSG":
