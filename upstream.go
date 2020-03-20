@@ -21,8 +21,8 @@ type upstreamChannel struct {
 	TopicWho  string
 	TopicTime time.Time
 	Status    channelStatus
-	modes     modeSet
-	Members   map[string]membership
+	modes     channelModes
+	Members   map[string]*membership
 	complete  bool
 }
 
@@ -38,15 +38,16 @@ type upstreamConn struct {
 
 	serverName            string
 	availableUserModes    string
-	availableChannelModes string
-	channelModesWithParam string
+	availableChannelModes map[byte]channelModeType
+	availableChannelTypes string
+	availableMemberships  []membership
 
 	registered bool
 	nick       string
 	username   string
 	realname   string
 	closed     bool
-	modes      modeSet
+	modes      userModes
 	channels   map[string]*upstreamChannel
 	caps       map[string]string
 
@@ -72,16 +73,19 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 
 	outgoing := make(chan *irc.Message, 64)
 	uc := &upstreamConn{
-		network:  network,
-		logger:   logger,
-		net:      netConn,
-		irc:      irc.NewConn(netConn),
-		srv:      network.user.srv,
-		user:     network.user,
-		outgoing: outgoing,
-		ring:     NewRing(network.user.srv.RingCap),
-		channels: make(map[string]*upstreamChannel),
-		caps:     make(map[string]string),
+		network:               network,
+		logger:                logger,
+		net:                   netConn,
+		irc:                   irc.NewConn(netConn),
+		srv:                   network.user.srv,
+		user:                  network.user,
+		outgoing:              outgoing,
+		ring:                  NewRing(network.user.srv.RingCap),
+		channels:              make(map[string]*upstreamChannel),
+		caps:                  make(map[string]string),
+		availableChannelTypes: stdChannelTypes,
+		availableChannelModes: stdChannelModes,
+		availableMemberships:  stdMemberships,
 	}
 
 	go func() {
@@ -130,15 +134,19 @@ func (uc *upstreamConn) getChannel(name string) (*upstreamChannel, error) {
 }
 
 func (uc *upstreamConn) isChannel(entity string) bool {
-	for _, r := range entity {
-		switch r {
-		// TODO: support upstream ISUPPORT channel prefixes
-		case '#', '&', '+', '!':
-			return true
-		}
-		break
+	if i := strings.IndexByte(uc.availableChannelTypes, entity[0]); i >= 0 {
+		return true
 	}
 	return false
+}
+
+func (uc *upstreamConn) parseMembershipPrefix(s string) (membership *membership, nick string) {
+	for _, m := range uc.availableMemberships {
+		if m.Prefix == s[0] {
+			return &m, s[1:]
+		}
+	}
+	return nil, s
 }
 
 func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
@@ -149,35 +157,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			Params:  msg.Params,
 		})
 		return nil
-	case "MODE":
-		var name, modeStr string
-		if err := parseMessageParams(msg, &name, &modeStr); err != nil {
-			return err
-		}
-
-		if !uc.isChannel(name) { // user mode change
-			if name != uc.nick {
-				return fmt.Errorf("received MODE message for unknown nick %q", name)
-			}
-			return uc.modes.Apply(modeStr)
-		} else { // channel mode change
-			// TODO: handle MODE channel mode arguments
-			ch, err := uc.getChannel(name)
-			if err != nil {
-				return err
-			}
-			if err := ch.modes.Apply(modeStr); err != nil {
-				return err
-			}
-
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
-					Command: "MODE",
-					Params:  []string{dc.marshalChannel(uc, name), modeStr},
-				})
-			})
-		}
 	case "NOTICE":
 		uc.logger.Print(msg)
 
@@ -346,11 +325,67 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			})
 		}
 	case irc.RPL_MYINFO:
-		if err := parseMessageParams(msg, nil, &uc.serverName, nil, &uc.availableUserModes, &uc.availableChannelModes); err != nil {
+		if err := parseMessageParams(msg, nil, &uc.serverName, nil, &uc.availableUserModes, nil); err != nil {
 			return err
 		}
-		if len(msg.Params) > 5 {
-			uc.channelModesWithParam = msg.Params[5]
+	case irc.RPL_ISUPPORT:
+		if err := parseMessageParams(msg, nil, nil); err != nil {
+			return err
+		}
+		for _, token := range msg.Params[1 : len(msg.Params)-1] {
+			negate := false
+			parameter := token
+			value := ""
+			if strings.HasPrefix(token, "-") {
+				negate = true
+				token = token[1:]
+			} else {
+				if i := strings.IndexByte(token, '='); i >= 0 {
+					parameter = token[:i]
+					value = token[i+1:]
+				}
+			}
+			if !negate {
+				switch parameter {
+				case "CHANMODES":
+					parts := strings.SplitN(value, ",", 5)
+					if len(parts) < 4 {
+						return fmt.Errorf("malformed ISUPPORT CHANMODES value: %v", value)
+					}
+					modes := make(map[byte]channelModeType)
+					for i, mt := range []channelModeType{modeTypeA, modeTypeB, modeTypeC, modeTypeD} {
+						for j := 0; j < len(parts[i]); j++ {
+							mode := parts[i][j]
+							modes[mode] = mt
+						}
+					}
+					uc.availableChannelModes = modes
+				case "CHANTYPES":
+					uc.availableChannelTypes = value
+				case "PREFIX":
+					if value == "" {
+						uc.availableMemberships = nil
+					} else {
+						if value[0] != '(' {
+							return fmt.Errorf("malformed ISUPPORT PREFIX value: %v", value)
+						}
+						sep := strings.IndexByte(value, ')')
+						if sep < 0 || len(value) != sep*2 {
+							return fmt.Errorf("malformed ISUPPORT PREFIX value: %v", value)
+						}
+						memberships := make([]membership, len(value)/2-1)
+						for i := range memberships {
+							memberships[i] = membership{
+								Mode:   value[i+1],
+								Prefix: value[sep+i+1],
+							}
+						}
+						uc.availableMemberships = memberships
+					}
+				}
+			} else {
+				// TODO: handle ISUPPORT negations
+			}
 		}
 	case "NICK":
 		if msg.Prefix == nil {
@@ -399,14 +434,19 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				uc.channels[ch] = &upstreamChannel{
 					Name:    ch,
 					conn:    uc,
-					Members: make(map[string]membership),
+					Members: make(map[string]*membership),
 				}
+
+				uc.SendMessage(&irc.Message{
+					Command: "MODE",
+					Params:  []string{ch},
+				})
 			} else {
 				ch, err := uc.getChannel(ch)
 				if err != nil {
 					return err
 				}
-				ch.Members[msg.Prefix.Name] = 0
+				ch.Members[msg.Prefix.Name] = nil
 			}
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
@@ -508,6 +548,89 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  params,
 			})
 		})
+	case "MODE":
+		var name, modeStr string
+		if err := parseMessageParams(msg, &name, &modeStr); err != nil {
+			return err
+		}
+
+		if !uc.isChannel(name) { // user mode change
+			if name != uc.nick {
+				return fmt.Errorf("received MODE message for unknown nick %q", name)
+			}
+			return uc.modes.Apply(modeStr)
+			// TODO: notify downstreams about user mode change?
+		} else { // channel mode change
+			ch, err := uc.getChannel(name)
+			if err != nil {
+				return err
+			}
+
+			if ch.modes != nil {
+				if err := ch.modes.Apply(uc.availableChannelModes, modeStr, msg.Params[2:]...); err != nil {
+					return err
+				}
+			}
+
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				params := []string{dc.marshalChannel(uc, name), modeStr}
+				params = append(params, msg.Params[2:]...)
+
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+					Command: "MODE",
+					Params:  params,
+				})
+			})
+		}
+	case irc.RPL_UMODEIS:
+		if err := parseMessageParams(msg, nil); err != nil {
+			return err
+		}
+		modeStr := ""
+		if len(msg.Params) > 1 {
+			modeStr = msg.Params[1]
+		}
+
+		uc.modes = ""
+		if err := uc.modes.Apply(modeStr); err != nil {
+			return err
+		}
+		// TODO: send RPL_UMODEIS to downstream connections when applicable
+	case irc.RPL_CHANNELMODEIS:
+		var channel string
+		if err := parseMessageParams(msg, nil, &channel); err != nil {
+			return err
+		}
+		modeStr := ""
+		if len(msg.Params) > 2 {
+			modeStr = msg.Params[2]
+		}
+
+		ch, err := uc.getChannel(channel)
+		if err != nil {
+			return err
+		}
+
+		firstMode := ch.modes == nil
+		ch.modes = make(map[byte]string)
+		if err := ch.modes.Apply(uc.availableChannelModes, modeStr, msg.Params[3:]...); err != nil {
+			return err
+		}
+		if firstMode {
+			modeStr, modeParams := ch.modes.Format()
+
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				params := []string{dc.nick, dc.marshalChannel(uc, channel), modeStr}
+				params = append(params, modeParams...)
+
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.RPL_CHANNELMODEIS,
+					Params:  params,
+				})
+			})
+		}
 	case rpl_topicwhotime:
 		var name, who, timeStr string
 		if err := parseMessageParams(msg, nil, &name, &who, &timeStr); err != nil {
@@ -540,7 +663,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		ch.Status = status
 
 		for _, s := range strings.Split(members, " ") {
-			membership, nick := parseMembershipPrefix(s)
+			membership, nick := uc.parseMembershipPrefix(s)
 			ch.Members[nick] = membership
 		}
 	case irc.RPL_ENDOFNAMES:
@@ -679,7 +802,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			nick := dc.marshalNick(uc, nick)
 			channelList := make([]string, len(channels))
 			for i, channel := range channels {
-				prefix, channel := parseMembershipPrefix(channel)
+				prefix, channel := uc.parseMembershipPrefix(channel)
 				channel = dc.marshalChannel(uc, channel)
 				channelList[i] = prefix.String() + channel
 			}

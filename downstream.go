@@ -851,41 +851,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			modeStr = msg.Params[1]
 		}
 
-		uc, upstreamName, err := dc.unmarshalEntity(name)
-		if err != nil {
-			return err
-		}
-
-		if uc.isChannel(upstreamName) {
-			// TODO: handle MODE channel mode arguments
-			if modeStr != "" {
-				uc.SendMessage(&irc.Message{
-					Command: "MODE",
-					Params:  []string{upstreamName, modeStr},
-				})
-			} else {
-				ch, ok := uc.channels[upstreamName]
-				if !ok {
-					return ircError{&irc.Message{
-						Command: irc.ERR_NOSUCHCHANNEL,
-						Params:  []string{dc.nick, name, "No such channel"},
-					}}
-				}
-
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.srv.prefix(),
-					Command: irc.RPL_CHANNELMODEIS,
-					Params:  []string{dc.nick, name, string(ch.modes)},
-				})
-			}
-		} else {
-			if name != dc.nick {
-				return ircError{&irc.Message{
-					Command: irc.ERR_USERSDONTMATCH,
-					Params:  []string{dc.nick, "Cannot change mode for other users"},
-				}}
-			}
-
+		if name == dc.nick {
 			if modeStr != "" {
 				dc.forEachUpstream(func(uc *upstreamConn) {
 					uc.SendMessage(&irc.Message{
@@ -900,6 +866,52 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					Params:  []string{dc.nick, ""}, // TODO
 				})
 			}
+			return nil
+		}
+
+		uc, upstreamName, err := dc.unmarshalEntity(name)
+		if err != nil {
+			return err
+		}
+
+		if !uc.isChannel(upstreamName) {
+			return ircError{&irc.Message{
+				Command: irc.ERR_USERSDONTMATCH,
+				Params:  []string{dc.nick, "Cannot change mode for other users"},
+			}}
+		}
+
+		if modeStr != "" {
+			params := []string{upstreamName, modeStr}
+			params = append(params, msg.Params[2:]...)
+			uc.SendMessage(&irc.Message{
+				Command: "MODE",
+				Params:  params,
+			})
+		} else {
+			ch, ok := uc.channels[upstreamName]
+			if !ok {
+				return ircError{&irc.Message{
+					Command: irc.ERR_NOSUCHCHANNEL,
+					Params:  []string{dc.nick, name, "No such channel"},
+				}}
+			}
+
+			if ch.modes == nil {
+				// we haven't received the initial RPL_CHANNELMODEIS yet
+				// ignore the request, we will broadcast the modes later when we receive RPL_CHANNELMODEIS
+				return nil
+			}
+
+			modeStr, modeParams := ch.modes.Format()
+			params := []string{dc.nick, name, modeStr}
+			params = append(params, modeParams...)
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_CHANNELMODEIS,
+				Params:  params,
+			})
 		}
 	case "WHO":
 		if len(msg.Params) == 0 {

@@ -15,26 +15,26 @@ const (
 	err_invalidcapcmd = "410"
 )
 
-type modeSet string
+type userModes string
 
-func (ms modeSet) Has(c byte) bool {
+func (ms userModes) Has(c byte) bool {
 	return strings.IndexByte(string(ms), c) >= 0
 }
 
-func (ms *modeSet) Add(c byte) {
+func (ms *userModes) Add(c byte) {
 	if !ms.Has(c) {
-		*ms += modeSet(c)
+		*ms += userModes(c)
 	}
 }
 
-func (ms *modeSet) Del(c byte) {
+func (ms *userModes) Del(c byte) {
 	i := strings.IndexByte(string(*ms), c)
 	if i >= 0 {
 		*ms = (*ms)[:i] + (*ms)[i+1:]
 	}
 }
 
-func (ms *modeSet) Apply(s string) error {
+func (ms *userModes) Apply(s string) error {
 	var plusMinus byte
 	for i := 0; i < len(s); i++ {
 		switch c := s[i]; c {
@@ -53,6 +53,94 @@ func (ms *modeSet) Apply(s string) error {
 	}
 	return nil
 }
+
+type channelModeType byte
+
+// standard channel mode types, as explained in https://modern.ircdocs.horse/#mode-message
+const (
+	// modes that add or remove an address to or from a list
+	modeTypeA channelModeType = iota
+	// modes that change a setting on a channel, and must always have a parameter
+	modeTypeB
+	// modes that change a setting on a channel, and must have a parameter when being set, and no parameter when being unset
+	modeTypeC
+	// modes that change a setting on a channel, and must not have a parameter
+	modeTypeD
+)
+
+var stdChannelModes = map[byte]channelModeType{
+	'b': modeTypeA, // ban list
+	'e': modeTypeA, // ban exception list
+	'I': modeTypeA, // invite exception list
+	'k': modeTypeB, // channel key
+	'l': modeTypeC, // channel user limit
+	'i': modeTypeD, // channel is invite-only
+	'm': modeTypeD, // channel is moderated
+	'n': modeTypeD, // channel has no external messages
+	's': modeTypeD, // channel is secret
+	't': modeTypeD, // channel has protected topic
+}
+
+type channelModes map[byte]string
+
+func (cm channelModes) Apply(modeTypes map[byte]channelModeType, modeStr string, arguments ...string) error {
+	nextArgument := 0
+	var plusMinus byte
+	for i := 0; i < len(modeStr); i++ {
+		mode := modeStr[i]
+		if mode == '+' || mode == '-' {
+			plusMinus = mode
+			continue
+		}
+		if plusMinus != '+' && plusMinus != '-' {
+			return fmt.Errorf("malformed modestring %q: missing plus/minus", modeStr)
+		}
+
+		mt, ok := modeTypes[mode]
+		if !ok {
+			continue
+		}
+		if mt == modeTypeB || (mt == modeTypeC && plusMinus == '+') {
+			if plusMinus == '+' {
+				var argument string
+				// some sentitive arguments (such as channel keys) can be omitted for privacy
+				// (this will only happen for RPL_CHANNELMODEIS, never for MODE messages)
+				if nextArgument < len(arguments) {
+					argument = arguments[nextArgument]
+				}
+				cm[mode] = argument
+			} else {
+				delete(cm, mode)
+			}
+			nextArgument++
+		} else if mt == modeTypeC || mt == modeTypeD {
+			if plusMinus == '+' {
+				cm[mode] = ""
+			} else {
+				delete(cm, mode)
+			}
+		}
+	}
+	return nil
+}
+
+func (cm channelModes) Format() (modeString string, parameters []string) {
+	var modesWithValues strings.Builder
+	var modesWithoutValues strings.Builder
+	parameters = make([]string, 0, 16)
+	for mode, value := range cm {
+		if value != "" {
+			modesWithValues.WriteString(string(mode))
+			parameters = append(parameters, value)
+		} else {
+			modesWithoutValues.WriteString(string(mode))
+		}
+	}
+	modeString = "+" + modesWithValues.String() + modesWithoutValues.String()
+	return
+}
+
+const stdChannelTypes = "#&+!"
 
 type channelStatus byte
 
@@ -74,32 +162,24 @@ func parseChannelStatus(s string) (channelStatus, error) {
 	}
 }
 
-type membership byte
-
-const (
-	membershipFounder   membership = '~'
-	membershipProtected membership = '&'
-	membershipOperator  membership = '@'
-	membershipHalfOp    membership = '%'
-	membershipVoice     membership = '+'
-)
-
-const stdMembershipPrefixes = "~&@%+"
-
-func (m membership) String() string {
-	if m == 0 {
-		return ""
-	}
-	return string(m)
+type membership struct {
+	Mode   byte
+	Prefix byte
 }
 
-func parseMembershipPrefix(s string) (prefix membership, nick string) {
-	// TODO: any prefix from PREFIX RPL_ISUPPORT
-	if strings.IndexByte(stdMembershipPrefixes, s[0]) >= 0 {
-		return membership(s[0]), s[1:]
-	} else {
-		return 0, s
+var stdMemberships = []membership{
+	{'q', '~'}, // founder
+	{'a', '&'}, // protected
+	{'o', '@'}, // operator
+	{'h', '%'}, // halfop
+	{'v', '+'}, // voice
+}
+
+func (m *membership) String() string {
+	if m == nil {
+		return ""
 	}
+	return string(m.Prefix)
 }
 
 func parseMessageParams(msg *irc.Message, out ...*string) error {
