@@ -708,9 +708,9 @@ func (dc *downstreamConn) register() error {
 
 		var seqPtr *uint64
 		if firstDownstream {
-			uc.lock.Lock()
-			seq, ok := uc.history[historyName]
-			uc.lock.Unlock()
+			uc.network.lock.Lock()
+			seq, ok := uc.network.history[historyName]
+			uc.network.lock.Unlock()
 			if ok {
 				seqPtr = &seq
 			}
@@ -738,9 +738,9 @@ func (dc *downstreamConn) register() error {
 			dc.user.lock.Unlock()
 
 			if lastDownstream {
-				uc.lock.Lock()
-				uc.history[historyName] = seq
-				uc.lock.Unlock()
+				uc.network.lock.Lock()
+				uc.network.history[historyName] = seq
+				uc.network.lock.Unlock()
 			}
 		}()
 	})

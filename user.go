@@ -20,13 +20,17 @@ type downstreamIncomingMessage struct {
 type network struct {
 	Network
 	user *user
-	conn *upstreamConn
+
+	lock    sync.Mutex
+	conn    *upstreamConn
+	history map[string]uint64
 }
 
 func newNetwork(user *user, record *Network) *network {
 	return &network{
 		Network: *record,
 		user:    user,
+		history: make(map[string]uint64),
 	}
 }
 
@@ -48,18 +52,18 @@ func (net *network) run() {
 
 		uc.register()
 
-		net.user.lock.Lock()
+		net.lock.Lock()
 		net.conn = uc
-		net.user.lock.Unlock()
+		net.lock.Unlock()
 
 		if err := uc.readMessages(net.user.upstreamIncoming); err != nil {
 			uc.logger.Printf("failed to handle messages: %v", err)
 		}
 		uc.Close()
 
-		net.user.lock.Lock()
+		net.lock.Lock()
 		net.conn = nil
-		net.user.lock.Unlock()
+		net.lock.Unlock()
 	}
 }
 
@@ -95,7 +99,10 @@ func (u *user) forEachNetwork(f func(*network)) {
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	u.lock.Lock()
 	for _, network := range u.networks {
+		network.lock.Lock()
 		uc := network.conn
+		network.lock.Unlock()
+
 		if uc == nil || !uc.registered || uc.closed {
 			continue
 		}
