@@ -454,7 +454,7 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 			})
 		} else {
 			challengeStr := "+"
-			if challenge != nil {
+			if len(challenge) == 0 {
 				challengeStr = base64.StdEncoding.EncodeToString(challenge)
 			}
 
