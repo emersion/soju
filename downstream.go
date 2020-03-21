@@ -960,6 +960,21 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		// TODO: support WHO masks
 		entity := msg.Params[0]
 
+		if entity == dc.nick {
+			// TODO: support AWAY (H/G) in self WHO reply
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOREPLY,
+				Params:  []string{dc.nick, "*", dc.username, dc.hostname, dc.srv.Hostname, dc.nick, "H", "0 " + dc.realname},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFWHO,
+				Params:  []string{dc.nick, dc.nick, "End of /WHO list"},
+			})
+			return nil
+		}
+
 		uc, upstreamName, err := dc.unmarshalEntity(entity)
 		if err != nil {
 			return err
@@ -995,6 +1010,25 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		// TODO: support multiple WHOIS users
 		if i := strings.IndexByte(mask, ','); i >= 0 {
 			mask = mask[:i]
+		}
+
+		if mask == dc.nick {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISUSER,
+				Params:  []string{dc.nick, dc.nick, dc.username, dc.hostname, "*", dc.realname},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISSERVER,
+				Params:  []string{dc.nick, dc.nick, dc.srv.Hostname, "soju"},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFWHOIS,
+				Params:  []string{dc.nick, dc.nick, "End of /WHOIS list"},
+			})
+			return nil
 		}
 
 		// TODO: support WHOIS masks

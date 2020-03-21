@@ -758,7 +758,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, name, "End of WHO list"},
+				Params:  []string{dc.nick, name, "End of /WHO list"},
 			})
 		})
 	case irc.RPL_WHOISUSER:
@@ -852,7 +852,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHOIS,
-				Params:  []string{dc.nick, nick, "End of WHOIS list"},
+				Params:  []string{dc.nick, nick, "End of /WHOIS list"},
 			})
 		})
 	case "PRIVMSG":
