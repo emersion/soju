@@ -148,11 +148,19 @@ func (u *user) run() {
 		select {
 		case upstreamMsg := <-u.upstreamIncoming:
 			msg, uc := upstreamMsg.msg, upstreamMsg.uc
+			if uc.closed {
+				uc.logger.Printf("ignoring message on closed connection: %v", msg)
+				break
+			}
 			if err := uc.handleMessage(msg); err != nil {
 				uc.logger.Printf("failed to handle message %q: %v", msg, err)
 			}
 		case downstreamMsg := <-u.downstreamIncoming:
 			msg, dc := downstreamMsg.msg, downstreamMsg.dc
+			if dc.isClosed() {
+				dc.logger.Printf("ignoring message on closed connection: %v", msg)
+				break
+			}
 			err := dc.handleMessage(msg)
 			if ircErr, ok := err.(ircError); ok {
 				ircErr.Message.Prefix = dc.srv.prefix()
