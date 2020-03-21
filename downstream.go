@@ -913,13 +913,41 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 		}
+	case "NAMES":
+		if len(msg.Params) == 0 {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFNAMES,
+				Params:  []string{dc.nick, "*", "End of /NAMES list"},
+			})
+			return nil
+		}
+
+		channels := strings.Split(msg.Params[0], ",")
+		for _, channel := range channels {
+			uc, upstreamChannel, err := dc.unmarshalEntity(channel)
+			if err != nil {
+				return err
+			}
+
+			ch, ok := uc.channels[upstreamChannel]
+			if ok {
+				sendNames(dc, ch)
+			} else {
+				// NAMES on a channel we have not joined, ask upstream
+				uc.SendMessage(&irc.Message{
+					Command: "NAMES",
+					Params:  []string{upstreamChannel},
+				})
+			}
+		}
 	case "WHO":
 		if len(msg.Params) == 0 {
 			// TODO: support WHO without parameters
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, "*", "End of /WHO list."},
+				Params:  []string{dc.nick, "*", "End of /WHO list"},
 			})
 			return nil
 		}

@@ -651,9 +651,26 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if err := parseMessageParams(msg, nil, &statusStr, &name, &members); err != nil {
 			return err
 		}
-		ch, err := uc.getChannel(name)
-		if err != nil {
-			return err
+
+		ch, ok := uc.channels[name]
+		if !ok {
+			// NAMES on a channel we have not joined, forward to downstream
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				channel := dc.marshalChannel(uc, name)
+				members := strings.Split(members, " ")
+				for i, member := range members {
+					membership, nick := uc.parseMembershipPrefix(member)
+					members[i] = membership.String() + dc.marshalNick(uc, nick)
+				}
+				memberStr := strings.Join(members, " ")
+
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.RPL_NAMREPLY,
+					Params:  []string{dc.nick, statusStr, channel, memberStr},
+				})
+			})
+			return nil
 		}
 
 		status, err := parseChannelStatus(statusStr)
@@ -671,9 +688,20 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if err := parseMessageParams(msg, nil, &name); err != nil {
 			return err
 		}
-		ch, err := uc.getChannel(name)
-		if err != nil {
-			return err
+
+		ch, ok := uc.channels[name]
+		if !ok {
+			// NAMES on a channel we have not joined, forward to downstream
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				channel := dc.marshalChannel(uc, name)
+
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.RPL_ENDOFNAMES,
+					Params:  []string{dc.nick, channel, "End of /NAMES list"},
+				})
+			})
+			return nil
 		}
 
 		if ch.complete {

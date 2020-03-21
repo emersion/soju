@@ -26,8 +26,14 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 	}
 
 	// TODO: rpl_topicwhotime
+	sendNames(dc, ch)
+}
 
+func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 	// TODO: send multiple members in each message
+
+	downstreamName := dc.marshalChannel(ch.conn, ch.Name)
+
 	for nick, membership := range ch.Members {
 		s := membership.String() + dc.marshalNick(ch.conn, nick)
 
