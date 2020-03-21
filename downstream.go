@@ -71,6 +71,7 @@ type downstreamConn struct {
 	username    string
 	rawUsername string
 	realname    string
+	hostname    string
 	password    string   // empty after authentication
 	network     *network // can be nil
 
@@ -96,6 +97,10 @@ func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
 		caps:         make(map[string]bool),
 		ourMessages:  make(map[*irc.Message]struct{}),
 	}
+	dc.hostname = netConn.RemoteAddr().String()
+	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
+		dc.hostname = host
+	}
 
 	go func() {
 		if err := dc.writeMessages(); err != nil {
@@ -116,7 +121,7 @@ func (dc *downstreamConn) prefix() *irc.Prefix {
 	return &irc.Prefix{
 		Name: dc.nick,
 		User: dc.username,
-		// TODO: fill the host?
+		Host: dc.hostname,
 	}
 }
 
