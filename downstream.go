@@ -143,12 +143,7 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 	if dc.network == nil {
 		return nil
 	}
-
-	var upstream *upstreamConn
-	dc.forEachUpstream(func(uc *upstreamConn) {
-		upstream = uc
-	})
-	return upstream
+	return dc.network.upstream()
 }
 
 func (dc *downstreamConn) marshalEntity(uc *upstreamConn, entity string) string {

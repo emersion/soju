@@ -67,6 +67,12 @@ func (net *network) run() {
 	}
 }
 
+func (net *network) upstream() *upstreamConn {
+	net.lock.Lock()
+	defer net.lock.Unlock()
+	return net.conn
+}
+
 type user struct {
 	User
 	srv *Server
@@ -99,10 +105,7 @@ func (u *user) forEachNetwork(f func(*network)) {
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	u.lock.Lock()
 	for _, network := range u.networks {
-		network.lock.Lock()
-		uc := network.conn
-		network.lock.Unlock()
-
+		uc := network.upstream()
 		if uc == nil || !uc.registered || uc.closed {
 			continue
 		}
