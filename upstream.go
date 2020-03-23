@@ -49,6 +49,7 @@ type upstreamConn struct {
 	modes      userModes
 	channels   map[string]*upstreamChannel
 	caps       map[string]string
+	batches    map[string]batch
 
 	tagsSupported bool
 
@@ -83,6 +84,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		outgoing:              outgoing,
 		channels:              make(map[string]*upstreamChannel),
 		caps:                  make(map[string]string),
+		batches:               make(map[string]batch),
 		availableChannelTypes: stdChannelTypes,
 		availableChannelModes: stdChannelModes,
 		availableMemberships:  stdMemberships,
@@ -150,6 +152,15 @@ func (uc *upstreamConn) parseMembershipPrefix(s string) (membership *membership,
 }
 
 func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
+	var msgBatch *batch
+	if batchName, ok := msg.GetTag("batch"); ok {
+		b, ok := uc.batches[batchName]
+		if !ok {
+			return fmt.Errorf("unexpected batch reference: batch was not defined: %q", batchName)
+		}
+		msgBatch = &b
+	}
+
 	switch msg.Command {
 	case "PING":
 		uc.SendMessage(&irc.Message{
@@ -193,7 +204,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 
 			requestCaps := make([]string, 0, 16)
-			for _, c := range []string{"message-tags"} {
+			for _, c := range []string{"message-tags", "batch"} {
 				if _, ok := uc.caps[c]; ok {
 					requestCaps = append(requestCaps, c)
 				}
@@ -404,6 +415,35 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			} else {
 				// TODO: handle ISUPPORT negations
 			}
+		}
+	case "BATCH":
+		var tag string
+		if err := parseMessageParams(msg, &tag); err != nil {
+			return err
+		}
+
+		if strings.HasPrefix(tag, "+") {
+			tag = tag[1:]
+			if _, ok := uc.batches[tag]; ok {
+				return fmt.Errorf("unexpected BATCH reference tag: batch was already defined: %q", tag)
+			}
+			var batchType string
+			if err := parseMessageParams(msg, nil, &batchType); err != nil {
+				return err
+			}
+			uc.batches[tag] = batch{
+				Type:   batchType,
+				Params: msg.Params[2:],
+				Outer:  msgBatch,
+			}
+		} else if strings.HasPrefix(tag, "-") {
+			tag = tag[1:]
+			if _, ok := uc.batches[tag]; !ok {
+				return fmt.Errorf("unknown BATCH reference tag: %q", tag)
+			}
+			delete(uc.batches, tag)
+		} else {
+			return fmt.Errorf("unexpected BATCH reference tag: missing +/- prefix: %q", tag)
 		}
 	case "NICK":
 		if msg.Prefix == nil {

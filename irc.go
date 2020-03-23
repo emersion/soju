@@ -193,3 +193,9 @@ func parseMessageParams(msg *irc.Message, out ...*string) error {
 	}
 	return nil
 }
+
+type batch struct {
+	Type   string
+	Params []string
+	Outer  *batch // if not-nil, this batch is nested in Outer
+}
