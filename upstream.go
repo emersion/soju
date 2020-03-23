@@ -750,7 +750,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		ch, ok := uc.channels[name]
 		if !ok {
 			// NAMES on a channel we have not joined, forward to downstream
-			uc.forEachDownstream(func(dc *downstreamConn) {
+			uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 				channel := dc.marshalChannel(uc, name)
 				members := strings.Split(members, " ")
 				for i, member := range members {
@@ -787,7 +787,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		ch, ok := uc.channels[name]
 		if !ok {
 			// NAMES on a channel we have not joined, forward to downstream
-			uc.forEachDownstream(func(dc *downstreamConn) {
+			uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 				channel := dc.marshalChannel(uc, name)
 
 				dc.SendMessage(&irc.Message{
@@ -826,7 +826,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		trailing = strconv.Itoa(hops) + " " + realname
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 			channel := channel
 			if channel != "*" {
 				channel = dc.marshalChannel(uc, channel)
@@ -844,7 +844,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 			name := name
 			if name != "*" {
 				// TODO: support WHO masks
@@ -862,7 +862,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -876,7 +876,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -890,7 +890,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -904,7 +904,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			params := []string{dc.nick, nick}
 			params = append(params, msg.Params[2:]...)
@@ -921,7 +921,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		channels := strings.Split(channelList, " ")
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			channelList := make([]string, len(channels))
 			for i, channel := range channels {
@@ -942,7 +942,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),

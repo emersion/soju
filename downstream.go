@@ -1004,7 +1004,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				sendNames(dc, ch)
 			} else {
 				// NAMES on a channel we have not joined, ask upstream
-				uc.SendMessage(&irc.Message{
+				uc.SendMessageLabeled(dc, &irc.Message{
 					Command: "NAMES",
 					Params:  []string{upstreamChannel},
 				})
@@ -1051,7 +1051,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			params = []string{upstreamName}
 		}
 
-		uc.SendMessage(&irc.Message{
+		uc.SendMessageLabeled(dc, &irc.Message{
 			Command: "WHO",
 			Params:  params,
 		})
@@ -1108,7 +1108,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			params = []string{upstreamNick}
 		}
 
-		uc.SendMessage(&irc.Message{
+		uc.SendMessageLabeled(dc, &irc.Message{
 			Command: "WHOIS",
 			Params:  params,
 		})
