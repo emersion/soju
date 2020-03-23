@@ -176,6 +176,25 @@ func (u *user) run() {
 	}
 }
 
+func (u *user) addDownstream(dc *downstreamConn) (first bool) {
+	u.lock.Lock()
+	first = len(dc.user.downstreamConns) == 0
+	u.downstreamConns = append(u.downstreamConns, dc)
+	u.lock.Unlock()
+	return first
+}
+
+func (u *user) removeDownstream(dc *downstreamConn) {
+	u.lock.Lock()
+	for i := range u.downstreamConns {
+		if u.downstreamConns[i] == dc {
+			u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
+			break
+		}
+	}
+	u.lock.Unlock()
+}
+
 func (u *user) createNetwork(net *Network) (*network, error) {
 	network := newNetwork(u, net)
 	err := u.srv.db.StoreNetwork(u.Username, &network.Network)
