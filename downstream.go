@@ -57,6 +57,7 @@ type ringMessage struct {
 }
 
 type downstreamConn struct {
+	id           uint64
 	net          net.Conn
 	irc          *irc.Conn
 	srv          *Server
@@ -85,8 +86,9 @@ type downstreamConn struct {
 	ourMessages map[*irc.Message]struct{}
 }
 
-func newDownstreamConn(srv *Server, netConn net.Conn) *downstreamConn {
+func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn {
 	dc := &downstreamConn{
+		id:           id,
 		net:          netConn,
 		irc:          irc.NewConn(netConn),
 		srv:          srv,

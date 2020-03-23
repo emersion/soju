@@ -100,6 +100,7 @@ func (s *Server) getUser(name string) *user {
 }
 
 func (s *Server) Serve(ln net.Listener) error {
+	var nextDownstreamID uint64 = 1
 	for {
 		netConn, err := ln.Accept()
 		if err != nil {
@@ -108,7 +109,8 @@ func (s *Server) Serve(ln net.Listener) error {
 
 		setKeepAlive(netConn)
 
-		dc := newDownstreamConn(s, netConn)
+		dc := newDownstreamConn(s, netConn, nextDownstreamID)
+		nextDownstreamID++
 		go func() {
 			s.lock.Lock()
 			s.downstreamConns = append(s.downstreamConns, dc)
