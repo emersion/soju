@@ -746,6 +746,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if err := parseMessageParams(msg, nil, &statusStr, &name, &members); err != nil {
 			return err
 		}
+		members = strings.TrimRight(members, " ")
 
 		ch, ok := uc.channels[name]
 		if !ok {
