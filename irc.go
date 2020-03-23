@@ -198,4 +198,5 @@ type batch struct {
 	Type   string
 	Params []string
 	Outer  *batch // if not-nil, this batch is nested in Outer
+	Label  string
 }
