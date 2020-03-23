@@ -50,6 +50,8 @@ type upstreamConn struct {
 	channels   map[string]*upstreamChannel
 	caps       map[string]string
 
+	tagsSupported bool
+
 	saslClient  sasl.Client
 	saslStarted bool
 }
@@ -190,11 +192,25 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				break // wait to receive all capabilities
 			}
 
+			requestCaps := make([]string, 0, 16)
+			for _, c := range []string{"message-tags"} {
+				if _, ok := uc.caps[c]; ok {
+					requestCaps = append(requestCaps, c)
+				}
+			}
+
 			if uc.requestSASL() {
+				requestCaps = append(requestCaps, "sasl")
+			}
+
+			if len(requestCaps) > 0 {
 				uc.SendMessage(&irc.Message{
 					Command: "CAP",
-					Params:  []string{"REQ", "sasl"},
+					Params:  []string{"REQ", strings.Join(requestCaps, " ")},
 				})
+			}
+
+			if uc.requestSASL() {
 				break // we'll send CAP END after authentication is completed
 			}
 
@@ -891,6 +907,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  []string{dc.marshalNick(uc, nick), dc.marshalChannel(uc, channel)},
 			})
 		})
+	case "TAGMSG":
+		// TODO: relay to downstream connections that accept message-tags
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
@@ -987,6 +1005,8 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 			Command: "AUTHENTICATE",
 			Params:  []string{auth.Mechanism},
 		})
+	case "message-tags":
+		uc.tagsSupported = ok
 	}
 	return nil
 }
