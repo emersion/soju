@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"fmt"
 	"sync"
 
 	"gopkg.in/irc.v3"
@@ -86,7 +87,7 @@ type RingConsumer struct {
 // diff returns the number of pending messages. It assumes the Ring is locked.
 func (rc *RingConsumer) diff() uint64 {
 	if rc.cur > rc.ring.cur {
-		panic("soju: consumer cursor greater than producer cursor")
+		panic(fmt.Sprintf("soju: consumer cursor (%v) greater than producer cursor (%v)", rc.cur, rc.ring.cur))
 	}
 	return rc.ring.cur - rc.cur
 }
@@ -112,7 +113,7 @@ func (rc *RingConsumer) Peek() *irc.Message {
 	i := int(rc.cur % rc.ring.cap)
 	msg := rc.ring.buffer[i]
 	if msg == nil {
-		panic("soju: unexpected nil ring buffer entry")
+		panic(fmt.Sprintf("soju: unexpected nil ring buffer entry at index %v", i))
 	}
 	return msg
 }
