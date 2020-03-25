@@ -2,6 +2,7 @@ package soju
 
 import (
 	"database/sql"
+	"fmt"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -163,6 +164,8 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 		case "PLAIN":
 			saslPlainUsername = toStringPtr(network.SASL.Plain.Username)
 			saslPlainPassword = toStringPtr(network.SASL.Plain.Password)
+		default:
+			return fmt.Errorf("soju: cannot store network: unsupported SASL mechanism %q", network.SASL.Mechanism)
 		}
 	}
 
