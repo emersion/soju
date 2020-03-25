@@ -35,6 +35,7 @@ type Network struct {
 type Channel struct {
 	ID   int64
 	Name string
+	Key  string
 }
 
 type DB struct {
@@ -193,7 +194,7 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	rows, err := db.db.Query("SELECT id, name FROM Channel WHERE network = ?", networkID)
+	rows, err := db.db.Query("SELECT id, name, key FROM Channel WHERE network = ?", networkID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,9 +203,11 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	var channels []Channel
 	for rows.Next() {
 		var ch Channel
-		if err := rows.Scan(&ch.ID, &ch.Name); err != nil {
+		var key *string
+		if err := rows.Scan(&ch.ID, &ch.Name, &key); err != nil {
 			return nil, err
 		}
+		ch.Key = fromStringPtr(key)
 		channels = append(channels, ch)
 	}
 	if err := rows.Err(); err != nil {
@@ -218,7 +221,9 @@ func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	_, err := db.db.Exec("INSERT OR REPLACE INTO Channel(network, name) VALUES (?, ?)", networkID, ch.Name)
+	key := toStringPtr(ch.Key)
+	_, err := db.db.Exec(`INSERT OR REPLACE INTO Channel(network, name, key)
+		VALUES (?, ?, ?)`, networkID, ch.Name, key)
 	return err
 }
 

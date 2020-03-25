@@ -317,9 +317,13 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		for _, ch := range channels {
+			params := []string{ch.Name}
+			if ch.Key != "" {
+				params = append(params, ch.Key)
+			}
 			uc.SendMessage(&irc.Message{
 				Command: "JOIN",
-				Params:  []string{ch.Name},
+				Params:  params,
 			})
 		}
 	case irc.RPL_MYINFO:
