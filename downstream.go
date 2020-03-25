@@ -903,6 +903,62 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				dc.logger.Printf("failed to delete channel %q in DB: %v", upstreamName, err)
 			}
 		}
+	case "KICK":
+		var channelStr, userStr string
+		if err := parseMessageParams(msg, &channelStr, &userStr); err != nil {
+			return err
+		}
+
+		channels := strings.Split(channelStr, ",")
+		users := strings.Split(userStr, ",")
+
+		var reason string
+		if len(msg.Params) > 2 {
+			reason = msg.Params[2]
+		}
+
+		if len(channels) != 1 && len(channels) != len(users) {
+			return ircError{&irc.Message{
+				Command: irc.ERR_BADCHANMASK,
+				Params:  []string{dc.nick, channelStr, "Bad channel mask"},
+			}}
+		}
+
+		for i, user := range users {
+			var channel string
+			if len(channels) == 1 {
+				channel = channels[0]
+			} else {
+				channel = channels[i]
+			}
+
+			ucChannel, upstreamChannel, err := dc.unmarshalEntity(channel)
+			if err != nil {
+				return err
+			}
+
+			ucUser, upstreamUser, err := dc.unmarshalEntity(user)
+			if err != nil {
+				return err
+			}
+
+			if ucChannel != ucUser {
+				return ircError{&irc.Message{
+					Command: irc.ERR_USERNOTINCHANNEL,
+					Params:  []string{dc.nick, user, channel, "They aren't on that channel"},
+				}}
+			}
+			uc := ucChannel
+
+			params := []string{upstreamChannel, upstreamUser}
+			if reason != "" {
+				params = append(params, reason)
+			}
+			uc.SendMessage(&irc.Message{
+				Command: "KICK",
+				Params:  params,
+			})
+		}
 	case "MODE":
 		var name string
 		if err := parseMessageParams(msg, &name); err != nil {

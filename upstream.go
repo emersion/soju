@@ -582,6 +582,43 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				})
 			})
 		}
+	case "KICK":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
+		var channel, user string
+		if err := parseMessageParams(msg, &channel, &user); err != nil {
+			return err
+		}
+
+		var reason string
+		if len(msg.Params) > 2 {
+			reason = msg.Params[1]
+		}
+
+		if user == uc.nick {
+			uc.logger.Printf("kicked from channel %q by %s", channel, msg.Prefix.Name)
+			delete(uc.channels, channel)
+		} else {
+			ch, err := uc.getChannel(channel)
+			if err != nil {
+				return err
+			}
+			delete(ch.Members, user)
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			params := []string{dc.marshalChannel(uc, channel), dc.marshalNick(uc, user)}
+			if reason != "" {
+				params = append(params, reason)
+			}
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+				Command: "KICK",
+				Params:  params,
+			})
+		})
 	case "QUIT":
 		if msg.Prefix == nil {
 			return fmt.Errorf("expected a prefix")
