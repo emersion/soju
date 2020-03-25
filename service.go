@@ -12,10 +12,13 @@ import (
 
 const serviceNick = "BouncerServ"
 
+type serviceCommandSet map[string]*serviceCommand
+
 type serviceCommand struct {
-	usage  string
-	desc   string
-	handle func(dc *downstreamConn, params []string) error
+	usage    string
+	desc     string
+	handle   func(dc *downstreamConn, params []string) error
+	children serviceCommandSet
 }
 
 func sendServicePRIVMSG(dc *downstreamConn, text string) {
@@ -33,16 +36,9 @@ func handleServicePRIVMSG(dc *downstreamConn, text string) {
 		return
 	}
 
-	var name string
-	var params []string
-	if len(words) > 0 {
-		name = strings.ToLower(words[0])
-		params = words[1:]
-	}
-
-	cmd, ok := serviceCommands[name]
-	if !ok {
-		sendServicePRIVMSG(dc, fmt.Sprintf(`error: unknown command %q (type "help" for a list of commands)`, name))
+	cmd, params, err := serviceCommands.Get(words)
+	if err != nil {
+		sendServicePRIVMSG(dc, fmt.Sprintf(`error: %v (type "help" for a list of commands)`, err))
 		return
 	}
 
@@ -51,43 +47,93 @@ func handleServicePRIVMSG(dc *downstreamConn, text string) {
 	}
 }
 
-var serviceCommands map[string]serviceCommand
+func (cmds serviceCommandSet) Get(params []string) (*serviceCommand, []string, error) {
+	if len(params) == 0 {
+		return nil, nil, fmt.Errorf("no command specified")
+	}
+
+	name := params[0]
+	params = params[1:]
+
+	cmd, ok := cmds[name]
+	if !ok {
+		for k := range cmds {
+			if !strings.HasPrefix(k, name) {
+				continue
+			}
+			if cmd != nil {
+				return nil, params, fmt.Errorf("command %q is ambiguous", name)
+			}
+			cmd = cmds[k]
+		}
+	}
+	if cmd == nil {
+		return nil, params, fmt.Errorf("command %q not found", name)
+	}
+
+	if len(params) == 0 || len(cmd.children) == 0 {
+		return cmd, params, nil
+	}
+	return cmd.children.Get(params)
+}
+
+var serviceCommands serviceCommandSet
 
 func init() {
-	serviceCommands = map[string]serviceCommand{
+	serviceCommands = serviceCommandSet{
 		"help": {
 			usage:  "[command]",
 			desc:   "print help message",
 			handle: handleServiceHelp,
 		},
-		"create-network": {
-			usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick]",
-			desc:   "add a new network",
-			handle: handleServiceCreateNetwork,
+		"network": {
+			children: serviceCommandSet{
+				"create": {
+					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick]",
+					desc:   "add a new network",
+					handle: handleServiceCreateNetwork,
+				},
+			},
 		},
+	}
+}
+
+func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, l *[]string) {
+	for name, cmd := range cmds {
+		words := append(prefix, name)
+		if len(cmd.children) == 0 {
+			s := strings.Join(words, " ")
+			*l = append(*l, s)
+		} else {
+			appendServiceCommandSetHelp(cmd.children, words, l)
+		}
 	}
 }
 
 func handleServiceHelp(dc *downstreamConn, params []string) error {
 	if len(params) > 0 {
-		name := strings.ToLower(params[0])
-		cmd, ok := serviceCommands[name]
-		if !ok {
-			return fmt.Errorf("unknown command %q", name)
+		cmd, rest, err := serviceCommands.Get(params)
+		if err != nil {
+			return err
 		}
+		words := params[:len(params)-len(rest)]
 
-		text := name
-		if cmd.usage != "" {
-			text += " " + cmd.usage
+		if len(cmd.children) > 0 {
+			var l []string
+			appendServiceCommandSetHelp(cmd.children, words, &l)
+			sendServicePRIVMSG(dc, "available commands: "+strings.Join(l, ", "))
+		} else {
+			text := strings.Join(words, " ")
+			if cmd.usage != "" {
+				text += " " + cmd.usage
+			}
+			text += ": " + cmd.desc
+
+			sendServicePRIVMSG(dc, text)
 		}
-		text += ": " + cmd.desc
-
-		sendServicePRIVMSG(dc, text)
 	} else {
 		var l []string
-		for name := range serviceCommands {
-			l = append(l, name)
-		}
+		appendServiceCommandSetHelp(serviceCommands, nil, &l)
 		sendServicePRIVMSG(dc, "available commands: "+strings.Join(l, ", "))
 	}
 	return nil
@@ -107,7 +153,7 @@ func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 		return err
 	}
 	if *addr == "" {
-		return fmt.Errorf("flag addr is required")
+		return fmt.Errorf("flag -addr is required")
 	}
 
 	if *nick == "" {

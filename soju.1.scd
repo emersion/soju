@@ -71,14 +71,17 @@ The config file has one directive per line.
 
 # IRC SERVICE
 
-soju exposes an IRC service called BouncerServ to manage the bouncer. Commands
-can be sent via regular private messages (_/msg BouncerServ <command> [args...]_).
+soju exposes an IRC service called *BouncerServ* to manage the bouncer.
+Commands can be sent via regular private messages
+(_/msg BouncerServ <command> [args...]_). Commands may be written in full or
+abbreviated form, for instance *network* can be abbreviated as *net* or just
+*n*.
 
 *help* [command]
 	Show a list of commands. If _command_ is specified, show a help message for
 	the command.
 
-*create-network* *-addr* <addr> [options...]
+*network create* *-addr* <addr> [options...]
 	Connect to a new network at _addr_. _-addr_ is mandatory. Other options are:
 
 	*-name* <name>
