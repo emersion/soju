@@ -848,10 +848,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		for i, name := range strings.Split(namesStr, ",") {
 			uc, upstreamName, err := dc.unmarshalEntity(name)
 			if err != nil {
-				return ircError{&irc.Message{
-					Command: irc.ERR_NOSUCHCHANNEL,
-					Params:  []string{name, err.Error()},
-				}}
+				return err
 			}
 
 			var key string
@@ -890,10 +887,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		for _, name := range strings.Split(namesStr, ",") {
 			uc, upstreamName, err := dc.unmarshalEntity(name)
 			if err != nil {
-				return ircError{&irc.Message{
-					Command: irc.ERR_NOSUCHCHANNEL,
-					Params:  []string{name, err.Error()},
-				}}
+				return err
 			}
 
 			params := []string{upstreamName}
