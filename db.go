@@ -33,6 +33,13 @@ type Network struct {
 	SASL     SASL
 }
 
+func (net *Network) GetName() string {
+	if net.Name != "" {
+		return net.Name
+	}
+	return net.Addr
+}
+
 type Channel struct {
 	ID   int64
 	Name string
@@ -225,8 +232,21 @@ func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
 	defer db.lock.Unlock()
 
 	key := toStringPtr(ch.Key)
-	_, err := db.db.Exec(`INSERT OR REPLACE INTO Channel(network, name, key)
-		VALUES (?, ?, ?)`, networkID, ch.Name, key)
+
+	var err error
+	if ch.ID != 0 {
+		_, err = db.db.Exec(`UPDATE Channel
+			SET network = ?, name = ?, key = ?
+			WHERE id = ?`, networkID, ch.Name, key, ch.ID)
+	} else {
+		var res sql.Result
+		res, err = db.db.Exec(`INSERT INTO Channel(network, name, key)
+			VALUES (?, ?, ?)`, networkID, ch.Name, key)
+		if err != nil {
+			return err
+		}
+		ch.ID, err = res.LastInsertId()
+	}
 	return err
 }
 
@@ -236,11 +256,4 @@ func (db *DB) DeleteChannel(networkID int64, name string) error {
 
 	_, err := db.db.Exec("DELETE FROM Channel WHERE network = ? AND name = ?", networkID, name)
 	return err
-}
-
-func (net *Network) GetName() string {
-	if net.Name != "" {
-		return net.Name
-	}
-	return net.Addr
 }
