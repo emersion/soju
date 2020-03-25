@@ -833,35 +833,37 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			uc.SendMessage(msg)
 		})
 	case "JOIN", "PART":
-		var name string
-		if err := parseMessageParams(msg, &name); err != nil {
+		var names string
+		if err := parseMessageParams(msg, &names); err != nil {
 			return err
 		}
 
-		uc, upstreamName, err := dc.unmarshalEntity(name)
-		if err != nil {
-			return ircError{&irc.Message{
-				Command: irc.ERR_NOSUCHCHANNEL,
-				Params:  []string{name, err.Error()},
-			}}
-		}
-
-		uc.SendMessage(&irc.Message{
-			Command: msg.Command,
-			Params:  []string{upstreamName},
-		})
-
-		switch msg.Command {
-		case "JOIN":
-			err := dc.srv.db.StoreChannel(uc.network.ID, &Channel{
-				Name: upstreamName,
-			})
+		for _, name := range strings.Split(names, ",") {
+			uc, upstreamName, err := dc.unmarshalEntity(name)
 			if err != nil {
-				dc.logger.Printf("failed to create channel %q in DB: %v", upstreamName, err)
+				return ircError{&irc.Message{
+					Command: irc.ERR_NOSUCHCHANNEL,
+					Params:  []string{name, err.Error()},
+				}}
 			}
-		case "PART":
-			if err := dc.srv.db.DeleteChannel(uc.network.ID, upstreamName); err != nil {
-				dc.logger.Printf("failed to delete channel %q in DB: %v", upstreamName, err)
+
+			uc.SendMessage(&irc.Message{
+				Command: msg.Command,
+				Params:  []string{upstreamName},
+			})
+
+			switch msg.Command {
+			case "JOIN":
+				err := dc.srv.db.StoreChannel(uc.network.ID, &Channel{
+					Name: upstreamName,
+				})
+				if err != nil {
+					dc.logger.Printf("failed to create channel %q in DB: %v", upstreamName, err)
+				}
+			case "PART":
+				if err := dc.srv.db.DeleteChannel(uc.network.ID, upstreamName); err != nil {
+					dc.logger.Printf("failed to delete channel %q in DB: %v", upstreamName, err)
+				}
 			}
 		}
 	case "MODE":
