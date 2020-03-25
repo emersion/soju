@@ -198,14 +198,26 @@ func (u *user) removeDownstream(dc *downstreamConn) {
 }
 
 func (u *user) createNetwork(net *Network) (*network, error) {
+	if net.ID != 0 {
+		panic("tried creating an already-existing network")
+	}
+
 	network := newNetwork(u, net)
 	err := u.srv.db.StoreNetwork(u.Username, &network.Network)
 	if err != nil {
 		return nil, err
 	}
+
+	u.forEachDownstream(func(dc *downstreamConn) {
+		if dc.network == nil {
+			dc.runNetwork(network, false)
+		}
+	})
+
 	u.lock.Lock()
 	u.networks = append(u.networks, network)
 	u.lock.Unlock()
+
 	go network.run()
 	return network, nil
 }
