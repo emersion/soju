@@ -20,6 +20,7 @@ type downstreamIncomingMessage struct {
 type network struct {
 	Network
 	user *user
+	ring *Ring
 
 	lock    sync.Mutex
 	conn    *upstreamConn
@@ -30,6 +31,7 @@ func newNetwork(user *user, record *Network) *network {
 	return &network{
 		Network: *record,
 		user:    user,
+		ring:    NewRing(user.srv.RingCap),
 		history: make(map[string]uint64),
 	}
 }

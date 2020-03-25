@@ -34,7 +34,6 @@ type upstreamConn struct {
 	srv      *Server
 	user     *user
 	outgoing chan<- *irc.Message
-	ring     *Ring
 
 	serverName            string
 	availableUserModes    string
@@ -80,7 +79,6 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		srv:                   network.user.srv,
 		user:                  network.user,
 		outgoing:              outgoing,
-		ring:                  NewRing(network.user.srv.RingCap),
 		channels:              make(map[string]*upstreamChannel),
 		caps:                  make(map[string]string),
 		availableChannelTypes: stdChannelTypes,
@@ -874,7 +872,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			break
 		}
 
-		uc.ring.Produce(msg)
+		uc.network.ring.Produce(msg)
 	case "INVITE":
 		var nick string
 		var channel string

@@ -699,27 +699,34 @@ func (dc *downstreamConn) register() error {
 				forwardChannel(dc, ch)
 			}
 		}
+	})
 
+	dc.forEachNetwork(func(net *network) {
 		historyName := dc.rawUsername
 
 		// TODO: need to take dc.network into account here
 		var seqPtr *uint64
 		if firstDownstream {
-			uc.network.lock.Lock()
-			seq, ok := uc.network.history[historyName]
-			uc.network.lock.Unlock()
+			net.lock.Lock()
+			seq, ok := net.history[historyName]
+			net.lock.Unlock()
 			if ok {
 				seqPtr = &seq
 			}
 		}
 
 		// TODO: we need to create a consumer when adding networks on-the-fly
-		consumer, ch := uc.ring.NewConsumer(seqPtr)
+		consumer, ch := net.ring.NewConsumer(seqPtr)
 		go func() {
 			for {
 				var closed bool
 				select {
 				case <-ch:
+					uc := net.upstream()
+					if uc == nil {
+						dc.logger.Printf("ignoring messages for upstream %q: upstream is disconnected", net.Addr)
+						break
+					}
 					dc.ringMessages <- ringMessage{consumer, uc}
 				case <-dc.closed:
 					closed = true
@@ -737,9 +744,9 @@ func (dc *downstreamConn) register() error {
 			dc.user.lock.Unlock()
 
 			if lastDownstream {
-				uc.network.lock.Lock()
-				uc.network.history[historyName] = seq
-				uc.network.lock.Unlock()
+				net.lock.Lock()
+				net.history[historyName] = seq
+				net.lock.Unlock()
 			}
 		}()
 	})
@@ -1086,7 +1093,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.ourMessages[echoMsg] = struct{}{}
 			dc.lock.Unlock()
 
-			uc.ring.Produce(echoMsg)
+			uc.network.ring.Produce(echoMsg)
 		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
