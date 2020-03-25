@@ -19,6 +19,7 @@ type Server struct {
 	TLS       *TLS
 	SQLDriver string
 	SQLSource string
+	LogPath   string
 }
 
 func Defaults() *Server {
@@ -70,6 +71,10 @@ func Parse(r io.Reader) (*Server, error) {
 			srv.TLS = tls
 		case "sql":
 			if err := d.parseParams(&srv.SQLDriver, &srv.SQLSource); err != nil {
+				return nil, err
+			}
+		case "log":
+			if err := d.parseParams(&srv.LogPath); err != nil {
 				return nil, err
 			}
 		default:

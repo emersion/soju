@@ -51,6 +51,7 @@ type Server struct {
 	Hostname string
 	Logger   Logger
 	RingCap  int
+	LogPath  string
 	Debug    bool
 
 	db *DB
