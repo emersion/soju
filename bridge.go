@@ -9,6 +9,13 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 		panic("Tried to forward a partial channel")
 	}
 
+	sendTopic(dc, ch)
+
+	// TODO: rpl_topicwhotime
+	sendNames(dc, ch)
+}
+
+func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
 	downstreamName := dc.marshalChannel(ch.conn, ch.Name)
 
 	if ch.Topic != "" {
@@ -24,9 +31,6 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 			Params:  []string{dc.nick, downstreamName, "No topic is set"},
 		})
 	}
-
-	// TODO: rpl_topicwhotime
-	sendNames(dc, ch)
 }
 
 func sendNames(dc *downstreamConn, ch *upstreamChannel) {

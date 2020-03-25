@@ -1032,6 +1032,33 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 		}
+	case "TOPIC":
+		var channel string
+		if err := parseMessageParams(msg, &channel); err != nil {
+			return err
+		}
+
+		uc, upstreamChannel, err := dc.unmarshalEntity(channel)
+		if err != nil {
+			return err
+		}
+
+		if len(msg.Params) > 1 { // setting topic
+			topic := msg.Params[1]
+			uc.SendMessage(&irc.Message{
+				Command: "TOPIC",
+				Params:  []string{upstreamChannel, topic},
+			})
+		} else { // getting topic
+			ch, ok := uc.channels[upstreamChannel]
+			if !ok {
+				return ircError{&irc.Message{
+					Command: irc.ERR_NOSUCHCHANNEL,
+					Params:  []string{dc.nick, upstreamChannel, "No such channel"},
+				}}
+			}
+			sendTopic(dc, ch)
+		}
 	case "NAMES":
 		if len(msg.Params) == 0 {
 			dc.SendMessage(&irc.Message{
