@@ -93,6 +93,10 @@ func init() {
 					desc:   "add a new network",
 					handle: handleServiceCreateNetwork,
 				},
+				"status": {
+					desc:   "show a list of saved networks and their current status",
+					handle: handleServiceNetworkStatus,
+				},
 			},
 		},
 	}
@@ -174,5 +178,29 @@ func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("created network %s successfully", network.GetName()))
+	return nil
+}
+
+func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
+	dc.user.forEachNetwork(func(net *network) {
+		var statuses []string
+		var details string
+		if uc := net.upstream(); uc != nil {
+			statuses = append(statuses, "connected as "+uc.nick)
+			details = fmt.Sprintf("%v channels", len(uc.channels))
+		} else {
+			statuses = append(statuses, "disconnected")
+		}
+
+		if net == dc.network {
+			statuses = append(statuses, "current")
+		}
+
+		s := fmt.Sprintf("%v (%v) [%v]", net.GetName(), net.Addr, strings.Join(statuses, ", "))
+		if details != "" {
+			s += ": " + details
+		}
+		sendServicePRIVMSG(dc, s)
+	})
 	return nil
 }
