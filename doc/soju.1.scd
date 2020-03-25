@@ -69,6 +69,9 @@ The config file has one directive per line.
 	Set the SQL driver settings. The only supported driver is "sqlite". The
 	source is the path to the SQLite database file.
 
+*log* <path>
+	Path to the bouncer logs root directory, or empty to disable logging.
+
 # IRC SERVICE
 
 soju exposes an IRC service called *BouncerServ* to manage the bouncer.

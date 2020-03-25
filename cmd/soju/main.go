@@ -61,6 +61,7 @@ func main() {
 	srv := soju.NewServer(db)
 	// TODO: load from config/DB
 	srv.Hostname = cfg.Hostname
+	srv.LogPath = cfg.LogPath
 	srv.Debug = debug
 
 	log.Printf("server listening on %q", cfg.Addr)
