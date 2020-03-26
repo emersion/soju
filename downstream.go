@@ -1077,6 +1077,45 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 			sendTopic(dc, ch)
 		}
+	case "LIST":
+		// TODO: support ELIST when supported by all upstreams
+
+		dc.user.pendingLISTsLock.Lock()
+		defer dc.user.pendingLISTsLock.Unlock()
+
+		pl := pendingLIST{
+			downstreamID:    dc.id,
+			pendingCommands: make(map[int64]*irc.Message),
+		}
+		var upstreamChannels map[int64][]string
+		if len(msg.Params) > 0 {
+			upstreamChannels = make(map[int64][]string)
+			channels := strings.Split(msg.Params[0], ",")
+			for _, channel := range channels {
+				uc, upstreamChannel, err := dc.unmarshalEntity(channel)
+				if err != nil {
+					return err
+				}
+				upstreamChannels[uc.network.ID] = append(upstreamChannels[uc.network.ID], upstreamChannel)
+			}
+		}
+
+		dc.user.pendingLISTs = append(dc.user.pendingLISTs, pl)
+		dc.forEachUpstream(func(uc *upstreamConn) {
+			var params []string
+			if upstreamChannels != nil {
+				if channels, ok := upstreamChannels[uc.network.ID]; ok {
+					params = []string{strings.Join(channels, ",")}
+				} else {
+					return
+				}
+			}
+			pl.pendingCommands[uc.network.ID] = &irc.Message{
+				Command: "LIST",
+				Params:  params,
+			}
+			uc.trySendList(dc.id)
+		})
 	case "NAMES":
 		if len(msg.Params) == 0 {
 			dc.SendMessage(&irc.Message{
