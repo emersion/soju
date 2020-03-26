@@ -1227,12 +1227,12 @@ func (uc *upstreamConn) SendMessage(msg *irc.Message) {
 	uc.outgoing <- msg
 }
 
-func (uc *upstreamConn) SendMessageLabeled(dc *downstreamConn, msg *irc.Message) {
+func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message) {
 	if uc.labelsSupported {
 		if msg.Tags == nil {
 			msg.Tags = make(map[string]irc.TagValue)
 		}
-		msg.Tags["label"] = irc.TagValue(fmt.Sprintf("sd-%d-%d", dc.id, uc.nextLabelID))
+		msg.Tags["label"] = irc.TagValue(fmt.Sprintf("sd-%d-%d", downstreamID, uc.nextLabelID))
 		uc.nextLabelID++
 	}
 	uc.SendMessage(msg)
