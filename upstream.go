@@ -204,9 +204,24 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	case "NOTICE":
 		uc.logger.Print(msg)
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			dc.SendMessage(msg)
-		})
+		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(msg)
+			})
+		} else { // regular user NOTICE
+			var nick, text string
+			if err := parseMessageParams(msg, &nick, &text); err != nil {
+				return err
+			}
+
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
+					Command: "NOTICE",
+					Params:  []string{dc.marshalEntity(uc, nick), text},
+				})
+			})
+		}
 	case "CAP":
 		var subCmd string
 		if err := parseMessageParams(msg, nil, &subCmd); err != nil {
