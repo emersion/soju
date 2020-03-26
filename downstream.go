@@ -1236,6 +1236,23 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 			uc.network.ring.Produce(echoMsg)
 		}
+	case "NOTICE":
+		var targetsStr, text string
+		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
+			return err
+		}
+
+		for _, name := range strings.Split(targetsStr, ",") {
+			uc, upstreamName, err := dc.unmarshalEntity(name)
+			if err != nil {
+				return err
+			}
+
+			uc.SendMessage(&irc.Message{
+				Command: "NOTICE",
+				Params:  []string{upstreamName, text},
+			})
+		}
 	case "INVITE":
 		var user, channel string
 		if err := parseMessageParams(msg, &user, &channel); err != nil {
