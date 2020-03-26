@@ -96,6 +96,16 @@ type user struct {
 
 	networks        []*network
 	downstreamConns []*downstreamConn
+
+	// LIST commands in progress
+	pendingLISTsLock sync.Mutex
+	pendingLISTs     []pendingLIST
+}
+
+type pendingLIST struct {
+	downstreamID uint64
+	// list of per-upstream LIST commands not yet sent or completed
+	pendingCommands map[int64]*irc.Message
 }
 
 func newUser(srv *Server, record *User) *user {
