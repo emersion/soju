@@ -1031,6 +1031,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Command: irc.RPL_CHANNELMODEIS,
 				Params:  params,
 			})
+			if ch.creationTime != "" {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: rpl_creationtime,
+					Params:  []string{dc.nick, name, ch.creationTime},
+				})
+			}
 		}
 	case "TOPIC":
 		var channel string

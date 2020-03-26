@@ -16,15 +16,16 @@ import (
 )
 
 type upstreamChannel struct {
-	Name      string
-	conn      *upstreamConn
-	Topic     string
-	TopicWho  string
-	TopicTime time.Time
-	Status    channelStatus
-	modes     channelModes
-	Members   map[string]*membership
-	complete  bool
+	Name         string
+	conn         *upstreamConn
+	Topic        string
+	TopicWho     string
+	TopicTime    time.Time
+	Status       channelStatus
+	modes        channelModes
+	creationTime string
+	Members      map[string]*membership
+	complete     bool
 }
 
 type upstreamConn struct {
@@ -760,6 +761,28 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_CHANNELMODEIS,
 					Params:  params,
+				})
+			})
+		}
+	case rpl_creationtime:
+		var channel, creationTime string
+		if err := parseMessageParams(msg, nil, &channel, &creationTime); err != nil {
+			return err
+		}
+
+		ch, err := uc.getChannel(channel)
+		if err != nil {
+			return err
+		}
+
+		firstCreationTime := ch.creationTime == ""
+		ch.creationTime = creationTime
+		if firstCreationTime {
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: rpl_creationtime,
+					Params:  []string{dc.nick, channel, creationTime},
 				})
 			})
 		}
