@@ -54,7 +54,7 @@ type upstreamConn struct {
 
 	tagsSupported   bool
 	labelsSupported bool
-	nextLabelId     uint64
+	nextLabelID     uint64
 
 	saslClient  sasl.Client
 	saslStarted bool
@@ -130,7 +130,7 @@ func (uc *upstreamConn) forEachDownstream(f func(*downstreamConn)) {
 	})
 }
 
-func (uc *upstreamConn) forEachDownstreamById(id uint64, f func(*downstreamConn)) {
+func (uc *upstreamConn) forEachDownstreamByID(id uint64, f func(*downstreamConn)) {
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		if id != 0 && id != dc.id {
 			return
@@ -181,10 +181,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 	}
 
-	var downstreamId uint64 = 0
+	var downstreamID uint64 = 0
 	if label != "" {
 		var labelOffset uint64
-		n, err := fmt.Sscanf(label, "sd-%d-%d", &downstreamId, &labelOffset)
+		n, err := fmt.Sscanf(label, "sd-%d-%d", &downstreamID, &labelOffset)
 		if err == nil && n < 2 {
 			err = errors.New("not enough arguments")
 		}
@@ -788,7 +788,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		ch, ok := uc.channels[name]
 		if !ok {
 			// NAMES on a channel we have not joined, forward to downstream
-			uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 				channel := dc.marshalChannel(uc, name)
 				members := strings.Split(members, " ")
 				for i, member := range members {
@@ -825,7 +825,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		ch, ok := uc.channels[name]
 		if !ok {
 			// NAMES on a channel we have not joined, forward to downstream
-			uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 				channel := dc.marshalChannel(uc, name)
 
 				dc.SendMessage(&irc.Message{
@@ -864,7 +864,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		trailing = strconv.Itoa(hops) + " " + realname
 
-		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			channel := channel
 			if channel != "*" {
 				channel = dc.marshalChannel(uc, channel)
@@ -882,7 +882,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			name := name
 			if name != "*" {
 				// TODO: support WHO masks
@@ -900,7 +900,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -914,7 +914,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -928,7 +928,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -942,7 +942,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			params := []string{dc.nick, nick}
 			params = append(params, msg.Params[2:]...)
@@ -959,7 +959,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		channels := strings.Split(channelList, " ")
 
-		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			channelList := make([]string, len(channels))
 			for i, channel := range channels {
@@ -980,7 +980,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstreamById(downstreamId, func(dc *downstreamConn) {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -1158,8 +1158,8 @@ func (uc *upstreamConn) SendMessageLabeled(dc *downstreamConn, msg *irc.Message)
 		if msg.Tags == nil {
 			msg.Tags = make(map[string]irc.TagValue)
 		}
-		msg.Tags["label"] = irc.TagValue(fmt.Sprintf("sd-%d-%d", dc.id, uc.nextLabelId))
-		uc.nextLabelId++
+		msg.Tags["label"] = irc.TagValue(fmt.Sprintf("sd-%d-%d", dc.id, uc.nextLabelID))
+		uc.nextLabelID++
 	}
 	uc.SendMessage(msg)
 }
