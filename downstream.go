@@ -1236,6 +1236,34 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 			uc.network.ring.Produce(echoMsg)
 		}
+	case "INVITE":
+		var user, channel string
+		if err := parseMessageParams(msg, &user, &channel); err != nil {
+			return err
+		}
+
+		ucChannel, upstreamChannel, err := dc.unmarshalEntity(channel)
+		if err != nil {
+			return err
+		}
+
+		ucUser, upstreamUser, err := dc.unmarshalEntity(user)
+		if err != nil {
+			return err
+		}
+
+		if ucChannel != ucUser {
+			return ircError{&irc.Message{
+				Command: irc.ERR_USERNOTINCHANNEL,
+				Params:  []string{dc.nick, user, channel, "They aren't on that channel"},
+			}}
+		}
+		uc := ucChannel
+
+		uc.SendMessageLabeled(dc, &irc.Message{
+			Command: "INVITE",
+			Params:  []string{upstreamUser, upstreamChannel},
+		})
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
