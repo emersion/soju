@@ -55,9 +55,8 @@ type Server struct {
 
 	db *DB
 
-	lock            sync.Mutex
-	users           map[string]*user
-	downstreamConns []*downstreamConn
+	lock  sync.Mutex
+	users map[string]*user
 }
 
 func NewServer(db *DB) *Server {
@@ -112,10 +111,6 @@ func (s *Server) Serve(ln net.Listener) error {
 		dc := newDownstreamConn(s, netConn, nextDownstreamID)
 		nextDownstreamID++
 		go func() {
-			s.lock.Lock()
-			s.downstreamConns = append(s.downstreamConns, dc)
-			s.lock.Unlock()
-
 			if err := dc.runUntilRegistered(); err != nil {
 				dc.logger.Print(err)
 			} else {
@@ -126,15 +121,6 @@ func (s *Server) Serve(ln net.Listener) error {
 				dc.user.events <- eventDownstreamDisconnected{dc}
 			}
 			dc.Close()
-
-			s.lock.Lock()
-			for i := range s.downstreamConns {
-				if s.downstreamConns[i] == dc {
-					s.downstreamConns = append(s.downstreamConns[:i], s.downstreamConns[i+1:]...)
-					break
-				}
-			}
-			s.lock.Unlock()
 		}()
 	}
 }
