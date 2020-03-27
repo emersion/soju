@@ -71,6 +71,7 @@ type downstreamConn struct {
 	nick        string
 	username    string
 	rawUsername string
+	networkName string
 	realname    string
 	hostname    string
 	password    string   // empty after authentication
@@ -582,42 +583,6 @@ func unmarshalUsername(rawUsername string) (username, network string) {
 	return username, network
 }
 
-func (dc *downstreamConn) setNetwork(networkName string) error {
-	if networkName == "" {
-		return nil
-	}
-
-	network := dc.user.getNetwork(networkName)
-	if network == nil {
-		addr := networkName
-		if !strings.ContainsRune(addr, ':') {
-			addr = addr + ":6697"
-		}
-
-		dc.logger.Printf("trying to connect to new network %q", addr)
-		if err := sanityCheckServer(addr); err != nil {
-			dc.logger.Printf("failed to connect to %q: %v", addr, err)
-			return ircError{&irc.Message{
-				Command: irc.ERR_PASSWDMISMATCH,
-				Params:  []string{"*", fmt.Sprintf("Failed to connect to %q", networkName)},
-			}}
-		}
-
-		dc.logger.Printf("auto-saving network %q", networkName)
-		var err error
-		network, err = dc.user.createNetwork(&Network{
-			Addr: networkName,
-			Nick: dc.nick,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	dc.network = network
-	return nil
-}
-
 func (dc *downstreamConn) authenticate(username, password string) error {
 	username, networkName := unmarshalUsername(username)
 
@@ -634,31 +599,82 @@ func (dc *downstreamConn) authenticate(username, password string) error {
 	}
 
 	dc.user = u
-
-	return dc.setNetwork(networkName)
+	dc.networkName = networkName
+	return nil
 }
 
 func (dc *downstreamConn) register() error {
+	if dc.registered {
+		return fmt.Errorf("tried to register twice")
+	}
+
 	password := dc.password
 	dc.password = ""
 	if dc.user == nil {
 		if err := dc.authenticate(dc.rawUsername, password); err != nil {
 			return err
 		}
-	} else if dc.network == nil {
-		_, networkName := unmarshalUsername(dc.rawUsername)
-		if err := dc.setNetwork(networkName); err != nil {
-			return err
-		}
+	}
+
+	if dc.networkName == "" {
+		_, dc.networkName = unmarshalUsername(dc.rawUsername)
 	}
 
 	dc.registered = true
 	dc.username = dc.user.Username
 	dc.logger.Printf("registration complete for user %q", dc.username)
+	return nil
+}
 
-	dc.user.lock.Lock()
+func (dc *downstreamConn) loadNetwork() error {
+	if dc.networkName == "" {
+		return nil
+	}
+
+	network := dc.user.getNetwork(dc.networkName)
+	if network == nil {
+		addr := dc.networkName
+		if !strings.ContainsRune(addr, ':') {
+			addr = addr + ":6697"
+		}
+
+		dc.logger.Printf("trying to connect to new network %q", addr)
+		if err := sanityCheckServer(addr); err != nil {
+			dc.logger.Printf("failed to connect to %q: %v", addr, err)
+			return ircError{&irc.Message{
+				Command: irc.ERR_PASSWDMISMATCH,
+				Params:  []string{"*", fmt.Sprintf("Failed to connect to %q", dc.networkName)},
+			}}
+		}
+
+		dc.logger.Printf("auto-saving network %q", dc.networkName)
+		var err error
+		network, err = dc.user.createNetwork(&Network{
+			Addr: dc.networkName,
+			Nick: dc.nick,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	dc.network = network
+	return nil
+}
+
+func (dc *downstreamConn) welcome() error {
+	if dc.user == nil || !dc.registered {
+		panic("tried to welcome an unregistered connection")
+	}
+
+	// TODO: doing this might take some time. We should do it in dc.register
+	// instead, but we'll potentially be adding a new network and this must be
+	// done in the user goroutine.
+	if err := dc.loadNetwork(); err != nil {
+		return err
+	}
+
 	firstDownstream := len(dc.user.downstreamConns) == 0
-	dc.user.lock.Unlock()
 
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),

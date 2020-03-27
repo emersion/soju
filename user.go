@@ -91,7 +91,6 @@ type user struct {
 
 	events chan event
 
-	lock            sync.Mutex
 	networks        []*network
 	downstreamConns []*downstreamConn
 }
@@ -105,15 +104,12 @@ func newUser(srv *Server, record *User) *user {
 }
 
 func (u *user) forEachNetwork(f func(*network)) {
-	u.lock.Lock()
 	for _, network := range u.networks {
 		f(network)
 	}
-	u.lock.Unlock()
 }
 
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
-	u.lock.Lock()
 	for _, network := range u.networks {
 		uc := network.upstream()
 		if uc == nil || !uc.registered || uc.closed {
@@ -121,15 +117,12 @@ func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 		}
 		f(uc)
 	}
-	u.lock.Unlock()
 }
 
 func (u *user) forEachDownstream(f func(dc *downstreamConn)) {
-	u.lock.Lock()
 	for _, dc := range u.downstreamConns {
 		f(dc)
 	}
-	u.lock.Unlock()
 }
 
 func (u *user) getNetwork(name string) *network {
@@ -148,14 +141,12 @@ func (u *user) run() {
 		return
 	}
 
-	u.lock.Lock()
 	for _, record := range networks {
 		network := newNetwork(u, &record)
 		u.networks = append(u.networks, network)
 
 		go network.run()
 	}
-	u.lock.Unlock()
 
 	for e := range u.events {
 		switch e := e.(type) {
@@ -170,19 +161,21 @@ func (u *user) run() {
 			}
 		case eventDownstreamConnected:
 			dc := e.dc
-			u.lock.Lock()
+
+			if err := dc.welcome(); err != nil {
+				dc.logger.Printf("failed to handle new registered connection: %v", err)
+				break
+			}
+
 			u.downstreamConns = append(u.downstreamConns, dc)
-			u.lock.Unlock()
 		case eventDownstreamDisconnected:
 			dc := e.dc
-			u.lock.Lock()
 			for i := range u.downstreamConns {
 				if u.downstreamConns[i] == dc {
 					u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
 					break
 				}
 			}
-			u.lock.Unlock()
 		case eventDownstreamMessage:
 			msg, dc := e.msg, e.dc
 			if dc.isClosed() {
@@ -220,9 +213,7 @@ func (u *user) createNetwork(net *Network) (*network, error) {
 		}
 	})
 
-	u.lock.Lock()
 	u.networks = append(u.networks, network)
-	u.lock.Unlock()
 
 	go network.run()
 	return network, nil
