@@ -1167,7 +1167,7 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 	return nil
 }
 
-func (uc *upstreamConn) readMessages(ch chan<- upstreamIncomingMessage) error {
+func (uc *upstreamConn) readMessages(ch chan<- event) error {
 	for {
 		msg, err := uc.irc.ReadMessage()
 		if err == io.EOF {
@@ -1180,7 +1180,7 @@ func (uc *upstreamConn) readMessages(ch chan<- upstreamIncomingMessage) error {
 			uc.logger.Printf("received: %v", msg)
 		}
 
-		ch <- upstreamIncomingMessage{msg, uc}
+		ch <- eventUpstreamMessage{msg, uc}
 	}
 
 	return nil

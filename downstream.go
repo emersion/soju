@@ -227,7 +227,7 @@ func (dc *downstreamConn) isClosed() bool {
 	}
 }
 
-func (dc *downstreamConn) readMessages(ch chan<- downstreamIncomingMessage) error {
+func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	for {
 		msg, err := dc.irc.ReadMessage()
 		if err == io.EOF {
@@ -240,7 +240,7 @@ func (dc *downstreamConn) readMessages(ch chan<- downstreamIncomingMessage) erro
 			dc.logger.Printf("received: %v", msg)
 		}
 
-		ch <- downstreamIncomingMessage{msg, dc}
+		ch <- eventDownstreamMessage{msg, dc}
 	}
 
 	return nil

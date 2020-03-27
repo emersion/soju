@@ -7,12 +7,14 @@ import (
 	"gopkg.in/irc.v3"
 )
 
-type upstreamIncomingMessage struct {
+type event interface{}
+
+type eventUpstreamMessage struct {
 	msg *irc.Message
 	uc  *upstreamConn
 }
 
-type downstreamIncomingMessage struct {
+type eventDownstreamMessage struct {
 	msg *irc.Message
 	dc  *downstreamConn
 }
@@ -58,7 +60,7 @@ func (net *network) run() {
 		net.conn = uc
 		net.lock.Unlock()
 
-		if err := uc.readMessages(net.user.upstreamIncoming); err != nil {
+		if err := uc.readMessages(net.user.events); err != nil {
 			uc.logger.Printf("failed to handle messages: %v", err)
 		}
 		uc.Close()
@@ -79,8 +81,7 @@ type user struct {
 	User
 	srv *Server
 
-	upstreamIncoming   chan upstreamIncomingMessage
-	downstreamIncoming chan downstreamIncomingMessage
+	events chan event
 
 	lock            sync.Mutex
 	networks        []*network
@@ -89,10 +90,9 @@ type user struct {
 
 func newUser(srv *Server, record *User) *user {
 	return &user{
-		User:               *record,
-		srv:                srv,
-		upstreamIncoming:   make(chan upstreamIncomingMessage, 64),
-		downstreamIncoming: make(chan downstreamIncomingMessage, 64),
+		User:   *record,
+		srv:    srv,
+		events: make(chan event, 64),
 	}
 }
 
@@ -149,10 +149,10 @@ func (u *user) run() {
 	}
 	u.lock.Unlock()
 
-	for {
-		select {
-		case upstreamMsg := <-u.upstreamIncoming:
-			msg, uc := upstreamMsg.msg, upstreamMsg.uc
+	for e := range u.events {
+		switch e := e.(type) {
+		case eventUpstreamMessage:
+			msg, uc := e.msg, e.uc
 			if uc.closed {
 				uc.logger.Printf("ignoring message on closed connection: %v", msg)
 				break
@@ -160,8 +160,8 @@ func (u *user) run() {
 			if err := uc.handleMessage(msg); err != nil {
 				uc.logger.Printf("failed to handle message %q: %v", msg, err)
 			}
-		case downstreamMsg := <-u.downstreamIncoming:
-			msg, dc := downstreamMsg.msg, downstreamMsg.dc
+		case eventDownstreamMessage:
+			msg, dc := e.msg, e.dc
 			if dc.isClosed() {
 				dc.logger.Printf("ignoring message on closed connection: %v", msg)
 				break
@@ -174,6 +174,8 @@ func (u *user) run() {
 				dc.logger.Printf("failed to handle message %q: %v", msg, err)
 				dc.Close()
 			}
+		default:
+			u.srv.Logger.Printf("received unknown event type: %T", e)
 		}
 	}
 }
