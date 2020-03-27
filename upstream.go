@@ -821,14 +821,13 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if err := parseMessageParams(msg, nil, &statusStr, &name, &members); err != nil {
 			return err
 		}
-		members = strings.TrimRight(members, " ")
 
 		ch, ok := uc.channels[name]
 		if !ok {
 			// NAMES on a channel we have not joined, forward to downstream
 			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 				channel := dc.marshalChannel(uc, name)
-				members := strings.Split(members, " ")
+				members := splitSpace(members)
 				for i, member := range members {
 					membership, nick := uc.parseMembershipPrefix(member)
 					members[i] = membership.String() + dc.marshalNick(uc, nick)
@@ -850,7 +849,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		ch.Status = status
 
-		for _, s := range strings.Split(members, " ") {
+		for _, s := range splitSpace(members) {
 			membership, nick := uc.parseMembershipPrefix(s)
 			ch.Members[nick] = membership
 		}
@@ -995,7 +994,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if err := parseMessageParams(msg, nil, &nick, &channelList); err != nil {
 			return err
 		}
-		channels := strings.Split(channelList, " ")
+		channels := splitSpace(channelList)
 
 		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			nick := dc.marshalNick(uc, nick)
@@ -1092,6 +1091,12 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		uc.logger.Printf("unhandled message: %v", msg)
 	}
 	return nil
+}
+
+func splitSpace(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool {
+		return r == ' '
+	})
 }
 
 func (uc *upstreamConn) register() {
