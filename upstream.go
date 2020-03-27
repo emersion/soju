@@ -145,6 +145,7 @@ func (uc *upstreamConn) isClosed() bool {
 	}
 }
 
+// Close closes the connection. It is safe to call from any goroutine.
 func (uc *upstreamConn) Close() error {
 	if uc.isClosed() {
 		return fmt.Errorf("upstream connection already closed")
@@ -1391,6 +1392,8 @@ func (uc *upstreamConn) readMessages(ch chan<- event) error {
 	return nil
 }
 
+// SendMessage queues a new outgoing message. It is safe to call from any
+// goroutine.
 func (uc *upstreamConn) SendMessage(msg *irc.Message) {
 	uc.outgoing <- msg
 }

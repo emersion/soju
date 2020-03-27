@@ -306,15 +306,17 @@ func (dc *downstreamConn) writeMessages() error {
 	return nil
 }
 
+// Close closes the connection. It is safe to call from any goroutine.
 func (dc *downstreamConn) Close() error {
 	if dc.isClosed() {
 		return fmt.Errorf("downstream connection already closed")
 	}
-
 	close(dc.closed)
 	return nil
 }
 
+// SendMessage queues a new outgoing message. It is safe to call from any
+// goroutine.
 func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	dc.outgoing <- msg
 }
