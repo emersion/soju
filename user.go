@@ -64,6 +64,9 @@ func (net *network) run() {
 
 		uc.register()
 
+		// TODO: wait for the connection to be registered before adding it to
+		// net, otherwise messages might be sent to it while still being
+		// unauthenticated
 		net.lock.Lock()
 		net.conn = uc
 		net.lock.Unlock()
@@ -112,7 +115,7 @@ func (u *user) forEachNetwork(f func(*network)) {
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	for _, network := range u.networks {
 		uc := network.upstream()
-		if uc == nil || !uc.registered || uc.closed {
+		if uc == nil || !uc.registered {
 			continue
 		}
 		f(uc)
@@ -152,7 +155,7 @@ func (u *user) run() {
 		switch e := e.(type) {
 		case eventUpstreamMessage:
 			msg, uc := e.msg, e.uc
-			if uc.closed {
+			if uc.isClosed() {
 				uc.logger.Printf("ignoring message on closed connection: %v", msg)
 				break
 			}

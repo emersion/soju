@@ -36,6 +36,7 @@ type upstreamConn struct {
 	srv      *Server
 	user     *user
 	outgoing chan<- *irc.Message
+	closed   chan struct{}
 
 	serverName            string
 	availableUserModes    string
@@ -47,7 +48,6 @@ type upstreamConn struct {
 	nick       string
 	username   string
 	realname   string
-	closed     bool
 	modes      userModes
 	channels   map[string]*upstreamChannel
 	caps       map[string]string
@@ -95,12 +95,21 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	}
 
 	go func() {
-		for msg := range outgoing {
-			if uc.srv.Debug {
-				uc.logger.Printf("sent: %v", msg)
+		for {
+			var closed bool
+			select {
+			case msg := <-outgoing:
+				if uc.srv.Debug {
+					uc.logger.Printf("sent: %v", msg)
+				}
+				if err := uc.irc.WriteMessage(msg); err != nil {
+					uc.logger.Printf("failed to write message: %v", err)
+				}
+			case <-uc.closed:
+				closed = true
 			}
-			if err := uc.irc.WriteMessage(msg); err != nil {
-				uc.logger.Printf("failed to write message: %v", err)
+			if closed {
+				break
 			}
 		}
 		if err := uc.net.Close(); err != nil {
@@ -113,12 +122,20 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	return uc, nil
 }
 
+func (uc *upstreamConn) isClosed() bool {
+	select {
+	case <-uc.closed:
+		return true
+	default:
+		return false
+	}
+}
+
 func (uc *upstreamConn) Close() error {
-	if uc.closed {
+	if uc.isClosed() {
 		return fmt.Errorf("upstream connection already closed")
 	}
-	close(uc.outgoing)
-	uc.closed = true
+	close(uc.closed)
 	return nil
 }
 
