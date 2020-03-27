@@ -123,6 +123,7 @@ func (s *Server) Serve(ln net.Listener) error {
 				if err := dc.readMessages(dc.user.events); err != nil {
 					dc.logger.Print(err)
 				}
+				dc.user.events <- eventDownstreamDisconnected{dc}
 			}
 			dc.Close()
 

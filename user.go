@@ -23,6 +23,10 @@ type eventDownstreamConnected struct {
 	dc *downstreamConn
 }
 
+type eventDownstreamDisconnected struct {
+	dc *downstreamConn
+}
+
 type network struct {
 	Network
 	user *user
@@ -169,6 +173,16 @@ func (u *user) run() {
 			u.lock.Lock()
 			u.downstreamConns = append(u.downstreamConns, dc)
 			u.lock.Unlock()
+		case eventDownstreamDisconnected:
+			dc := e.dc
+			u.lock.Lock()
+			for i := range u.downstreamConns {
+				if u.downstreamConns[i] == dc {
+					u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
+					break
+				}
+			}
+			u.lock.Unlock()
 		case eventDownstreamMessage:
 			msg, dc := e.msg, e.dc
 			if dc.isClosed() {
@@ -187,17 +201,6 @@ func (u *user) run() {
 			u.srv.Logger.Printf("received unknown event type: %T", e)
 		}
 	}
-}
-
-func (u *user) removeDownstream(dc *downstreamConn) {
-	u.lock.Lock()
-	for i := range u.downstreamConns {
-		if u.downstreamConns[i] == dc {
-			u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
-			break
-		}
-	}
-	u.lock.Unlock()
 }
 
 func (u *user) createNetwork(net *Network) (*network, error) {

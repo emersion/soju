@@ -310,10 +310,6 @@ func (dc *downstreamConn) Close() error {
 		return fmt.Errorf("downstream connection already closed")
 	}
 
-	if u := dc.user; u != nil {
-		u.removeDownstream(dc)
-	}
-
 	close(dc.closed)
 	return nil
 }
@@ -757,16 +753,9 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 
 		seq := consumer.Close()
 
-		// TODO: need to take dc.network into account here
-		dc.user.lock.Lock()
-		lastDownstream := len(dc.user.downstreamConns) == 0
-		dc.user.lock.Unlock()
-
-		if lastDownstream {
-			net.lock.Lock()
-			net.history[historyName] = seq
-			net.lock.Unlock()
-		}
+		net.lock.Lock()
+		net.history[historyName] = seq
+		net.lock.Unlock()
 	}()
 }
 
