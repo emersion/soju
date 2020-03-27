@@ -14,6 +14,10 @@ type eventUpstreamMessage struct {
 	uc  *upstreamConn
 }
 
+type eventUpstreamDisconnected struct {
+	uc *upstreamConn
+}
+
 type eventDownstreamMessage struct {
 	msg *irc.Message
 	dc  *downstreamConn
@@ -75,6 +79,7 @@ func (net *network) run() {
 			uc.logger.Printf("failed to handle messages: %v", err)
 		}
 		uc.Close()
+		net.user.events <- eventUpstreamDisconnected{uc}
 
 		net.lock.Lock()
 		net.conn = nil
@@ -98,8 +103,7 @@ type user struct {
 	downstreamConns []*downstreamConn
 
 	// LIST commands in progress
-	pendingLISTsLock sync.Mutex
-	pendingLISTs     []pendingLIST
+	pendingLISTs []pendingLIST
 }
 
 type pendingLIST struct {
@@ -163,6 +167,12 @@ func (u *user) run() {
 
 	for e := range u.events {
 		switch e := e.(type) {
+		case eventUpstreamDisconnected:
+			uc := e.uc
+			for _, log := range uc.logs {
+				log.file.Close()
+			}
+			uc.endPendingLists(true)
 		case eventUpstreamMessage:
 			msg, uc := e.msg, e.uc
 			if uc.isClosed() {

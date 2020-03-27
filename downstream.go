@@ -1080,9 +1080,6 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 	case "LIST":
 		// TODO: support ELIST when supported by all upstreams
 
-		dc.user.pendingLISTsLock.Lock()
-		defer dc.user.pendingLISTsLock.Unlock()
-
 		pl := pendingLIST{
 			downstreamID:    dc.id,
 			pendingCommands: make(map[int64]*irc.Message),

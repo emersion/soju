@@ -63,7 +63,6 @@ type upstreamConn struct {
 	saslStarted bool
 
 	// set of LIST commands in progress, per downstream
-	// access is synchronized with user.pendingLISTsLock
 	pendingLISTDownstreamSet map[uint64]struct{}
 
 	logs map[string]entityLog
@@ -151,10 +150,6 @@ func (uc *upstreamConn) Close() error {
 		return fmt.Errorf("upstream connection already closed")
 	}
 	close(uc.closed)
-	for _, log := range uc.logs {
-		log.file.Close()
-	}
-	uc.endPendingLists(true)
 	return nil
 }
 
@@ -192,8 +187,6 @@ func (uc *upstreamConn) isChannel(entity string) bool {
 }
 
 func (uc *upstreamConn) getPendingList() *pendingLIST {
-	uc.user.pendingLISTsLock.Lock()
-	defer uc.user.pendingLISTsLock.Unlock()
 	for _, pl := range uc.user.pendingLISTs {
 		if _, ok := pl.pendingCommands[uc.network.ID]; !ok {
 			continue
@@ -205,8 +198,6 @@ func (uc *upstreamConn) getPendingList() *pendingLIST {
 
 func (uc *upstreamConn) endPendingLists(all bool) (found bool) {
 	found = false
-	uc.user.pendingLISTsLock.Lock()
-	defer uc.user.pendingLISTsLock.Unlock()
 	for i := 0; i < len(uc.user.pendingLISTs); i++ {
 		pl := uc.user.pendingLISTs[i]
 		if _, ok := pl.pendingCommands[uc.network.ID]; !ok {
