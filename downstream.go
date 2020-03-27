@@ -586,19 +586,23 @@ func unmarshalUsername(rawUsername string) (username, network string) {
 func (dc *downstreamConn) authenticate(username, password string) error {
 	username, networkName := unmarshalUsername(username)
 
-	u := dc.srv.getUser(username)
-	if u == nil {
-		dc.logger.Printf("failed authentication for %q: unknown username", username)
-		return errAuthFailed
-	}
-
-	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	u, err := dc.srv.db.GetUser(username)
 	if err != nil {
 		dc.logger.Printf("failed authentication for %q: %v", username, err)
 		return errAuthFailed
 	}
 
-	dc.user = u
+	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	if err != nil {
+		dc.logger.Printf("failed authentication for %q: %v", username, err)
+		return errAuthFailed
+	}
+
+	dc.user = dc.srv.getUser(username)
+	if dc.user == nil {
+		dc.logger.Printf("failed authentication for %q: user not active", username)
+		return errAuthFailed
+	}
 	dc.networkName = networkName
 	return nil
 }

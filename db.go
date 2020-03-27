@@ -106,6 +106,21 @@ func (db *DB) ListUsers() ([]User, error) {
 	return users, nil
 }
 
+func (db *DB) GetUser(username string) (*User, error) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+
+	user := &User{Username: username}
+
+	var password *string
+	row := db.db.QueryRow("SELECT password FROM User WHERE username = ?", username)
+	if err := row.Scan(&password); err != nil {
+		return nil, err
+	}
+	user.Password = fromStringPtr(password)
+	return user, nil
+}
+
 func (db *DB) CreateUser(user *User) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
