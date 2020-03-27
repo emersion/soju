@@ -19,6 +19,10 @@ type eventDownstreamMessage struct {
 	dc  *downstreamConn
 }
 
+type eventDownstreamConnected struct {
+	dc *downstreamConn
+}
+
 type network struct {
 	Network
 	user *user
@@ -160,6 +164,11 @@ func (u *user) run() {
 			if err := uc.handleMessage(msg); err != nil {
 				uc.logger.Printf("failed to handle message %q: %v", msg, err)
 			}
+		case eventDownstreamConnected:
+			dc := e.dc
+			u.lock.Lock()
+			u.downstreamConns = append(u.downstreamConns, dc)
+			u.lock.Unlock()
 		case eventDownstreamMessage:
 			msg, dc := e.msg, e.dc
 			if dc.isClosed() {
@@ -178,14 +187,6 @@ func (u *user) run() {
 			u.srv.Logger.Printf("received unknown event type: %T", e)
 		}
 	}
-}
-
-func (u *user) addDownstream(dc *downstreamConn) (first bool) {
-	u.lock.Lock()
-	first = len(dc.user.downstreamConns) == 0
-	u.downstreamConns = append(u.downstreamConns, dc)
-	u.lock.Unlock()
-	return first
 }
 
 func (u *user) removeDownstream(dc *downstreamConn) {

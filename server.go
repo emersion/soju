@@ -119,6 +119,7 @@ func (s *Server) Serve(ln net.Listener) error {
 			if err := dc.runUntilRegistered(); err != nil {
 				dc.logger.Print(err)
 			} else {
+				dc.user.events <- eventDownstreamConnected{dc}
 				if err := dc.readMessages(dc.user.events); err != nil {
 					dc.logger.Print(err)
 				}

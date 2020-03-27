@@ -660,7 +660,9 @@ func (dc *downstreamConn) register() error {
 	dc.username = dc.user.Username
 	dc.logger.Printf("registration complete for user %q", dc.username)
 
-	firstDownstream := dc.user.addDownstream(dc)
+	dc.user.lock.Lock()
+	firstDownstream := len(dc.user.downstreamConns) == 0
+	dc.user.lock.Unlock()
 
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
