@@ -72,6 +72,7 @@ type downstreamConn struct {
 	username    string
 	rawUsername string
 	networkName string
+	clientName  string
 	realname    string
 	hostname    string
 	password    string   // empty after authentication
@@ -574,19 +575,26 @@ func sanityCheckServer(addr string) error {
 	return conn.Close()
 }
 
-func unmarshalUsername(rawUsername string) (username, network string) {
+func unmarshalUsername(rawUsername string) (username, client, network string) {
 	username = rawUsername
-	if i := strings.LastIndexAny(username, "/@"); i >= 0 {
-		network = username[i+1:]
+
+	i := strings.IndexAny(username, "/@")
+	j := strings.LastIndexAny(username, "/@")
+	if i >= 0 {
+		username = rawUsername[:i]
 	}
-	if i := strings.IndexAny(username, "/@"); i >= 0 {
-		username = username[:i]
+	if j >= 0 {
+		network = rawUsername[j+1:]
 	}
-	return username, network
+	if i >= 0 && j >= 0 && i < j {
+		client = rawUsername[i+1 : j]
+	}
+
+	return username, client, network
 }
 
 func (dc *downstreamConn) authenticate(username, password string) error {
-	username, networkName := unmarshalUsername(username)
+	username, clientName, networkName := unmarshalUsername(username)
 
 	u, err := dc.srv.db.GetUser(username)
 	if err != nil {
@@ -605,6 +613,7 @@ func (dc *downstreamConn) authenticate(username, password string) error {
 		dc.logger.Printf("failed authentication for %q: user not active", username)
 		return errAuthFailed
 	}
+	dc.clientName = clientName
 	dc.networkName = networkName
 	return nil
 }
@@ -622,8 +631,8 @@ func (dc *downstreamConn) register() error {
 		}
 	}
 
-	if dc.networkName == "" {
-		_, dc.networkName = unmarshalUsername(dc.rawUsername)
+	if dc.clientName == "" && dc.networkName == "" {
+		_, dc.clientName, dc.networkName = unmarshalUsername(dc.rawUsername)
 	}
 
 	dc.registered = true
