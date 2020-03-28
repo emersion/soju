@@ -187,7 +187,7 @@ func (uc *upstreamConn) isChannel(entity string) bool {
 	return false
 }
 
-func (uc *upstreamConn) getPendingList() *pendingLIST {
+func (uc *upstreamConn) getPendingLIST() *pendingLIST {
 	for _, pl := range uc.user.pendingLISTs {
 		if _, ok := pl.pendingCommands[uc.network.ID]; !ok {
 			continue
@@ -197,7 +197,7 @@ func (uc *upstreamConn) getPendingList() *pendingLIST {
 	return nil
 }
 
-func (uc *upstreamConn) endPendingLists(all bool) (found bool) {
+func (uc *upstreamConn) endPendingLISTs(all bool) (found bool) {
 	found = false
 	for i := 0; i < len(uc.user.pendingLISTs); i++ {
 		pl := uc.user.pendingLISTs[i]
@@ -220,7 +220,7 @@ func (uc *upstreamConn) endPendingLists(all bool) (found bool) {
 		if !all {
 			delete(uc.pendingLISTDownstreamSet, pl.downstreamID)
 			uc.user.forEachUpstream(func(uc *upstreamConn) {
-				uc.trySendList(pl.downstreamID)
+				uc.trySendLIST(pl.downstreamID)
 			})
 			return
 		}
@@ -228,7 +228,7 @@ func (uc *upstreamConn) endPendingLists(all bool) (found bool) {
 	return
 }
 
-func (uc *upstreamConn) trySendList(downstreamID uint64) {
+func (uc *upstreamConn) trySendLIST(downstreamID uint64) {
 	// must be called with a lock in uc.user.pendingLISTsLock
 
 	if _, ok := uc.pendingLISTDownstreamSet[downstreamID]; ok {
@@ -958,7 +958,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		pl := uc.getPendingList()
+		pl := uc.getPendingLIST()
 		if pl == nil {
 			return fmt.Errorf("unexpected RPL_LIST: no matching pending LIST")
 		}
@@ -971,7 +971,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			})
 		})
 	case irc.RPL_LISTEND:
-		ok := uc.endPendingLists(false)
+		ok := uc.endPendingLISTs(false)
 		if !ok {
 			return fmt.Errorf("unexpected RPL_LISTEND: no matching pending LIST")
 		}
@@ -1245,7 +1245,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		if command == "LIST" {
-			ok := uc.endPendingLists(false)
+			ok := uc.endPendingLISTs(false)
 			if !ok {
 				return fmt.Errorf("unexpected response for LIST: %q: no matching pending LIST", msg.Command)
 			}

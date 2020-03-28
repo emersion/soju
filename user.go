@@ -172,7 +172,7 @@ func (u *user) run() {
 			for _, log := range uc.logs {
 				log.file.Close()
 			}
-			uc.endPendingLists(true)
+			uc.endPendingLISTs(true)
 		case eventUpstreamMessage:
 			msg, uc := e.msg, e.uc
 			if uc.isClosed() {

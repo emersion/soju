@@ -1113,7 +1113,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Command: "LIST",
 				Params:  params,
 			}
-			uc.trySendList(dc.id)
+			uc.trySendLIST(dc.id)
 		})
 	case "NAMES":
 		if len(msg.Params) == 0 {
