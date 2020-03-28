@@ -69,7 +69,6 @@ type downstreamConn struct {
 	registered  bool
 	user        *user
 	nick        string
-	username    string
 	rawUsername string
 	networkName string
 	clientName  string
@@ -124,7 +123,7 @@ func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn
 func (dc *downstreamConn) prefix() *irc.Prefix {
 	return &irc.Prefix{
 		Name: dc.nick,
-		User: dc.username,
+		User: dc.user.Username,
 		Host: dc.hostname,
 	}
 }
@@ -636,8 +635,7 @@ func (dc *downstreamConn) register() error {
 	}
 
 	dc.registered = true
-	dc.username = dc.user.Username
-	dc.logger.Printf("registration complete for user %q", dc.username)
+	dc.logger.Printf("registration complete for user %q", dc.user.Username)
 	return nil
 }
 
@@ -1171,7 +1169,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOREPLY,
-				Params:  []string{dc.nick, "*", dc.username, dc.hostname, dc.srv.Hostname, dc.nick, "H", "0 " + dc.realname},
+				Params:  []string{dc.nick, "*", dc.user.Username, dc.hostname, dc.srv.Hostname, dc.nick, "H", "0 " + dc.realname},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -1222,7 +1220,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISUSER,
-				Params:  []string{dc.nick, dc.nick, dc.username, dc.hostname, "*", dc.realname},
+				Params:  []string{dc.nick, dc.nick, dc.user.Username, dc.hostname, "*", dc.realname},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
