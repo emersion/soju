@@ -98,6 +98,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		srv:                      network.user.srv,
 		user:                     network.user,
 		outgoing:                 outgoing,
+		closed:                   make(chan struct{}),
 		channels:                 make(map[string]*upstreamChannel),
 		caps:                     make(map[string]string),
 		batches:                  make(map[string]batch),
