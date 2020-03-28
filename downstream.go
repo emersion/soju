@@ -687,7 +687,14 @@ func (dc *downstreamConn) welcome() error {
 		return err
 	}
 
-	firstDownstream := len(dc.user.downstreamConns) == 0
+	// Only send history if we're the first connected client with that name and
+	// network
+	sendHistory := true
+	dc.user.forEachDownstream(func(conn *downstreamConn) {
+		if dc.clientName == conn.clientName && dc.network == conn.network {
+			sendHistory = false
+		}
+	})
 
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
@@ -731,9 +738,7 @@ func (dc *downstreamConn) welcome() error {
 	})
 
 	dc.forEachNetwork(func(net *network) {
-		// TODO: need to take dc.network into account when deciding whether or
-		// not to load history
-		dc.runNetwork(net, firstDownstream)
+		dc.runNetwork(net, sendHistory)
 	})
 
 	return nil
@@ -748,12 +753,10 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 		panic("network not suitable for downstream connection")
 	}
 
-	historyName := dc.rawUsername
-
 	var seqPtr *uint64
 	if loadHistory {
 		net.lock.Lock()
-		seq, ok := net.history[historyName]
+		seq, ok := net.history[dc.clientName]
 		net.lock.Unlock()
 		if ok {
 			seqPtr = &seq
@@ -780,10 +783,12 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 			}
 		}
 
+		// TODO: close the consumer from the user goroutine, so we don't need
+		// that net.history lock
 		seq := consumer.Close()
 
 		net.lock.Lock()
-		net.history[historyName] = seq
+		net.history[dc.clientName] = seq
 		net.lock.Unlock()
 	}()
 }
