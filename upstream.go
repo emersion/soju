@@ -365,7 +365,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 
 			requestCaps := make([]string, 0, 16)
-			for _, c := range []string{"message-tags", "batch", "labeled-response"} {
+			for _, c := range []string{"message-tags", "batch", "labeled-response", "server-time"} {
 				if _, ok := uc.caps[c]; ok {
 					requestCaps = append(requestCaps, c)
 				}
@@ -1207,6 +1207,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			break
 		}
 
+		if _, ok := msg.Tags["time"]; !ok {
+			msg.Tags["time"] = irc.TagValue(time.Now().Format(serverTimeLayout))
+		}
+
 		target := nick
 		if nick == uc.nick {
 			target = msg.Prefix.Name
@@ -1373,6 +1377,10 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 		uc.tagsSupported = ok
 	case "labeled-response":
 		uc.labelsSupported = ok
+	case "batch", "server-time":
+		// Nothing to do
+	default:
+		uc.logger.Printf("received CAP ACK/NAK for a cap we don't support: %v", name)
 	}
 	return nil
 }

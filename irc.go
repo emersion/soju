@@ -201,3 +201,6 @@ type batch struct {
 	Outer  *batch // if not-nil, this batch is nested in Outer
 	Label  string
 }
+
+// The server-time layout, as defined in the IRCv3 spec.
+const serverTimeLayout = "2006-01-02T15:04:05.000Z"
