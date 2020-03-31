@@ -1439,7 +1439,7 @@ func (uc *upstreamConn) appendLog(entity string, format string, a ...interface{}
 		}
 		// TODO: handle/forbid network/entity names with illegal path characters
 		dir := filepath.Join(uc.srv.LogPath, uc.user.Username, uc.network.Name, entity)
-		if err := os.MkdirAll(dir, 0600); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
 			uc.logger.Printf("failed to log message: could not create logs directory %q: %v", dir, err)
 			return
 		}
