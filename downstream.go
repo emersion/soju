@@ -540,10 +540,18 @@ func unmarshalUsername(rawUsername string) (username, client, network string) {
 		username = rawUsername[:i]
 	}
 	if j >= 0 {
-		network = rawUsername[j+1:]
+		if rawUsername[j] == '@' {
+			client = rawUsername[j+1:]
+		} else {
+			network = rawUsername[j+1:]
+		}
 	}
 	if i >= 0 && j >= 0 && i < j {
-		client = rawUsername[i+1 : j]
+		if rawUsername[i] == '@' {
+			client = rawUsername[i+1 : j]
+		} else {
+			network = rawUsername[i+1 : j]
+		}
 	}
 
 	return username, client, network

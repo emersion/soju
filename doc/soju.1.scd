@@ -37,6 +37,9 @@ soju supports two connection modes:
   a channel, you need to use the suffix too: _/join #channel/network_. Same
   applies to messages sent to users.
 
+For per-client history to work, clients need to indicate their name. This can
+be done by adding a "@<client>" suffix to the username.
+
 # OPTIONS
 
 *-h, -help*
