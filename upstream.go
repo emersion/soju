@@ -322,7 +322,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if nick == uc.nick {
 				target = msg.Prefix.Name
 			}
-			uc.AppendLog(target, "<%s> %s", msg.Prefix.Name, text)
+			uc.appendLog(target, "<%s> %s", msg.Prefix.Name, text)
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
@@ -627,7 +627,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if membership, ok := ch.Members[msg.Prefix.Name]; ok {
 				delete(ch.Members, msg.Prefix.Name)
 				ch.Members[newNick] = membership
-				uc.AppendLog(ch.Name, "*** %s is now known as %s", msg.Prefix.Name, newNick)
+				uc.appendLog(ch.Name, "*** %s is now known as %s", msg.Prefix.Name, newNick)
 			}
 		}
 
@@ -671,7 +671,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				ch.Members[msg.Prefix.Name] = nil
 			}
 
-			uc.AppendLog(ch, "*** Joins: %s (%s@%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host)
+			uc.appendLog(ch, "*** Joins: %s (%s@%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host)
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
@@ -708,7 +708,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				delete(ch.Members, msg.Prefix.Name)
 			}
 
-			uc.AppendLog(ch, "*** Parts: %s (%s@%s) (%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host, reason)
+			uc.appendLog(ch, "*** Parts: %s (%s@%s) (%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host, reason)
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
@@ -744,7 +744,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			delete(ch.Members, user)
 		}
 
-		uc.AppendLog(channel, "*** %s was kicked by %s (%s)", user, msg.Prefix.Name, reason)
+		uc.appendLog(channel, "*** %s was kicked by %s (%s)", user, msg.Prefix.Name, reason)
 
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			params := []string{dc.marshalChannel(uc, channel), dc.marshalNick(uc, user)}
@@ -775,7 +775,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if _, ok := ch.Members[msg.Prefix.Name]; ok {
 				delete(ch.Members, msg.Prefix.Name)
 
-				uc.AppendLog(ch.Name, "*** Quits: %s (%s@%s) (%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host, reason)
+				uc.appendLog(ch.Name, "*** Quits: %s (%s@%s) (%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host, reason)
 			}
 		}
 
@@ -855,7 +855,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			for _, v := range msg.Params[2:] {
 				modeMsg += " " + v
 			}
-			uc.AppendLog(ch.Name, "*** %s sets mode: %s", msg.Prefix.Name, modeMsg)
+			uc.appendLog(ch.Name, "*** %s sets mode: %s", msg.Prefix.Name, modeMsg)
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				params := []string{dc.marshalChannel(uc, name), modeStr}
@@ -1208,7 +1208,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if nick == uc.nick {
 			target = msg.Prefix.Name
 		}
-		uc.AppendLog(target, "<%s> %s", msg.Prefix.Name, text)
+		uc.appendLog(target, "<%s> %s", msg.Prefix.Name, text)
 
 		uc.network.ring.Produce(msg)
 	case "INVITE":
@@ -1411,7 +1411,7 @@ func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message
 }
 
 // TODO: handle moving logs when a network name changes, when support for this is added
-func (uc *upstreamConn) AppendLog(entity string, format string, a ...interface{}) {
+func (uc *upstreamConn) appendLog(entity string, format string, a ...interface{}) {
 	if uc.srv.LogPath == "" {
 		return
 	}
