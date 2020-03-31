@@ -310,7 +310,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(msg)
+				dc.SendMessage(&irc.Message{
+					Command: "NOTICE",
+					Params:  msg.Params,
+				})
 			})
 		} else { // regular user NOTICE
 			var nick, text string
