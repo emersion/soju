@@ -275,6 +275,7 @@ func (dc *downstreamConn) Close() error {
 // SendMessage queues a new outgoing message. It is safe to call from any
 // goroutine.
 func (dc *downstreamConn) SendMessage(msg *irc.Message) {
+	// TODO: strip tags if the client doesn't support them (see runNetwork)
 	dc.outgoing <- msg
 }
 
@@ -450,6 +451,8 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 			caps = append(caps, "sasl")
 		}
 
+		caps = append(caps, "message-tags")
+
 		// TODO: multi-line replies
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
@@ -495,7 +498,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 			}
 
 			switch name {
-			case "sasl":
+			case "sasl", "message-tags":
 				dc.caps[name] = enable
 			default:
 				ack = false
@@ -728,6 +731,9 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 		}
 	}
 
+	// TODO: can't be enabled/disabled on-the-fly
+	msgTagsEnabled := dc.caps["message-tags"]
+
 	consumer, ch := net.ring.NewConsumer(seqPtr)
 	go func() {
 		for {
@@ -764,6 +770,10 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 						msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
 					default:
 						panic("expected to consume a PRIVMSG message")
+					}
+
+					if !msgTagsEnabled {
+						msg.Tags = nil
 					}
 
 					dc.SendMessage(msg)
