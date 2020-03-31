@@ -14,7 +14,7 @@ A user-friendly IRC bouncer.
     go run ./cmd/sojuctl create-user <username>
     go run ./cmd/soju
 
-Then connect with username `<username>@chat.freenode.net` and join `#soju`.
+Then connect with username `<username>/chat.freenode.net` and join `#soju`.
 
 See the man page at `soju.1.scd` for more information.
 
