@@ -444,14 +444,13 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 			}
 		}
 
-		var caps []string
+		caps := []string{"message-tags", "server-time"}
+
 		if dc.capVersion >= 302 {
 			caps = append(caps, "sasl=PLAIN")
 		} else {
 			caps = append(caps, "sasl")
 		}
-
-		caps = append(caps, "message-tags")
 
 		// TODO: multi-line replies
 		dc.SendMessage(&irc.Message{
@@ -498,7 +497,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 			}
 
 			switch name {
-			case "sasl", "message-tags":
+			case "sasl", "message-tags", "server-time":
 				dc.caps[name] = enable
 			default:
 				ack = false
@@ -733,6 +732,7 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 
 	// TODO: can't be enabled/disabled on-the-fly
 	msgTagsEnabled := dc.caps["message-tags"]
+	serverTimeEnabled := dc.caps["server-time"]
 
 	consumer, ch := net.ring.NewConsumer(seqPtr)
 	go func() {
@@ -773,7 +773,16 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 					}
 
 					if !msgTagsEnabled {
-						msg.Tags = nil
+						for name := range msg.Tags {
+							supported := false
+							switch name {
+							case "time":
+								supported = serverTimeEnabled
+							}
+							if !supported {
+								delete(msg.Tags, name)
+							}
+						}
 					}
 
 					dc.SendMessage(msg)
