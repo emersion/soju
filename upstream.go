@@ -1326,6 +1326,25 @@ func (uc *upstreamConn) register() {
 	})
 }
 
+func (uc *upstreamConn) runUntilRegistered() error {
+	for !uc.registered {
+		msg, err := uc.irc.ReadMessage()
+		if err != nil {
+			return fmt.Errorf("failed to read message: %v", err)
+		}
+
+		if uc.srv.Debug {
+			uc.logger.Printf("received: %v", msg)
+		}
+
+		if err := uc.handleMessage(msg); err != nil {
+			return fmt.Errorf("failed to handle message %q: %v", msg, err)
+		}
+	}
+
+	return nil
+}
+
 func (uc *upstreamConn) requestSASL() bool {
 	if uc.network.SASL.Mechanism == "" {
 		return false

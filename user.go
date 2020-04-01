@@ -71,10 +71,12 @@ func (net *network) run() {
 		}
 
 		uc.register()
+		if err := uc.runUntilRegistered(); err != nil {
+			uc.logger.Printf("failed to register: %v", err)
+			uc.Close()
+			continue
+		}
 
-		// TODO: wait for the connection to be registered before adding it to
-		// net, otherwise messages might be sent to it while still being
-		// unauthenticated
 		net.lock.Lock()
 		net.conn = uc
 		net.lock.Unlock()
@@ -134,7 +136,7 @@ func (u *user) forEachNetwork(f func(*network)) {
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	for _, network := range u.networks {
 		uc := network.upstream()
-		if uc == nil || !uc.registered {
+		if uc == nil {
 			continue
 		}
 		f(uc)
