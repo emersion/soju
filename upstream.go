@@ -82,8 +82,10 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		addr = addr + ":6697"
 	}
 
+	dialer := net.Dialer{Timeout: connectTimeout}
+
 	logger.Printf("connecting to TLS server at address %q", addr)
-	netConn, err := tls.Dial("tcp", addr, nil)
+	netConn, err := tls.DialWithDialer(&dialer, "tcp", addr, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %q: %v", addr, err)
 	}
