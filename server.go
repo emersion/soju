@@ -13,6 +13,7 @@ import (
 // TODO: make configurable
 var keepAlivePeriod = time.Minute
 var retryConnectMinDelay = time.Minute
+var writeTimeout = 10 * time.Second
 
 func setKeepAlive(c net.Conn) error {
 	tcpConn, ok := c.(*net.TCPConn)

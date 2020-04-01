@@ -244,6 +244,8 @@ func (dc *downstreamConn) readMessages(ch chan<- event) error {
 }
 
 func (dc *downstreamConn) writeMessages() error {
+	// TODO: any SendMessage call after the connection is closed will
+	// either block or drop
 	for {
 		var err error
 		var closed bool
@@ -252,6 +254,7 @@ func (dc *downstreamConn) writeMessages() error {
 			if dc.srv.Debug {
 				dc.logger.Printf("sent: %v", msg)
 			}
+			dc.net.SetWriteDeadline(time.Now().Add(writeTimeout))
 			err = dc.irc.WriteMessage(msg)
 		case <-dc.closed:
 			closed = true

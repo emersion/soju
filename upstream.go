@@ -111,6 +111,8 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	}
 
 	go func() {
+		// TODO: any SendMessage call after the connection is closed will
+		// either block or drop
 		for {
 			var closed bool
 			select {
@@ -118,8 +120,10 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 				if uc.srv.Debug {
 					uc.logger.Printf("sent: %v", msg)
 				}
+				uc.net.SetWriteDeadline(time.Now().Add(writeTimeout))
 				if err := uc.irc.WriteMessage(msg); err != nil {
 					uc.logger.Printf("failed to write message: %v", err)
+					closed = true
 				}
 			case <-uc.closed:
 				closed = true
