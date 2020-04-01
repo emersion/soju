@@ -739,7 +739,12 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 		for {
 			var closed bool
 			select {
-			case <-ch:
+			case _, ok := <-ch:
+				if !ok {
+					closed = true
+					break
+				}
+
 				uc := net.upstream()
 				if uc == nil {
 					dc.logger.Printf("ignoring messages for upstream %q: upstream is disconnected", net.Addr)

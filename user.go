@@ -305,6 +305,7 @@ func (u *user) deleteNetwork(id int64) error {
 		})
 
 		net.Stop()
+		net.ring.Close()
 		u.networks = append(u.networks[:i], u.networks[i+1:]...)
 		return nil
 	}

@@ -16,6 +16,7 @@ type Ring struct {
 	lock      sync.Mutex
 	cur       uint64
 	consumers []*RingConsumer
+	closed    bool
 }
 
 // NewRing creates a new ring buffer.
@@ -31,6 +32,10 @@ func (r *Ring) Produce(msg *irc.Message) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
+	if r.closed {
+		panic("soju: Ring.Produce called after Close")
+	}
+
 	i := int(r.cur % r.cap)
 	r.buffer[i] = msg
 	r.cur++
@@ -43,6 +48,21 @@ func (r *Ring) Produce(msg *irc.Message) {
 			// The channel already has a pending item
 		}
 	}
+}
+
+func (r *Ring) Close() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	if r.closed {
+		panic("soju: Ring.Close called twice")
+	}
+
+	for _, rc := range r.consumers {
+		close(rc.ch)
+	}
+
+	r.closed = true
 }
 
 // NewConsumer creates a new ring buffer consumer.
