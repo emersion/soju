@@ -41,9 +41,10 @@ type network struct {
 	ring    *Ring
 	stopped chan struct{}
 
-	lock    sync.Mutex
-	conn    *upstreamConn
 	history map[string]uint64
+
+	lock sync.Mutex
+	conn *upstreamConn
 }
 
 func newNetwork(user *user, record *Network) *network {
@@ -235,6 +236,12 @@ func (u *user) run() {
 			})
 		case eventDownstreamDisconnected:
 			dc := e.dc
+
+			for net, rc := range dc.ringConsumers {
+				seq := rc.Close()
+				net.history[dc.clientName] = seq
+			}
+
 			for i := range u.downstreamConns {
 				if u.downstreamConns[i] == dc {
 					u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
