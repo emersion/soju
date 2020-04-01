@@ -54,6 +54,7 @@ type upstreamConn struct {
 	channels   map[string]*upstreamChannel
 	caps       map[string]string
 	batches    map[string]batch
+	away       bool
 
 	tagsSupported   bool
 	labelsSupported bool
@@ -1269,6 +1270,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		// TODO: relay to downstream connections that accept message-tags
 	case "ACK":
 		// Ignore
+	case irc.RPL_NOWAWAY, irc.RPL_UNAWAY:
+		// Ignore
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
@@ -1482,4 +1485,25 @@ func (uc *upstreamConn) appendLog(entity string, format string, a ...interface{}
 	if _, err := fmt.Fprintf(log.file, format, args...); err != nil {
 		uc.logger.Printf("failed to log message to %q: %v", log.name, err)
 	}
+}
+
+func (uc *upstreamConn) updateAway() {
+	away := true
+	uc.forEachDownstream(func(*downstreamConn) {
+		away = false
+	})
+	if away == uc.away {
+		return
+	}
+	if away {
+		uc.SendMessage(&irc.Message{
+			Command: "AWAY",
+			Params:  []string{"Auto away"},
+		})
+	} else {
+		uc.SendMessage(&irc.Message{
+			Command: "AWAY",
+		})
+	}
+	uc.away = away
 }

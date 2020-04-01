@@ -175,7 +175,8 @@ func (u *user) run() {
 	for e := range u.events {
 		switch e := e.(type) {
 		case eventUpstreamConnected:
-			// Nothing to do
+			uc := e.uc
+			uc.updateAway()
 		case eventUpstreamDisconnected:
 			uc := e.uc
 			for _, log := range uc.logs {
@@ -200,6 +201,10 @@ func (u *user) run() {
 			}
 
 			u.downstreamConns = append(u.downstreamConns, dc)
+
+			u.forEachUpstream(func(uc *upstreamConn) {
+				uc.updateAway()
+			})
 		case eventDownstreamDisconnected:
 			dc := e.dc
 			for i := range u.downstreamConns {
@@ -208,6 +213,10 @@ func (u *user) run() {
 					break
 				}
 			}
+
+			u.forEachUpstream(func(uc *upstreamConn) {
+				uc.updateAway()
+			})
 		case eventDownstreamMessage:
 			msg, dc := e.msg, e.dc
 			if dc.isClosed() {
