@@ -14,6 +14,10 @@ type eventUpstreamMessage struct {
 	uc  *upstreamConn
 }
 
+type eventUpstreamConnected struct {
+	uc *upstreamConn
+}
+
 type eventUpstreamDisconnected struct {
 	uc *upstreamConn
 }
@@ -75,6 +79,7 @@ func (net *network) run() {
 		net.conn = uc
 		net.lock.Unlock()
 
+		net.user.events <- eventUpstreamConnected{uc}
 		if err := uc.readMessages(net.user.events); err != nil {
 			uc.logger.Printf("failed to handle messages: %v", err)
 		}
@@ -167,6 +172,8 @@ func (u *user) run() {
 
 	for e := range u.events {
 		switch e := e.(type) {
+		case eventUpstreamConnected:
+			// Nothing to do
 		case eventUpstreamDisconnected:
 			uc := e.uc
 			for _, log := range uc.logs {
