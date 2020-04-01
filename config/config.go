@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
-	"unicode"
+
+	"github.com/google/shlex"
 )
 
 type TLS struct {
@@ -46,10 +46,22 @@ func Load(path string) (*Server, error) {
 }
 
 func Parse(r io.Reader) (*Server, error) {
-	p := parser{br: bufio.NewReader(r)}
-	directives, err := p.file()
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %v", err)
+	scanner := bufio.NewScanner(r)
+
+	var directives []directive
+	for scanner.Scan() {
+		words, err := shlex.Split(scanner.Text())
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse config file: %v", err)
+		} else if len(words) == 0 {
+			continue
+		}
+
+		name, params := words[0], words[1:]
+		directives = append(directives, directive{name, params})
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
 
 	srv := Defaults()
@@ -98,92 +110,4 @@ func (d *directive) parseParams(out ...*string) error {
 		*out[i] = d.Params[i]
 	}
 	return nil
-}
-
-type parser struct {
-	br *bufio.Reader
-}
-
-func (p *parser) skipSpace() error {
-	for {
-		r, _, err := p.br.ReadRune()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		if !unicode.IsSpace(r) || r == '\n' {
-			p.br.UnreadRune()
-			break
-		}
-	}
-	return nil
-}
-
-func (p *parser) atom() (string, error) {
-	var sb strings.Builder
-	for {
-		r, _, err := p.br.ReadRune()
-		if err == io.EOF && sb.Len() > 0 {
-			break
-		} else if err != nil {
-			return "", err
-		}
-		if unicode.IsSpace(r) {
-			p.br.UnreadRune()
-			if err := p.skipSpace(); err != nil {
-				return "", err
-			}
-			break
-		}
-		sb.WriteRune(r)
-	}
-	return sb.String(), nil
-}
-
-func (p *parser) directive() (*directive, error) {
-	name, err := p.atom()
-	if err == io.EOF {
-		return nil, io.EOF
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to read directive name: %v", err)
-	}
-
-	var params []string
-	for {
-		r, _, err := p.br.ReadRune()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		if r == '\n' {
-			break
-		}
-		p.br.UnreadRune()
-
-		param, err := p.atom()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, fmt.Errorf("failed to read directive param: %v", err)
-		}
-		params = append(params, param)
-	}
-
-	return &directive{name, params}, nil
-}
-
-func (p *parser) file() ([]directive, error) {
-	var l []directive
-	for {
-		d, err := p.directive()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		l = append(l, *d)
-	}
-	return l, nil
 }
