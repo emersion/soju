@@ -97,6 +97,11 @@ func init() {
 					desc:   "show a list of saved networks and their current status",
 					handle: handleServiceNetworkStatus,
 				},
+				"delete": {
+					usage:  "<name>",
+					desc:   "delete a network",
+					handle: handleServiceNetworkDelete,
+				},
 			},
 		},
 	}
@@ -143,9 +148,14 @@ func handleServiceHelp(dc *downstreamConn, params []string) error {
 	return nil
 }
 
-func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
+func newFlagSet() *flag.FlagSet {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	fs.SetOutput(ioutil.Discard)
+	return fs
+}
+
+func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
+	fs := newFlagSet()
 	addr := fs.String("addr", "", "")
 	name := fs.String("name", "", "")
 	username := fs.String("username", "", "")
@@ -177,7 +187,7 @@ func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 		return fmt.Errorf("could not create network: %v", err)
 	}
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("created network %s successfully", network.GetName()))
+	sendServicePRIVMSG(dc, fmt.Sprintf("created network %q", network.GetName()))
 	return nil
 }
 
@@ -202,5 +212,23 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 		}
 		sendServicePRIVMSG(dc, s)
 	})
+	return nil
+}
+
+func handleServiceNetworkDelete(dc *downstreamConn, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+
+	net := dc.user.getNetwork(params[0])
+	if net == nil {
+		return fmt.Errorf("unknown network %q", params[0])
+	}
+
+	if err := dc.user.deleteNetwork(net.ID); err != nil {
+		return err
+	}
+
+	sendServicePRIVMSG(dc, fmt.Sprintf("deleted network %q", net.GetName()))
 	return nil
 }

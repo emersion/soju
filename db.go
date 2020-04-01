@@ -215,6 +215,29 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 	return err
 }
 
+func (db *DB) DeleteNetwork(id int64) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("DELETE FROM Network WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec("DELETE FROM Channel WHERE network = ?", id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()

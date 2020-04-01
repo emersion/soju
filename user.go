@@ -37,8 +37,9 @@ type eventDownstreamDisconnected struct {
 
 type network struct {
 	Network
-	user *user
-	ring *Ring
+	user    *user
+	ring    *Ring
+	stopped chan struct{}
 
 	lock    sync.Mutex
 	conn    *upstreamConn
@@ -50,6 +51,7 @@ func newNetwork(user *user, record *Network) *network {
 		Network: *record,
 		user:    user,
 		ring:    NewRing(user.srv.RingCap),
+		stopped: make(chan struct{}),
 		history: make(map[string]uint64),
 	}
 }
@@ -57,6 +59,13 @@ func newNetwork(user *user, record *Network) *network {
 func (net *network) run() {
 	var lastTry time.Time
 	for {
+		select {
+		case <-net.stopped:
+			return
+		default:
+			// This space is intentionally left blank
+		}
+
 		if dur := time.Now().Sub(lastTry); dur < retryConnectMinDelay {
 			delay := retryConnectMinDelay - dur
 			net.user.srv.Logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), net.Addr)
@@ -90,6 +99,19 @@ func (net *network) upstream() *upstreamConn {
 	net.lock.Lock()
 	defer net.lock.Unlock()
 	return net.conn
+}
+
+func (net *network) Stop() {
+	select {
+	case <-net.stopped:
+		return
+	default:
+		close(net.stopped)
+	}
+
+	if uc := net.upstream(); uc != nil {
+		uc.Close()
+	}
 }
 
 type user struct {
@@ -264,4 +286,28 @@ func (u *user) createNetwork(net *Network) (*network, error) {
 
 	go network.run()
 	return network, nil
+}
+
+func (u *user) deleteNetwork(id int64) error {
+	for i, net := range u.networks {
+		if net.ID != id {
+			continue
+		}
+
+		if err := u.srv.db.DeleteNetwork(net.ID); err != nil {
+			return err
+		}
+
+		u.forEachDownstream(func(dc *downstreamConn) {
+			if dc.network != nil && dc.network == net {
+				dc.Close()
+			}
+		})
+
+		net.Stop()
+		u.networks = append(u.networks[:i], u.networks[i+1:]...)
+		return nil
+	}
+
+	panic("tried deleting a non-existing network")
 }
