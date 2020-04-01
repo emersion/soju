@@ -896,12 +896,17 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 
-			err = dc.srv.db.StoreChannel(uc.network.ID, &Channel{
-				Name: upstreamName,
-				Key:  key,
-			})
-			if err != nil {
-				dc.logger.Printf("failed to create channel %q in DB: %v", upstreamName, err)
+			ch, err := dc.srv.db.GetChannel(uc.network.ID, upstreamName)
+			if err == ErrNoSuchChannel {
+				ch = &Channel{Name: upstreamName}
+			} else if err != nil {
+				return err
+			}
+
+			ch.Key = key
+
+			if err := dc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
+				return err
 			}
 		}
 	case "PART":

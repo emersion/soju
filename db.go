@@ -46,6 +46,8 @@ type Channel struct {
 	Key  string
 }
 
+var ErrNoSuchChannel = fmt.Errorf("soju: no such channel")
+
 type DB struct {
 	lock sync.RWMutex
 	db   *sql.DB
@@ -263,6 +265,23 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	}
 
 	return channels, nil
+}
+
+func (db *DB) GetChannel(networkID int64, name string) (*Channel, error) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+
+	ch := &Channel{Name: name}
+
+	var key *string
+	row := db.db.QueryRow("SELECT id, key FROM Channel WHERE network = ? AND name = ?", networkID, name)
+	if err := row.Scan(&ch.ID, &key); err == sql.ErrNoRows {
+		return nil, ErrNoSuchChannel
+	} else if err != nil {
+		return nil, err
+	}
+	ch.Key = fromStringPtr(key)
+	return ch, nil
 }
 
 func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
