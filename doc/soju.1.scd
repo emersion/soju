@@ -107,6 +107,9 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		Connect with the specified nickname. By default, the account's username
 		is used.
 
+*network delete* <name>
+	Disconnect and delete a network.
+
 *network status*
 	Show a list of saved networks and their current status.
 
