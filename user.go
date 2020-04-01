@@ -146,6 +146,9 @@ func (u *user) getNetwork(name string) *network {
 		if network.Addr == name {
 			return network
 		}
+		if network.Name != "" && network.Name == name {
+			return network
+		}
 	}
 	return nil
 }
