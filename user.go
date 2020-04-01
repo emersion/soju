@@ -77,20 +77,12 @@ func (net *network) run() {
 			continue
 		}
 
-		net.lock.Lock()
-		net.conn = uc
-		net.lock.Unlock()
-
 		net.user.events <- eventUpstreamConnected{uc}
 		if err := uc.readMessages(net.user.events); err != nil {
 			uc.logger.Printf("failed to handle messages: %v", err)
 		}
 		uc.Close()
 		net.user.events <- eventUpstreamDisconnected{uc}
-
-		net.lock.Lock()
-		net.conn = nil
-		net.lock.Unlock()
 	}
 }
 
@@ -176,12 +168,23 @@ func (u *user) run() {
 		switch e := e.(type) {
 		case eventUpstreamConnected:
 			uc := e.uc
+
+			uc.network.lock.Lock()
+			uc.network.conn = uc
+			uc.network.lock.Unlock()
+
 			uc.updateAway()
 		case eventUpstreamDisconnected:
 			uc := e.uc
+
+			uc.network.lock.Lock()
+			uc.network.conn = nil
+			uc.network.lock.Unlock()
+
 			for _, log := range uc.logs {
 				log.file.Close()
 			}
+
 			uc.endPendingLISTs(true)
 		case eventUpstreamMessage:
 			msg, uc := e.msg, e.uc
