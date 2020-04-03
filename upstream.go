@@ -1278,13 +1278,9 @@ func (uc *upstreamConn) register() {
 
 func (uc *upstreamConn) runUntilRegistered() error {
 	for !uc.registered {
-		msg, err := uc.irc.ReadMessage()
+		msg, err := uc.ReadMessage()
 		if err != nil {
 			return fmt.Errorf("failed to read message: %v", err)
-		}
-
-		if uc.srv.Debug {
-			uc.logger.Printf("received: %v", msg)
 		}
 
 		if err := uc.handleMessage(msg); err != nil {

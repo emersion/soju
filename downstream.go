@@ -731,13 +731,9 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 
 func (dc *downstreamConn) runUntilRegistered() error {
 	for !dc.registered {
-		msg, err := dc.irc.ReadMessage()
+		msg, err := dc.ReadMessage()
 		if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)
-		}
-
-		if dc.srv.Debug {
-			dc.logger.Printf("received: %v", msg)
 		}
 
 		err = dc.handleMessage(msg)
