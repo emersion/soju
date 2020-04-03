@@ -52,13 +52,9 @@ var errAuthFailed = ircError{&irc.Message{
 }}
 
 type downstreamConn struct {
-	id       uint64
-	net      net.Conn
-	irc      *irc.Conn
-	srv      *Server
-	logger   Logger
-	outgoing chan<- *irc.Message
-	closed   chan struct{}
+	conn
+
+	id uint64
 
 	registered  bool
 	user        *user
@@ -84,15 +80,10 @@ type downstreamConn struct {
 }
 
 func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn {
-	outgoing := make(chan *irc.Message, 64)
+	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())}
 	dc := &downstreamConn{
+		conn:          *newConn(srv, netConn, logger),
 		id:            id,
-		net:           netConn,
-		irc:           irc.NewConn(netConn),
-		srv:           srv,
-		logger:        &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())},
-		outgoing:      outgoing,
-		closed:        make(chan struct{}),
 		ringConsumers: make(map[*network]*RingConsumer),
 		caps:          make(map[string]bool),
 		ourMessages:   make(map[*irc.Message]struct{}),
@@ -101,30 +92,6 @@ func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn
 	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
 		dc.hostname = host
 	}
-
-	go func() {
-		for msg := range outgoing {
-			if dc.srv.Debug {
-				dc.logger.Printf("sent: %v", msg)
-			}
-			dc.net.SetWriteDeadline(time.Now().Add(writeTimeout))
-			if err := dc.irc.WriteMessage(msg); err != nil {
-				dc.logger.Printf("failed to write message: %v", err)
-				break
-			}
-		}
-		if err := dc.net.Close(); err != nil {
-			dc.logger.Printf("failed to close connection: %v", err)
-		} else {
-			dc.logger.Printf("connection closed")
-		}
-		// Drain the outgoing channel to prevent SendMessage from blocking
-		for range outgoing {
-			// This space is intentionally left blank
-		}
-	}()
-
-	dc.logger.Printf("new connection")
 	return dc
 }
 
@@ -227,26 +194,13 @@ func (dc *downstreamConn) marshalUserPrefix(uc *upstreamConn, prefix *irc.Prefix
 	}
 }
 
-func (dc *downstreamConn) isClosed() bool {
-	select {
-	case <-dc.closed:
-		return true
-	default:
-		return false
-	}
-}
-
 func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	for {
-		msg, err := dc.irc.ReadMessage()
+		msg, err := dc.ReadMessage()
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)
-		}
-
-		if dc.srv.Debug {
-			dc.logger.Printf("received: %v", msg)
 		}
 
 		ch <- eventDownstreamMessage{msg, dc}
@@ -255,28 +209,9 @@ func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	return nil
 }
 
-func (dc *downstreamConn) writeMessages() error {
-	return nil
-}
-
-// Close closes the connection. It is safe to call from any goroutine.
-func (dc *downstreamConn) Close() error {
-	if dc.isClosed() {
-		return fmt.Errorf("downstream connection already closed")
-	}
-	close(dc.closed)
-	close(dc.outgoing)
-	return nil
-}
-
-// SendMessage queues a new outgoing message. It is safe to call from any
-// goroutine.
 func (dc *downstreamConn) SendMessage(msg *irc.Message) {
-	if dc.isClosed() {
-		return
-	}
 	// TODO: strip tags if the client doesn't support them (see runNetwork)
-	dc.outgoing <- msg
+	dc.conn.SendMessage(msg)
 }
 
 func (dc *downstreamConn) handleMessage(msg *irc.Message) error {

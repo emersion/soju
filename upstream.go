@@ -31,14 +31,10 @@ type upstreamChannel struct {
 }
 
 type upstreamConn struct {
-	network  *network
-	logger   Logger
-	net      net.Conn
-	irc      *irc.Conn
-	srv      *Server
-	user     *user
-	outgoing chan<- *irc.Message
-	closed   chan struct{}
+	conn
+
+	network *network
+	user    *user
 
 	serverName            string
 	availableUserModes    string
@@ -90,18 +86,10 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		return nil, fmt.Errorf("failed to dial %q: %v", addr, err)
 	}
 
-	setKeepAlive(netConn)
-
-	outgoing := make(chan *irc.Message, 64)
 	uc := &upstreamConn{
+		conn:                     *newConn(network.user.srv, netConn, logger),
 		network:                  network,
-		logger:                   logger,
-		net:                      netConn,
-		irc:                      irc.NewConn(netConn),
-		srv:                      network.user.srv,
 		user:                     network.user,
-		outgoing:                 outgoing,
-		closed:                   make(chan struct{}),
 		channels:                 make(map[string]*upstreamChannel),
 		caps:                     make(map[string]string),
 		batches:                  make(map[string]batch),
@@ -112,48 +100,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		logs:                     make(map[string]entityLog),
 	}
 
-	go func() {
-		for msg := range outgoing {
-			if uc.srv.Debug {
-				uc.logger.Printf("sent: %v", msg)
-			}
-			uc.net.SetWriteDeadline(time.Now().Add(writeTimeout))
-			if err := uc.irc.WriteMessage(msg); err != nil {
-				uc.logger.Printf("failed to write message: %v", err)
-				break
-			}
-		}
-		if err := uc.net.Close(); err != nil {
-			uc.logger.Printf("failed to close connection: %v", err)
-		} else {
-			uc.logger.Printf("connection closed")
-		}
-		// Drain the outgoing channel to prevent SendMessage from blocking
-		for range outgoing {
-			// This space is intentionally left blank
-		}
-	}()
-
 	return uc, nil
-}
-
-func (uc *upstreamConn) isClosed() bool {
-	select {
-	case <-uc.closed:
-		return true
-	default:
-		return false
-	}
-}
-
-// Close closes the connection. It is safe to call from any goroutine.
-func (uc *upstreamConn) Close() error {
-	if uc.isClosed() {
-		return fmt.Errorf("upstream connection already closed")
-	}
-	close(uc.closed)
-	close(uc.outgoing)
-	return nil
 }
 
 func (uc *upstreamConn) forEachDownstream(f func(*downstreamConn)) {
@@ -1409,27 +1356,17 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 
 func (uc *upstreamConn) readMessages(ch chan<- event) error {
 	for {
-		msg, err := uc.irc.ReadMessage()
+		msg, err := uc.ReadMessage()
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)
 		}
 
-		if uc.srv.Debug {
-			uc.logger.Printf("received: %v", msg)
-		}
-
 		ch <- eventUpstreamMessage{msg, uc}
 	}
 
 	return nil
-}
-
-// SendMessage queues a new outgoing message. It is safe to call from any
-// goroutine.
-func (uc *upstreamConn) SendMessage(msg *irc.Message) {
-	uc.outgoing <- msg
 }
 
 func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message) {

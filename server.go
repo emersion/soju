@@ -16,17 +16,6 @@ var retryConnectMinDelay = time.Minute
 var connectTimeout = 15 * time.Second
 var writeTimeout = 10 * time.Second
 
-func setKeepAlive(c net.Conn) error {
-	tcpConn, ok := c.(*net.TCPConn)
-	if !ok {
-		return fmt.Errorf("cannot enable keep-alive on a non-TCP connection")
-	}
-	if err := tcpConn.SetKeepAlive(true); err != nil {
-		return err
-	}
-	return tcpConn.SetKeepAlivePeriod(keepAlivePeriod)
-}
-
 type Logger interface {
 	Print(v ...interface{})
 	Printf(format string, v ...interface{})
@@ -108,8 +97,6 @@ func (s *Server) Serve(ln net.Listener) error {
 		if err != nil {
 			return fmt.Errorf("failed to accept connection: %v", err)
 		}
-
-		setKeepAlive(netConn)
 
 		dc := newDownstreamConn(s, netConn, nextDownstreamID)
 		nextDownstreamID++
