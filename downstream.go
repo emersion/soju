@@ -1232,6 +1232,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.ourMessages[echoMsg] = struct{}{}
 			dc.lock.Unlock()
 
+			uc.appendLog(upstreamName, "<%s> %s", uc.nick, text)
+
 			uc.network.ring.Produce(echoMsg)
 		}
 	case "NOTICE":
