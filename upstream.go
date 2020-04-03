@@ -113,24 +113,13 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	}
 
 	go func() {
-		// TODO: any SendMessage call after the connection is closed will
-		// either block or drop
-		for {
-			var closed bool
-			select {
-			case msg := <-outgoing:
-				if uc.srv.Debug {
-					uc.logger.Printf("sent: %v", msg)
-				}
-				uc.net.SetWriteDeadline(time.Now().Add(writeTimeout))
-				if err := uc.irc.WriteMessage(msg); err != nil {
-					uc.logger.Printf("failed to write message: %v", err)
-					closed = true
-				}
-			case <-uc.closed:
-				closed = true
+		for msg := range outgoing {
+			if uc.srv.Debug {
+				uc.logger.Printf("sent: %v", msg)
 			}
-			if closed {
+			uc.net.SetWriteDeadline(time.Now().Add(writeTimeout))
+			if err := uc.irc.WriteMessage(msg); err != nil {
+				uc.logger.Printf("failed to write message: %v", err)
 				break
 			}
 		}
@@ -138,6 +127,10 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 			uc.logger.Printf("failed to close connection: %v", err)
 		} else {
 			uc.logger.Printf("connection closed")
+		}
+		// Drain the outgoing channel to prevent SendMessage from blocking
+		for range outgoing {
+			// This space is intentionally left blank
 		}
 	}()
 
@@ -159,6 +152,7 @@ func (uc *upstreamConn) Close() error {
 		return fmt.Errorf("upstream connection already closed")
 	}
 	close(uc.closed)
+	close(uc.outgoing)
 	return nil
 }
 
