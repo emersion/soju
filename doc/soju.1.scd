@@ -25,6 +25,9 @@ the next connection. When registering or authenticating with NickServ, the
 credentials will be saved and automatically used on the next connection if the
 server supports SASL.
 
+When all clients are disconnected from the bouncer, the user is automatically
+marked as away.
+
 soju supports two connection modes:
 
 - Single upstream mode: one downstream connection maps to one upstream
