@@ -245,6 +245,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 	}
 
+	if _, ok := msg.Tags["time"]; !ok {
+		msg.Tags["time"] = irc.TagValue(time.Now().Format(serverTimeLayout))
+	}
+
 	switch msg.Command {
 	case "PING":
 		uc.SendMessage(&irc.Message{
@@ -1147,10 +1151,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if nick == serviceNick {
 			uc.logger.Printf("skipping PRIVMSG to soju's service: %v", msg)
 			break
-		}
-
-		if _, ok := msg.Tags["time"]; !ok {
-			msg.Tags["time"] = irc.TagValue(time.Now().Format(serverTimeLayout))
 		}
 
 		target := nick

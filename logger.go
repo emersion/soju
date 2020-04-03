@@ -31,6 +31,8 @@ func (ml *messageLogger) Append(msg *irc.Message) error {
 		return nil
 	}
 
+	// TODO: parse time from msg.Tags["time"], if available
+
 	// TODO: enforce maximum open file handles (LRU cache of file handles)
 	// TODO: handle non-monotonic clock behaviour
 	now := time.Now()
