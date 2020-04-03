@@ -257,34 +257,21 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		})
 		return nil
 	case "NOTICE":
-		uc.logger.Print(msg)
-
 		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Command: "NOTICE",
-					Params:  msg.Params,
-				})
-			})
+			uc.network.ring.Produce(msg)
 		} else { // regular user NOTICE
-			var nick, text string
-			if err := parseMessageParams(msg, &nick, &text); err != nil {
+			var entity, text string
+			if err := parseMessageParams(msg, &entity, &text); err != nil {
 				return err
 			}
 
-			target := nick
-			if nick == uc.nick {
+			target := entity
+			if target == uc.nick {
 				target = msg.Prefix.Name
 			}
 			uc.appendLog(target, msg)
 
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
-					Command: "NOTICE",
-					Params:  []string{dc.marshalEntity(uc, nick), text},
-				})
-			})
+			uc.network.ring.Produce(msg)
 		}
 	case "CAP":
 		var subCmd string
@@ -1139,8 +1126,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return fmt.Errorf("expected a prefix")
 		}
 
-		var nick, text string
-		if err := parseMessageParams(msg, &nick, &text); err != nil {
+		var entity, text string
+		if err := parseMessageParams(msg, &entity, &text); err != nil {
 			return err
 		}
 
@@ -1148,13 +1135,13 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			uc.logger.Printf("skipping PRIVMSG from soju's service: %v", msg)
 			break
 		}
-		if nick == serviceNick {
+		if entity == serviceNick {
 			uc.logger.Printf("skipping PRIVMSG to soju's service: %v", msg)
 			break
 		}
 
-		target := nick
-		if nick == uc.nick {
+		target := entity
+		if target == uc.nick {
 			target = msg.Prefix.Name
 		}
 		uc.appendLog(target, msg)

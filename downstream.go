@@ -720,11 +720,11 @@ func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
 
 				msg = msg.Copy()
 				switch msg.Command {
-				case "PRIVMSG":
+				case "PRIVMSG", "NOTICE":
 					msg.Prefix = dc.marshalUserPrefix(uc, msg.Prefix)
 					msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
 				default:
-					panic("expected to consume a PRIVMSG message")
+					panic(fmt.Sprintf("unexpected %q message", msg.Command))
 				}
 
 				dc.SendMessage(msg)
