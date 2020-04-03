@@ -207,8 +207,10 @@ func (u *user) run() {
 			uc.network.conn = nil
 			uc.network.lock.Unlock()
 
-			for _, log := range uc.logs {
-				log.file.Close()
+			for _, ml := range uc.messageLoggers {
+				if err := ml.Close(); err != nil {
+					uc.logger.Printf("failed to close message logger: %v", err)
+				}
 			}
 
 			uc.endPendingLISTs(true)

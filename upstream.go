@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -62,7 +61,7 @@ type upstreamConn struct {
 	// set of LIST commands in progress, per downstream
 	pendingLISTDownstreamSet map[uint64]struct{}
 
-	logs map[string]entityLog
+	messageLoggers map[string]*messageLogger
 }
 
 type entityLog struct {
@@ -97,7 +96,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		availableChannelModes:    stdChannelModes,
 		availableMemberships:     stdMemberships,
 		pendingLISTDownstreamSet: make(map[uint64]struct{}),
-		logs:                     make(map[string]entityLog),
+		messageLoggers:           make(map[string]*messageLogger),
 	}
 
 	return uc, nil
@@ -273,7 +272,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if nick == uc.nick {
 				target = msg.Prefix.Name
 			}
-			uc.appendLog(target, "<%s> %s", msg.Prefix.Name, text)
+			uc.appendLog(target, msg)
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
@@ -578,7 +577,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if membership, ok := ch.Members[msg.Prefix.Name]; ok {
 				delete(ch.Members, msg.Prefix.Name)
 				ch.Members[newNick] = membership
-				uc.appendLog(ch.Name, "*** %s is now known as %s", msg.Prefix.Name, newNick)
+				uc.appendLog(ch.Name, msg)
 			}
 		}
 
@@ -622,7 +621,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				ch.Members[msg.Prefix.Name] = nil
 			}
 
-			uc.appendLog(ch, "*** Joins: %s (%s@%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host)
+			uc.appendLog(ch, msg)
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
@@ -659,13 +658,17 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				delete(ch.Members, msg.Prefix.Name)
 			}
 
-			uc.appendLog(ch, "*** Parts: %s (%s@%s) (%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host, reason)
+			uc.appendLog(ch, msg)
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
+				params := []string{dc.marshalChannel(uc, ch)}
+				if reason != "" {
+					params = append(params, reason)
+				}
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
 					Command: "PART",
-					Params:  []string{dc.marshalChannel(uc, ch)},
+					Params:  params,
 				})
 			})
 		}
@@ -681,7 +684,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		var reason string
 		if len(msg.Params) > 2 {
-			reason = msg.Params[1]
+			reason = msg.Params[2]
 		}
 
 		if user == uc.nick {
@@ -695,7 +698,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			delete(ch.Members, user)
 		}
 
-		uc.appendLog(channel, "*** %s was kicked by %s (%s)", user, msg.Prefix.Name, reason)
+		uc.appendLog(channel, msg)
 
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			params := []string{dc.marshalChannel(uc, channel), dc.marshalNick(uc, user)}
@@ -713,11 +716,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return fmt.Errorf("expected a prefix")
 		}
 
-		var reason string
-		if len(msg.Params) > 0 {
-			reason = msg.Params[0]
-		}
-
 		if msg.Prefix.Name == uc.nick {
 			uc.logger.Printf("quit")
 		}
@@ -726,7 +724,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if _, ok := ch.Members[msg.Prefix.Name]; ok {
 				delete(ch.Members, msg.Prefix.Name)
 
-				uc.appendLog(ch.Name, "*** Quits: %s (%s@%s) (%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host, reason)
+				uc.appendLog(ch.Name, msg)
 			}
 		}
 
@@ -802,11 +800,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				}
 			}
 
-			modeMsg := modeStr
-			for _, v := range msg.Params[2:] {
-				modeMsg += " " + v
-			}
-			uc.appendLog(ch.Name, "*** %s sets mode: %s", msg.Prefix.Name, modeMsg)
+			uc.appendLog(ch.Name, msg)
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				params := []string{dc.marshalChannel(uc, name), modeStr}
@@ -1163,7 +1157,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if nick == uc.nick {
 			target = msg.Prefix.Name
 		}
-		uc.appendLog(target, "<%s> %s", msg.Prefix.Name, text)
+		uc.appendLog(target, msg)
 
 		uc.network.ring.Produce(msg)
 	case "INVITE":
@@ -1377,46 +1371,19 @@ func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message
 }
 
 // TODO: handle moving logs when a network name changes, when support for this is added
-func (uc *upstreamConn) appendLog(entity string, format string, a ...interface{}) {
+func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 	if uc.srv.LogPath == "" {
 		return
 	}
-	// TODO: enforce maximum open file handles (LRU cache of file handles)
-	// TODO: handle non-monotonic clock behaviour
-	now := time.Now()
-	year, month, day := now.Date()
-	name := fmt.Sprintf("%04d-%02d-%02d.log", year, month, day)
-	log, ok := uc.logs[entity]
-	if !ok || log.name != name {
-		if ok {
-			log.file.Close()
-			delete(uc.logs, entity)
-		}
-		// TODO: handle/forbid network/entity names with illegal path characters
-		dir := filepath.Join(uc.srv.LogPath, uc.user.Username, uc.network.Name, entity)
-		if err := os.MkdirAll(dir, 0700); err != nil {
-			uc.logger.Printf("failed to log message: could not create logs directory %q: %v", dir, err)
-			return
-		}
-		path := filepath.Join(dir, name)
-		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
-		if err != nil {
-			uc.logger.Printf("failed to log message: could not open or create log file %q: %v", path, err)
-			return
-		}
-		log = entityLog{
-			name: name,
-			file: f,
-		}
-		uc.logs[entity] = log
+
+	ml, ok := uc.messageLoggers[entity]
+	if !ok {
+		ml = newMessageLogger(uc, entity)
+		uc.messageLoggers[entity] = ml
 	}
 
-	format = "[%02d:%02d:%02d] " + format + "\n"
-	args := []interface{}{now.Hour(), now.Minute(), now.Second()}
-	args = append(args, a...)
-
-	if _, err := fmt.Fprintf(log.file, format, args...); err != nil {
-		uc.logger.Printf("failed to log message to %q: %v", log.name, err)
+	if err := ml.Append(msg); err != nil {
+		uc.logger.Printf("failed to log message: %v", err)
 	}
 }
 
