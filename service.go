@@ -208,6 +208,9 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 			details = fmt.Sprintf("%v channels", len(uc.channels))
 		} else {
 			statuses = append(statuses, "disconnected")
+			if net.lastError != nil {
+				details = net.lastError.Error()
+			}
 		}
 
 		if net == dc.network {
