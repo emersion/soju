@@ -12,6 +12,12 @@ import (
 
 const serviceNick = "BouncerServ"
 
+var servicePrefix = &irc.Prefix{
+	Name: serviceNick,
+	User: serviceNick,
+	Host: serviceNick,
+}
+
 type serviceCommandSet map[string]*serviceCommand
 
 type serviceCommand struct {
@@ -23,7 +29,7 @@ type serviceCommand struct {
 
 func sendServiceNOTICE(dc *downstreamConn, text string) {
 	dc.SendMessage(&irc.Message{
-		Prefix:  &irc.Prefix{Name: serviceNick},
+		Prefix:  servicePrefix,
 		Command: "NOTICE",
 		Params:  []string{dc.nick, text},
 	})
@@ -31,7 +37,7 @@ func sendServiceNOTICE(dc *downstreamConn, text string) {
 
 func sendServicePRIVMSG(dc *downstreamConn, text string) {
 	dc.SendMessage(&irc.Message{
-		Prefix:  &irc.Prefix{Name: serviceNick},
+		Prefix:  servicePrefix,
 		Command: "PRIVMSG",
 		Params:  []string{dc.nick, text},
 	})
