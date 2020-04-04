@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -62,11 +61,6 @@ type upstreamConn struct {
 	pendingLISTDownstreamSet map[uint64]struct{}
 
 	messageLoggers map[string]*messageLogger
-}
-
-type entityLog struct {
-	name string
-	file *os.File
 }
 
 func connectToUpstream(network *network) (*upstreamConn, error) {
