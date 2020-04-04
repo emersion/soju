@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -14,12 +15,22 @@ type eventUpstreamMessage struct {
 	uc  *upstreamConn
 }
 
+type eventUpstreamConnectionError struct {
+	net *network
+	err error
+}
+
 type eventUpstreamConnected struct {
 	uc *upstreamConn
 }
 
 type eventUpstreamDisconnected struct {
 	uc *upstreamConn
+}
+
+type eventUpstreamError struct {
+	uc  *upstreamConn
+	err error
 }
 
 type eventDownstreamMessage struct {
@@ -41,7 +52,8 @@ type network struct {
 	ring    *Ring
 	stopped chan struct{}
 
-	history map[string]uint64
+	history   map[string]uint64
+	lastError error
 
 	lock sync.Mutex
 	conn *upstreamConn
@@ -55,6 +67,15 @@ func newNetwork(user *user, record *Network) *network {
 		stopped: make(chan struct{}),
 		history: make(map[string]uint64),
 	}
+}
+
+func (net *network) forEachDownstream(f func(*downstreamConn)) {
+	net.user.forEachDownstream(func(dc *downstreamConn) {
+		if dc.network != nil && dc.network != net {
+			return
+		}
+		f(dc)
+	})
 }
 
 func (net *network) run() {
@@ -77,12 +98,14 @@ func (net *network) run() {
 		uc, err := connectToUpstream(net)
 		if err != nil {
 			net.user.srv.Logger.Printf("failed to connect to upstream server %q: %v", net.Addr, err)
+			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to connect: %v", err)}
 			continue
 		}
 
 		uc.register()
 		if err := uc.runUntilRegistered(); err != nil {
 			uc.logger.Printf("failed to register: %v", err)
+			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to register: %v", err)}
 			uc.Close()
 			continue
 		}
@@ -90,6 +113,7 @@ func (net *network) run() {
 		net.user.events <- eventUpstreamConnected{uc}
 		if err := uc.readMessages(net.user.events); err != nil {
 			uc.logger.Printf("failed to handle messages: %v", err)
+			net.user.events <- eventUpstreamError{uc, fmt.Errorf("failed to handle messages: %v", err)}
 		}
 		uc.Close()
 		net.user.events <- eventUpstreamDisconnected{uc}
@@ -200,6 +224,11 @@ func (u *user) run() {
 			uc.network.lock.Unlock()
 
 			uc.updateAway()
+
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.Name))
+			})
+			uc.network.lastError = nil
 		case eventUpstreamDisconnected:
 			uc := e.uc
 
@@ -214,6 +243,28 @@ func (u *user) run() {
 			}
 
 			uc.endPendingLISTs(true)
+
+			if uc.network.lastError == nil {
+				uc.forEachDownstream(func(dc *downstreamConn) {
+					sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s", uc.network.Name))
+				})
+			}
+		case eventUpstreamConnectionError:
+			net := e.net
+
+			if net.lastError == nil || net.lastError.Error() != e.err.Error() {
+				net.forEachDownstream(func(dc *downstreamConn) {
+					sendServiceNOTICE(dc, fmt.Sprintf("failed connecting/registering to %s: %v", net.Name, e.err))
+				})
+			}
+			net.lastError = e.err
+		case eventUpstreamError:
+			uc := e.uc
+
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", uc.network.Name, e.err))
+			})
+			uc.network.lastError = e.err
 		case eventUpstreamMessage:
 			msg, uc := e.msg, e.uc
 			if uc.isClosed() {
