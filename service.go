@@ -21,6 +21,14 @@ type serviceCommand struct {
 	children serviceCommandSet
 }
 
+func sendServiceNOTICE(dc *downstreamConn, text string) {
+	dc.SendMessage(&irc.Message{
+		Prefix:  &irc.Prefix{Name: serviceNick},
+		Command: "NOTICE",
+		Params:  []string{dc.nick, text},
+	})
+}
+
 func sendServicePRIVMSG(dc *downstreamConn, text string) {
 	dc.SendMessage(&irc.Message{
 		Prefix:  &irc.Prefix{Name: serviceNick},

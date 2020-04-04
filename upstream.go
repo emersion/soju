@@ -103,12 +103,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 }
 
 func (uc *upstreamConn) forEachDownstream(f func(*downstreamConn)) {
-	uc.user.forEachDownstream(func(dc *downstreamConn) {
-		if dc.network != nil && dc.network != uc.network {
-			return
-		}
-		f(dc)
-	})
+	uc.network.forEachDownstream(f)
 }
 
 func (uc *upstreamConn) forEachDownstreamByID(id uint64, f func(*downstreamConn)) {
