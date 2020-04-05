@@ -239,7 +239,7 @@ func (u *user) run() {
 			uc.updateAway()
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.Name))
+				sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
 			})
 			uc.network.lastError = nil
 		case eventUpstreamDisconnected:
@@ -259,7 +259,7 @@ func (u *user) run() {
 
 			if uc.network.lastError == nil {
 				uc.forEachDownstream(func(dc *downstreamConn) {
-					sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s", uc.network.Name))
+					sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s", uc.network.GetName()))
 				})
 			}
 		case eventUpstreamConnectionError:
@@ -267,7 +267,7 @@ func (u *user) run() {
 
 			if net.lastError == nil || net.lastError.Error() != e.err.Error() {
 				net.forEachDownstream(func(dc *downstreamConn) {
-					sendServiceNOTICE(dc, fmt.Sprintf("failed connecting/registering to %s: %v", net.Name, e.err))
+					sendServiceNOTICE(dc, fmt.Sprintf("failed connecting/registering to %s: %v", net.GetName(), e.err))
 				})
 			}
 			net.lastError = e.err
@@ -275,7 +275,7 @@ func (u *user) run() {
 			uc := e.uc
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", uc.network.Name, e.err))
+				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", uc.network.GetName(), e.err))
 			})
 			uc.network.lastError = e.err
 		case eventUpstreamMessage:
