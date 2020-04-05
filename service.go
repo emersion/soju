@@ -223,7 +223,12 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 			statuses = append(statuses, "current")
 		}
 
-		s := fmt.Sprintf("%v (%v) [%v]", net.GetName(), net.Addr, strings.Join(statuses, ", "))
+		name := net.GetName()
+		if name != net.Addr {
+			name = fmt.Sprintf("%v (%v)", name, net.Addr)
+		}
+
+		s := fmt.Sprintf("%v [%v]", name, strings.Join(statuses, ", "))
 		if details != "" {
 			s += ": " + details
 		}
