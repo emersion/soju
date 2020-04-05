@@ -44,7 +44,7 @@ func (ml *messageLogger) Append(msg *irc.Message) error {
 		}
 
 		// TODO: handle/forbid network/entity names with illegal path characters
-		dir := filepath.Join(ml.conn.srv.LogPath, ml.conn.user.Username, ml.conn.network.Name, ml.entity)
+		dir := filepath.Join(ml.conn.srv.LogPath, ml.conn.user.Username, ml.conn.network.GetName(), ml.entity)
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("failed to create logs directory %q: %v", dir, err)
 		}
