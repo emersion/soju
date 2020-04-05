@@ -139,6 +139,19 @@ func (net *network) Stop() {
 	}
 }
 
+func (net *network) createUpdateChannel(ch *Channel) error {
+	if dbCh, err := net.user.srv.db.GetChannel(net.ID, ch.Name); err == nil {
+		ch.ID = dbCh.ID
+	} else if err != ErrNoSuchChannel {
+		return err
+	}
+	return net.user.srv.db.StoreChannel(net.ID, ch)
+}
+
+func (net *network) deleteChannel(name string) error {
+	return net.user.srv.db.DeleteChannel(net.ID, name)
+}
+
 type user struct {
 	User
 	srv *Server

@@ -827,17 +827,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 
-			ch, err := dc.srv.db.GetChannel(uc.network.ID, upstreamName)
-			if err == ErrNoSuchChannel {
-				ch = &Channel{Name: upstreamName}
-			} else if err != nil {
-				return err
-			}
-
-			ch.Key = key
-
-			if err := dc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
-				return err
+			ch := &Channel{Name: upstreamName, Key: key}
+			if err := uc.network.createUpdateChannel(ch); err != nil {
+				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 			}
 		}
 	case "PART":
@@ -866,8 +858,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 
-			if err := dc.srv.db.DeleteChannel(uc.network.ID, upstreamName); err != nil {
-				dc.logger.Printf("failed to delete channel %q in DB: %v", upstreamName, err)
+			if err := uc.network.deleteChannel(upstreamName); err != nil {
+				dc.logger.Printf("failed to delete channel %q: %v", upstreamName, err)
 			}
 		}
 	case "KICK":
