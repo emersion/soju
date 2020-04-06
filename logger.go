@@ -102,7 +102,9 @@ func formatMessage(msg *irc.Message) string {
 		return fmt.Sprintf("*** Quits: %s (%s@%s) (%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host, reason)
 	case "MODE":
 		return fmt.Sprintf("*** %s sets mode: %s", msg.Prefix.Name, strings.Join(msg.Params[1:], " "))
-	case "PRIVMSG", "NOTICE":
+	case "NOTICE":
+		return fmt.Sprintf("-%s- %s", msg.Prefix.Name, msg.Params[1])
+	case "PRIVMSG":
 		return fmt.Sprintf("<%s> %s", msg.Prefix.Name, msg.Params[1])
 	default:
 		return ""
