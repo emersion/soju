@@ -66,11 +66,9 @@ type downstreamConn struct {
 	password    string   // empty after authentication
 	network     *network // can be nil
 
-	ourMessages map[*irc.Message]struct{}
-	caps        map[string]bool
-
 	negociatingCaps bool
 	capVersion      int
+	caps            map[string]bool
 
 	saslServer sasl.Server
 }
@@ -78,10 +76,9 @@ type downstreamConn struct {
 func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn {
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())}
 	dc := &downstreamConn{
-		conn:        *newConn(srv, netConn, logger),
-		id:          id,
-		ourMessages: make(map[*irc.Message]struct{}),
-		caps:        make(map[string]bool),
+		conn: *newConn(srv, netConn, logger),
+		id:   id,
+		caps: make(map[string]bool),
 	}
 	dc.hostname = netConn.RemoteAddr().String()
 	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
@@ -226,14 +223,6 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 }
 
 func (dc *downstreamConn) sendFromUpstream(msg *irc.Message, uc *upstreamConn) {
-	_, ours := dc.ourMessages[msg]
-	delete(dc.ourMessages, msg)
-	if ours && !dc.caps["echo-message"] {
-		// The message comes from our connection, don't echo it
-		// back
-		return
-	}
-
 	msg = msg.Copy()
 	switch msg.Command {
 	case "PRIVMSG", "NOTICE":
@@ -1196,11 +1185,16 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Command: "PRIVMSG",
 				Params:  []string{upstreamName, text},
 			}
-			dc.ourMessages[echoMsg] = struct{}{}
 
 			uc.appendLog(upstreamName, echoMsg)
 
-			uc.produce(echoMsg)
+			uc.network.ring.Produce(echoMsg)
+
+			uc.forEachDownstream(func(c *downstreamConn) {
+				if c != dc || c.caps["echo-message"] {
+					c.sendFromUpstream(echoMsg, uc)
+				}
+			})
 		}
 	case "NOTICE":
 		var targetsStr, text string
