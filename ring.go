@@ -70,9 +70,8 @@ func (r *Ring) NewConsumer(seq *uint64) *RingConsumer {
 
 // RingConsumer is a ring buffer consumer.
 type RingConsumer struct {
-	ring   *Ring
-	cur    uint64
-	closed bool
+	ring *Ring
+	cur  uint64
 }
 
 // diff returns the number of pending messages. It assumes the Ring is locked.
@@ -86,10 +85,6 @@ func (rc *RingConsumer) diff() uint64 {
 // Peek returns the next pending message if any without consuming it. A nil
 // message is returned if no message is available.
 func (rc *RingConsumer) Peek() *irc.Message {
-	if rc.closed {
-		panic("soju: RingConsumer.Peek called after Close")
-	}
-
 	diff := rc.diff()
 	if diff == 0 {
 		return nil
@@ -114,19 +109,4 @@ func (rc *RingConsumer) Consume() *irc.Message {
 		rc.cur++
 	}
 	return msg
-}
-
-// Close stops consuming messages. The consumer channel will be closed. The
-// current history sequence number is returned. It can be provided later as an
-// argument to Ring.NewConsumer to resume the message stream.
-func (rc *RingConsumer) Close() uint64 {
-	for i := range rc.ring.consumers {
-		if rc.ring.consumers[i] == rc {
-			rc.ring.consumers = append(rc.ring.consumers[:i], rc.ring.consumers[i+1:]...)
-			break
-		}
-	}
-
-	rc.closed = true
-	return rc.cur
 }
