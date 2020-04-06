@@ -247,7 +247,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		return nil
 	case "NOTICE":
 		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
-			uc.network.ring.Produce(msg)
+			uc.produce(msg)
 		} else { // regular user NOTICE
 			var entity, text string
 			if err := parseMessageParams(msg, &entity, &text); err != nil {
@@ -260,7 +260,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 			uc.appendLog(target, msg)
 
-			uc.network.ring.Produce(msg)
+			uc.produce(msg)
 		}
 	case "CAP":
 		var subCmd string
@@ -1135,7 +1135,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		uc.appendLog(target, msg)
 
-		uc.network.ring.Produce(msg)
+		uc.produce(msg)
 	case "INVITE":
 		var nick string
 		var channel string
@@ -1361,6 +1361,10 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 	if err := ml.Append(msg); err != nil {
 		uc.logger.Printf("failed to log message: %v", err)
 	}
+}
+
+func (uc *upstreamConn) produce(msg *irc.Message) {
+	uc.network.ring.Produce(msg)
 }
 
 func (uc *upstreamConn) updateAway() {

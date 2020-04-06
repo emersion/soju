@@ -1231,7 +1231,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 			uc.appendLog(upstreamName, echoMsg)
 
-			uc.network.ring.Produce(echoMsg)
+			uc.produce(echoMsg)
 		}
 	case "NOTICE":
 		var targetsStr, text string
