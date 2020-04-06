@@ -1186,8 +1186,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  []string{upstreamName, text},
 			}
 
-			uc.appendLog(upstreamName, echoMsg)
-			uc.produce(echoMsg, dc)
+			uc.produce(upstreamName, echoMsg, dc)
 		}
 	case "NOTICE":
 		var targetsStr, text string
