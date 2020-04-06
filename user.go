@@ -2,7 +2,6 @@ package soju
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"gopkg.in/irc.v3"
@@ -52,11 +51,9 @@ type network struct {
 	ring    *Ring
 	stopped chan struct{}
 
+	conn      *upstreamConn
 	history   map[string]uint64
 	lastError error
-
-	lock sync.Mutex
-	conn *upstreamConn
 }
 
 func newNetwork(user *user, record *Network) *network {
@@ -121,8 +118,6 @@ func (net *network) run() {
 }
 
 func (net *network) upstream() *upstreamConn {
-	net.lock.Lock()
-	defer net.lock.Unlock()
 	return net.conn
 }
 
@@ -232,9 +227,7 @@ func (u *user) run() {
 		case eventUpstreamConnected:
 			uc := e.uc
 
-			uc.network.lock.Lock()
 			uc.network.conn = uc
-			uc.network.lock.Unlock()
 
 			uc.updateAway()
 
@@ -245,9 +238,7 @@ func (u *user) run() {
 		case eventUpstreamDisconnected:
 			uc := e.uc
 
-			uc.network.lock.Lock()
 			uc.network.conn = nil
-			uc.network.lock.Unlock()
 
 			for _, ml := range uc.messageLoggers {
 				if err := ml.Close(); err != nil {
