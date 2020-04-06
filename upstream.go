@@ -247,7 +247,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		return nil
 	case "NOTICE":
 		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
-			uc.produce(msg)
+			uc.produce(msg, nil)
 		} else { // regular user NOTICE
 			var entity, text string
 			if err := parseMessageParams(msg, &entity, &text); err != nil {
@@ -260,7 +260,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 			uc.appendLog(target, msg)
 
-			uc.produce(msg)
+			uc.produce(msg, nil)
 		}
 	case "CAP":
 		var subCmd string
@@ -1136,7 +1136,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		uc.appendLog(target, msg)
 
-		uc.produce(msg)
+		uc.produce(msg, nil)
 	case "INVITE":
 		var nick string
 		var channel string
@@ -1364,11 +1364,13 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 	}
 }
 
-func (uc *upstreamConn) produce(msg *irc.Message) {
+func (uc *upstreamConn) produce(msg *irc.Message, origin *downstreamConn) {
 	uc.network.ring.Produce(msg)
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		dc.sendFromUpstream(msg, uc)
+		if dc != origin || dc.caps["echo-message"] {
+			dc.sendFromUpstream(msg, uc)
+		}
 	})
 }
 

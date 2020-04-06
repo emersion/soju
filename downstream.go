@@ -1187,14 +1187,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			uc.appendLog(upstreamName, echoMsg)
-
-			uc.network.ring.Produce(echoMsg)
-
-			uc.forEachDownstream(func(c *downstreamConn) {
-				if c != dc || c.caps["echo-message"] {
-					c.sendFromUpstream(echoMsg, uc)
-				}
-			})
+			uc.produce(echoMsg, dc)
 		}
 	case "NOTICE":
 		var targetsStr, text string
