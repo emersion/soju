@@ -694,11 +694,7 @@ func (dc *downstreamConn) welcome() error {
 			}
 		}
 
-		consumer, _ := net.ring.NewConsumer(seqPtr)
-
-		if _, ok := dc.ringConsumers[net]; ok {
-			panic("network has been added twice")
-		}
+		consumer := net.ring.NewConsumer(seqPtr)
 		dc.ringConsumers[net] = consumer
 
 		// TODO: this means all history is lost when trying to send it while the

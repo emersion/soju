@@ -39,15 +39,6 @@ func (r *Ring) Produce(msg *irc.Message) {
 	i := int(r.cur % r.cap)
 	r.buffer[i] = msg
 	r.cur++
-
-	for _, consumer := range r.consumers {
-		select {
-		case consumer.ch <- struct{}{}:
-			// This space is intentionally left blank
-		default:
-			// The channel already has a pending item
-		}
-	}
 }
 
 func (r *Ring) Close() {
@@ -56,10 +47,6 @@ func (r *Ring) Close() {
 
 	if r.closed {
 		panic("soju: Ring.Close called twice")
-	}
-
-	for _, rc := range r.consumers {
-		close(rc.ch)
 	}
 
 	r.closed = true
@@ -71,15 +58,9 @@ func (r *Ring) Close() {
 // producer message. If seq is non-nil, the consumer will get messages starting
 // from the specified history sequence number (see RingConsumer.Close).
 //
-// The returned channel yields a value each time the consumer has a new message
-// available. Consume should be called to drain the consumer.
-//
 // The consumer can only be used from a single goroutine.
-func (r *Ring) NewConsumer(seq *uint64) (*RingConsumer, <-chan struct{}) {
-	consumer := &RingConsumer{
-		ring: r,
-		ch:   make(chan struct{}, 1),
-	}
+func (r *Ring) NewConsumer(seq *uint64) *RingConsumer {
+	consumer := &RingConsumer{ring: r}
 
 	r.lock.Lock()
 	if seq != nil {
@@ -87,20 +68,16 @@ func (r *Ring) NewConsumer(seq *uint64) (*RingConsumer, <-chan struct{}) {
 	} else {
 		consumer.cur = r.cur
 	}
-	if consumer.diff() > 0 {
-		consumer.ch <- struct{}{}
-	}
 	r.consumers = append(r.consumers, consumer)
 	r.lock.Unlock()
 
-	return consumer, consumer.ch
+	return consumer
 }
 
 // RingConsumer is a ring buffer consumer.
 type RingConsumer struct {
 	ring   *Ring
 	cur    uint64
-	ch     chan struct{}
 	closed bool
 }
 
@@ -161,7 +138,6 @@ func (rc *RingConsumer) Close() uint64 {
 	}
 	rc.ring.lock.Unlock()
 
-	close(rc.ch)
 	rc.closed = true
 	return rc.cur
 }

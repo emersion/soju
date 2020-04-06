@@ -351,8 +351,7 @@ func (u *user) createNetwork(net *Network) (*network, error) {
 
 	u.forEachDownstream(func(dc *downstreamConn) {
 		if dc.network == nil {
-			consumer, _ := network.ring.NewConsumer(nil)
-			dc.ringConsumers[network] = consumer
+			dc.ringConsumers[network] = network.ring.NewConsumer(nil)
 		}
 	})
 
