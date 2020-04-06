@@ -693,13 +693,12 @@ func (dc *downstreamConn) welcome() error {
 		}
 
 		for {
-			msg := consumer.Peek()
+			msg := consumer.Consume()
 			if msg == nil {
 				break
 			}
 
 			dc.sendFromUpstream(msg, uc)
-			consumer.Consume()
 		}
 	})
 
