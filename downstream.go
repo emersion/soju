@@ -233,6 +233,29 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	dc.conn.SendMessage(msg)
 }
 
+func (dc *downstreamConn) sendFromUpstream(msg *irc.Message, uc *upstreamConn) {
+	dc.lock.Lock()
+	_, ours := dc.ourMessages[msg]
+	delete(dc.ourMessages, msg)
+	dc.lock.Unlock()
+	if ours && !dc.getCap("echo-message") {
+		// The message comes from our connection, don't echo it
+		// back
+		return
+	}
+
+	msg = msg.Copy()
+	switch msg.Command {
+	case "PRIVMSG", "NOTICE":
+		msg.Prefix = dc.marshalUserPrefix(uc, msg.Prefix)
+		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
+	default:
+		panic(fmt.Sprintf("unexpected %q message", msg.Command))
+	}
+
+	dc.SendMessage(msg)
+}
+
 func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
 	switch msg.Command {
 	case "QUIT":
@@ -663,75 +686,43 @@ func (dc *downstreamConn) welcome() error {
 	})
 
 	dc.forEachNetwork(func(net *network) {
-		dc.runNetwork(net, sendHistory)
+		var seqPtr *uint64
+		if sendHistory {
+			seq, ok := net.history[dc.clientName]
+			if ok {
+				seqPtr = &seq
+			}
+		}
+
+		consumer, _ := net.ring.NewConsumer(seqPtr)
+
+		if _, ok := dc.ringConsumers[net]; ok {
+			panic("network has been added twice")
+		}
+		dc.ringConsumers[net] = consumer
+
+		// TODO: this means all history is lost when trying to send it while the
+		// upstream is disconnected. We need to store history differently so that
+		// we don't need access to upstreamConn to forward it to a downstream
+		// client.
+		uc := net.upstream()
+		if uc == nil {
+			dc.logger.Printf("ignoring messages for upstream %q: upstream is disconnected", net.Addr)
+			return
+		}
+
+		for {
+			msg := consumer.Peek()
+			if msg == nil {
+				break
+			}
+
+			dc.sendFromUpstream(msg, uc)
+			consumer.Consume()
+		}
 	})
 
 	return nil
-}
-
-// runNetwork starts listening for messages coming from the network's ring
-// buffer.
-//
-// It panics if the network is not suitable for the downstream connection.
-func (dc *downstreamConn) runNetwork(net *network, loadHistory bool) {
-	if dc.network != nil && net != dc.network {
-		panic("network not suitable for downstream connection")
-	}
-
-	var seqPtr *uint64
-	if loadHistory {
-		seq, ok := net.history[dc.clientName]
-		if ok {
-			seqPtr = &seq
-		}
-	}
-
-	consumer, ch := net.ring.NewConsumer(seqPtr)
-
-	if _, ok := dc.ringConsumers[net]; ok {
-		panic("network has been added twice")
-	}
-	dc.ringConsumers[net] = consumer
-
-	go func() {
-		for range ch {
-			uc := net.upstream()
-			if uc == nil {
-				dc.logger.Printf("ignoring messages for upstream %q: upstream is disconnected", net.Addr)
-				continue
-			}
-
-			for {
-				msg := consumer.Peek()
-				if msg == nil {
-					break
-				}
-
-				dc.lock.Lock()
-				_, ours := dc.ourMessages[msg]
-				delete(dc.ourMessages, msg)
-				dc.lock.Unlock()
-				if ours && !dc.getCap("echo-message") {
-					// The message comes from our connection, don't echo it
-					// back
-					consumer.Consume()
-					continue
-				}
-
-				msg = msg.Copy()
-				switch msg.Command {
-				case "PRIVMSG", "NOTICE":
-					msg.Prefix = dc.marshalUserPrefix(uc, msg.Prefix)
-					msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
-				default:
-					panic(fmt.Sprintf("unexpected %q message", msg.Command))
-				}
-
-				dc.SendMessage(msg)
-				consumer.Consume()
-			}
-		}
-	}()
 }
 
 func (dc *downstreamConn) runUntilRegistered() error {

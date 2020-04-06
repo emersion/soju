@@ -31,7 +31,3 @@ race condition or inconsistent state) and to rate-limit each user.
 The user dispatcher goroutine receives from the `user.events` channel. Upstream
 and downstream message handlers are called from this goroutine, thus they can
 safely access both upstream and downstream state.
-
-In addition to these goroutines, each downstream connection also has one
-goroutine per network to handle new upstream messages coming from the ring
-buffer.

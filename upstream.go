@@ -1365,6 +1365,10 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 
 func (uc *upstreamConn) produce(msg *irc.Message) {
 	uc.network.ring.Produce(msg)
+
+	uc.forEachDownstream(func(dc *downstreamConn) {
+		dc.sendFromUpstream(dc.ringConsumers[uc.network].Consume(), uc)
+	})
 }
 
 func (uc *upstreamConn) updateAway() {

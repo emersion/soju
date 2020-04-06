@@ -351,7 +351,8 @@ func (u *user) createNetwork(net *Network) (*network, error) {
 
 	u.forEachDownstream(func(dc *downstreamConn) {
 		if dc.network == nil {
-			dc.runNetwork(network, false)
+			consumer, _ := network.ring.NewConsumer(nil)
+			dc.ringConsumers[network] = consumer
 		}
 	})
 
@@ -375,6 +376,7 @@ func (u *user) deleteNetwork(id int64) error {
 			if dc.network != nil && dc.network == net {
 				dc.Close()
 			}
+			delete(dc.ringConsumers, net)
 		})
 
 		net.Stop()
