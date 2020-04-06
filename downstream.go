@@ -8,7 +8,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/emersion/go-sasl"
@@ -68,15 +67,13 @@ type downstreamConn struct {
 	network     *network // can be nil
 
 	ringConsumers map[*network]*RingConsumer
+	ourMessages map[*irc.Message]struct{}
+	caps        map[string]bool
 
 	negociatingCaps bool
 	capVersion      int
 
 	saslServer sasl.Server
-
-	lock        sync.Mutex
-	ourMessages map[*irc.Message]struct{}
-	caps        map[string]bool
 }
 
 func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn {
@@ -209,20 +206,17 @@ func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	return nil
 }
 
-func (dc *downstreamConn) getCap(name string) bool {
-	dc.lock.Lock()
-	defer dc.lock.Unlock()
-	return dc.caps[name]
-}
-
+// SendMessage sends an outgoing message.
+//
+// This can only called from the user goroutine.
 func (dc *downstreamConn) SendMessage(msg *irc.Message) {
-	if !dc.getCap("message-tags") {
+	if !dc.caps["message-tags"] {
 		msg = msg.Copy()
 		for name := range msg.Tags {
 			supported := false
 			switch name {
 			case "time":
-				supported = dc.getCap("server-time")
+				supported = dc.caps["server-time"]
 			}
 			if !supported {
 				delete(msg.Tags, name)
@@ -234,11 +228,9 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 }
 
 func (dc *downstreamConn) sendFromUpstream(msg *irc.Message, uc *upstreamConn) {
-	dc.lock.Lock()
 	_, ours := dc.ourMessages[msg]
 	delete(dc.ourMessages, msg)
-	dc.lock.Unlock()
-	if ours && !dc.getCap("echo-message") {
+	if ours && !dc.caps["echo-message"] {
 		// The message comes from our connection, don't echo it
 		// back
 		return
@@ -300,7 +292,7 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 			return err
 		}
 	case "AUTHENTICATE":
-		if !dc.getCap("sasl") {
+		if !dc.caps["sasl"] {
 			return ircError{&irc.Message{
 				Command: irc.ERR_SASLFAIL,
 				Params:  []string{"*", "AUTHENTICATE requires the \"sasl\" capability to be enabled"},
@@ -441,11 +433,9 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		}
 	case "LIST":
 		var caps []string
-		dc.lock.Lock()
 		for name := range dc.caps {
 			caps = append(caps, name)
 		}
-		dc.lock.Unlock()
 
 		// TODO: multi-line replies
 		dc.SendMessage(&irc.Message{
@@ -463,7 +453,6 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 
 		caps := strings.Fields(args[0])
 		ack := true
-		dc.lock.Lock()
 		for _, name := range caps {
 			name = strings.ToLower(name)
 			enable := !strings.HasPrefix(name, "-")
@@ -483,7 +472,6 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 				ack = false
 			}
 		}
-		dc.lock.Unlock()
 
 		reply := "NAK"
 		if ack {
@@ -1212,9 +1200,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Command: "PRIVMSG",
 				Params:  []string{upstreamName, text},
 			}
-			dc.lock.Lock()
 			dc.ourMessages[echoMsg] = struct{}{}
-			dc.lock.Unlock()
 
 			uc.appendLog(upstreamName, echoMsg)
 
