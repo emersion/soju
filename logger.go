@@ -100,6 +100,12 @@ func formatMessage(msg *irc.Message) string {
 			reason = msg.Params[0]
 		}
 		return fmt.Sprintf("*** Quits: %s (%s@%s) (%s)", msg.Prefix.Name, msg.Prefix.User, msg.Prefix.Host, reason)
+	case "TOPIC":
+		var topic string
+		if len(msg.Params) > 1 {
+			topic = msg.Params[1]
+		}
+		return fmt.Sprintf("*** %s changes topic to '%s'", msg.Prefix.Name, topic)
 	case "MODE":
 		return fmt.Sprintf("*** %s sets mode: %s", msg.Prefix.Name, strings.Join(msg.Params[1:], " "))
 	case "NOTICE":

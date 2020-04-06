@@ -745,6 +745,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		} else {
 			ch.Topic = ""
 		}
+		uc.appendLog(ch.Name, msg)
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			params := []string{dc.marshalChannel(uc, name)}
 			if ch.Topic != "" {
