@@ -1367,7 +1367,7 @@ func (uc *upstreamConn) produce(msg *irc.Message) {
 	uc.network.ring.Produce(msg)
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		dc.sendFromUpstream(dc.ringConsumers[uc.network].Consume(), uc)
+		dc.sendFromUpstream(msg, uc)
 	})
 }
 

@@ -66,7 +66,6 @@ type downstreamConn struct {
 	password    string   // empty after authentication
 	network     *network // can be nil
 
-	ringConsumers map[*network]*RingConsumer
 	ourMessages map[*irc.Message]struct{}
 	caps        map[string]bool
 
@@ -79,11 +78,10 @@ type downstreamConn struct {
 func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn {
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())}
 	dc := &downstreamConn{
-		conn:          *newConn(srv, netConn, logger),
-		id:            id,
-		ringConsumers: make(map[*network]*RingConsumer),
-		ourMessages:   make(map[*irc.Message]struct{}),
-		caps:          make(map[string]bool),
+		conn:        *newConn(srv, netConn, logger),
+		id:          id,
+		ourMessages: make(map[*irc.Message]struct{}),
+		caps:        make(map[string]bool),
 	}
 	dc.hostname = netConn.RemoteAddr().String()
 	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
@@ -683,7 +681,6 @@ func (dc *downstreamConn) welcome() error {
 		}
 
 		consumer := net.ring.NewConsumer(seqPtr)
-		dc.ringConsumers[net] = consumer
 
 		// TODO: this means all history is lost when trying to send it while the
 		// upstream is disconnected. We need to store history differently so that

@@ -36,6 +36,10 @@ func (r *Ring) Produce(msg *irc.Message) {
 	r.cur++
 }
 
+func (r *Ring) Cur() uint64 {
+	return r.cur
+}
+
 func (r *Ring) Close() {
 	if r.closed {
 		panic("soju: Ring.Close called twice")

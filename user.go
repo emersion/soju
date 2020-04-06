@@ -303,10 +303,10 @@ func (u *user) run() {
 		case eventDownstreamDisconnected:
 			dc := e.dc
 
-			for net, rc := range dc.ringConsumers {
-				seq := rc.Close()
+			dc.forEachNetwork(func(net *network) {
+				seq := net.ring.Cur()
 				net.history[dc.clientName] = seq
-			}
+			})
 
 			for i := range u.downstreamConns {
 				if u.downstreamConns[i] == dc {
@@ -349,12 +349,6 @@ func (u *user) createNetwork(net *Network) (*network, error) {
 		return nil, err
 	}
 
-	u.forEachDownstream(func(dc *downstreamConn) {
-		if dc.network == nil {
-			dc.ringConsumers[network] = network.ring.NewConsumer(nil)
-		}
-	})
-
 	u.networks = append(u.networks, network)
 
 	go network.run()
@@ -375,7 +369,6 @@ func (u *user) deleteNetwork(id int64) error {
 			if dc.network != nil && dc.network == net {
 				dc.Close()
 			}
-			delete(dc.ringConsumers, net)
 		})
 
 		net.Stop()
