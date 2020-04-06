@@ -2,7 +2,6 @@ package soju
 
 import (
 	"fmt"
-	"sync"
 
 	"gopkg.in/irc.v3"
 )
@@ -13,7 +12,6 @@ type Ring struct {
 	buffer []*irc.Message
 	cap    uint64
 
-	lock      sync.Mutex
 	cur       uint64
 	consumers []*RingConsumer
 	closed    bool
@@ -29,9 +27,6 @@ func NewRing(capacity int) *Ring {
 
 // Produce appends a new message to the ring buffer.
 func (r *Ring) Produce(msg *irc.Message) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
 	if r.closed {
 		panic("soju: Ring.Produce called after Close")
 	}
@@ -42,9 +37,6 @@ func (r *Ring) Produce(msg *irc.Message) {
 }
 
 func (r *Ring) Close() {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
 	if r.closed {
 		panic("soju: Ring.Close called twice")
 	}
@@ -62,14 +54,12 @@ func (r *Ring) Close() {
 func (r *Ring) NewConsumer(seq *uint64) *RingConsumer {
 	consumer := &RingConsumer{ring: r}
 
-	r.lock.Lock()
 	if seq != nil {
 		consumer.cur = *seq
 	} else {
 		consumer.cur = r.cur
 	}
 	r.consumers = append(r.consumers, consumer)
-	r.lock.Unlock()
 
 	return consumer
 }
@@ -95,9 +85,6 @@ func (rc *RingConsumer) Peek() *irc.Message {
 	if rc.closed {
 		panic("soju: RingConsumer.Peek called after Close")
 	}
-
-	rc.ring.lock.Lock()
-	defer rc.ring.lock.Unlock()
 
 	diff := rc.diff()
 	if diff == 0 {
@@ -129,14 +116,12 @@ func (rc *RingConsumer) Consume() *irc.Message {
 // current history sequence number is returned. It can be provided later as an
 // argument to Ring.NewConsumer to resume the message stream.
 func (rc *RingConsumer) Close() uint64 {
-	rc.ring.lock.Lock()
 	for i := range rc.ring.consumers {
 		if rc.ring.consumers[i] == rc {
 			rc.ring.consumers = append(rc.ring.consumers[:i], rc.ring.consumers[i+1:]...)
 			break
 		}
 	}
-	rc.ring.lock.Unlock()
 
 	rc.closed = true
 	return rc.cur
