@@ -121,6 +121,11 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 	return dc.network.upstream()
 }
 
+// marshalEntity converts an upstream entity name (ie. channel or nick) into a
+// downstream entity name.
+//
+// This involves adding a "/<network>" suffix if the entity isn't the current
+// user.
 func (dc *downstreamConn) marshalEntity(uc *upstreamConn, entity string) string {
 	if uc.isChannel(entity) {
 		return dc.marshalChannel(uc, entity)
@@ -135,6 +140,10 @@ func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
 	return name + "/" + uc.network.GetName()
 }
 
+// unmarshalEntity converts a downstream entity name (ie. channel or nick) into
+// an upstream entity name.
+//
+// This involves removing the "/<network>" suffix.
 func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, error) {
 	if uc := dc.upstream(); uc != nil {
 		return uc, name, nil
