@@ -166,8 +166,6 @@ func (uc *upstreamConn) endPendingLISTs(all bool) (found bool) {
 }
 
 func (uc *upstreamConn) trySendLIST(downstreamID uint64) {
-	// must be called with a lock in uc.user.pendingLISTsLock
-
 	if _, ok := uc.pendingLISTDownstreamSet[downstreamID]; ok {
 		// a LIST command is already pending
 		// we will try again when that command is completed
