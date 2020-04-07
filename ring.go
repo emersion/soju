@@ -14,7 +14,6 @@ type Ring struct {
 
 	cur       uint64
 	consumers []*RingConsumer
-	closed    bool
 }
 
 // NewRing creates a new ring buffer.
@@ -27,10 +26,6 @@ func NewRing(capacity int) *Ring {
 
 // Produce appends a new message to the ring buffer.
 func (r *Ring) Produce(msg *irc.Message) {
-	if r.closed {
-		panic("soju: Ring.Produce called after Close")
-	}
-
 	i := int(r.cur % r.cap)
 	r.buffer[i] = msg
 	r.cur++
@@ -38,14 +33,6 @@ func (r *Ring) Produce(msg *irc.Message) {
 
 func (r *Ring) Cur() uint64 {
 	return r.cur
-}
-
-func (r *Ring) Close() {
-	if r.closed {
-		panic("soju: Ring.Close called twice")
-	}
-
-	r.closed = true
 }
 
 // NewConsumer creates a new ring buffer consumer.
