@@ -546,8 +546,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
+		me := false
 		if msg.Prefix.Name == uc.nick {
 			uc.logger.Printf("changed nick from %q to %q", uc.nick, newNick)
+			me = true
 			uc.nick = newNick
 		}
 
@@ -559,12 +561,12 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 		}
 
-		if msg.Prefix.Name != uc.nick {
+		if !me {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
 					Command: "NICK",
-					Params:  []string{newNick},
+					Params:  []string{dc.marshalEntity(uc, newNick)},
 				})
 			})
 		}
