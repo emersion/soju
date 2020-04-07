@@ -11,9 +11,7 @@ import (
 type Ring struct {
 	buffer []*irc.Message
 	cap    uint64
-
-	cur       uint64
-	consumers []*RingConsumer
+	cur    uint64
 }
 
 // NewRing creates a new ring buffer.
@@ -41,9 +39,7 @@ func (r *Ring) Cur() uint64 {
 // The consumer will get messages starting from the specified history sequence
 // number (see Ring.Cur).
 func (r *Ring) NewConsumer(seq uint64) *RingConsumer {
-	consumer := &RingConsumer{ring: r, cur: seq}
-	r.consumers = append(r.consumers, consumer)
-	return consumer
+	return &RingConsumer{ring: r, cur: seq}
 }
 
 // RingConsumer is a ring buffer consumer.
