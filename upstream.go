@@ -562,12 +562,9 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		if !me {
+			uc.network.ring.Produce(msg)
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
-					Command: "NICK",
-					Params:  []string{dc.marshalEntity(uc, newNick)},
-				})
+				dc.SendMessage(dc.marshalMessage(msg, uc))
 			})
 		}
 	case "JOIN":
@@ -601,15 +598,9 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				ch.Members[msg.Prefix.Name] = nil
 			}
 
-			uc.appendLog(ch, msg)
-
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
-					Command: "JOIN",
-					Params:  []string{dc.marshalChannel(uc, ch)},
-				})
-			})
+			chMsg := msg.Copy()
+			chMsg.Params[0] = ch
+			uc.produce(ch, chMsg, nil)
 		}
 	case "PART":
 		if msg.Prefix == nil {
@@ -619,11 +610,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		var channels string
 		if err := parseMessageParams(msg, &channels); err != nil {
 			return err
-		}
-
-		var reason string
-		if len(msg.Params) > 1 {
-			reason = msg.Params[1]
 		}
 
 		for _, ch := range strings.Split(channels, ",") {
@@ -638,19 +624,9 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				delete(ch.Members, msg.Prefix.Name)
 			}
 
-			uc.appendLog(ch, msg)
-
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				params := []string{dc.marshalChannel(uc, ch)}
-				if reason != "" {
-					params = append(params, reason)
-				}
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
-					Command: "PART",
-					Params:  params,
-				})
-			})
+			chMsg := msg.Copy()
+			chMsg.Params[0] = ch
+			uc.produce(ch, chMsg, nil)
 		}
 	case "KICK":
 		if msg.Prefix == nil {
@@ -660,11 +636,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		var channel, user string
 		if err := parseMessageParams(msg, &channel, &user); err != nil {
 			return err
-		}
-
-		var reason string
-		if len(msg.Params) > 2 {
-			reason = msg.Params[2]
 		}
 
 		if user == uc.nick {
@@ -678,19 +649,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			delete(ch.Members, user)
 		}
 
-		uc.appendLog(channel, msg)
-
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			params := []string{dc.marshalChannel(uc, channel), dc.marshalNick(uc, user)}
-			if reason != "" {
-				params = append(params, reason)
-			}
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
-				Command: "KICK",
-				Params:  params,
-			})
-		})
+		uc.produce(channel, msg, nil)
 	case "QUIT":
 		if msg.Prefix == nil {
 			return fmt.Errorf("expected a prefix")
@@ -709,12 +668,9 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		if msg.Prefix.Name != uc.nick {
+			uc.network.ring.Produce(msg)
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
-					Command: "QUIT",
-					Params:  msg.Params,
-				})
+				dc.SendMessage(dc.marshalMessage(msg, uc))
 			})
 		}
 	case irc.RPL_TOPIC, irc.RPL_NOTOPIC:
@@ -745,18 +701,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		} else {
 			ch.Topic = ""
 		}
-		uc.appendLog(ch.Name, msg)
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			params := []string{dc.marshalChannel(uc, name)}
-			if ch.Topic != "" {
-				params = append(params, ch.Topic)
-			}
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
-				Command: "TOPIC",
-				Params:  params,
-			})
-		})
+		uc.produce(ch.Name, msg, nil)
 	case "MODE":
 		var name, modeStr string
 		if err := parseMessageParams(msg, &name, &modeStr); err != nil {
@@ -781,18 +726,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				}
 			}
 
-			uc.appendLog(ch.Name, msg)
-
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				params := []string{dc.marshalChannel(uc, name), modeStr}
-				params = append(params, msg.Params[2:]...)
-
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.marshalUserPrefix(uc, msg.Prefix),
-					Command: "MODE",
-					Params:  params,
-				})
-			})
+			uc.produce(ch.Name, msg, nil)
 		}
 	case irc.RPL_UMODEIS:
 		if err := parseMessageParams(msg, nil); err != nil {
@@ -1362,6 +1296,11 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 	}
 }
 
+// produce appends a message to the logs, adds it to the history and forwards
+// it to connected downstream connections.
+//
+// If origin is not nil and origin doesn't support echo-message, the message is
+// forwarded to all connections except origin.
 func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstreamConn) {
 	if target != "" {
 		uc.appendLog(target, msg)
@@ -1371,7 +1310,7 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		if dc != origin || dc.caps["echo-message"] {
-			dc.sendFromUpstream(msg, uc)
+			dc.SendMessage(dc.marshalMessage(msg, uc))
 		}
 	})
 }

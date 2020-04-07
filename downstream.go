@@ -222,17 +222,35 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	dc.conn.SendMessage(msg)
 }
 
-func (dc *downstreamConn) sendFromUpstream(msg *irc.Message, uc *upstreamConn) {
+// marshalMessage re-formats a message coming from an upstream connection so
+// that it's suitable for being sent on this downstream connection. Only
+// messages that may appear in logs are supported.
+func (dc *downstreamConn) marshalMessage(msg *irc.Message, uc *upstreamConn) *irc.Message {
 	msg = msg.Copy()
+	msg.Prefix = dc.marshalUserPrefix(uc, msg.Prefix)
+
 	switch msg.Command {
 	case "PRIVMSG", "NOTICE":
-		msg.Prefix = dc.marshalUserPrefix(uc, msg.Prefix)
 		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
+	case "NICK":
+		// Nick change for another user
+		msg.Params[0] = dc.marshalNick(uc, msg.Params[0])
+	case "JOIN", "PART":
+		msg.Params[0] = dc.marshalChannel(uc, msg.Params[0])
+	case "KICK":
+		msg.Params[0] = dc.marshalChannel(uc, msg.Params[0])
+		msg.Params[1] = dc.marshalNick(uc, msg.Params[1])
+	case "TOPIC":
+		msg.Params[0] = dc.marshalChannel(uc, msg.Params[0])
+	case "MODE":
+		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
+	case "QUIT":
+		// This space is intentinally left blank
 	default:
 		panic(fmt.Sprintf("unexpected %q message", msg.Command))
 	}
 
-	dc.SendMessage(msg)
+	return msg
 }
 
 func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
@@ -684,7 +702,19 @@ func (dc *downstreamConn) welcome() error {
 				break
 			}
 
-			dc.sendFromUpstream(msg, uc)
+			// Don't replay all messages, because that would mess up client
+			// state. For instance we just sent the list of users, sending
+			// PART messages for one of these users would be incorrect.
+			ignore := true
+			switch msg.Command {
+			case "PRIVMSG", "NOTICE":
+				ignore = false
+			}
+			if ignore {
+				continue
+			}
+
+			dc.SendMessage(dc.marshalMessage(msg, uc))
 		}
 	})
 
