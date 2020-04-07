@@ -14,8 +14,8 @@ type messageLogger struct {
 	conn   *upstreamConn
 	entity string
 
-	filename string
-	file     *os.File
+	path string
+	file *os.File
 }
 
 func newMessageLogger(uc *upstreamConn, entity string) *messageLogger {
@@ -23,6 +23,16 @@ func newMessageLogger(uc *upstreamConn, entity string) *messageLogger {
 		conn:   uc,
 		entity: entity,
 	}
+}
+
+func logPath(network *network, entity string, t time.Time) string {
+	user := network.user
+	srv := user.srv
+
+	// TODO: handle/forbid network/entity names with illegal path characters
+	year, month, day := t.Date()
+	filename := fmt.Sprintf("%04d-%02d-%02d.log", year, month, day)
+	return filepath.Join(srv.LogPath, user.Username, network.GetName(), entity, filename)
 }
 
 func (ml *messageLogger) Append(msg *irc.Message) error {
@@ -36,32 +46,29 @@ func (ml *messageLogger) Append(msg *irc.Message) error {
 	// TODO: enforce maximum open file handles (LRU cache of file handles)
 	// TODO: handle non-monotonic clock behaviour
 	now := time.Now()
-	year, month, day := now.Date()
-	filename := fmt.Sprintf("%04d-%02d-%02d.log", year, month, day)
-	if ml.filename != filename {
+	path := logPath(ml.conn.network, ml.entity, now)
+	if ml.path != path {
 		if ml.file != nil {
 			ml.file.Close()
 		}
 
-		// TODO: handle/forbid network/entity names with illegal path characters
-		dir := filepath.Join(ml.conn.srv.LogPath, ml.conn.user.Username, ml.conn.network.GetName(), ml.entity)
+		dir := filepath.Dir(path)
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("failed to create logs directory %q: %v", dir, err)
 		}
 
-		path := filepath.Join(dir, filename)
 		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
 		if err != nil {
 			return fmt.Errorf("failed to open log file %q: %v", path, err)
 		}
 
-		ml.filename = filename
+		ml.path = path
 		ml.file = f
 	}
 
 	_, err := fmt.Fprintf(ml.file, "[%02d:%02d:%02d] %s\n", now.Hour(), now.Minute(), now.Second(), s)
 	if err != nil {
-		return fmt.Errorf("failed to log message to %q: %v", ml.filename, err)
+		return fmt.Errorf("failed to log message to %q: %v", ml.path, err)
 	}
 	return nil
 }
