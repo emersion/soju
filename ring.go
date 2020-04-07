@@ -31,27 +31,18 @@ func (r *Ring) Produce(msg *irc.Message) {
 	r.cur++
 }
 
+// Cur returns the current history sequence number.
 func (r *Ring) Cur() uint64 {
 	return r.cur
 }
 
 // NewConsumer creates a new ring buffer consumer.
 //
-// If seq is nil, the consumer will get messages starting from the last
-// producer message. If seq is non-nil, the consumer will get messages starting
-// from the specified history sequence number (see RingConsumer.Close).
-//
-// The consumer can only be used from a single goroutine.
-func (r *Ring) NewConsumer(seq *uint64) *RingConsumer {
-	consumer := &RingConsumer{ring: r}
-
-	if seq != nil {
-		consumer.cur = *seq
-	} else {
-		consumer.cur = r.cur
-	}
+// The consumer will get messages starting from the specified history sequence
+// number (see Ring.Cur).
+func (r *Ring) NewConsumer(seq uint64) *RingConsumer {
+	consumer := &RingConsumer{ring: r, cur: seq}
 	r.consumers = append(r.consumers, consumer)
-
 	return consumer
 }
 

@@ -661,15 +661,12 @@ func (dc *downstreamConn) welcome() error {
 	})
 
 	dc.forEachNetwork(func(net *network) {
-		var seqPtr *uint64
-		if sendHistory {
-			seq, ok := net.history[dc.clientName]
-			if ok {
-				seqPtr = &seq
-			}
+		seq, ok := net.history[dc.clientName]
+		if !sendHistory || !ok {
+			return
 		}
 
-		consumer := net.ring.NewConsumer(seqPtr)
+		consumer := net.ring.NewConsumer(seq)
 
 		// TODO: this means all history is lost when trying to send it while the
 		// upstream is disconnected. We need to store history differently so that
