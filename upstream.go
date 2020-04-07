@@ -1285,7 +1285,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 
 	ml, ok := uc.messageLoggers[entity]
 	if !ok {
-		ml = newMessageLogger(uc, entity)
+		ml = newMessageLogger(uc.network, entity)
 		uc.messageLoggers[entity] = ml
 	}
 

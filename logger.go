@@ -11,17 +11,17 @@ import (
 )
 
 type messageLogger struct {
-	conn   *upstreamConn
-	entity string
+	network *network
+	entity  string
 
 	path string
 	file *os.File
 }
 
-func newMessageLogger(uc *upstreamConn, entity string) *messageLogger {
+func newMessageLogger(network *network, entity string) *messageLogger {
 	return &messageLogger{
-		conn:   uc,
-		entity: entity,
+		network: network,
+		entity:  entity,
 	}
 }
 
@@ -46,7 +46,7 @@ func (ml *messageLogger) Append(msg *irc.Message) error {
 	// TODO: enforce maximum open file handles (LRU cache of file handles)
 	// TODO: handle non-monotonic clock behaviour
 	now := time.Now()
-	path := logPath(ml.conn.network, ml.entity, now)
+	path := logPath(ml.network, ml.entity, now)
 	if ml.path != path {
 		if ml.file != nil {
 			ml.file.Close()
