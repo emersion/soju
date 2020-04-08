@@ -132,6 +132,18 @@ func (db *DB) CreateUser(user *User) error {
 	return err
 }
 
+func (db *DB) UpdatePassword(user *User) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	password := toStringPtr(user.Password)
+	_, err := db.db.Exec(`UPDATE User
+	SET password = ?
+	WHERE username = ?`,
+		password, user.Username)
+	return err
+}
+
 func (db *DB) ListNetworks(username string) ([]Network, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()

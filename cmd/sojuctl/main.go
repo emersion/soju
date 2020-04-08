@@ -14,8 +14,9 @@ import (
 
 const usage = `usage: sojuctl [-config path] <action> [options...]
 
-  create-user <username>  Create a new user
-  help                    Show this help message
+  create-user <username>	Create a new user
+  change-password <username> 	Change password for a user
+  help				Show this help message
 `
 
 func init() {
@@ -72,6 +73,33 @@ func main() {
 		if err := db.CreateUser(&user); err != nil {
 			log.Fatalf("failed to create user: %v", err)
 		}
+	case "change-password":
+		username := flag.Arg(1)
+		if username == "" {
+			flag.Usage()
+			os.Exit(1)
+		}
+
+		fmt.Printf("New password: ")
+		password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			log.Fatalf("failed to read new password: %v", err)
+		}
+		fmt.Printf("\n")
+
+		hashed, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+		if err != nil {
+			log.Fatalf("failed to hash password: %v", err)
+		}
+
+		user := soju.User{
+			Username: username,
+			Password: string(hashed),
+		}
+		if err := db.UpdatePassword(&user); err != nil {
+			log.Fatalf("failed to update password: %v", err)
+		}
+
 	default:
 		flag.Usage()
 		if cmd != "help" {
