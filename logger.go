@@ -41,12 +41,21 @@ func (ml *messageLogger) Append(msg *irc.Message) error {
 		return nil
 	}
 
-	// TODO: parse time from msg.Tags["time"], if available
+	var t time.Time
+	if tag, ok := msg.Tags["time"]; ok {
+		var err error
+		t, err = time.Parse(serverTimeLayout, string(tag))
+		if err != nil {
+			return fmt.Errorf("failed to parse message time tag: %v", err)
+		}
+		t = t.In(time.Local)
+	} else {
+		t = time.Now()
+	}
 
 	// TODO: enforce maximum open file handles (LRU cache of file handles)
 	// TODO: handle non-monotonic clock behaviour
-	now := time.Now()
-	path := logPath(ml.network, ml.entity, now)
+	path := logPath(ml.network, ml.entity, t)
 	if ml.path != path {
 		if ml.file != nil {
 			ml.file.Close()
@@ -66,7 +75,7 @@ func (ml *messageLogger) Append(msg *irc.Message) error {
 		ml.file = f
 	}
 
-	_, err := fmt.Fprintf(ml.file, "[%02d:%02d:%02d] %s\n", now.Hour(), now.Minute(), now.Second(), s)
+	_, err := fmt.Fprintf(ml.file, "[%02d:%02d:%02d] %s\n", t.Hour(), t.Minute(), t.Second(), s)
 	if err != nil {
 		return fmt.Errorf("failed to log message to %q: %v", ml.path, err)
 	}
