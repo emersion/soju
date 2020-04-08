@@ -369,3 +369,8 @@ func (u *user) deleteNetwork(id int64) error {
 
 	panic("tried deleting a non-existing network")
 }
+
+func (u *user) updatePassword(hashed string) error {
+	u.User.Password = hashed
+	return u.srv.db.UpdatePassword(&u.User)
+}

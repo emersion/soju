@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/shlex"
+	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
 )
 
@@ -117,6 +118,11 @@ func init() {
 					handle: handleServiceNetworkDelete,
 				},
 			},
+		},
+		"change-password": {
+			usage:  "<new password>",
+			desc:   "change your password",
+			handle: handlePasswordChange,
 		},
 	}
 }
@@ -252,5 +258,22 @@ func handleServiceNetworkDelete(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("deleted network %q", net.GetName()))
+	return nil
+}
+
+func handlePasswordChange(dc *downstreamConn, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(params[0]), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %v", err)
+	}
+	if err := dc.user.updatePassword(string(hashed)); err != nil {
+		return err
+	}
+
+	sendServicePRIVMSG(dc, "password updated")
 	return nil
 }
