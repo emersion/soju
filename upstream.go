@@ -556,11 +556,11 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				delete(ch.Members, msg.Prefix.Name)
 				ch.Members[newNick] = membership
 				uc.appendLog(ch.Name, msg)
+				uc.appendHistory(ch.Name, msg)
 			}
 		}
 
 		if !me {
-			uc.network.ring.Produce(msg)
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(dc.marshalMessage(msg, uc))
 			})
@@ -662,11 +662,11 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				delete(ch.Members, msg.Prefix.Name)
 
 				uc.appendLog(ch.Name, msg)
+				uc.appendHistory(ch.Name, msg)
 			}
 		}
 
 		if msg.Prefix.Name != uc.nick {
-			uc.network.ring.Produce(msg)
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(dc.marshalMessage(msg, uc))
 			})
@@ -1294,6 +1294,29 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 	}
 }
 
+// appendHistory appends a message to the history. entity can be empty.
+func (uc *upstreamConn) appendHistory(entity string, msg *irc.Message) {
+	// If no client is offline, no need to append the message to the buffer
+	if len(uc.network.offlineClients) == 0 {
+		return
+	}
+
+	history, ok := uc.network.history[entity]
+	if !ok {
+		history = &networkHistory{
+			offlineClients: make(map[string]uint64),
+			ring:           NewRing(uc.srv.RingCap),
+		}
+		uc.network.history[entity] = history
+
+		for clientName, _ := range uc.network.offlineClients {
+			history.offlineClients[clientName] = 0
+		}
+	}
+
+	history.ring.Produce(msg)
+}
+
 // produce appends a message to the logs, adds it to the history and forwards
 // it to connected downstream connections.
 //
@@ -1304,7 +1327,7 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 		uc.appendLog(target, msg)
 	}
 
-	uc.network.ring.Produce(msg)
+	uc.appendHistory(target, msg)
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		if dc != origin || dc.caps["echo-message"] {

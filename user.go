@@ -45,24 +45,29 @@ type eventDownstreamDisconnected struct {
 	dc *downstreamConn
 }
 
+type networkHistory struct {
+	offlineClients map[string]uint64 // indexed by client name
+	ring           *Ring             // can be nil if there are no offline clients
+}
+
 type network struct {
 	Network
 	user    *user
-	ring    *Ring
 	stopped chan struct{}
 
-	conn      *upstreamConn
-	history   map[string]uint64
-	lastError error
+	conn           *upstreamConn
+	history        map[string]*networkHistory // indexed by entity
+	offlineClients map[string]struct{}        // indexed by client name
+	lastError      error
 }
 
 func newNetwork(user *user, record *Network) *network {
 	return &network{
-		Network: *record,
-		user:    user,
-		ring:    NewRing(user.srv.RingCap),
-		stopped: make(chan struct{}),
-		history: make(map[string]uint64),
+		Network:        *record,
+		user:           user,
+		stopped:        make(chan struct{}),
+		history:        make(map[string]*networkHistory),
+		offlineClients: make(map[string]struct{}),
 	}
 }
 
@@ -294,17 +299,31 @@ func (u *user) run() {
 		case eventDownstreamDisconnected:
 			dc := e.dc
 
-			dc.forEachNetwork(func(net *network) {
-				seq := net.ring.Cur()
-				net.history[dc.clientName] = seq
-			})
-
 			for i := range u.downstreamConns {
 				if u.downstreamConns[i] == dc {
 					u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
 					break
 				}
 			}
+
+			// Save history if we're the last client with this name
+			skipHistory := make(map[*network]bool)
+			u.forEachDownstream(func(conn *downstreamConn) {
+				if dc.clientName == conn.clientName {
+					skipHistory[conn.network] = true
+				}
+			})
+
+			dc.forEachNetwork(func(net *network) {
+				if skipHistory[net] || skipHistory[nil] {
+					return
+				}
+
+				net.offlineClients[dc.clientName] = struct{}{}
+				for _, history := range net.history {
+					history.offlineClients[dc.clientName] = history.ring.Cur()
+				}
+			})
 
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()

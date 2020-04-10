@@ -637,15 +637,6 @@ func (dc *downstreamConn) welcome() error {
 		return err
 	}
 
-	// Only send history if we're the first connected client with that name and
-	// network
-	sendHistory := true
-	dc.user.forEachDownstream(func(conn *downstreamConn) {
-		if dc.clientName == conn.clientName && dc.network == conn.network {
-			sendHistory = false
-		}
-	})
-
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_WELCOME,
@@ -688,12 +679,32 @@ func (dc *downstreamConn) welcome() error {
 	})
 
 	dc.forEachNetwork(func(net *network) {
-		seq, ok := net.history[dc.clientName]
-		if !sendHistory || !ok {
-			return
+		// Only send history if we're the first connected client with that name
+		// for the network
+		if _, ok := net.offlineClients[dc.clientName]; ok {
+			dc.sendNetworkHistory(net)
+			delete(net.offlineClients, dc.clientName)
+		}
+	})
+
+	return nil
+}
+
+func (dc *downstreamConn) sendNetworkHistory(net *network) {
+	for target, history := range net.history {
+		seq, ok := history.offlineClients[dc.clientName]
+		if !ok {
+			continue
+		}
+		delete(history.offlineClients, dc.clientName)
+
+		// If all clients have received history, no need to keep the
+		// ring buffer around
+		if len(history.offlineClients) == 0 {
+			delete(net.history, target)
 		}
 
-		consumer := net.ring.NewConsumer(seq)
+		consumer := history.ring.NewConsumer(seq)
 
 		// TODO: this means all history is lost when trying to send it while the
 		// upstream is disconnected. We need to store history differently so that
@@ -725,9 +736,7 @@ func (dc *downstreamConn) welcome() error {
 
 			dc.SendMessage(dc.marshalMessage(msg, uc))
 		}
-	})
-
-	return nil
+	}
 }
 
 func (dc *downstreamConn) runUntilRegistered() error {
