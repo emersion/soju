@@ -48,23 +48,107 @@ type Channel struct {
 
 var ErrNoSuchChannel = fmt.Errorf("soju: no such channel")
 
+const schema = `
+CREATE TABLE User (
+	username VARCHAR(255) PRIMARY KEY,
+	password VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE Network (
+	id INTEGER PRIMARY KEY,
+	name VARCHAR(255),
+	user VARCHAR(255) NOT NULL,
+	addr VARCHAR(255) NOT NULL,
+	nick VARCHAR(255) NOT NULL,
+	username VARCHAR(255),
+	realname VARCHAR(255),
+	pass VARCHAR(255),
+	sasl_mechanism VARCHAR(255),
+	sasl_plain_username VARCHAR(255),
+	sasl_plain_password VARCHAR(255),
+	FOREIGN KEY(user) REFERENCES User(username),
+	UNIQUE(user, addr, nick)
+);
+
+CREATE TABLE Channel (
+	id INTEGER PRIMARY KEY,
+	network INTEGER NOT NULL,
+	name VARCHAR(255) NOT NULL,
+	key VARCHAR(255),
+	FOREIGN KEY(network) REFERENCES Network(id),
+	UNIQUE(network, name)
+);
+`
+
+var migrations = []string{
+	"", // migration #0 is reserved for schema initialization
+}
+
 type DB struct {
 	lock sync.RWMutex
 	db   *sql.DB
 }
 
 func OpenSQLDB(driver, source string) (*DB, error) {
-	db, err := sql.Open(driver, source)
+	sqlDB, err := sql.Open(driver, source)
 	if err != nil {
 		return nil, err
 	}
-	return &DB{db: db}, nil
+
+	db := &DB{db: sqlDB}
+	if err := db.upgrade(); err != nil {
+		return nil, err
+	}
+
+	return db, nil
 }
 
 func (db *DB) Close() error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 	return db.Close()
+}
+
+func (db *DB) upgrade() error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	var version int
+	if err := db.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		return fmt.Errorf("failed to query schema version: %v", err)
+	}
+
+	if version == len(migrations) {
+		return nil
+	} else if version > len(migrations) {
+		return fmt.Errorf("soju (version %d) older than schema (version %d)", len(migrations), version)
+	}
+
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if version == 0 {
+		if _, err := tx.Exec(schema); err != nil {
+			return fmt.Errorf("failed to initialize schema: %v", err)
+		}
+	} else {
+		for i := version; i < len(migrations); i++ {
+			if _, err := tx.Exec(migrations[i]); err != nil {
+				return fmt.Errorf("failed to execute migration #%v: %v", i, err)
+			}
+		}
+	}
+
+	// For some reason prepared statements don't work here
+	_, err = tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", len(migrations)))
+	if err != nil {
+		return fmt.Errorf("failed to bump schema version: %v", err)
+	}
+
+	return tx.Commit()
 }
 
 func fromStringPtr(ptr *string) string {

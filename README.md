@@ -10,7 +10,6 @@ A user-friendly IRC bouncer.
 
 ## Usage
 
-    sqlite3 soju.db <schema.sql
     go run ./cmd/sojuctl create-user <username>
     go run ./cmd/soju
 
