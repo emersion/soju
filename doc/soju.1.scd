@@ -72,7 +72,7 @@ The config file has one directive per line.
 	Enable TLS support. The certificate and the key files must be PEM-encoded.
 
 *sql* <driver> <source>
-	Set the SQL driver settings. The only supported driver is "sqlite". The
+	Set the SQL driver settings. The only supported driver is "sqlite3". The
 	source is the path to the SQLite database file.
 
 *log* <path>
