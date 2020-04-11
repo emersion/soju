@@ -56,16 +56,23 @@ type network struct {
 	stopped chan struct{}
 
 	conn           *upstreamConn
+	channels       map[string]*Channel
 	history        map[string]*networkHistory // indexed by entity
 	offlineClients map[string]struct{}        // indexed by client name
 	lastError      error
 }
 
-func newNetwork(user *user, record *Network) *network {
+func newNetwork(user *user, record *Network, channels []Channel) *network {
+	m := make(map[string]*Channel, len(channels))
+	for _, ch := range channels {
+		m[ch.Name] = &ch
+	}
+
 	return &network{
 		Network:        *record,
 		user:           user,
 		stopped:        make(chan struct{}),
+		channels:       m,
 		history:        make(map[string]*networkHistory),
 		offlineClients: make(map[string]struct{}),
 	}
@@ -140,16 +147,22 @@ func (net *network) Stop() {
 }
 
 func (net *network) createUpdateChannel(ch *Channel) error {
-	if dbCh, err := net.user.srv.db.GetChannel(net.ID, ch.Name); err == nil {
-		ch.ID = dbCh.ID
-	} else if err != ErrNoSuchChannel {
+	if current, ok := net.channels[ch.Name]; ok {
+		ch.ID = current.ID // update channel if it already exists
+	}
+	if err := net.user.srv.db.StoreChannel(net.ID, ch); err != nil {
 		return err
 	}
-	return net.user.srv.db.StoreChannel(net.ID, ch)
+	net.channels[ch.Name] = ch
+	return nil
 }
 
 func (net *network) deleteChannel(name string) error {
-	return net.user.srv.db.DeleteChannel(net.ID, name)
+	if err := net.user.srv.db.DeleteChannel(net.ID, name); err != nil {
+		return err
+	}
+	delete(net.channels, name)
+	return nil
 }
 
 type user struct {
@@ -221,7 +234,12 @@ func (u *user) run() {
 	}
 
 	for _, record := range networks {
-		network := newNetwork(u, &record)
+		channels, err := u.srv.db.ListChannels(record.ID)
+		if err != nil {
+			u.srv.Logger.Printf("failed to list channels for user %q, network %q: %v", u.Username, record.GetName(), err)
+		}
+
+		network := newNetwork(u, &record, channels)
 		u.networks = append(u.networks, network)
 
 		go network.run()
@@ -353,7 +371,7 @@ func (u *user) createNetwork(net *Network) (*network, error) {
 		panic("tried creating an already-existing network")
 	}
 
-	network := newNetwork(u, net)
+	network := newNetwork(u, net, nil)
 	err := u.srv.db.StoreNetwork(u.Username, &network.Network)
 	if err != nil {
 		return nil, err

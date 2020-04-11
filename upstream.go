@@ -421,13 +421,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		uc.registered = true
 		uc.logger.Printf("connection registered")
 
-		channels, err := uc.srv.db.ListChannels(uc.network.ID)
-		if err != nil {
-			uc.logger.Printf("failed to list channels from database: %v", err)
-			break
-		}
-
-		for _, ch := range channels {
+		for _, ch := range uc.network.channels {
 			params := []string{ch.Name}
 			if ch.Key != "" {
 				params = append(params, ch.Key)
