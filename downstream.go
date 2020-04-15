@@ -427,7 +427,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 			}
 		}
 
-		caps := []string{"message-tags", "server-time", "echo-message"}
+		caps := []string{"message-tags", "server-time", "echo-message", "batch"}
 
 		if dc.capVersion >= 302 {
 			caps = append(caps, "sasl=PLAIN")
@@ -480,7 +480,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 			}
 
 			switch name {
-			case "sasl", "message-tags", "server-time", "echo-message":
+			case "sasl", "message-tags", "server-time", "echo-message", "batch":
 				dc.caps[name] = enable
 			default:
 				ack = false
@@ -716,6 +716,15 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 			return
 		}
 
+		batchRef := "history"
+		if dc.caps["batch"] {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BATCH",
+				Params:  []string{"+" + batchRef, "chathistory", dc.marshalEntity(uc, target)},
+			})
+		}
+
 		for {
 			msg := consumer.Consume()
 			if msg == nil {
@@ -734,7 +743,20 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 				continue
 			}
 
+			if dc.caps["batch"] {
+				msg = msg.Copy()
+				msg.Tags["batch"] = irc.TagValue(batchRef)
+			}
+
 			dc.SendMessage(dc.marshalMessage(msg, uc))
+		}
+
+		if dc.caps["batch"] {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BATCH",
+				Params:  []string{"-" + batchRef},
+			})
 		}
 	}
 }
