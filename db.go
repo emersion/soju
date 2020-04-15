@@ -3,6 +3,7 @@ package soju
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -23,14 +24,15 @@ type SASL struct {
 }
 
 type Network struct {
-	ID       int64
-	Name     string
-	Addr     string
-	Nick     string
-	Username string
-	Realname string
-	Pass     string
-	SASL     SASL
+	ID              int64
+	Name            string
+	Addr            string
+	Nick            string
+	Username        string
+	Realname        string
+	Pass            string
+	ConnectCommands []string
+	SASL            SASL
 }
 
 func (net *Network) GetName() string {
@@ -63,6 +65,7 @@ CREATE TABLE Network (
 	username VARCHAR(255),
 	realname VARCHAR(255),
 	pass VARCHAR(255),
+	connect_commands VARCHAR(1023),
 	sasl_mechanism VARCHAR(255),
 	sasl_plain_username VARCHAR(255),
 	sasl_plain_password VARCHAR(255),
@@ -82,6 +85,7 @@ CREATE TABLE Channel (
 
 var migrations = []string{
 	"", // migration #0 is reserved for schema initialization
+	"ALTER TABLE Network ADD COLUMN connect_commands VARCHAR(1023)",
 }
 
 type DB struct {
@@ -233,7 +237,7 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	defer db.lock.RUnlock()
 
 	rows, err := db.db.Query(`SELECT id, name, addr, nick, username, realname, pass,
-			sasl_mechanism, sasl_plain_username, sasl_plain_password
+			connect_commands, sasl_mechanism, sasl_plain_username, sasl_plain_password
 		FROM Network
 		WHERE user = ?`,
 		username)
@@ -245,10 +249,10 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	var networks []Network
 	for rows.Next() {
 		var net Network
-		var name, username, realname, pass *string
+		var name, username, realname, pass, connectCommands *string
 		var saslMechanism, saslPlainUsername, saslPlainPassword *string
 		err := rows.Scan(&net.ID, &name, &net.Addr, &net.Nick, &username, &realname,
-			&pass, &saslMechanism, &saslPlainUsername, &saslPlainPassword)
+			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword)
 		if err != nil {
 			return nil, err
 		}
@@ -256,6 +260,9 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 		net.Username = fromStringPtr(username)
 		net.Realname = fromStringPtr(realname)
 		net.Pass = fromStringPtr(pass)
+		if connectCommands != nil {
+			net.ConnectCommands = strings.Split(*connectCommands, "\r\n")
+		}
 		net.SASL.Mechanism = fromStringPtr(saslMechanism)
 		net.SASL.Plain.Username = fromStringPtr(saslPlainUsername)
 		net.SASL.Plain.Password = fromStringPtr(saslPlainPassword)
@@ -276,6 +283,7 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 	netUsername := toStringPtr(network.Username)
 	realname := toStringPtr(network.Realname)
 	pass := toStringPtr(network.Pass)
+	connectCommands := toStringPtr(strings.Join(network.ConnectCommands, "\r\n"))
 
 	var saslMechanism, saslPlainUsername, saslPlainPassword *string
 	if network.SASL.Mechanism != "" {
@@ -292,18 +300,18 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 	var err error
 	if network.ID != 0 {
 		_, err = db.db.Exec(`UPDATE Network
-			SET name = ?, addr = ?, nick = ?, username = ?, realname = ?, pass = ?,
+			SET name = ?, addr = ?, nick = ?, username = ?, realname = ?, pass = ?, connect_commands = ?,
 				sasl_mechanism = ?, sasl_plain_username = ?, sasl_plain_password = ?
 			WHERE id = ?`,
-			netName, network.Addr, network.Nick, netUsername, realname, pass,
+			netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.ID)
 	} else {
 		var res sql.Result
 		res, err = db.db.Exec(`INSERT INTO Network(user, name, addr, nick, username,
-				realname, pass, sasl_mechanism, sasl_plain_username,
+				realname, pass, connect_commands, sasl_mechanism, sasl_plain_username,
 				sasl_plain_password)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			username, netName, network.Addr, network.Nick, netUsername, realname, pass,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			username, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword)
 		if err != nil {
 			return err

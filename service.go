@@ -104,7 +104,7 @@ func init() {
 		"network": {
 			children: serviceCommandSet{
 				"create": {
-					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick]",
+					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [[-connect-command command] ...]",
 					desc:   "add a new network",
 					handle: handleServiceCreateNetwork,
 				},
@@ -174,6 +174,17 @@ func newFlagSet() *flag.FlagSet {
 	return fs
 }
 
+type stringSliceVar []string
+
+func (v *stringSliceVar) String() string {
+	return fmt.Sprint([]string(*v))
+}
+
+func (v *stringSliceVar) Set(s string) error {
+	*v = append(*v, s)
+	return nil
+}
+
 func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 	fs := newFlagSet()
 	addr := fs.String("addr", "", "")
@@ -182,6 +193,8 @@ func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 	pass := fs.String("pass", "", "")
 	realname := fs.String("realname", "", "")
 	nick := fs.String("nick", "", "")
+	var connectCommands stringSliceVar
+	fs.Var(&connectCommands, "connect-command", "")
 
 	if err := fs.Parse(params); err != nil {
 		return err
@@ -190,18 +203,26 @@ func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 		return fmt.Errorf("flag -addr is required")
 	}
 
+	for _, command := range connectCommands {
+		_, err := irc.ParseMessage(command)
+		if err != nil {
+			return fmt.Errorf("flag -connect-command must be a valid raw irc command string: %q: %v", command, err)
+		}
+	}
+
 	if *nick == "" {
 		*nick = dc.nick
 	}
 
 	var err error
 	network, err := dc.user.createNetwork(&Network{
-		Addr:     *addr,
-		Name:     *name,
-		Username: *username,
-		Pass:     *pass,
-		Realname: *realname,
-		Nick:     *nick,
+		Addr:            *addr,
+		Name:            *name,
+		Username:        *username,
+		Pass:            *pass,
+		Realname:        *realname,
+		Nick:            *nick,
+		ConnectCommands: connectCommands,
 	})
 	if err != nil {
 		return fmt.Errorf("could not create network: %v", err)
