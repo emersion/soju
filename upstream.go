@@ -1189,6 +1189,15 @@ func (uc *upstreamConn) runUntilRegistered() error {
 		}
 	}
 
+	for _, command := range uc.network.ConnectCommands {
+		m, err := irc.ParseMessage(command)
+		if err != nil {
+			uc.logger.Printf("failed to parse connect command %q: %v", command, err)
+		} else {
+			uc.SendMessage(m)
+		}
+	}
+
 	return nil
 }
 
