@@ -238,25 +238,25 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 // marshalMessage re-formats a message coming from an upstream connection so
 // that it's suitable for being sent on this downstream connection. Only
 // messages that may appear in logs are supported.
-func (dc *downstreamConn) marshalMessage(msg *irc.Message, uc *upstreamConn) *irc.Message {
+func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Message {
 	msg = msg.Copy()
-	msg.Prefix = dc.marshalUserPrefix(uc.network, msg.Prefix)
+	msg.Prefix = dc.marshalUserPrefix(net, msg.Prefix)
 
 	switch msg.Command {
 	case "PRIVMSG", "NOTICE":
-		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
 	case "NICK":
 		// Nick change for another user
-		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
 	case "JOIN", "PART":
-		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
 	case "KICK":
-		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
-		msg.Params[1] = dc.marshalEntity(uc.network, msg.Params[1])
+		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
+		msg.Params[1] = dc.marshalEntity(net, msg.Params[1])
 	case "TOPIC":
-		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
 	case "MODE":
-		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
 	case "QUIT":
 		// This space is intentinally left blank
 	default:
@@ -710,16 +710,6 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 
 		consumer := history.ring.NewConsumer(seq)
 
-		// TODO: this means all history is lost when trying to send it while the
-		// upstream is disconnected. We need to store history differently so that
-		// we don't need access to upstreamConn to forward it to a downstream
-		// client.
-		uc := net.upstream()
-		if uc == nil {
-			dc.logger.Printf("ignoring messages for upstream %q: upstream is disconnected", net.Addr)
-			return
-		}
-
 		batchRef := "history"
 		if dc.caps["batch"] {
 			dc.SendMessage(&irc.Message{
@@ -752,7 +742,7 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 				msg.Tags["batch"] = irc.TagValue(batchRef)
 			}
 
-			dc.SendMessage(dc.marshalMessage(msg, uc))
+			dc.SendMessage(dc.marshalMessage(msg, net))
 		}
 
 		if dc.caps["batch"] {

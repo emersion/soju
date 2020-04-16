@@ -562,7 +562,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		if !me {
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(dc.marshalMessage(msg, uc))
+				dc.SendMessage(dc.marshalMessage(msg, uc.network))
 			})
 		}
 	case "JOIN":
@@ -668,7 +668,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		if msg.Prefix.Name != uc.nick {
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(dc.marshalMessage(msg, uc))
+				dc.SendMessage(dc.marshalMessage(msg, uc.network))
 			})
 		}
 	case irc.RPL_TOPIC, irc.RPL_NOTOPIC:
@@ -1331,7 +1331,7 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		if dc != origin || dc.caps["echo-message"] {
-			dc.SendMessage(dc.marshalMessage(msg, uc))
+			dc.SendMessage(dc.marshalMessage(msg, uc.network))
 		}
 	})
 }
