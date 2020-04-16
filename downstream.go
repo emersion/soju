@@ -258,7 +258,7 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Me
 	case "MODE":
 		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
 	case "QUIT":
-		// This space is intentinally left blank
+		// This space is intentionally left blank
 	default:
 		panic(fmt.Sprintf("unexpected %q message", msg.Command))
 	}
