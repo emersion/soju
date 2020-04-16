@@ -128,6 +128,9 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 // user.
 func (dc *downstreamConn) marshalEntity(uc *upstreamConn, name string) string {
 	if dc.network != nil {
+		if dc.network != uc.network {
+			panic("soju: tried to marshal an entity for another network")
+		}
 		return name
 	}
 	if name == uc.nick {
@@ -149,6 +152,9 @@ func (dc *downstreamConn) marshalUserPrefix(uc *upstreamConn, prefix *irc.Prefix
 		return dc.prefix()
 	}
 	if dc.network != nil {
+		if dc.network != uc.network {
+			panic("soju: tried to marshal a user prefix for another network")
+		}
 		return prefix
 	}
 	return &irc.Prefix{
