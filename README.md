@@ -15,7 +15,7 @@ A user-friendly IRC bouncer.
 
 Then connect with username `<username>/chat.freenode.net` and join `#soju`.
 
-See the man page at `soju.1.scd` for more information.
+See the man page at `doc/soju.1.scd` for more information.
 
 ## Contributing
 
