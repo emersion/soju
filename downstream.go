@@ -126,18 +126,36 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 //
 // This involves adding a "/<network>" suffix if the entity isn't the current
 // user.
-func (dc *downstreamConn) marshalEntity(uc *upstreamConn, entity string) string {
-	if uc.isChannel(entity) {
-		return dc.marshalChannel(uc, entity)
-	}
-	return dc.marshalNick(uc, entity)
-}
-
-func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
+func (dc *downstreamConn) marshalEntity(uc *upstreamConn, name string) string {
 	if dc.network != nil {
 		return name
 	}
+	if name == uc.nick {
+		return dc.nick
+	}
 	return name + "/" + uc.network.GetName()
+}
+
+func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
+	return dc.marshalEntity(uc, name)
+}
+
+func (dc *downstreamConn) marshalNick(uc *upstreamConn, name string) string {
+	return dc.marshalEntity(uc, name)
+}
+
+func (dc *downstreamConn) marshalUserPrefix(uc *upstreamConn, prefix *irc.Prefix) *irc.Prefix {
+	if prefix.Name == uc.nick {
+		return dc.prefix()
+	}
+	if dc.network != nil {
+		return prefix
+	}
+	return &irc.Prefix{
+		Name: prefix.Name + "/" + uc.network.GetName(),
+		User: prefix.User,
+		Host: prefix.Host,
+	}
 }
 
 // unmarshalEntity converts a downstream entity name (ie. channel or nick) into
@@ -169,30 +187,6 @@ func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, e
 		}}
 	}
 	return conn, name, nil
-}
-
-func (dc *downstreamConn) marshalNick(uc *upstreamConn, nick string) string {
-	if nick == uc.nick {
-		return dc.nick
-	}
-	if dc.network != nil {
-		return nick
-	}
-	return nick + "/" + uc.network.GetName()
-}
-
-func (dc *downstreamConn) marshalUserPrefix(uc *upstreamConn, prefix *irc.Prefix) *irc.Prefix {
-	if prefix.Name == uc.nick {
-		return dc.prefix()
-	}
-	if dc.network != nil {
-		return prefix
-	}
-	return &irc.Prefix{
-		Name: prefix.Name + "/" + uc.network.GetName(),
-		User: prefix.User,
-		Host: prefix.Host,
-	}
 }
 
 func (dc *downstreamConn) readMessages(ch chan<- event) error {
