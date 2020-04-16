@@ -16,7 +16,7 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 }
 
 func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
-	downstreamName := dc.marshalEntity(ch.conn, ch.Name)
+	downstreamName := dc.marshalEntity(ch.conn.network, ch.Name)
 
 	if ch.Topic != "" {
 		dc.SendMessage(&irc.Message{
@@ -36,10 +36,10 @@ func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
 func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 	// TODO: send multiple members in each message
 
-	downstreamName := dc.marshalEntity(ch.conn, ch.Name)
+	downstreamName := dc.marshalEntity(ch.conn.network, ch.Name)
 
 	for nick, membership := range ch.Members {
-		s := membership.String() + dc.marshalEntity(ch.conn, nick)
+		s := membership.String() + dc.marshalEntity(ch.conn.network, nick)
 
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),

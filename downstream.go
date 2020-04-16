@@ -121,36 +121,48 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 	return dc.network.upstream()
 }
 
+func isOurNick(net *network, nick string) bool {
+	// TODO: this doesn't account for nick changes
+	if net.conn != nil {
+		return nick == net.conn.nick
+	}
+	// We're not currently connected to the upstream connection, so we don't
+	// know whether this name is our nickname. Best-effort: use the network's
+	// configured nickname and hope it was the one being used when we were
+	// connected.
+	return nick == net.Nick
+}
+
 // marshalEntity converts an upstream entity name (ie. channel or nick) into a
 // downstream entity name.
 //
 // This involves adding a "/<network>" suffix if the entity isn't the current
 // user.
-func (dc *downstreamConn) marshalEntity(uc *upstreamConn, name string) string {
+func (dc *downstreamConn) marshalEntity(net *network, name string) string {
 	if dc.network != nil {
-		if dc.network != uc.network {
+		if dc.network != net {
 			panic("soju: tried to marshal an entity for another network")
 		}
 		return name
 	}
-	if name == uc.nick {
+	if isOurNick(net, name) {
 		return dc.nick
 	}
-	return name + "/" + uc.network.GetName()
+	return name + "/" + net.GetName()
 }
 
-func (dc *downstreamConn) marshalUserPrefix(uc *upstreamConn, prefix *irc.Prefix) *irc.Prefix {
-	if prefix.Name == uc.nick {
+func (dc *downstreamConn) marshalUserPrefix(net *network, prefix *irc.Prefix) *irc.Prefix {
+	if isOurNick(net, prefix.Name) {
 		return dc.prefix()
 	}
 	if dc.network != nil {
-		if dc.network != uc.network {
+		if dc.network != net {
 			panic("soju: tried to marshal a user prefix for another network")
 		}
 		return prefix
 	}
 	return &irc.Prefix{
-		Name: prefix.Name + "/" + uc.network.GetName(),
+		Name: prefix.Name + "/" + net.GetName(),
 		User: prefix.User,
 		Host: prefix.Host,
 	}
@@ -228,23 +240,23 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 // messages that may appear in logs are supported.
 func (dc *downstreamConn) marshalMessage(msg *irc.Message, uc *upstreamConn) *irc.Message {
 	msg = msg.Copy()
-	msg.Prefix = dc.marshalUserPrefix(uc, msg.Prefix)
+	msg.Prefix = dc.marshalUserPrefix(uc.network, msg.Prefix)
 
 	switch msg.Command {
 	case "PRIVMSG", "NOTICE":
-		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
 	case "NICK":
 		// Nick change for another user
-		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
 	case "JOIN", "PART":
-		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
 	case "KICK":
-		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
-		msg.Params[1] = dc.marshalEntity(uc, msg.Params[1])
+		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
+		msg.Params[1] = dc.marshalEntity(uc.network, msg.Params[1])
 	case "TOPIC":
-		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
 	case "MODE":
-		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(uc.network, msg.Params[0])
 	case "QUIT":
 		// This space is intentinally left blank
 	default:
@@ -662,7 +674,7 @@ func (dc *downstreamConn) welcome() error {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.prefix(),
 					Command: "JOIN",
-					Params:  []string{dc.marshalEntity(ch.conn, ch.Name)},
+					Params:  []string{dc.marshalEntity(ch.conn.network, ch.Name)},
 				})
 
 				forwardChannel(dc, ch)
@@ -713,7 +725,7 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BATCH",
-				Params:  []string{"+" + batchRef, "chathistory", dc.marshalEntity(uc, target)},
+				Params:  []string{"+" + batchRef, "chathistory", dc.marshalEntity(net, target)},
 			})
 		}
 
