@@ -49,7 +49,7 @@ be done by adding a "@<client>" suffix to the username.
 	Show help message and quit.
 
 *-config* <path>
-	Path to the config file.
+	Path to the config file. If unset, a default config file is used.
 
 *-debug*
 	Enable debug logging (this will leak sensitive information such as
@@ -73,10 +73,12 @@ The config file has one directive per line.
 
 *sql* <driver> <source>
 	Set the SQL driver settings. The only supported driver is "sqlite3". The
-	source is the path to the SQLite database file.
+	source is the path to the SQLite database file. By default, the path to the
+	database file is "soju.db".
 
 *log* <path>
-	Path to the bouncer logs root directory, or empty to disable logging.
+	Path to the bouncer logs root directory, or empty to disable logging. By
+	default, logging is disabled.
 
 # IRC SERVICE
 
