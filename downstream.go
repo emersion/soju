@@ -139,14 +139,6 @@ func (dc *downstreamConn) marshalEntity(uc *upstreamConn, name string) string {
 	return name + "/" + uc.network.GetName()
 }
 
-func (dc *downstreamConn) marshalChannel(uc *upstreamConn, name string) string {
-	return dc.marshalEntity(uc, name)
-}
-
-func (dc *downstreamConn) marshalNick(uc *upstreamConn, name string) string {
-	return dc.marshalEntity(uc, name)
-}
-
 func (dc *downstreamConn) marshalUserPrefix(uc *upstreamConn, prefix *irc.Prefix) *irc.Prefix {
 	if prefix.Name == uc.nick {
 		return dc.prefix()
@@ -243,14 +235,14 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, uc *upstreamConn) *ir
 		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
 	case "NICK":
 		// Nick change for another user
-		msg.Params[0] = dc.marshalNick(uc, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
 	case "JOIN", "PART":
-		msg.Params[0] = dc.marshalChannel(uc, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
 	case "KICK":
-		msg.Params[0] = dc.marshalChannel(uc, msg.Params[0])
-		msg.Params[1] = dc.marshalNick(uc, msg.Params[1])
+		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
+		msg.Params[1] = dc.marshalEntity(uc, msg.Params[1])
 	case "TOPIC":
-		msg.Params[0] = dc.marshalChannel(uc, msg.Params[0])
+		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
 	case "MODE":
 		msg.Params[0] = dc.marshalEntity(uc, msg.Params[0])
 	case "QUIT":
@@ -670,7 +662,7 @@ func (dc *downstreamConn) welcome() error {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.prefix(),
 					Command: "JOIN",
-					Params:  []string{dc.marshalChannel(ch.conn, ch.Name)},
+					Params:  []string{dc.marshalEntity(ch.conn, ch.Name)},
 				})
 
 				forwardChannel(dc, ch)
