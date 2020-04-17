@@ -12,11 +12,11 @@ and try to open an upstream connection for each network.
 ## Ring buffer
 
 In order to correctly send history to each downstream client, soju maintains
-for each network a single-producer multiple-consumer ring buffer. The network's
-upstream connection produces messages and multiple downstream connections
-consume these messages. Each downstream client may have a different cursor in
-the history: for instance a client may be 10 messages late while another has
-consumed all pending messages.
+for each upstream channel a single-producer multiple-consumer ring buffer. The
+network's upstream connection produces messages and multiple downstream
+connections consume these messages. Each downstream client may have a different
+cursor in the history: for instance a client may be 10 messages late while
+another has consumed all pending messages.
 
 ## Goroutines
 
