@@ -33,6 +33,7 @@ type Network struct {
 	Pass            string
 	ConnectCommands []string
 	SASL            SASL
+	InsecureTLS     bool
 }
 
 func (net *Network) GetName() string {
@@ -69,6 +70,7 @@ CREATE TABLE Network (
 	sasl_mechanism VARCHAR(255),
 	sasl_plain_username VARCHAR(255),
 	sasl_plain_password VARCHAR(255),
+	insecure_tls INTEGER,
 	FOREIGN KEY(user) REFERENCES User(username),
 	UNIQUE(user, addr, nick)
 );
@@ -86,6 +88,7 @@ CREATE TABLE Channel (
 var migrations = []string{
 	"", // migration #0 is reserved for schema initialization
 	"ALTER TABLE Network ADD COLUMN connect_commands VARCHAR(1023)",
+	"ALTER TABLE Network ADD COLUMN insecure_tls INTEGER DEFAULT 0",
 }
 
 type DB struct {
@@ -169,6 +172,24 @@ func toStringPtr(s string) *string {
 	return &s
 }
 
+func fromBoolPtr(ptr *int) bool {
+	if ptr == nil {
+		return false
+	}
+	if *ptr == 0 {
+		return false
+	}
+	return true
+}
+
+func toBoolPtr(b bool) *int {
+	v := 0
+	if b {
+		v = 1
+	}
+	return &v
+}
+
 func (db *DB) ListUsers() ([]User, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
@@ -237,7 +258,7 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	defer db.lock.RUnlock()
 
 	rows, err := db.db.Query(`SELECT id, name, addr, nick, username, realname, pass,
-			connect_commands, sasl_mechanism, sasl_plain_username, sasl_plain_password
+			connect_commands, sasl_mechanism, sasl_plain_username, sasl_plain_password, insecure_tls
 		FROM Network
 		WHERE user = ?`,
 		username)
@@ -251,8 +272,9 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 		var net Network
 		var name, username, realname, pass, connectCommands *string
 		var saslMechanism, saslPlainUsername, saslPlainPassword *string
+		var insecureTls *int
 		err := rows.Scan(&net.ID, &name, &net.Addr, &net.Nick, &username, &realname,
-			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword)
+			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword, &insecureTls)
 		if err != nil {
 			return nil, err
 		}
@@ -266,6 +288,7 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 		net.SASL.Mechanism = fromStringPtr(saslMechanism)
 		net.SASL.Plain.Username = fromStringPtr(saslPlainUsername)
 		net.SASL.Plain.Password = fromStringPtr(saslPlainPassword)
+		net.InsecureTLS = fromBoolPtr(insecureTls)
 		networks = append(networks, net)
 	}
 	if err := rows.Err(); err != nil {
@@ -284,6 +307,7 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 	realname := toStringPtr(network.Realname)
 	pass := toStringPtr(network.Pass)
 	connectCommands := toStringPtr(strings.Join(network.ConnectCommands, "\r\n"))
+	insecureTls := toBoolPtr(network.InsecureTLS)
 
 	var saslMechanism, saslPlainUsername, saslPlainPassword *string
 	if network.SASL.Mechanism != "" {
@@ -301,18 +325,18 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 	if network.ID != 0 {
 		_, err = db.db.Exec(`UPDATE Network
 			SET name = ?, addr = ?, nick = ?, username = ?, realname = ?, pass = ?, connect_commands = ?,
-				sasl_mechanism = ?, sasl_plain_username = ?, sasl_plain_password = ?
+				sasl_mechanism = ?, sasl_plain_username = ?, sasl_plain_password = ?, insecure_tls = ?
 			WHERE id = ?`,
 			netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
-			saslMechanism, saslPlainUsername, saslPlainPassword, network.ID)
+			saslMechanism, saslPlainUsername, saslPlainPassword, insecureTls, network.ID)
 	} else {
 		var res sql.Result
 		res, err = db.db.Exec(`INSERT INTO Network(user, name, addr, nick, username,
 				realname, pass, connect_commands, sasl_mechanism, sasl_plain_username,
-				sasl_plain_password)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				sasl_plain_password, insecure_tls)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			username, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
-			saslMechanism, saslPlainUsername, saslPlainPassword)
+			saslMechanism, saslPlainUsername, saslPlainPassword, insecureTls)
 		if err != nil {
 			return err
 		}
