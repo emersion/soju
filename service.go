@@ -104,7 +104,7 @@ func init() {
 		"network": {
 			children: serviceCommandSet{
 				"create": {
-					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [[-connect-command command] ...]",
+					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [[-connect-command command] ...] [-no-tls]",
 					desc:   "add a new network",
 					handle: handleServiceCreateNetwork,
 				},
@@ -195,6 +195,7 @@ func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 	nick := fs.String("nick", "", "")
 	var connectCommands stringSliceVar
 	fs.Var(&connectCommands, "connect-command", "")
+	noTLS := fs.Bool("no-tls", false, "")
 
 	if err := fs.Parse(params); err != nil {
 		return err
@@ -223,6 +224,7 @@ func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 		Realname:        *realname,
 		Nick:            *nick,
 		ConnectCommands: connectCommands,
+		NoTLS:           *noTLS,
 	})
 	if err != nil {
 		return fmt.Errorf("could not create network: %v", err)
