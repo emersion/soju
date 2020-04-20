@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"log"
@@ -54,12 +55,10 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Printf("Password: ")
-		password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		password, err := readPassword()
 		if err != nil {
 			log.Fatalf("failed to read password: %v", err)
 		}
-		fmt.Printf("\n")
 
 		hashed, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
 		if err != nil {
@@ -80,12 +79,10 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Printf("New password: ")
-		password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		password, err := readPassword()
 		if err != nil {
-			log.Fatalf("failed to read new password: %v", err)
+			log.Fatalf("failed to read password: %v", err)
 		}
-		fmt.Printf("\n")
 
 		hashed, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
 		if err != nil {
@@ -106,4 +103,30 @@ func main() {
 			os.Exit(1)
 		}
 	}
+}
+
+func readPassword() ([]byte, error) {
+	var password []byte
+	var err error
+	fd := int(os.Stdin.Fd())
+
+	if terminal.IsTerminal(fd) {
+		fmt.Printf("Password: ")
+		password, err = terminal.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			return nil, err
+		}
+		fmt.Printf("\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "Warning: Reading password from stdin.\n")
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Scan()
+		password = scanner.Bytes()
+
+		if len(password) == 0 {
+			return nil, fmt.Errorf("zero length password")
+		}
+	}
+
+	return password, nil
 }
