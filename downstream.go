@@ -199,6 +199,14 @@ func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, e
 	return conn, name, nil
 }
 
+func (dc *downstreamConn) unmarshalText(uc *upstreamConn, text string) string {
+	if dc.upstream() != nil {
+		return text
+	}
+	// TODO: smarter parsing that ignores URLs
+	return strings.ReplaceAll(text, "/"+uc.network.GetName(), "")
+}
+
 func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	for {
 		msg, err := dc.ReadMessage()
@@ -1233,9 +1241,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				dc.handleNickServPRIVMSG(uc, text)
 			}
 
+			unmarshaledText := text
+			if uc.isChannel(upstreamName) {
+				unmarshaledText = dc.unmarshalText(uc, text)
+			}
 			uc.SendMessage(&irc.Message{
 				Command: "PRIVMSG",
-				Params:  []string{upstreamName, text},
+				Params:  []string{upstreamName, unmarshaledText},
 			})
 
 			echoMsg := &irc.Message{
@@ -1261,9 +1273,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return err
 			}
 
+			unmarshaledText := text
+			if uc.isChannel(upstreamName) {
+				unmarshaledText = dc.unmarshalText(uc, text)
+			}
 			uc.SendMessage(&irc.Message{
 				Command: "NOTICE",
-				Params:  []string{upstreamName, text},
+				Params:  []string{upstreamName, unmarshaledText},
 			})
 		}
 	case "INVITE":
