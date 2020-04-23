@@ -1,12 +1,14 @@
 package soju
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
 	"time"
 
 	"gopkg.in/irc.v3"
+	"nhooyr.io/websocket"
 )
 
 // ircConn is a generic IRC connection. It's similar to net.Conn but focuses on
@@ -15,16 +17,64 @@ type ircConn interface {
 	ReadMessage() (*irc.Message, error)
 	WriteMessage(*irc.Message) error
 	Close() error
-	SetWriteDeadline(time.Time) error
 	SetReadDeadline(time.Time) error
+	SetWriteDeadline(time.Time) error
 }
 
-func netIRCConn(c net.Conn) ircConn {
+func newNetIRCConn(c net.Conn) ircConn {
 	type netConn net.Conn
 	return struct {
 		*irc.Conn
 		netConn
 	}{irc.NewConn(c), c}
+}
+
+type websocketIRCConn struct {
+	conn                        *websocket.Conn
+	readDeadline, writeDeadline time.Time
+}
+
+func newWebsocketIRCConn(c *websocket.Conn) ircConn {
+	return websocketIRCConn{conn: c}
+}
+
+func (wic websocketIRCConn) ReadMessage() (*irc.Message, error) {
+	ctx := context.Background()
+	if !wic.readDeadline.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, wic.readDeadline)
+		defer cancel()
+	}
+	_, b, err := wic.conn.Read(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return irc.ParseMessage(string(b))
+}
+
+func (wic websocketIRCConn) WriteMessage(msg *irc.Message) error {
+	b := []byte(msg.String())
+	ctx := context.Background()
+	if !wic.writeDeadline.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, wic.writeDeadline)
+		defer cancel()
+	}
+	return wic.conn.Write(ctx, websocket.MessageText, b)
+}
+
+func (wic websocketIRCConn) Close() error {
+	return wic.conn.Close(websocket.StatusNormalClosure, "")
+}
+
+func (wic websocketIRCConn) SetReadDeadline(t time.Time) error {
+	wic.readDeadline = t
+	return nil
+}
+
+func (wic websocketIRCConn) SetWriteDeadline(t time.Time) error {
+	wic.writeDeadline = t
+	return nil
 }
 
 type conn struct {

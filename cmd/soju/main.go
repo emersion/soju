@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -56,6 +57,7 @@ func main() {
 	// TODO: load from config/DB
 	srv.Hostname = cfg.Hostname
 	srv.LogPath = cfg.LogPath
+	srv.HTTPOrigins = cfg.HTTPOrigins
 	srv.Debug = debug
 
 	for _, listen := range cfg.Listen {
@@ -96,6 +98,31 @@ func main() {
 			}
 			go func() {
 				log.Fatal(srv.Serve(ln))
+			}()
+		case "wss":
+			addr := u.Host
+			if _, _, err := net.SplitHostPort(addr); err != nil {
+				addr = addr + ":https"
+			}
+			httpSrv := http.Server{
+				Addr:      addr,
+				TLSConfig: tlsCfg,
+				Handler:   srv,
+			}
+			go func() {
+				log.Fatal(httpSrv.ListenAndServeTLS("", ""))
+			}()
+		case "ws+insecure":
+			addr := u.Host
+			if _, _, err := net.SplitHostPort(addr); err != nil {
+				addr = addr + ":http"
+			}
+			httpSrv := http.Server{
+				Addr:    addr,
+				Handler: srv,
+			}
+			go func() {
+				log.Fatal(httpSrv.ListenAndServe())
 			}()
 		default:
 			log.Fatalf("failed to listen on %q: unsupported scheme", listen)

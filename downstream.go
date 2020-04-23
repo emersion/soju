@@ -99,15 +99,15 @@ type downstreamConn struct {
 	saslServer sasl.Server
 }
 
-func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn {
-	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())}
+func newDownstreamConn(srv *Server, ic ircConn, remoteAddr string, id uint64) *downstreamConn {
+	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", remoteAddr)}
 	dc := &downstreamConn{
-		conn:          *newConn(srv, netIRCConn(netConn), logger),
+		conn:          *newConn(srv, ic, logger),
 		id:            id,
 		supportedCaps: make(map[string]string),
 		caps:          make(map[string]bool),
 	}
-	dc.hostname = netConn.RemoteAddr().String()
+	dc.hostname = remoteAddr
 	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
 		dc.hostname = host
 	}

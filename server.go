@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/irc.v3"
+	"nhooyr.io/websocket"
 )
 
 // TODO: make configurable
@@ -44,6 +47,7 @@ type Server struct {
 	HistoryLimit int
 	LogPath      string
 	Debug        bool
+	HTTPOrigins  []string
 
 	db *DB
 
@@ -91,27 +95,41 @@ func (s *Server) getUser(name string) *user {
 	return u
 }
 
+var lastDownstreamID uint64 = 0
+
+func (s *Server) handle(ic ircConn, remoteAddr string) {
+	id := atomic.AddUint64(&lastDownstreamID, 1)
+	dc := newDownstreamConn(s, ic, remoteAddr, id)
+	if err := dc.runUntilRegistered(); err != nil {
+		dc.logger.Print(err)
+	} else {
+		dc.user.events <- eventDownstreamConnected{dc}
+		if err := dc.readMessages(dc.user.events); err != nil {
+			dc.logger.Print(err)
+		}
+		dc.user.events <- eventDownstreamDisconnected{dc}
+	}
+	dc.Close()
+}
+
 func (s *Server) Serve(ln net.Listener) error {
-	var nextDownstreamID uint64 = 1
 	for {
-		netConn, err := ln.Accept()
+		conn, err := ln.Accept()
 		if err != nil {
 			return fmt.Errorf("failed to accept connection: %v", err)
 		}
 
-		dc := newDownstreamConn(s, netConn, nextDownstreamID)
-		nextDownstreamID++
-		go func() {
-			if err := dc.runUntilRegistered(); err != nil {
-				dc.logger.Print(err)
-			} else {
-				dc.user.events <- eventDownstreamConnected{dc}
-				if err := dc.readMessages(dc.user.events); err != nil {
-					dc.logger.Print(err)
-				}
-				dc.user.events <- eventDownstreamDisconnected{dc}
-			}
-			dc.Close()
-		}()
+		go s.handle(newNetIRCConn(conn), conn.RemoteAddr().String())
 	}
+}
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	conn, err := websocket.Accept(w, req, &websocket.AcceptOptions{
+		OriginPatterns: s.HTTPOrigins,
+	})
+	if err != nil {
+		s.Logger.Printf("failed to serve HTTP connection: %v", err)
+		return
+	}
+	s.handle(newWebsocketIRCConn(conn), req.RemoteAddr)
 }

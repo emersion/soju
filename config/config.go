@@ -14,12 +14,13 @@ type TLS struct {
 }
 
 type Server struct {
-	Listen    []string
-	Hostname  string
-	TLS       *TLS
-	SQLDriver string
-	SQLSource string
-	LogPath   string
+	Listen      []string
+	Hostname    string
+	TLS         *TLS
+	SQLDriver   string
+	SQLSource   string
+	LogPath     string
+	HTTPOrigins []string
 }
 
 func Defaults() *Server {
@@ -90,6 +91,8 @@ func Parse(r io.Reader) (*Server, error) {
 			if err := d.parseParams(&srv.LogPath); err != nil {
 				return nil, err
 			}
+		case "http-origin":
+			srv.HTTPOrigins = append(srv.HTTPOrigins, d.Params...)
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)
 		}

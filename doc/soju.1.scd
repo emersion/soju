@@ -72,6 +72,10 @@ The config file has one directive per line.
 	  omitted: 6697)
 	- _irc+insecure://[host][:port]_ listens with plain-text over TCP (default
 	  port if omitted: 6667)
+	- _wss://[host][:port]_ listens for WebSocket connections over TLS (default
+	  port: 443)
+	- _ws+insecure://[host][:port]_ listens for plain-text WebSocket
+	  connections (default port: 80)
 
 	If the scheme is omitted, "ircs" is assumed. If multiple *listen*
 	directives are specified, soju will listen on each of them.
@@ -90,6 +94,10 @@ The config file has one directive per line.
 *log* <path>
 	Path to the bouncer logs root directory, or empty to disable logging. By
 	default, logging is disabled.
+
+*http-origin* <patterns...>
+	List of allowed HTTP origins for WebSocket listeners. The parameters are
+	interpreted as shell patterns, see *glob*(7).
 
 # IRC SERVICE
 
