@@ -97,6 +97,7 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 
 	_addr_ supports several connection types:
 	- _[ircs://]host[:port]_ connects with TLS over TCP
+	- _irc+insecure://host[:port]_ connects with plain-text TCP
 
 	Other options are:
 

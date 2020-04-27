@@ -206,9 +206,9 @@ func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 	if addrParts := strings.SplitN(*addr, "://", 2); len(addrParts) == 2 {
 		scheme := addrParts[0]
 		switch scheme {
-		case "ircs":
+		case "ircs", "irc+insecure":
 		default:
-			return fmt.Errorf("unknown scheme %q (supported schemes: ircs)", scheme)
+			return fmt.Errorf("unknown scheme %q (supported schemes: ircs, irc+insecure)", scheme)
 		}
 	}
 

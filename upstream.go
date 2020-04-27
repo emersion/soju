@@ -90,6 +90,13 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 
 		logger.Printf("connecting to TLS server at address %q", addr)
 		netConn, err = tls.DialWithDialer(&dialer, "tcp", addr, nil)
+	case "irc+insecure":
+		if !strings.ContainsRune(addr, ':') {
+			addr = addr + ":6667"
+		}
+
+		logger.Printf("connecting to plain-text server at address %q", addr)
+		netConn, err = dialer.Dial("tcp", addr)
 	default:
 		return nil, fmt.Errorf("failed to dial %q: unknown scheme: %v", addr, scheme)
 	}
