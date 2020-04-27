@@ -93,7 +93,12 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	the command.
 
 *network create* *-addr* <addr> [options...]
-	Connect to a new network at _addr_. _-addr_ is mandatory. Other options are:
+	Connect to a new network at _addr_. _-addr_ is mandatory.
+
+	_addr_ supports several connection types:
+	- _[ircs://]host[:port]_ connects with TLS over TCP
+
+	Other options are:
 
 	*-name* <name>
 		Short network name. This will be used instead of _addr_ to refer to the

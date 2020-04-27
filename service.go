@@ -203,6 +203,15 @@ func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
 		return fmt.Errorf("flag -addr is required")
 	}
 
+	if addrParts := strings.SplitN(*addr, "://", 2); len(addrParts) == 2 {
+		scheme := addrParts[0]
+		switch scheme {
+		case "ircs":
+		default:
+			return fmt.Errorf("unknown scheme %q (supported schemes: ircs)", scheme)
+		}
+	}
+
 	for _, command := range connectCommands {
 		_, err := irc.ParseMessage(command)
 		if err != nil {
