@@ -66,15 +66,33 @@ type upstreamConn struct {
 func connectToUpstream(network *network) (*upstreamConn, error) {
 	logger := &prefixLogger{network.user.srv.Logger, fmt.Sprintf("upstream %q: ", network.Addr)}
 
-	addr := network.Addr
-	if !strings.ContainsRune(addr, ':') {
-		addr = addr + ":6697"
+	var scheme string
+	var addr string
+
+	addrParts := strings.SplitN(network.Addr, "://", 2)
+	if len(addrParts) == 2 {
+		scheme = addrParts[0]
+		addr = addrParts[1]
+	} else {
+		scheme = "ircs"
+		addr = addrParts[0]
 	}
 
 	dialer := net.Dialer{Timeout: connectTimeout}
 
-	logger.Printf("connecting to TLS server at address %q", addr)
-	netConn, err := tls.DialWithDialer(&dialer, "tcp", addr, nil)
+	var netConn net.Conn
+	var err error
+	switch scheme {
+	case "ircs":
+		if !strings.ContainsRune(addr, ':') {
+			addr = addr + ":6697"
+		}
+
+		logger.Printf("connecting to TLS server at address %q", addr)
+		netConn, err = tls.DialWithDialer(&dialer, "tcp", addr, nil)
+	default:
+		return nil, fmt.Errorf("failed to dial %q: unknown scheme: %v", addr, scheme)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %q: %v", addr, err)
 	}
