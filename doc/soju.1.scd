@@ -23,7 +23,8 @@ behalf of the user to provide extra features.
 When joining a channel, the channel will be saved and automatically joined on
 the next connection. When registering or authenticating with NickServ, the
 credentials will be saved and automatically used on the next connection if the
-server supports SASL.
+server supports SASL. When parting a channel with the reason "detach", the
+channel will be detached instead of being left.
 
 When all clients are disconnected from the bouncer, the user is automatically
 marked as away.

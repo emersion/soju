@@ -1405,8 +1405,13 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 
 // appendHistory appends a message to the history. entity can be empty.
 func (uc *upstreamConn) appendHistory(entity string, msg *irc.Message) {
+	detached := false
+	if ch, ok := uc.network.channels[entity]; ok {
+		detached = ch.Detached
+	}
+
 	// If no client is offline, no need to append the message to the buffer
-	if len(uc.network.offlineClients) == 0 {
+	if len(uc.network.offlineClients) == 0 && !detached {
 		return
 	}
 
@@ -1420,6 +1425,14 @@ func (uc *upstreamConn) appendHistory(entity string, msg *irc.Message) {
 
 		for clientName, _ := range uc.network.offlineClients {
 			history.offlineClients[clientName] = 0
+		}
+
+		if detached {
+			// If the channel is detached, online clients act as offline
+			// clients too
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				history.offlineClients[dc.clientName] = 0
+			})
 		}
 	}
 
@@ -1437,6 +1450,11 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 	}
 
 	uc.appendHistory(target, msg)
+
+	// Don't forward messages if it's a detached channel
+	if ch, ok := uc.network.channels[target]; ok && ch.Detached {
+		return
+	}
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		if dc != origin || dc.caps["echo-message"] {

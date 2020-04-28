@@ -150,7 +150,51 @@ func (net *network) createUpdateChannel(ch *Channel) error {
 	if err := net.user.srv.db.StoreChannel(net.ID, ch); err != nil {
 		return err
 	}
+	prev := net.channels[ch.Name]
 	net.channels[ch.Name] = ch
+
+	if prev != nil && prev.Detached != ch.Detached {
+		history := net.history[ch.Name]
+		if ch.Detached {
+			net.user.srv.Logger.Printf("network %q: detaching channel %q", net.GetName(), ch.Name)
+			net.forEachDownstream(func(dc *downstreamConn) {
+				net.offlineClients[dc.clientName] = struct{}{}
+				if history != nil {
+					history.offlineClients[dc.clientName] = history.ring.Cur()
+				}
+
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.prefix(),
+					Command: "PART",
+					Params:  []string{dc.marshalEntity(net, ch.Name), "Detach"},
+				})
+			})
+		} else {
+			net.user.srv.Logger.Printf("network %q: attaching channel %q", net.GetName(), ch.Name)
+
+			var uch *upstreamChannel
+			if net.conn != nil {
+				uch = net.conn.channels[ch.Name]
+			}
+
+			net.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.prefix(),
+					Command: "JOIN",
+					Params:  []string{dc.marshalEntity(net, ch.Name)},
+				})
+
+				if uch != nil {
+					forwardChannel(dc, uch)
+				}
+
+				if history != nil {
+					dc.sendNetworkHistory(net)
+				}
+			})
+		}
+	}
+
 	return nil
 }
 
@@ -342,7 +386,10 @@ func (u *user) run() {
 				}
 
 				net.offlineClients[dc.clientName] = struct{}{}
-				for _, history := range net.history {
+				for target, history := range net.history {
+					if ch, ok := net.channels[target]; ok && ch.Detached {
+						continue
+					}
 					history.offlineClients[dc.clientName] = history.ring.Cur()
 				}
 			})

@@ -767,15 +767,20 @@ func (dc *downstreamConn) welcome() error {
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
 		for _, ch := range uc.channels {
-			if ch.complete {
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.prefix(),
-					Command: "JOIN",
-					Params:  []string{dc.marshalEntity(ch.conn.network, ch.Name)},
-				})
-
-				forwardChannel(dc, ch)
+			if !ch.complete {
+				continue
 			}
+			if record, ok := uc.network.channels[ch.Name]; ok && record.Detached {
+				continue
+			}
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.prefix(),
+				Command: "JOIN",
+				Params:  []string{dc.marshalEntity(ch.conn.network, ch.Name)},
+			})
+
+			forwardChannel(dc, ch)
 		}
 	})
 
@@ -793,6 +798,10 @@ func (dc *downstreamConn) welcome() error {
 
 func (dc *downstreamConn) sendNetworkHistory(net *network) {
 	for target, history := range net.history {
+		if ch, ok := net.channels[target]; ok && ch.Detached {
+			continue
+		}
+
 		seq, ok := history.offlineClients[dc.clientName]
 		if !ok {
 			continue
@@ -945,7 +954,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 
-			ch := &Channel{Name: upstreamName, Key: key}
+			ch := &Channel{Name: upstreamName, Key: key, Detached: false}
 			if err := uc.network.createUpdateChannel(ch); err != nil {
 				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 			}
@@ -967,17 +976,24 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return err
 			}
 
-			params := []string{upstreamName}
-			if reason != "" {
-				params = append(params, reason)
-			}
-			uc.SendMessage(&irc.Message{
-				Command: "PART",
-				Params:  params,
-			})
+			if strings.EqualFold(reason, "detach") {
+				ch := &Channel{Name: upstreamName, Detached: true}
+				if err := uc.network.createUpdateChannel(ch); err != nil {
+					dc.logger.Printf("failed to detach channel %q: %v", upstreamName, err)
+				}
+			} else {
+				params := []string{upstreamName}
+				if reason != "" {
+					params = append(params, reason)
+				}
+				uc.SendMessage(&irc.Message{
+					Command: "PART",
+					Params:  params,
+				})
 
-			if err := uc.network.deleteChannel(upstreamName); err != nil {
-				dc.logger.Printf("failed to delete channel %q: %v", upstreamName, err)
+				if err := uc.network.deleteChannel(upstreamName); err != nil {
+					dc.logger.Printf("failed to delete channel %q: %v", upstreamName, err)
+				}
 			}
 		}
 	case "KICK":

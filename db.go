@@ -43,9 +43,10 @@ func (net *Network) GetName() string {
 }
 
 type Channel struct {
-	ID   int64
-	Name string
-	Key  string
+	ID       int64
+	Name     string
+	Key      string
+	Detached bool
 }
 
 const schema = `
@@ -76,6 +77,7 @@ CREATE TABLE Channel (
 	network INTEGER NOT NULL,
 	name VARCHAR(255) NOT NULL,
 	key VARCHAR(255),
+	detached INTEGER NOT NULL DEFAULT 0,
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, name)
 );
@@ -84,6 +86,7 @@ CREATE TABLE Channel (
 var migrations = []string{
 	"", // migration #0 is reserved for schema initialization
 	"ALTER TABLE Network ADD COLUMN connect_commands VARCHAR(1023)",
+	"ALTER TABLE Channel ADD COLUMN detached INTEGER NOT NULL DEFAULT 0",
 }
 
 type DB struct {
@@ -346,7 +349,9 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	rows, err := db.db.Query("SELECT id, name, key FROM Channel WHERE network = ?", networkID)
+	rows, err := db.db.Query(`SELECT id, name, key, detached
+		FROM Channel
+		WHERE network = ?`, networkID)
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +361,7 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	for rows.Next() {
 		var ch Channel
 		var key *string
-		if err := rows.Scan(&ch.ID, &ch.Name, &key); err != nil {
+		if err := rows.Scan(&ch.ID, &ch.Name, &key, &ch.Detached); err != nil {
 			return nil, err
 		}
 		ch.Key = fromStringPtr(key)
@@ -378,12 +383,14 @@ func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
 	var err error
 	if ch.ID != 0 {
 		_, err = db.db.Exec(`UPDATE Channel
-			SET network = ?, name = ?, key = ?
-			WHERE id = ?`, networkID, ch.Name, key, ch.ID)
+			SET network = ?, name = ?, key = ?, detached = ?
+			WHERE id = ?`,
+			networkID, ch.Name, key, ch.Detached, ch.ID)
 	} else {
 		var res sql.Result
-		res, err = db.db.Exec(`INSERT INTO Channel(network, name, key)
-			VALUES (?, ?, ?)`, networkID, ch.Name, key)
+		res, err = db.db.Exec(`INSERT INTO Channel(network, name, key, detached)
+			VALUES (?, ?, ?, ?)`,
+			networkID, ch.Name, key, ch.Detached)
 		if err != nil {
 			return err
 		}
