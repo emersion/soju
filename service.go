@@ -246,7 +246,11 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 		var statuses []string
 		var details string
 		if uc := net.upstream(); uc != nil {
-			statuses = append(statuses, "connected as "+uc.nick)
+			if dc.nick != uc.nick {
+				statuses = append(statuses, "connected as "+uc.nick)
+			} else {
+				statuses = append(statuses, "connected")
+			}
 			details = fmt.Sprintf("%v channels", len(uc.channels))
 		} else {
 			statuses = append(statuses, "disconnected")
