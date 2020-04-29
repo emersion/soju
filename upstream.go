@@ -269,6 +269,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		})
 		return nil
 	case "NOTICE":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
 		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
 			uc.produce("", msg, nil)
 		} else { // regular user NOTICE
@@ -1087,8 +1091,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		uc.produce(target, msg, nil)
 	case "INVITE":
-		var nick string
-		var channel string
+		var nick, channel string
 		if err := parseMessageParams(msg, &nick, &channel); err != nil {
 			return err
 		}
@@ -1101,8 +1104,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			})
 		})
 	case irc.RPL_INVITING:
-		var nick string
-		var channel string
+		var nick, channel string
 		if err := parseMessageParams(msg, &nick, &channel); err != nil {
 			return err
 		}
