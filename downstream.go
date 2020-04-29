@@ -53,12 +53,12 @@ var errAuthFailed = ircError{&irc.Message{
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
 var permanentDownstreamCaps = map[string]string{
-	"batch": "",
-	"cap-notify": "",
+	"batch":        "",
+	"cap-notify":   "",
 	"echo-message": "",
 	"message-tags": "",
-	"sasl": "PLAIN",
-	"server-time": "",
+	"sasl":         "PLAIN",
+	"server-time":  "",
 }
 
 type downstreamConn struct {
@@ -88,10 +88,10 @@ type downstreamConn struct {
 func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn {
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())}
 	dc := &downstreamConn{
-		conn: *newConn(srv, netConn, logger),
-		id:   id,
+		conn:          *newConn(srv, netConn, logger),
+		id:            id,
 		supportedCaps: make(map[string]string),
-		caps: make(map[string]bool),
+		caps:          make(map[string]bool),
 	}
 	dc.hostname = netConn.RemoteAddr().String()
 	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
@@ -458,7 +458,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		caps := make([]string, 0, len(dc.supportedCaps))
 		for k, v := range dc.supportedCaps {
 			if dc.capVersion >= 302 && v != "" {
-				caps = append(caps, k + "=" + v)
+				caps = append(caps, k+"="+v)
 			} else {
 				caps = append(caps, k)
 			}
@@ -593,6 +593,19 @@ func (dc *downstreamConn) unsetSupportedCap(name string) {
 		Command: "CAP",
 		Params:  []string{replyTo, "DEL", name},
 	})
+}
+
+func (dc *downstreamConn) updateSupportedCaps() {
+	awayNotifySupported := true
+	dc.forEachUpstream(func(uc *upstreamConn) {
+		awayNotifySupported = awayNotifySupported && uc.awayNotifySupported
+	})
+
+	if awayNotifySupported {
+		dc.setSupportedCap("away-notify", "")
+	} else {
+		dc.unsetSupportedCap("away-notify")
+	}
 }
 
 func sanityCheckServer(addr string) error {

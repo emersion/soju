@@ -255,6 +255,7 @@ func (u *user) run() {
 			uc.updateAway()
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.updateSupportedCaps()
 				sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
 			})
 			uc.network.lastError = nil
@@ -270,6 +271,10 @@ func (u *user) run() {
 			}
 
 			uc.endPendingLISTs(true)
+
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.updateSupportedCaps()
+			})
 
 			if uc.network.lastError == nil {
 				uc.forEachDownstream(func(dc *downstreamConn) {
@@ -314,6 +319,8 @@ func (u *user) run() {
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
 			})
+
+			dc.updateSupportedCaps()
 		case eventDownstreamDisconnected:
 			dc := e.dc
 

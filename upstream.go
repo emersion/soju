@@ -46,13 +46,14 @@ type upstreamConn struct {
 	realname   string
 	modes      userModes
 	channels   map[string]*upstreamChannel
-	caps       map[string]string
+	caps       map[string]string // available capabilities
 	batches    map[string]batch
 	away       bool
 
-	tagsSupported   bool
-	labelsSupported bool
-	nextLabelID     uint64
+	tagsSupported       bool
+	awayNotifySupported bool
+	labelsSupported     bool
+	nextLabelID         uint64
 
 	saslClient  sasl.Client
 	saslStarted bool
@@ -317,7 +318,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 
 			requestCaps := make([]string, 0, 16)
-			for _, c := range []string{"message-tags", "batch", "labeled-response", "server-time"} {
+			for _, c := range []string{"message-tags", "batch", "labeled-response", "server-time", "away-notify"} {
 				if _, ok := uc.caps[c]; ok {
 					requestCaps = append(requestCaps, c)
 				}
@@ -449,6 +450,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	case irc.RPL_WELCOME:
 		uc.registered = true
 		uc.logger.Printf("connection registered")
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			dc.updateSupportedCaps()
+		})
 
 		for _, ch := range uc.network.channels {
 			params := []string{ch.Name}
@@ -1148,6 +1153,21 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  []string{dc.nick, dc.marshalEntity(uc.network, nick), reason},
 			})
 		})
+	case "AWAY":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			if !dc.caps["away-notify"] {
+				return
+			}
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
+				Command: "AWAY",
+				Params:  msg.Params,
+			})
+		})
 	case "TAGMSG":
 		// TODO: relay to downstream connections that accept message-tags
 	case "ACK":
@@ -1262,7 +1282,6 @@ func (uc *upstreamConn) requestSASL() bool {
 }
 
 func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
-	auth := &uc.network.SASL
 	switch name {
 	case "sasl":
 		if !ok {
@@ -1270,6 +1289,7 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 			return nil
 		}
 
+		auth := &uc.network.SASL
 		switch auth.Mechanism {
 		case "PLAIN":
 			uc.logger.Printf("starting SASL PLAIN authentication with username %q", auth.Plain.Username)
@@ -1286,6 +1306,8 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 		uc.tagsSupported = ok
 	case "labeled-response":
 		uc.labelsSupported = ok
+	case "away-notify":
+		uc.awayNotifySupported = ok
 	case "batch", "server-time":
 		// Nothing to do
 	default:
