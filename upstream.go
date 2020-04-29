@@ -1133,6 +1133,19 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				})
 			})
 		}
+	case irc.RPL_AWAY:
+		var nick, reason string
+		if err := parseMessageParams(msg, nil, &nick, &reason); err != nil {
+			return err
+		}
+
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_AWAY,
+				Params:  []string{dc.nick, dc.marshalEntity(uc.network, nick), reason},
+			})
+		})
 	case "TAGMSG":
 		// TODO: relay to downstream connections that accept message-tags
 	case "ACK":
