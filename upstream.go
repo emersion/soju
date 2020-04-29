@@ -1141,7 +1141,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+		uc.forEachDownstream(func(dc *downstreamConn) {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_AWAY,
