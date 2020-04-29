@@ -40,15 +40,15 @@ type upstreamConn struct {
 	availableChannelTypes string
 	availableMemberships  []membership
 
-	registered bool
-	nick       string
-	username   string
-	realname   string
-	modes      userModes
-	channels   map[string]*upstreamChannel
-	caps       map[string]string // available capabilities
-	batches    map[string]batch
-	away       bool
+	registered    bool
+	nick          string
+	username      string
+	realname      string
+	modes         userModes
+	channels      map[string]*upstreamChannel
+	supportedCaps map[string]string
+	batches       map[string]batch
+	away          bool
 
 	tagsSupported       bool
 	awayNotifySupported bool
@@ -110,7 +110,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		network:                  network,
 		user:                     network.user,
 		channels:                 make(map[string]*upstreamChannel),
-		caps:                     make(map[string]string),
+		supportedCaps:            make(map[string]string),
 		batches:                  make(map[string]batch),
 		availableChannelTypes:    stdChannelTypes,
 		availableChannelModes:    stdChannelModes,
@@ -310,7 +310,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				if len(kv) == 2 {
 					v = kv[1]
 				}
-				uc.caps[k] = v
+				uc.supportedCaps[k] = v
 			}
 
 			if more {
@@ -319,7 +319,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 			requestCaps := make([]string, 0, 16)
 			for _, c := range []string{"message-tags", "batch", "labeled-response", "server-time", "away-notify"} {
-				if _, ok := uc.caps[c]; ok {
+				if _, ok := uc.supportedCaps[c]; ok {
 					requestCaps = append(requestCaps, c)
 				}
 			}
@@ -1260,7 +1260,7 @@ func (uc *upstreamConn) requestSASL() bool {
 		return false
 	}
 
-	v, ok := uc.caps["sasl"]
+	v, ok := uc.supportedCaps["sasl"]
 	if !ok {
 		return false
 	}
