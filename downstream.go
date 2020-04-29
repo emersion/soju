@@ -598,7 +598,7 @@ func (dc *downstreamConn) unsetSupportedCap(name string) {
 func (dc *downstreamConn) updateSupportedCaps() {
 	awayNotifySupported := true
 	dc.forEachUpstream(func(uc *upstreamConn) {
-		awayNotifySupported = awayNotifySupported && uc.awayNotifySupported
+		awayNotifySupported = awayNotifySupported && uc.caps["away-notify"]
 	})
 
 	if awayNotifySupported {

@@ -47,13 +47,10 @@ type upstreamConn struct {
 	modes         userModes
 	channels      map[string]*upstreamChannel
 	supportedCaps map[string]string
+	caps          map[string]bool
 	batches       map[string]batch
 	away          bool
-
-	tagsSupported       bool
-	awayNotifySupported bool
-	labelsSupported     bool
-	nextLabelID         uint64
+	nextLabelID   uint64
 
 	saslClient  sasl.Client
 	saslStarted bool
@@ -111,6 +108,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		user:                     network.user,
 		channels:                 make(map[string]*upstreamChannel),
 		supportedCaps:            make(map[string]string),
+		caps:                     make(map[string]bool),
 		batches:                  make(map[string]batch),
 		availableChannelTypes:    stdChannelTypes,
 		availableChannelModes:    stdChannelModes,
@@ -1282,6 +1280,8 @@ func (uc *upstreamConn) requestSASL() bool {
 }
 
 func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
+	uc.caps[name] = ok
+
 	switch name {
 	case "sasl":
 		if !ok {
@@ -1302,13 +1302,7 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 			Command: "AUTHENTICATE",
 			Params:  []string{auth.Mechanism},
 		})
-	case "message-tags":
-		uc.tagsSupported = ok
-	case "labeled-response":
-		uc.labelsSupported = ok
-	case "away-notify":
-		uc.awayNotifySupported = ok
-	case "batch", "server-time":
+	case "message-tags", "labeled-response", "away-notify", "batch", "server-time":
 		// Nothing to do
 	default:
 		uc.logger.Printf("received CAP ACK/NAK for a cap we don't support: %v", name)
@@ -1332,7 +1326,7 @@ func (uc *upstreamConn) readMessages(ch chan<- event) error {
 }
 
 func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message) {
-	if uc.labelsSupported {
+	if uc.caps["labeled-response"] {
 		if msg.Tags == nil {
 			msg.Tags = make(map[string]irc.TagValue)
 		}
