@@ -656,6 +656,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(dc.marshalMessage(msg, uc.network))
 			})
+		} else {
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.updateNick()
+			})
 		}
 	case "JOIN":
 		if msg.Prefix == nil {

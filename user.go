@@ -298,6 +298,8 @@ func (u *user) run() {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateSupportedCaps()
 				sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
+
+				dc.updateNick()
 			})
 			uc.network.lastError = nil
 		case eventUpstreamDisconnected:

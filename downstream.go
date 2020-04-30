@@ -620,6 +620,17 @@ func (dc *downstreamConn) updateSupportedCaps() {
 	}
 }
 
+func (dc *downstreamConn) updateNick() {
+	if uc := dc.upstream(); uc != nil && uc.nick != dc.nick {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.prefix(),
+			Command: "NICK",
+			Params:  []string{uc.nick},
+		})
+		dc.nick = uc.nick
+	}
+}
+
 func sanityCheckServer(addr string) error {
 	dialer := net.Dialer{Timeout: 30 * time.Second}
 	conn, err := tls.DialWithDialer(&dialer, "tcp", addr, nil)
@@ -776,6 +787,8 @@ func (dc *downstreamConn) welcome() error {
 		Command: irc.ERR_NOMOTD,
 		Params:  []string{dc.nick, "No MOTD"},
 	})
+
+	dc.updateNick()
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
 		for _, ch := range uc.channels {
@@ -935,6 +948,15 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		dc.forEachUpstream(func(uc *upstreamConn) {
 			uc.SendMessage(msg)
 		})
+
+		if dc.upstream() == nil && dc.nick != nick {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.prefix(),
+				Command: "NICK",
+				Params:  []string{nick},
+			})
+			dc.nick = nick
+		}
 	case "JOIN":
 		var namesStr string
 		if err := parseMessageParams(msg, &namesStr); err != nil {
