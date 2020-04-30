@@ -268,7 +268,7 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 
 // marshalMessage re-formats a message coming from an upstream connection so
 // that it's suitable for being sent on this downstream connection. Only
-// messages that may appear in logs are supported.
+// messages that may appear in logs are supported, except MODE.
 func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Message {
 	msg = msg.Copy()
 	msg.Prefix = dc.marshalUserPrefix(net, msg.Prefix)
@@ -285,8 +285,6 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Me
 		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
 		msg.Params[1] = dc.marshalEntity(net, msg.Params[1])
 	case "TOPIC":
-		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
-	case "MODE":
 		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
 	case "QUIT":
 		// This space is intentionally left blank

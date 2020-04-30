@@ -817,13 +817,30 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				return err
 			}
 
-			if ch.modes != nil {
-				if err := ch.modes.Apply(uc.availableChannelModes, modeStr, msg.Params[2:]...); err != nil {
-					return err
-				}
+			needMarshaling, err := applyChannelModes(ch, modeStr, msg.Params[2:])
+			if err != nil {
+				return err
 			}
 
-			uc.produce(ch.Name, msg, nil)
+			uc.appendLog(ch.Name, msg)
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				params := make([]string, len(msg.Params))
+				params[0] = dc.marshalEntity(uc.network, name)
+				params[1] = modeStr
+
+				copy(params[2:], msg.Params[2:])
+				for i, modeParam := range params[2:] {
+					if _, ok := needMarshaling[i]; ok {
+						params[2+i] = dc.marshalEntity(uc.network, modeParam)
+					}
+				}
+
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
+					Command: "MODE",
+					Params:  params,
+				})
+			})
 		}
 	case irc.RPL_UMODEIS:
 		if err := parseMessageParams(msg, nil); err != nil {
@@ -856,7 +873,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		firstMode := ch.modes == nil
 		ch.modes = make(map[byte]string)
-		if err := ch.modes.Apply(uc.availableChannelModes, modeStr, msg.Params[3:]...); err != nil {
+		if _, err := applyChannelModes(ch, modeStr, msg.Params[3:]); err != nil {
 			return err
 		}
 		if firstMode {

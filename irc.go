@@ -84,9 +84,18 @@ var stdChannelModes = map[byte]channelModeType{
 
 type channelModes map[byte]string
 
-func (cm channelModes) Apply(modeTypes map[byte]channelModeType, modeStr string, arguments ...string) error {
+// applyChannelModes parses a mode string and mode arguments from a MODE message,
+// and applies the corresponding channel mode and user membership changes on that channel.
+//
+// If ch.modes is nil, channel modes are not updated.
+//
+// needMarshaling is a list of indexes of mode arguments that represent entities
+// that must be marshaled when sent downstream.
+func applyChannelModes(ch *upstreamChannel, modeStr string, arguments []string) (needMarshaling map[int]struct{}, err error) {
+	needMarshaling = make(map[int]struct{}, len(arguments))
 	nextArgument := 0
 	var plusMinus byte
+outer:
 	for i := 0; i < len(modeStr); i++ {
 		mode := modeStr[i]
 		if mode == '+' || mode == '-' {
@@ -94,10 +103,30 @@ func (cm channelModes) Apply(modeTypes map[byte]channelModeType, modeStr string,
 			continue
 		}
 		if plusMinus != '+' && plusMinus != '-' {
-			return fmt.Errorf("malformed modestring %q: missing plus/minus", modeStr)
+			return nil, fmt.Errorf("malformed modestring %q: missing plus/minus", modeStr)
 		}
 
-		mt, ok := modeTypes[mode]
+		for _, membership := range ch.conn.availableMemberships {
+			if membership.Mode == mode {
+				if nextArgument >= len(arguments) {
+					return nil, fmt.Errorf("malformed modestring %q: missing mode argument for %c%c", modeStr, plusMinus, mode)
+				}
+				member := arguments[nextArgument]
+				if _, ok := ch.Members[member]; ok {
+					if plusMinus == '+' {
+						ch.Members[member].Add(ch.conn.availableMemberships, membership)
+					} else {
+						// TODO: for upstreams without multi-prefix, query the user modes again
+						ch.Members[member].Remove(membership)
+					}
+				}
+				needMarshaling[nextArgument] = struct{}{}
+				nextArgument++
+				continue outer
+			}
+		}
+
+		mt, ok := ch.conn.availableChannelModes[mode]
 		if !ok {
 			continue
 		}
@@ -109,20 +138,24 @@ func (cm channelModes) Apply(modeTypes map[byte]channelModeType, modeStr string,
 				if nextArgument < len(arguments) {
 					argument = arguments[nextArgument]
 				}
-				cm[mode] = argument
+				if ch.modes != nil {
+					ch.modes[mode] = argument
+				}
 			} else {
-				delete(cm, mode)
+				delete(ch.modes, mode)
 			}
 			nextArgument++
 		} else if mt == modeTypeC || mt == modeTypeD {
 			if plusMinus == '+' {
-				cm[mode] = ""
+				if ch.modes != nil {
+					ch.modes[mode] = ""
+				}
 			} else {
-				delete(cm, mode)
+				delete(ch.modes, mode)
 			}
 		}
 	}
-	return nil
+	return needMarshaling, nil
 }
 
 func (cm channelModes) Format() (modeString string, parameters []string) {
