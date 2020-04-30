@@ -129,10 +129,6 @@ func (net *network) run() {
 	}
 }
 
-func (net *network) upstream() *upstreamConn {
-	return net.conn
-}
-
 func (net *network) Stop() {
 	select {
 	case <-net.stopped:
@@ -141,8 +137,8 @@ func (net *network) Stop() {
 		close(net.stopped)
 	}
 
-	if uc := net.upstream(); uc != nil {
-		uc.Close()
+	if net.conn != nil {
+		net.conn.Close()
 	}
 }
 
@@ -200,11 +196,10 @@ func (u *user) forEachNetwork(f func(*network)) {
 
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	for _, network := range u.networks {
-		uc := network.upstream()
-		if uc == nil {
+		if network.conn == nil {
 			continue
 		}
-		f(uc)
+		f(network.conn)
 	}
 }
 

@@ -245,7 +245,7 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 	dc.user.forEachNetwork(func(net *network) {
 		var statuses []string
 		var details string
-		if uc := net.upstream(); uc != nil {
+		if uc := net.conn; uc != nil {
 			if dc.nick != uc.nick {
 				statuses = append(statuses, "connected as "+uc.nick)
 			} else {

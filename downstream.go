@@ -134,7 +134,7 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 	if dc.network == nil {
 		return nil
 	}
-	return dc.network.upstream()
+	return dc.network.conn
 }
 
 func isOurNick(net *network, nick string) bool {
