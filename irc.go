@@ -176,11 +176,57 @@ var stdMemberships = []membership{
 	{'v', '+'}, // voice
 }
 
-func (m *membership) String() string {
-	if m == nil {
-		return ""
+// memberships always sorted by descending membership rank
+type memberships []membership
+
+func (m *memberships) Add(availableMemberships []membership, newMembership membership) {
+	l := *m
+	i := 0
+	for _, availableMembership := range availableMemberships {
+		if i >= len(l) {
+			break
+		}
+		if l[i] == availableMembership {
+			if availableMembership == newMembership {
+				// we already have this membership
+				return
+			}
+			i++
+			continue
+		}
+		if availableMembership == newMembership {
+			break
+		}
 	}
-	return string(m.Prefix)
+	// insert newMembership at i
+	l = append(l, membership{})
+	copy(l[i+1:], l[i:])
+	l[i] = newMembership
+	*m = l
+}
+
+func (m *memberships) Remove(oldMembership membership) {
+	l := *m
+	for i, currentMembership := range l {
+		if currentMembership == oldMembership {
+			*m = append(l[:i], l[i+1:]...)
+			return
+		}
+	}
+}
+
+func (m memberships) Format(dc *downstreamConn) string {
+	if !dc.caps["multi-prefix"] {
+		if len(m) == 0 {
+			return ""
+		}
+		return string(m[0].Prefix)
+	}
+	prefixes := make([]byte, len(m))
+	for i, membership := range m {
+		prefixes[i] = membership.Prefix
+	}
+	return string(prefixes)
 }
 
 func parseMessageParams(msg *irc.Message, out ...*string) error {

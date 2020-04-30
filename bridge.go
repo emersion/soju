@@ -38,8 +38,8 @@ func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 
 	downstreamName := dc.marshalEntity(ch.conn.network, ch.Name)
 
-	for nick, membership := range ch.Members {
-		s := membership.String() + dc.marshalEntity(ch.conn.network, nick)
+	for nick, memberships := range ch.Members {
+		s := memberships.Format(dc) + dc.marshalEntity(ch.conn.network, nick)
 
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),

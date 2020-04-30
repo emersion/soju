@@ -61,6 +61,13 @@ var permanentDownstreamCaps = map[string]string{
 	"server-time":  "",
 }
 
+// needAllDownstreamCaps is the list of downstream capabilities that
+// require support from all upstreams to be enabled
+var needAllDownstreamCaps = map[string]string{
+	"away-notify":  "",
+	"multi-prefix": "",
+}
+
 type downstreamConn struct {
 	conn
 
@@ -596,15 +603,22 @@ func (dc *downstreamConn) unsetSupportedCap(name string) {
 }
 
 func (dc *downstreamConn) updateSupportedCaps() {
-	awayNotifySupported := true
+	supportedCaps := make(map[string]bool)
+	for cap := range needAllDownstreamCaps {
+		supportedCaps[cap] = true
+	}
 	dc.forEachUpstream(func(uc *upstreamConn) {
-		awayNotifySupported = awayNotifySupported && uc.caps["away-notify"]
+		for cap, supported := range supportedCaps {
+			supportedCaps[cap] = supported && uc.caps[cap]
+		}
 	})
 
-	if awayNotifySupported {
-		dc.setSupportedCap("away-notify", "")
-	} else {
-		dc.unsetSupportedCap("away-notify")
+	for cap, supported := range supportedCaps {
+		if supported {
+			dc.setSupportedCap(cap, needAllDownstreamCaps[cap])
+		} else {
+			dc.unsetSupportedCap(cap)
+		}
 	}
 }
 

@@ -24,6 +24,7 @@ var permanentUpstreamCaps = map[string]bool{
 	"batch":            true,
 	"labeled-response": true,
 	"message-tags":     true,
+	"multi-prefix":     true,
 	"server-time":      true,
 }
 
@@ -36,7 +37,7 @@ type upstreamChannel struct {
 	Status       channelStatus
 	modes        channelModes
 	creationTime string
-	Members      map[string]*membership
+	Members      map[string]*memberships
 	complete     bool
 }
 
@@ -229,13 +230,19 @@ func (uc *upstreamConn) trySendLIST(downstreamID uint64) {
 	}
 }
 
-func (uc *upstreamConn) parseMembershipPrefix(s string) (membership *membership, nick string) {
+func (uc *upstreamConn) parseMembershipPrefix(s string) (ms *memberships, nick string) {
+	memberships := make(memberships, 0, 4)
+	i := 0
 	for _, m := range uc.availableMemberships {
-		if m.Prefix == s[0] {
-			return &m, s[1:]
+		if i >= len(s) {
+			break
+		}
+		if s[i] == m.Prefix {
+			memberships = append(memberships, m)
+			i++
 		}
 	}
-	return nil, s
+	return &memberships, s[i:]
 }
 
 func isWordBoundary(r rune) bool {
@@ -644,9 +651,9 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		for _, ch := range uc.channels {
-			if membership, ok := ch.Members[msg.Prefix.Name]; ok {
+			if memberships, ok := ch.Members[msg.Prefix.Name]; ok {
 				delete(ch.Members, msg.Prefix.Name)
-				ch.Members[newNick] = membership
+				ch.Members[newNick] = memberships
 				uc.appendLog(ch.Name, msg)
 				uc.appendHistory(ch.Name, msg)
 			}
@@ -673,7 +680,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				uc.channels[ch] = &upstreamChannel{
 					Name:    ch,
 					conn:    uc,
-					Members: make(map[string]*membership),
+					Members: make(map[string]*memberships),
 				}
 
 				uc.SendMessage(&irc.Message{
@@ -939,8 +946,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				channel := dc.marshalEntity(uc.network, name)
 				members := splitSpace(members)
 				for i, member := range members {
-					membership, nick := uc.parseMembershipPrefix(member)
-					members[i] = membership.String() + dc.marshalEntity(uc.network, nick)
+					memberships, nick := uc.parseMembershipPrefix(member)
+					members[i] = memberships.Format(dc) + dc.marshalEntity(uc.network, nick)
 				}
 				memberStr := strings.Join(members, " ")
 
@@ -960,8 +967,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		ch.Status = status
 
 		for _, s := range splitSpace(members) {
-			membership, nick := uc.parseMembershipPrefix(s)
-			ch.Members[nick] = membership
+			memberships, nick := uc.parseMembershipPrefix(s)
+			ch.Members[nick] = memberships
 		}
 	case irc.RPL_ENDOFNAMES:
 		var name string
@@ -1112,7 +1119,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			for i, channel := range channels {
 				prefix, channel := uc.parseMembershipPrefix(channel)
 				channel = dc.marshalEntity(uc.network, channel)
-				channelList[i] = prefix.String() + channel
+				channelList[i] = prefix.Format(dc) + channel
 			}
 			channels := strings.Join(channelList, " ")
 			dc.SendMessage(&irc.Message{
