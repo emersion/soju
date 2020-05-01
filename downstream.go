@@ -155,14 +155,14 @@ func isOurNick(net *network, nick string) bool {
 // This involves adding a "/<network>" suffix if the entity isn't the current
 // user.
 func (dc *downstreamConn) marshalEntity(net *network, name string) string {
+	if isOurNick(net, name) {
+		return dc.nick
+	}
 	if dc.network != nil {
 		if dc.network != net {
 			panic("soju: tried to marshal an entity for another network")
 		}
 		return name
-	}
-	if isOurNick(net, name) {
-		return dc.nick
 	}
 	return name + "/" + net.GetName()
 }
