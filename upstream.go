@@ -304,6 +304,13 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				target = msg.Prefix.Name
 			}
 			uc.produce(target, msg, nil)
+
+			highlight := strings.Contains(text, uc.nick) && msg.Prefix.Name != uc.nick
+			if ch, ok := uc.network.channels[target]; ok && ch.Detached && highlight {
+				uc.forEachDownstream(func(dc *downstreamConn) {
+					sendServiceNOTICE(dc, fmt.Sprintf("highlight in %v: <%v> %v", dc.marshalEntity(uc.network, ch.Name), msg.Prefix.Name, text))
+				})
+			}
 		}
 	case "CAP":
 		var subCmd string
