@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/emersion/go-sasl"
 	"gopkg.in/irc.v3"
@@ -236,6 +238,40 @@ func (uc *upstreamConn) parseMembershipPrefix(s string) (membership *membership,
 	return nil, s
 }
 
+func isWordBoundary(r rune) bool {
+	switch r {
+	case '-', '_', '|':
+		return false
+	case '\u00A0':
+		return true
+	default:
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	}
+}
+
+func isHighlight(text, nick string) bool {
+	for {
+		i := strings.Index(text, nick)
+		if i < 0 {
+			return false
+		}
+
+		// Detect word boundaries
+		var left, right rune
+		if i > 0 {
+			left, _ = utf8.DecodeLastRuneInString(text[:i])
+		}
+		if i < len(text) {
+			right, _ = utf8.DecodeRuneInString(text[i+len(nick):])
+		}
+		if isWordBoundary(left) && isWordBoundary(right) {
+			return true
+		}
+
+		text = text[i+len(nick):]
+	}
+}
+
 func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	var label string
 	if l, ok := msg.GetTag("label"); ok {
@@ -305,7 +341,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 			uc.produce(target, msg, nil)
 
-			highlight := strings.Contains(text, uc.nick) && msg.Prefix.Name != uc.nick
+			highlight := msg.Prefix.Name != uc.nick && isHighlight(text, uc.nick)
 			if ch, ok := uc.network.channels[target]; ok && ch.Detached && highlight {
 				uc.forEachDownstream(func(dc *downstreamConn) {
 					sendServiceNOTICE(dc, fmt.Sprintf("highlight in %v: <%v> %v", dc.marshalEntity(uc.network, ch.Name), msg.Prefix.Name, text))
