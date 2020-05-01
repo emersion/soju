@@ -1,5 +1,7 @@
 # soju
 
+[![builds.sr.ht status](https://builds.sr.ht/~emersion/soju/.build.yml.svg)](https://builds.sr.ht/~emersion/soju/.build.yml?)
+
 A user-friendly IRC bouncer.
 
 - Multi-user
