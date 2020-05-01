@@ -65,6 +65,7 @@ type network struct {
 func newNetwork(user *user, record *Network, channels []Channel) *network {
 	m := make(map[string]*Channel, len(channels))
 	for _, ch := range channels {
+		ch := ch
 		m[ch.Name] = &ch
 	}
 
@@ -229,6 +230,7 @@ func (u *user) run() {
 	}
 
 	for _, record := range networks {
+		record := record
 		channels, err := u.srv.db.ListChannels(record.ID)
 		if err != nil {
 			u.srv.Logger.Printf("failed to list channels for user %q, network %q: %v", u.Username, record.GetName(), err)
