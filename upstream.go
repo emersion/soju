@@ -277,19 +277,28 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			Params:  msg.Params,
 		})
 		return nil
-	case "NOTICE":
+	case "NOTICE", "PRIVMSG":
 		if msg.Prefix == nil {
 			return fmt.Errorf("expected a prefix")
 		}
 
+		var entity, text string
+		if err := parseMessageParams(msg, &entity, &text); err != nil {
+			return err
+		}
+
+		if msg.Prefix.Name == serviceNick {
+			uc.logger.Printf("skipping %v from soju's service: %v", msg.Command, msg)
+			break
+		}
+		if entity == serviceNick {
+			uc.logger.Printf("skipping %v to soju's service: %v", msg.Command, msg)
+			break
+		}
+
 		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
 			uc.produce("", msg, nil)
-		} else { // regular user NOTICE
-			var entity, text string
-			if err := parseMessageParams(msg, &entity, &text); err != nil {
-				return err
-			}
-
+		} else { // regular user NOTICE or PRIVMSG
 			target := entity
 			if target == uc.nick {
 				target = msg.Prefix.Name
@@ -1083,30 +1092,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  []string{dc.nick, nick, "End of /WHOIS list"},
 			})
 		})
-	case "PRIVMSG":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
-		var entity, text string
-		if err := parseMessageParams(msg, &entity, &text); err != nil {
-			return err
-		}
-
-		if msg.Prefix.Name == serviceNick {
-			uc.logger.Printf("skipping PRIVMSG from soju's service: %v", msg)
-			break
-		}
-		if entity == serviceNick {
-			uc.logger.Printf("skipping PRIVMSG to soju's service: %v", msg)
-			break
-		}
-
-		target := entity
-		if target == uc.nick {
-			target = msg.Prefix.Name
-		}
-		uc.produce(target, msg, nil)
 	case "INVITE":
 		var nick, channel string
 		if err := parseMessageParams(msg, &nick, &channel); err != nil {
