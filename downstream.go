@@ -955,6 +955,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			})
 
 			ch := &Channel{Name: upstreamName, Key: key, Detached: false}
+			if current, ok := uc.network.channels[ch.Name]; ok && key == "" {
+				// Don't clear the channel key if there's one set
+				// TODO: add a way to unset the channel key
+				ch.Key = current.Key
+			}
 			if err := uc.network.createUpdateChannel(ch); err != nil {
 				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 			}
