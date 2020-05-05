@@ -1361,6 +1361,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			})
 
 			echoMsg := &irc.Message{
+				Tags: irc.Tags{
+					"time": irc.TagValue(time.Now().UTC().Format(serverTimeLayout)),
+				},
 				Prefix: &irc.Prefix{
 					Name: uc.nick,
 					User: uc.username,
@@ -1368,7 +1371,6 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Command: "PRIVMSG",
 				Params:  []string{upstreamName, text},
 			}
-
 			uc.produce(upstreamName, echoMsg, dc)
 		}
 	case "NOTICE":
