@@ -1220,21 +1220,30 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			downstreamID:    dc.id,
 			pendingCommands: make(map[int64]*irc.Message),
 		}
+		var upstream *upstreamConn
 		var upstreamChannels map[int64][]string
 		if len(msg.Params) > 0 {
-			upstreamChannels = make(map[int64][]string)
-			channels := strings.Split(msg.Params[0], ",")
-			for _, channel := range channels {
-				uc, upstreamChannel, err := dc.unmarshalEntity(channel)
-				if err != nil {
-					return err
+			uc, upstreamMask, err := dc.unmarshalEntity(msg.Params[0])
+			if err == nil && upstreamMask == "*" { // LIST */network: send LIST only to one network
+				upstream = uc
+			} else {
+				upstreamChannels = make(map[int64][]string)
+				channels := strings.Split(msg.Params[0], ",")
+				for _, channel := range channels {
+					uc, upstreamChannel, err := dc.unmarshalEntity(channel)
+					if err != nil {
+						return err
+					}
+					upstreamChannels[uc.network.ID] = append(upstreamChannels[uc.network.ID], upstreamChannel)
 				}
-				upstreamChannels[uc.network.ID] = append(upstreamChannels[uc.network.ID], upstreamChannel)
 			}
 		}
 
 		dc.user.pendingLISTs = append(dc.user.pendingLISTs, pl)
 		dc.forEachUpstream(func(uc *upstreamConn) {
+			if upstream != nil && upstream != uc {
+				return
+			}
 			var params []string
 			if upstreamChannels != nil {
 				if channels, ok := upstreamChannels[uc.network.ID]; ok {
