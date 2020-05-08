@@ -933,9 +933,18 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return err
 		}
 
+		var upstream *upstreamConn
+		if dc.upstream() == nil {
+			uc, unmarshaledNick, err := dc.unmarshalEntity(nick)
+			if err == nil { // NICK nick/network: NICK only on a specific upstream
+				upstream = uc
+				nick = unmarshaledNick
+			}
+		}
+
 		var err error
 		dc.forEachNetwork(func(n *network) {
-			if err != nil {
+			if err != nil || (upstream != nil && upstream.network != n) {
 				return
 			}
 			n.Nick = nick
@@ -946,7 +955,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 
 		dc.forEachUpstream(func(uc *upstreamConn) {
-			uc.SendMessage(msg)
+			if upstream != nil && upstream != uc {
+				return
+			}
+			uc.SendMessage(&irc.Message{
+				Command: "NICK",
+				Params:  []string{nick},
+			})
 		})
 
 		if dc.upstream() == nil && dc.nick != nick {
