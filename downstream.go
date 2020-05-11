@@ -1379,7 +1379,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 		var params []string
 		if target != "" {
-			params = []string{target, upstreamNick}
+			if target == mask { // WHOIS nick nick
+				params = []string{upstreamNick, upstreamNick}
+			} else {
+				params = []string{target, upstreamNick}
+			}
 		} else {
 			params = []string{upstreamNick}
 		}
