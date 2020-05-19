@@ -1229,6 +1229,48 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  msg.Params,
 			})
 		})
+	case irc.RPL_BANLIST, irc.RPL_INVITELIST, irc.RPL_EXCEPTLIST:
+		var channel, mask string
+		if err := parseMessageParams(msg, nil, &channel, &mask); err != nil {
+			return err
+		}
+		var addNick, addTime string
+		if len(msg.Params) >= 5 {
+			addNick = msg.Params[3]
+			addTime = msg.Params[4]
+		}
+
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+			channel := dc.marshalEntity(uc.network, channel)
+
+			var params []string
+			if addNick != "" && addTime != "" {
+				addNick := dc.marshalEntity(uc.network, addNick)
+				params = []string{dc.nick, channel, mask, addNick, addTime}
+			} else {
+				params = []string{dc.nick, channel, mask}
+			}
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: msg.Command,
+				Params:  params,
+			})
+		})
+	case irc.RPL_ENDOFBANLIST, irc.RPL_ENDOFINVITELIST, irc.RPL_ENDOFEXCEPTLIST:
+		var channel, trailing string
+		if err := parseMessageParams(msg, nil, &channel, &trailing); err != nil {
+			return err
+		}
+
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+			upstreamChannel := dc.marshalEntity(uc.network, channel)
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: msg.Command,
+				Params:  []string{dc.nick, upstreamChannel, trailing},
+			})
+		})
 	case "TAGMSG":
 		// TODO: relay to downstream connections that accept message-tags
 	case "ACK":
