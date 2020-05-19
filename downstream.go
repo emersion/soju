@@ -958,7 +958,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if upstream != nil && upstream != uc {
 				return
 			}
-			uc.SendMessage(&irc.Message{
+			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Command: "NICK",
 				Params:  []string{nick},
 			})
@@ -998,7 +998,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if key != "" {
 				params = append(params, key)
 			}
-			uc.SendMessage(&irc.Message{
+			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Command: "JOIN",
 				Params:  params,
 			})
@@ -1040,7 +1040,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				if reason != "" {
 					params = append(params, reason)
 				}
-				uc.SendMessage(&irc.Message{
+				uc.SendMessageLabeled(dc.id, &irc.Message{
 					Command: "PART",
 					Params:  params,
 				})
@@ -1101,7 +1101,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if reason != "" {
 				params = append(params, reason)
 			}
-			uc.SendMessage(&irc.Message{
+			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Command: "KICK",
 				Params:  params,
 			})
@@ -1120,7 +1120,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if name == dc.nick {
 			if modeStr != "" {
 				dc.forEachUpstream(func(uc *upstreamConn) {
-					uc.SendMessage(&irc.Message{
+					uc.SendMessageLabeled(dc.id, &irc.Message{
 						Command: "MODE",
 						Params:  []string{uc.nick, modeStr},
 					})
@@ -1150,7 +1150,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if modeStr != "" {
 			params := []string{upstreamName, modeStr}
 			params = append(params, msg.Params[2:]...)
-			uc.SendMessage(&irc.Message{
+			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Command: "MODE",
 				Params:  params,
 			})
@@ -1199,7 +1199,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 		if len(msg.Params) > 1 { // setting topic
 			topic := msg.Params[1]
-			uc.SendMessage(&irc.Message{
+			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Command: "TOPIC",
 				Params:  []string{upstreamChannel, topic},
 			})
@@ -1417,7 +1417,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if uc.isChannel(upstreamName) {
 				unmarshaledText = dc.unmarshalText(uc, text)
 			}
-			uc.SendMessage(&irc.Message{
+			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Command: "PRIVMSG",
 				Params:  []string{upstreamName, unmarshaledText},
 			})
@@ -1451,7 +1451,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if uc.isChannel(upstreamName) {
 				unmarshaledText = dc.unmarshalText(uc, text)
 			}
-			uc.SendMessage(&irc.Message{
+			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Command: "NOTICE",
 				Params:  []string{upstreamName, unmarshaledText},
 			})
