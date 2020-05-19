@@ -1182,25 +1182,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  []string{dc.nick, dc.marshalEntity(uc.network, nick), dc.marshalEntity(uc.network, channel)},
 			})
 		})
-	case irc.ERR_UNKNOWNCOMMAND, irc.RPL_TRYAGAIN:
-		var command, reason string
-		if err := parseMessageParams(msg, nil, &command, &reason); err != nil {
-			return err
-		}
-
-		if command == "LIST" {
-			ok := uc.endPendingLISTs(false)
-			if !ok {
-				return fmt.Errorf("unexpected response for LIST: %q: no matching pending LIST", msg.Command)
-			}
-			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Prefix:  uc.srv.prefix(),
-					Command: msg.Command,
-					Params:  []string{dc.nick, "LIST", reason},
-				})
-			})
-		}
 	case irc.RPL_AWAY:
 		var nick, reason string
 		if err := parseMessageParams(msg, nil, &nick, &reason); err != nil {
@@ -1271,6 +1252,28 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  []string{dc.nick, upstreamChannel, trailing},
 			})
 		})
+	case irc.ERR_UNKNOWNCOMMAND, irc.RPL_TRYAGAIN:
+		var command, reason string
+		if err := parseMessageParams(msg, nil, &command, &reason); err != nil {
+			return err
+		}
+
+		if command == "LIST" {
+			ok := uc.endPendingLISTs(false)
+			if !ok {
+				return fmt.Errorf("unexpected response for LIST: %q: no matching pending LIST", msg.Command)
+			}
+		}
+
+		if downstreamID != 0 {
+			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  uc.srv.prefix(),
+					Command: msg.Command,
+					Params:  []string{dc.nick, command, reason},
+				})
+			})
+		}
 	case "TAGMSG":
 		// TODO: relay to downstream connections that accept message-tags
 	case "ACK":
@@ -1291,6 +1294,24 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		// Ignore
 	default:
 		uc.logger.Printf("unhandled message: %v", msg)
+		if downstreamID != 0 {
+			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+				// best effort marshaling for unknown messages, replies and errors:
+				// most numerics start with the user nick, marshal it if that's the case
+				// otherwise, conservately keep the params without marshaling
+				params := msg.Params
+				if _, err := strconv.Atoi(msg.Command); err == nil { // numeric
+					if len(msg.Params) > 0 && isOurNick(uc.network, msg.Params[0]) {
+						params[0] = dc.nick
+					}
+				}
+				dc.SendMessage(&irc.Message{
+					Prefix:  uc.srv.prefix(),
+					Command: msg.Command,
+					Params:  params,
+				})
+			})
+		}
 	}
 	return nil
 }
