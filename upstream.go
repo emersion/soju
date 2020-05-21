@@ -692,7 +692,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				if err != nil {
 					return err
 				}
-				ch.Members[msg.Prefix.Name] = nil
+				ch.Members[msg.Prefix.Name] = &memberships{}
 			}
 
 			chMsg := msg.Copy()
