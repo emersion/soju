@@ -398,13 +398,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				}
 			}
 
-			if uc.saslClient == nil {
-				uc.SendMessage(&irc.Message{
-					Command: "CAP",
-					Params:  []string{"END"},
-				})
-			}
-
 			if uc.registered {
 				uc.forEachDownstream(func(dc *downstreamConn) {
 					dc.updateSupportedCaps()
