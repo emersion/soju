@@ -274,6 +274,16 @@ func parseMessageParams(msg *irc.Message, out ...*string) error {
 	return nil
 }
 
+func copyClientTags(tags irc.Tags) irc.Tags {
+	t := make(irc.Tags, len(tags))
+	for k, v := range tags {
+		if strings.HasPrefix(k, "+") {
+			t[k] = v
+		}
+	}
+	return t
+}
+
 type batch struct {
 	Type   string
 	Params []string

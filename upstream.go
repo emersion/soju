@@ -320,14 +320,20 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			Params:  msg.Params,
 		})
 		return nil
-	case "NOTICE", "PRIVMSG":
+	case "NOTICE", "PRIVMSG", "TAGMSG":
 		if msg.Prefix == nil {
 			return fmt.Errorf("expected a prefix")
 		}
 
 		var entity, text string
-		if err := parseMessageParams(msg, &entity, &text); err != nil {
-			return err
+		if msg.Command != "TAGMSG" {
+			if err := parseMessageParams(msg, &entity, &text); err != nil {
+				return err
+			}
+		} else {
+			if err := parseMessageParams(msg, &entity); err != nil {
+				return err
+			}
 		}
 
 		if msg.Prefix.Name == serviceNick {
@@ -341,7 +347,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
 			uc.produce("", msg, nil)
-		} else { // regular user NOTICE or PRIVMSG
+		} else { // regular user message
 			target := entity
 			if target == uc.nick {
 				target = msg.Prefix.Name
@@ -1274,8 +1280,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				})
 			})
 		}
-	case "TAGMSG":
-		// TODO: relay to downstream connections that accept message-tags
 	case "ACK":
 		// Ignore
 	case irc.RPL_NOWAWAY, irc.RPL_UNAWAY:
@@ -1485,6 +1489,15 @@ func (uc *upstreamConn) readMessages(ch chan<- event) error {
 	}
 
 	return nil
+}
+
+func (uc *upstreamConn) SendMessage(msg *irc.Message) {
+	if !uc.caps["message-tags"] {
+		msg = msg.Copy()
+		msg.Tags = nil
+	}
+
+	uc.conn.SendMessage(msg)
 }
 
 func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message) {

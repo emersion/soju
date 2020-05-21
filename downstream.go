@@ -250,6 +250,9 @@ func (dc *downstreamConn) readMessages(ch chan<- event) error {
 // This can only called from the user goroutine.
 func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	if !dc.caps["message-tags"] {
+		if msg.Command == "TAGMSG" {
+			return
+		}
 		msg = msg.Copy()
 		for name := range msg.Tags {
 			supported := false
@@ -274,7 +277,7 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Me
 	msg.Prefix = dc.marshalUserPrefix(net, msg.Prefix)
 
 	switch msg.Command {
-	case "PRIVMSG", "NOTICE":
+	case "PRIVMSG", "NOTICE", "TAGMSG":
 		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
 	case "NICK":
 		// Nick change for another user
@@ -1397,6 +1400,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
 			return err
 		}
+		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
 			if name == serviceNick {
@@ -1418,14 +1422,15 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				unmarshaledText = dc.unmarshalText(uc, text)
 			}
 			uc.SendMessageLabeled(dc.id, &irc.Message{
+				Tags:    tags,
 				Command: "PRIVMSG",
 				Params:  []string{upstreamName, unmarshaledText},
 			})
 
+			echoTags := tags.Copy()
+			echoTags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
 			echoMsg := &irc.Message{
-				Tags: irc.Tags{
-					"time": irc.TagValue(time.Now().UTC().Format(serverTimeLayout)),
-				},
+				Tags: echoTags,
 				Prefix: &irc.Prefix{
 					Name: uc.nick,
 					User: uc.username,
@@ -1440,6 +1445,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
 			return err
 		}
+		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
 			uc, upstreamName, err := dc.unmarshalEntity(name)
@@ -1452,8 +1458,28 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				unmarshaledText = dc.unmarshalText(uc, text)
 			}
 			uc.SendMessageLabeled(dc.id, &irc.Message{
+				Tags:    tags,
 				Command: "NOTICE",
 				Params:  []string{upstreamName, unmarshaledText},
+			})
+		}
+	case "TAGMSG":
+		var targetsStr string
+		if err := parseMessageParams(msg, &targetsStr); err != nil {
+			return err
+		}
+		tags := copyClientTags(msg.Tags)
+
+		for _, name := range strings.Split(targetsStr, ",") {
+			uc, upstreamName, err := dc.unmarshalEntity(name)
+			if err != nil {
+				return err
+			}
+
+			uc.SendMessageLabeled(dc.id, &irc.Message{
+				Tags:    tags,
+				Command: "TAGMSG",
+				Params:  []string{upstreamName},
 			})
 		}
 	case "INVITE":
