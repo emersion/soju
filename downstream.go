@@ -45,6 +45,13 @@ func newNeedMoreParamsError(cmd string) ircError {
 	}}
 }
 
+func newChatHistoryError(subcommand string, target string) ircError {
+	return ircError{&irc.Message{
+		Command: "FAIL",
+		Params:  []string{"CHATHISTORY", "MESSAGE_ERROR", subcommand, target, "Messages could not be retrieved"},
+	}}
+}
+
 var errAuthFailed = ircError{&irc.Message{
 	Command: irc.ERR_PASSWDMISMATCH,
 	Params:  []string{"*", "Invalid username or password"},
@@ -106,6 +113,9 @@ func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn
 	}
 	for k, v := range permanentDownstreamCaps {
 		dc.supportedCaps[k] = v
+	}
+	if srv.LogPath != "" {
+		dc.supportedCaps["draft/chathistory"] = ""
 	}
 	return dc
 }
@@ -785,6 +795,7 @@ func (dc *downstreamConn) welcome() error {
 		Params:  []string{dc.nick, dc.srv.Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
 	// TODO: RPL_ISUPPORT
+	// TODO: send CHATHISTORY in RPL_ISUPPORT when implemented
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
@@ -825,6 +836,9 @@ func (dc *downstreamConn) welcome() error {
 }
 
 func (dc *downstreamConn) sendNetworkHistory(net *network) {
+	if dc.caps["draft/chathistory"] {
+		return
+	}
 	for target, history := range net.history {
 		if ch, ok := net.channels[target]; ok && ch.Detached {
 			continue
@@ -1510,6 +1524,106 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Command: "INVITE",
 			Params:  []string{upstreamUser, upstreamChannel},
 		})
+	case "CHATHISTORY":
+		var subcommand string
+		if err := parseMessageParams(msg, &subcommand); err != nil {
+			return err
+		}
+		var target, criteria, limitStr string
+		if err := parseMessageParams(msg, nil, &target, &criteria, &limitStr); err != nil {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"CHATHISTORY", "NEED_MORE_PARAMS", subcommand, "Missing parameters"},
+			}}
+		}
+
+		if dc.srv.LogPath == "" {
+			return ircError{&irc.Message{
+				Command: irc.ERR_UNKNOWNCOMMAND,
+				Params:  []string{dc.nick, subcommand, "Unknown command"},
+			}}
+		}
+
+		uc, entity, err := dc.unmarshalEntity(target)
+		if err != nil {
+			return err
+		}
+
+		// TODO: support msgid criteria
+		criteriaParts := strings.SplitN(criteria, "=", 2)
+		if len(criteriaParts) != 2 || criteriaParts[0] != "timestamp" {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"CHATHISTORY", "UNKNOWN_CRITERIA", criteria, "Unknown criteria"},
+			}}
+		}
+
+		timestamp, err := time.Parse(serverTimeLayout, criteriaParts[1])
+		if err != nil {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"CHATHISTORY", "INVALID_CRITERIA", criteria, "Invalid criteria"},
+			}}
+		}
+
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit < 0 || limit > dc.srv.HistoryLimit {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"CHATHISTORY", "INVALID_LIMIT", limitStr, "Invalid limit"},
+			}}
+		}
+
+		switch subcommand {
+		case "BEFORE":
+			batchRef := "history"
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BATCH",
+				Params:  []string{"+" + batchRef, "chathistory", target},
+			})
+
+			history := make([]*irc.Message, limit)
+			remaining := limit
+
+			tries := 0
+			for remaining > 0 {
+				buf, err := parseMessagesBefore(uc.network, entity, timestamp, remaining)
+				if err != nil {
+					dc.logger.Printf("failed parsing log messages for chathistory: %v", err)
+					return newChatHistoryError(subcommand, target)
+				}
+				if len(buf) == 0 {
+					tries++
+					if tries >= 100 {
+						break
+					}
+				} else {
+					tries = 0
+				}
+				copy(history[remaining-len(buf):], buf)
+				remaining -= len(buf)
+				year, month, day := timestamp.Date()
+				timestamp = time.Date(year, month, day, 0, 0, 0, 0, timestamp.Location()).Add(-1)
+			}
+
+			for _, m := range history[remaining:] {
+				m.Tags["batch"] = irc.TagValue(batchRef)
+				dc.SendMessage(dc.marshalMessage(m, uc.network))
+			}
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BATCH",
+				Params:  []string{"-" + batchRef},
+			})
+		default:
+			// TODO: support AFTER, LATEST, BETWEEN
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"CHATHISTORY", "UNKNOWN_COMMAND", subcommand, "Unknown command"},
+			}}
+		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
