@@ -525,16 +525,19 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			dc.updateSupportedCaps()
 		})
 
+		// TODO: split this into multiple messages if need be
+		var names, keys []string
 		for _, ch := range uc.network.channels {
-			params := []string{ch.Name}
-			if ch.Key != "" {
-				params = append(params, ch.Key)
-			}
-			uc.SendMessage(&irc.Message{
-				Command: "JOIN",
-				Params:  params,
-			})
+			names = append(names, ch.Name)
+			keys = append(keys, ch.Key)
 		}
+		uc.SendMessage(&irc.Message{
+			Command: "JOIN",
+			Params: []string{
+				strings.Join(names, ","),
+				strings.Join(keys, ","),
+			},
+		})
 	case irc.RPL_MYINFO:
 		if err := parseMessageParams(msg, nil, &uc.serverName, nil, &uc.availableUserModes, nil); err != nil {
 			return err
