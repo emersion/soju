@@ -1177,7 +1177,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		})
 	case irc.RPL_INVITING:
 		var nick, channel string
-		if err := parseMessageParams(msg, &nick, &channel); err != nil {
+		if err := parseMessageParams(msg, nil, &nick, &channel); err != nil {
 			return err
 		}
 
