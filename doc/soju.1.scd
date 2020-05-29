@@ -119,6 +119,27 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		Connect with the specified nickname. By default, the account's username
 		is used.
 
+*certfp generate* *[options...]* <network name>
+	Generate self-signed certificate and use it for authentication.
+
+	Generates RSA-3072 private key by default.
+
+	Options are:
+
+	*-key-type* <type>
+		Private key algoritm to use. Valid values are: rsa, ecdsa, ed25519.
+		ecdsa uses NIST P-521 curve.
+
+	*-bits* <bits>
+		Size of RSA key to generate. Ignored for other key types.
+
+*certfp fingerprint* <network name>
+	Show SHA-1 and SHA-256 fingerprints for the certificate
+	currently used with the network.
+
+*certfp reset* <network name>
+	Disable SASL EXTERNAL authentication and remove stored certificate.
+
 *network delete* <name>
 	Disconnect and delete a network.
 

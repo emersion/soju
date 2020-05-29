@@ -21,6 +21,14 @@ type SASL struct {
 		Username string
 		Password string
 	}
+
+	// TLS client certificate authentication.
+	External struct {
+		// X.509 certificate in DER form.
+		CertBlob []byte
+		// PKCS#8 private key in DER form.
+		PrivKeyBlob []byte
+	}
 }
 
 type Network struct {
@@ -68,6 +76,8 @@ CREATE TABLE Network (
 	sasl_mechanism VARCHAR(255),
 	sasl_plain_username VARCHAR(255),
 	sasl_plain_password VARCHAR(255),
+	sasl_external_cert BLOB DEFAULT NULL,
+	sasl_external_key BLOB DEFAULT NULL,
 	FOREIGN KEY(user) REFERENCES User(username),
 	UNIQUE(user, addr, nick)
 );
@@ -87,6 +97,8 @@ var migrations = []string{
 	"", // migration #0 is reserved for schema initialization
 	"ALTER TABLE Network ADD COLUMN connect_commands VARCHAR(1023)",
 	"ALTER TABLE Channel ADD COLUMN detached INTEGER NOT NULL DEFAULT 0",
+	"ALTER TABLE Network ADD COLUMN sasl_external_cert BLOB DEFAULT NULL",
+	"ALTER TABLE Network ADD COLUMN sasl_external_key BLOB DEFAULT NULL",
 }
 
 type DB struct {
@@ -238,7 +250,8 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	defer db.lock.RUnlock()
 
 	rows, err := db.db.Query(`SELECT id, name, addr, nick, username, realname, pass,
-			connect_commands, sasl_mechanism, sasl_plain_username, sasl_plain_password
+			connect_commands, sasl_mechanism, sasl_plain_username, sasl_plain_password,
+			sasl_external_cert, sasl_external_key
 		FROM Network
 		WHERE user = ?`,
 		username)
@@ -253,7 +266,8 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 		var name, username, realname, pass, connectCommands *string
 		var saslMechanism, saslPlainUsername, saslPlainPassword *string
 		err := rows.Scan(&net.ID, &name, &net.Addr, &net.Nick, &username, &realname,
-			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword)
+			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword,
+			&net.SASL.External.CertBlob, &net.SASL.External.PrivKeyBlob)
 		if err != nil {
 			return nil, err
 		}
@@ -293,6 +307,10 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 		case "PLAIN":
 			saslPlainUsername = toStringPtr(network.SASL.Plain.Username)
 			saslPlainPassword = toStringPtr(network.SASL.Plain.Password)
+			network.SASL.External.CertBlob = nil
+			network.SASL.External.PrivKeyBlob = nil
+		case "EXTERNAL":
+			// keep saslPlain* nil
 		default:
 			return fmt.Errorf("soju: cannot store network: unsupported SASL mechanism %q", network.SASL.Mechanism)
 		}
@@ -302,18 +320,22 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 	if network.ID != 0 {
 		_, err = db.db.Exec(`UPDATE Network
 			SET name = ?, addr = ?, nick = ?, username = ?, realname = ?, pass = ?, connect_commands = ?,
-				sasl_mechanism = ?, sasl_plain_username = ?, sasl_plain_password = ?
+				sasl_mechanism = ?, sasl_plain_username = ?, sasl_plain_password = ?,
+				sasl_external_cert = ?, sasl_external_key = ?
 			WHERE id = ?`,
 			netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
-			saslMechanism, saslPlainUsername, saslPlainPassword, network.ID)
+			saslMechanism, saslPlainUsername, saslPlainPassword,
+			network.SASL.External.CertBlob, network.SASL.External.PrivKeyBlob,
+			network.ID)
 	} else {
 		var res sql.Result
 		res, err = db.db.Exec(`INSERT INTO Network(user, name, addr, nick, username,
 				realname, pass, connect_commands, sasl_mechanism, sasl_plain_username,
-				sasl_plain_password)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				sasl_plain_password, sasl_external_cert, sasl_external_key)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			username, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
-			saslMechanism, saslPlainUsername, saslPlainPassword)
+			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
+			network.SASL.External.PrivKeyBlob)
 		if err != nil {
 			return err
 		}

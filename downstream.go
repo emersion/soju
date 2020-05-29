@@ -1523,6 +1523,12 @@ func (dc *downstreamConn) handleNickServPRIVMSG(uc *upstreamConn, text string) {
 		return
 	}
 
+	// User may have e.g. EXTERNAL mechanism configured. We do not want to
+	// automatically erase the key pair or any other credentials.
+	if uc.network.SASL.Mechanism != "" && uc.network.SASL.Mechanism != "PLAIN" {
+		return
+	}
+
 	dc.logger.Printf("auto-saving NickServ credentials with username %q", username)
 	n := uc.network
 	n.SASL.Mechanism = "PLAIN"

@@ -1,7 +1,10 @@
 package soju
 
 import (
+	"crypto"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -100,7 +103,31 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		}
 
 		logger.Printf("connecting to TLS server at address %q", addr)
-		netConn, err = tls.DialWithDialer(&dialer, "tcp", addr, nil)
+
+		var cfg *tls.Config
+		if network.SASL.Mechanism == "EXTERNAL" {
+			if network.SASL.External.CertBlob == nil {
+				return nil, fmt.Errorf("missing certificate for authentication")
+			}
+			if network.SASL.External.PrivKeyBlob == nil {
+				return nil, fmt.Errorf("missing private key for authentication")
+			}
+			key, err := x509.ParsePKCS8PrivateKey(network.SASL.External.PrivKeyBlob)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse private key: %v", err)
+			}
+			cfg = &tls.Config{
+				Certificates: []tls.Certificate{
+					{
+						Certificate: [][]byte{network.SASL.External.CertBlob},
+						PrivateKey:  key.(crypto.PrivateKey),
+					},
+				},
+			}
+			logger.Printf("using TLS client certificate %x", sha256.Sum256(network.SASL.External.CertBlob))
+		}
+
+		netConn, err = tls.DialWithDialer(&dialer, "tcp", addr, cfg)
 	case "irc+insecure":
 		if !strings.ContainsRune(addr, ':') {
 			addr = addr + ":6667"
@@ -1399,6 +1426,9 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 		case "PLAIN":
 			uc.logger.Printf("starting SASL PLAIN authentication with username %q", auth.Plain.Username)
 			uc.saslClient = sasl.NewPlainClient("", auth.Plain.Username, auth.Plain.Password)
+		case "EXTERNAL":
+			uc.logger.Printf("starting SASL EXTERNAL authentication")
+			uc.saslClient = sasl.NewExternalClient("")
 		default:
 			return fmt.Errorf("unsupported SASL mechanism %q", name)
 		}
