@@ -416,7 +416,7 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_LOGGEDIN,
-				Params:  []string{dc.nick, dc.nick, dc.user.Username, "You are now logged in"},
+				Params:  []string{dc.nick, dc.prefix().String(), dc.user.Username, "You are now logged in"},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
