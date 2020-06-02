@@ -118,13 +118,18 @@ func init() {
 		"network": {
 			children: serviceCommandSet{
 				"create": {
-					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [[-connect-command command] ...]",
+					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-connect-command command]...",
 					desc:   "add a new network",
 					handle: handleServiceCreateNetwork,
 				},
 				"status": {
 					desc:   "show a list of saved networks and their current status",
 					handle: handleServiceNetworkStatus,
+				},
+				"update": {
+					usage: "[-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-connect-command command]...",
+					desc:  "update a network",
+					handle: handleServiceNetworkUpdate,
 				},
 				"delete": {
 					usage:  "<name>",
@@ -338,65 +343,115 @@ func newFlagSet() *flag.FlagSet {
 	return fs
 }
 
-type stringSliceVar []string
+type stringSliceFlag []string
 
-func (v *stringSliceVar) String() string {
+func (v *stringSliceFlag) String() string {
 	return fmt.Sprint([]string(*v))
 }
 
-func (v *stringSliceVar) Set(s string) error {
+func (v *stringSliceFlag) Set(s string) error {
 	*v = append(*v, s)
 	return nil
 }
 
-func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
-	fs := newFlagSet()
-	addr := fs.String("addr", "", "")
-	name := fs.String("name", "", "")
-	username := fs.String("username", "", "")
-	pass := fs.String("pass", "", "")
-	realname := fs.String("realname", "", "")
-	nick := fs.String("nick", "", "")
-	var connectCommands stringSliceVar
-	fs.Var(&connectCommands, "connect-command", "")
+// stringPtrFlag is a flag value populating a string pointer. This allows to
+// disambiguate between a flag that hasn't been set and a flag that has been
+// set to an empty string.
+type stringPtrFlag struct {
+	ptr **string
+}
 
+func (f stringPtrFlag) String() string {
+	if *f.ptr == nil {
+		return ""
+	}
+	return **f.ptr
+}
+
+func (f stringPtrFlag) Set(s string) error {
+	*f.ptr = &s
+	return nil
+}
+
+type networkFlagSet struct {
+	*flag.FlagSet
+	Addr, Name, Nick, Username, Pass, Realname *string
+	ConnectCommands []string
+}
+
+func newNetworkFlagSet() *networkFlagSet {
+	fs := &networkFlagSet{FlagSet: newFlagSet()}
+	fs.Var(stringPtrFlag{&fs.Addr}, "addr", "")
+	fs.Var(stringPtrFlag{&fs.Name}, "name", "")
+	fs.Var(stringPtrFlag{&fs.Nick}, "nick", "")
+	fs.Var(stringPtrFlag{&fs.Username}, "username", "")
+	fs.Var(stringPtrFlag{&fs.Pass}, "pass", "")
+	fs.Var(stringPtrFlag{&fs.Realname}, "realname", "")
+	fs.Var((*stringSliceFlag)(&fs.ConnectCommands), "connect-command", "")
+	return fs
+}
+
+func (fs *networkFlagSet) update(network *Network) error {
+	if fs.Addr != nil {
+		if addrParts := strings.SplitN(*fs.Addr, "://", 2); len(addrParts) == 2 {
+			scheme := addrParts[0]
+			switch scheme {
+			case "ircs", "irc+insecure":
+			default:
+				return fmt.Errorf("unknown scheme %q (supported schemes: ircs, irc+insecure)", scheme)
+			}
+		}
+		network.Addr = *fs.Addr
+	}
+	if fs.Name != nil {
+		network.Name = *fs.Name
+	}
+	if fs.Nick != nil {
+		network.Nick = *fs.Nick
+	}
+	if fs.Username != nil {
+		network.Username = *fs.Username
+	}
+	if fs.Pass != nil {
+		network.Pass = *fs.Pass
+	}
+	if fs.Realname != nil {
+		network.Realname = *fs.Realname
+	}
+	if fs.ConnectCommands != nil {
+		if len(fs.ConnectCommands) == 1 && fs.ConnectCommands[0] == "" {
+			network.ConnectCommands = nil
+		} else {
+			for _, command := range fs.ConnectCommands {
+				_, err := irc.ParseMessage(command)
+				if err != nil {
+					return fmt.Errorf("flag -connect-command must be a valid raw irc command string: %q: %v", command, err)
+				}
+			}
+			network.ConnectCommands = fs.ConnectCommands
+		}
+	}
+	return nil
+}
+
+func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
+	fs := newNetworkFlagSet()
 	if err := fs.Parse(params); err != nil {
 		return err
 	}
-	if *addr == "" {
+	if fs.Addr == nil {
 		return fmt.Errorf("flag -addr is required")
 	}
 
-	if addrParts := strings.SplitN(*addr, "://", 2); len(addrParts) == 2 {
-		scheme := addrParts[0]
-		switch scheme {
-		case "ircs", "irc+insecure":
-		default:
-			return fmt.Errorf("unknown scheme %q (supported schemes: ircs, irc+insecure)", scheme)
-		}
+	record := &Network{
+		Addr: *fs.Addr,
+		Nick: dc.nick,
+	}
+	if err := fs.update(record); err != nil {
+		return err
 	}
 
-	for _, command := range connectCommands {
-		_, err := irc.ParseMessage(command)
-		if err != nil {
-			return fmt.Errorf("flag -connect-command must be a valid raw irc command string: %q: %v", command, err)
-		}
-	}
-
-	if *nick == "" {
-		*nick = dc.nick
-	}
-
-	var err error
-	network, err := dc.user.createNetwork(&Network{
-		Addr:            *addr,
-		Name:            *name,
-		Username:        *username,
-		Pass:            *pass,
-		Realname:        *realname,
-		Nick:            *nick,
-		ConnectCommands: connectCommands,
-	})
+	network, err := dc.user.createNetwork(record)
 	if err != nil {
 		return fmt.Errorf("could not create network: %v", err)
 	}
@@ -438,6 +493,35 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 		}
 		sendServicePRIVMSG(dc, s)
 	})
+	return nil
+}
+
+func handleServiceNetworkUpdate(dc *downstreamConn, params []string) error {
+	if len(params) < 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+
+	fs := newNetworkFlagSet()
+	if err := fs.Parse(params[1:]); err != nil {
+		return err
+	}
+
+	net := dc.user.getNetwork(params[0])
+	if net == nil {
+		return fmt.Errorf("unknown network %q", params[0])
+	}
+
+	record := net.Network // copy network record because we'll mutate it
+	if err := fs.update(&record); err != nil {
+		return err
+	}
+
+	network, err := dc.user.updateNetwork(&record)
+	if err != nil {
+		return fmt.Errorf("could not update network: %v", err)
+	}
+
+	sendServicePRIVMSG(dc, fmt.Sprintf("updated network %q", network.GetName()))
 	return nil
 }
 
