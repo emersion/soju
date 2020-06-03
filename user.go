@@ -88,14 +88,20 @@ func (net *network) forEachDownstream(f func(*downstreamConn)) {
 	})
 }
 
+func (net *network) isStopped() bool {
+	select {
+	case <-net.stopped:
+		return true
+	default:
+		return false
+	}
+}
+
 func (net *network) run() {
 	var lastTry time.Time
 	for {
-		select {
-		case <-net.stopped:
+		if net.isStopped() {
 			return
-		default:
-			// This space is intentionally left blank
 		}
 
 		if dur := time.Now().Sub(lastTry); dur < retryConnectMinDelay {
@@ -120,6 +126,9 @@ func (net *network) run() {
 			continue
 		}
 
+		// TODO: this is racy with net.stopped. If the network is stopped
+		// before the user goroutine receives eventUpstreamConnected, the
+		// connection won't be closed.
 		net.user.events <- eventUpstreamConnected{uc}
 		if err := uc.readMessages(net.user.events); err != nil {
 			uc.logger.Printf("failed to handle messages: %v", err)
@@ -131,10 +140,7 @@ func (net *network) run() {
 }
 
 func (net *network) stop() {
-	select {
-	case <-net.stopped:
-		return
-	default:
+	if !net.isStopped() {
 		close(net.stopped)
 	}
 
