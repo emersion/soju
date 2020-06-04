@@ -9,17 +9,6 @@ import (
 	"gopkg.in/irc.v3"
 )
 
-func setKeepAlive(c net.Conn) error {
-	tcpConn, ok := c.(*net.TCPConn)
-	if !ok {
-		return fmt.Errorf("cannot enable keep-alive on a non-TCP connection")
-	}
-	if err := tcpConn.SetKeepAlive(true); err != nil {
-		return err
-	}
-	return tcpConn.SetKeepAlivePeriod(keepAlivePeriod)
-}
-
 type conn struct {
 	net    net.Conn
 	irc    *irc.Conn
@@ -32,8 +21,6 @@ type conn struct {
 }
 
 func newConn(srv *Server, netConn net.Conn, logger Logger) *conn {
-	setKeepAlive(netConn)
-
 	outgoing := make(chan *irc.Message, 64)
 	c := &conn{
 		net:      netConn,
