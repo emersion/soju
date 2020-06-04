@@ -9,9 +9,26 @@ import (
 	"gopkg.in/irc.v3"
 )
 
+// ircConn is a generic IRC connection. It's similar to net.Conn but focuses on
+// reading and writing IRC messages.
+type ircConn interface {
+	ReadMessage() (*irc.Message, error)
+	WriteMessage(*irc.Message) error
+	Close() error
+	SetWriteDeadline(time.Time) error
+	SetReadDeadline(time.Time) error
+}
+
+func netIRCConn(c net.Conn) ircConn {
+	type netConn net.Conn
+	return struct {
+		*irc.Conn
+		netConn
+	}{irc.NewConn(c), c}
+}
+
 type conn struct {
-	net    net.Conn
-	irc    *irc.Conn
+	conn   ircConn
 	srv    *Server
 	logger Logger
 
@@ -20,11 +37,10 @@ type conn struct {
 	closed   bool
 }
 
-func newConn(srv *Server, netConn net.Conn, logger Logger) *conn {
+func newConn(srv *Server, ic ircConn, logger Logger) *conn {
 	outgoing := make(chan *irc.Message, 64)
 	c := &conn{
-		net:      netConn,
-		irc:      irc.NewConn(netConn),
+		conn:     ic,
 		srv:      srv,
 		outgoing: outgoing,
 		logger:   logger,
@@ -35,13 +51,13 @@ func newConn(srv *Server, netConn net.Conn, logger Logger) *conn {
 			if c.srv.Debug {
 				c.logger.Printf("sent: %v", msg)
 			}
-			c.net.SetWriteDeadline(time.Now().Add(writeTimeout))
-			if err := c.irc.WriteMessage(msg); err != nil {
+			c.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+			if err := c.conn.WriteMessage(msg); err != nil {
 				c.logger.Printf("failed to write message: %v", err)
 				break
 			}
 		}
-		if err := c.net.Close(); err != nil {
+		if err := c.conn.Close(); err != nil {
 			c.logger.Printf("failed to close connection: %v", err)
 		} else {
 			c.logger.Printf("connection closed")
@@ -71,14 +87,14 @@ func (c *conn) Close() error {
 		return fmt.Errorf("connection already closed")
 	}
 
-	err := c.net.Close()
+	err := c.conn.Close()
 	c.closed = true
 	close(c.outgoing)
 	return err
 }
 
 func (c *conn) ReadMessage() (*irc.Message, error) {
-	msg, err := c.irc.ReadMessage()
+	msg, err := c.conn.ReadMessage()
 	if err != nil {
 		return nil, err
 	}

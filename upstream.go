@@ -143,7 +143,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	}
 
 	uc := &upstreamConn{
-		conn:                     *newConn(network.user.srv, netConn, logger),
+		conn:                     *newConn(network.user.srv, netIRCConn(netConn), logger),
 		network:                  network,
 		user:                     network.user,
 		channels:                 make(map[string]*upstreamChannel),

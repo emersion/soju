@@ -127,8 +127,8 @@ func init() {
 					handle: handleServiceNetworkStatus,
 				},
 				"update": {
-					usage: "[-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-connect-command command]...",
-					desc:  "update a network",
+					usage:  "[-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-connect-command command]...",
+					desc:   "update a network",
 					handle: handleServiceNetworkUpdate,
 				},
 				"delete": {
@@ -376,7 +376,7 @@ func (f stringPtrFlag) Set(s string) error {
 type networkFlagSet struct {
 	*flag.FlagSet
 	Addr, Name, Nick, Username, Pass, Realname *string
-	ConnectCommands []string
+	ConnectCommands                            []string
 }
 
 func newNetworkFlagSet() *networkFlagSet {

@@ -95,7 +95,7 @@ type downstreamConn struct {
 func newDownstreamConn(srv *Server, netConn net.Conn, id uint64) *downstreamConn {
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", netConn.RemoteAddr())}
 	dc := &downstreamConn{
-		conn:          *newConn(srv, netConn, logger),
+		conn:          *newConn(srv, netIRCConn(netConn), logger),
 		id:            id,
 		supportedCaps: make(map[string]string),
 		caps:          make(map[string]bool),
