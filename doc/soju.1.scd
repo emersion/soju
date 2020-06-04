@@ -56,15 +56,25 @@ be done by adding a "@<client>" suffix to the username.
 	Enable debug logging (this will leak sensitive information such as
 	passwords).
 
-*-listen* <address>
-	Listening address (default: ":6667").
+*-listen* <uri>
+	Listening URI (default: ":6697").
 
 # CONFIG FILE
 
 The config file has one directive per line.
 
-*listen* <address>
-	Listening address (default: ":6667").
+*listen* <uri>
+	Listening URI (default: ":6697").
+
+	The following URIs are supported:
+
+	- _[ircs://][host][:port]_ listens with TLS over TCP (default port if
+	  omitted: 6697)
+	- _irc+insecure://[host][:port]_ listens with plain-text over TCP (default
+	  port if omitted: 6667)
+
+	If the scheme is omitted, "ircs" is assumed. If multiple *listen*
+	directives are specified, soju will listen on each of them.
 
 *hostname* <name>
 	Server hostname (default: system hostname).
@@ -97,6 +107,7 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	Connect to a new network at _addr_. _-addr_ is mandatory.
 
 	_addr_ supports several connection types:
+
 	- _[ircs://]host[:port]_ connects with TLS over TCP
 	- _irc+insecure://host[:port]_ connects with plain-text TCP
 

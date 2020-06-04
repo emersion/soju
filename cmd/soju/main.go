@@ -5,15 +5,17 @@ import (
 	"flag"
 	"log"
 	"net"
+	"net/url"
+	"strings"
 
 	"git.sr.ht/~emersion/soju"
 	"git.sr.ht/~emersion/soju/config"
 )
 
 func main() {
-	var addr, configPath string
+	var listen, configPath string
 	var debug bool
-	flag.StringVar(&addr, "listen", "", "listening address")
+	flag.StringVar(&listen, "listen", "", "listening address")
 	flag.StringVar(&configPath, "config", "", "path to configuration file")
 	flag.BoolVar(&debug, "debug", false, "enable debug logging")
 	flag.Parse()
@@ -29,8 +31,11 @@ func main() {
 		cfg = config.Defaults()
 	}
 
-	if addr != "" {
-		cfg.Addr = addr
+	if listen != "" {
+		cfg.Listen = append(cfg.Listen, listen)
+	}
+	if len(cfg.Listen) == 0 {
+		cfg.Listen = []string{":6697"}
 	}
 
 	db, err := soju.OpenSQLDB(cfg.SQLDriver, cfg.SQLSource)
@@ -38,24 +43,13 @@ func main() {
 		log.Fatalf("failed to open database: %v", err)
 	}
 
-	var ln net.Listener
+	var tlsCfg *tls.Config
 	if cfg.TLS != nil {
 		cert, err := tls.LoadX509KeyPair(cfg.TLS.CertPath, cfg.TLS.KeyPath)
 		if err != nil {
 			log.Fatalf("failed to load TLS certificate and key: %v", err)
 		}
-
-		tlsCfg := &tls.Config{Certificates: []tls.Certificate{cert}}
-		ln, err = tls.Listen("tcp", cfg.Addr, tlsCfg)
-		if err != nil {
-			log.Fatalf("failed to start TLS listener: %v", err)
-		}
-	} else {
-		var err error
-		ln, err = net.Listen("tcp", cfg.Addr)
-		if err != nil {
-			log.Fatalf("failed to start listener: %v", err)
-		}
+		tlsCfg = &tls.Config{Certificates: []tls.Certificate{cert}}
 	}
 
 	srv := soju.NewServer(db)
@@ -64,11 +58,50 @@ func main() {
 	srv.LogPath = cfg.LogPath
 	srv.Debug = debug
 
-	log.Printf("server listening on %q", cfg.Addr)
-	go func() {
-		if err := srv.Run(); err != nil {
-			log.Fatal(err)
+	for _, listen := range cfg.Listen {
+		listenURI := listen
+		if !strings.Contains(listenURI, ":/") {
+			// This is a raw domain name, make it an URL with an empty scheme
+			listenURI = "//" + listenURI
 		}
-	}()
-	log.Fatal(srv.Serve(ln))
+		u, err := url.Parse(listenURI)
+		if err != nil {
+			log.Fatalf("failed to parse listen URI %q: %v", listen, err)
+		}
+
+		switch u.Scheme {
+		case "ircs", "":
+			if tlsCfg == nil {
+				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
+			}
+			host := u.Host
+			if _, _, err := net.SplitHostPort(host); err != nil {
+				host = host + ":6697"
+			}
+			ln, err := tls.Listen("tcp", host, tlsCfg)
+			if err != nil {
+				log.Fatalf("failed to start TLS listener on %q: %v", listen, err)
+			}
+			go func() {
+				log.Fatal(srv.Serve(ln))
+			}()
+		case "irc+insecure":
+			host := u.Host
+			if _, _, err := net.SplitHostPort(host); err != nil {
+				host = host + ":6667"
+			}
+			ln, err := net.Listen("tcp", host)
+			if err != nil {
+				log.Fatalf("failed to start listener on %q: %v", listen, err)
+			}
+			go func() {
+				log.Fatal(srv.Serve(ln))
+			}()
+		default:
+			log.Fatalf("failed to listen on %q: unsupported scheme", listen)
+		}
+
+		log.Printf("server listening on %q", listen)
+	}
+	log.Fatal(srv.Run())
 }

@@ -14,7 +14,7 @@ type TLS struct {
 }
 
 type Server struct {
-	Addr      string
+	Listen    []string
 	Hostname  string
 	TLS       *TLS
 	SQLDriver string
@@ -28,7 +28,6 @@ func Defaults() *Server {
 		hostname = "localhost"
 	}
 	return &Server{
-		Addr:      ":6667",
 		Hostname:  hostname,
 		SQLDriver: "sqlite3",
 		SQLSource: "soju.db",
@@ -68,9 +67,11 @@ func Parse(r io.Reader) (*Server, error) {
 	for _, d := range directives {
 		switch d.Name {
 		case "listen":
-			if err := d.parseParams(&srv.Addr); err != nil {
+			var uri string
+			if err := d.parseParams(&uri); err != nil {
 				return nil, err
 			}
+			srv.Listen = append(srv.Listen, uri)
 		case "hostname":
 			if err := d.parseParams(&srv.Hostname); err != nil {
 				return nil, err
