@@ -84,9 +84,10 @@ func (c *conn) Close() error {
 		return fmt.Errorf("connection already closed")
 	}
 
+	err := c.net.Close()
 	c.closed = true
 	close(c.outgoing)
-	return nil
+	return err
 }
 
 func (c *conn) ReadMessage() (*irc.Message, error) {
