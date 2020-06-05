@@ -151,6 +151,9 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *certfp reset* <network name>
 	Disable SASL EXTERNAL authentication and remove stored certificate.
 
+*change-password* <new password>
+	Change current user password.
+
 *network delete* <name>
 	Disconnect and delete a network.
 
