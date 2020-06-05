@@ -507,7 +507,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		// TODO: send response in multiple chunks if >= 400 bytes
 		var respStr = "+"
-		if resp != nil {
+		if len(resp) != 0 {
 			respStr = base64.StdEncoding.EncodeToString(resp)
 		}
 
