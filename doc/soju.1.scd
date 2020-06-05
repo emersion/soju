@@ -164,4 +164,4 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 
 Maintained by Simon Ser <contact@emersion.fr>, who is assisted by other
 open-source contributors. For more information about soju development, see
-https://git.sr.ht/~emersion/soju.
+https://sr.ht/~emersion/soju.
