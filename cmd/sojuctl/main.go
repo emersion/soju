@@ -15,9 +15,9 @@ import (
 
 const usage = `usage: sojuctl [-config path] <action> [options...]
 
-  create-user <username>	Create a new user
-  change-password <username> 	Change password for a user
-  help				Show this help message
+  create-user <username> [-admin]  Create a new user
+  change-password <username>       Change password for a user
+  help                             Show this help message
 `
 
 func init() {
@@ -55,6 +55,10 @@ func main() {
 			os.Exit(1)
 		}
 
+		fs := flag.NewFlagSet("", flag.ExitOnError)
+		admin := fs.Bool("admin", false, "make the new user admin")
+		fs.Parse(flag.Args()[2:])
+
 		password, err := readPassword()
 		if err != nil {
 			log.Fatalf("failed to read password: %v", err)
@@ -68,6 +72,7 @@ func main() {
 		user := soju.User{
 			Username: username,
 			Password: string(hashed),
+			Admin:    *admin,
 		}
 		if err := db.StoreUser(&user); err != nil {
 			log.Fatalf("failed to create user: %v", err)

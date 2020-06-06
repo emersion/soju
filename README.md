@@ -12,7 +12,7 @@ A user-friendly IRC bouncer.
 
 ## Usage
 
-    go run ./cmd/sojuctl create-user <username>
+    go run ./cmd/sojuctl create-user <username> -admin
     go run ./cmd/soju -listen irc+insecure://127.0.0.1:6667
 
 Then connect with username `<username>/chat.freenode.net` and join `#soju`.
