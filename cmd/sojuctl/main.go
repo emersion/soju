@@ -120,7 +120,12 @@ func readPassword() ([]byte, error) {
 	} else {
 		fmt.Fprintf(os.Stderr, "Warning: Reading password from stdin.\n")
 		scanner := bufio.NewScanner(os.Stdin)
-		scanner.Scan()
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				log.Fatalf("failed to read password from stdin: %v", err)
+			}
+			log.Fatalf("failed to read password from stdin: stdin is empty")
+		}
 		password = scanner.Bytes()
 
 		if len(password) == 0 {
