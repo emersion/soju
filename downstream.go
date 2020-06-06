@@ -688,6 +688,11 @@ func (dc *downstreamConn) authenticate(username, password string) error {
 		return errAuthFailed
 	}
 
+	// Password auth disabled
+	if u.Password == "" {
+		return errAuthFailed
+	}
+
 	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
 	if err != nil {
 		dc.logger.Printf("failed authentication for %q: %v", username, err)
