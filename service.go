@@ -120,7 +120,7 @@ func init() {
 				"create": {
 					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-connect-command command]...",
 					desc:   "add a new network",
-					handle: handleServiceCreateNetwork,
+					handle: handleServiceNetworkCreate,
 				},
 				"status": {
 					desc:   "show a list of saved networks and their current status",
@@ -163,137 +163,6 @@ func init() {
 			handle: handlePasswordChange,
 		},
 	}
-}
-
-func handleServiceCertfpGenerate(dc *downstreamConn, params []string) error {
-	fs := newFlagSet()
-	keyType := fs.String("key-type", "rsa", "key type to generate (rsa, ecdsa, ed25519)")
-	bits := fs.Int("bits", 3072, "size of key to generate, meaningful only for RSA")
-
-	if err := fs.Parse(params); err != nil {
-		return err
-	}
-
-	if len(fs.Args()) != 1 {
-		return errors.New("exactly one argument is required")
-	}
-
-	net := dc.user.getNetwork(fs.Arg(0))
-	if net == nil {
-		return fmt.Errorf("unknown network %q", fs.Arg(0))
-	}
-
-	var (
-		privKey crypto.PrivateKey
-		pubKey  crypto.PublicKey
-	)
-	switch *keyType {
-	case "rsa":
-		key, err := rsa.GenerateKey(rand.Reader, *bits)
-		if err != nil {
-			return err
-		}
-		privKey = key
-		pubKey = key.Public()
-	case "ecdsa":
-		key, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-		if err != nil {
-			return err
-		}
-		privKey = key
-		pubKey = key.Public()
-	case "ed25519":
-		var err error
-		pubKey, privKey, err = ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Using PKCS#8 allows easier extension for new key types.
-	privKeyBytes, err := x509.MarshalPKCS8PrivateKey(privKey)
-	if err != nil {
-		return err
-	}
-
-	notBefore := time.Now()
-	// Lets make a fair assumption nobody will use the same cert for more than 20 years...
-	notAfter := notBefore.Add(24 * time.Hour * 365 * 20)
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return err
-	}
-	cert := &x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject:      pkix.Name{CommonName: "soju auto-generated certificate"},
-		NotBefore:    notBefore,
-		NotAfter:     notAfter,
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, cert, cert, pubKey, privKey)
-	if err != nil {
-		return err
-	}
-
-	net.SASL.External.CertBlob = derBytes
-	net.SASL.External.PrivKeyBlob = privKeyBytes
-	net.SASL.Mechanism = "EXTERNAL"
-
-	if err := dc.srv.db.StoreNetwork(net.Username, &net.Network); err != nil {
-		return err
-	}
-
-	sendServicePRIVMSG(dc, "certificate generated")
-
-	sha1Sum := sha1.Sum(derBytes)
-	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
-	sha256Sum := sha256.Sum256(derBytes)
-	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
-
-	return nil
-}
-
-func handleServiceCertfpFingerprints(dc *downstreamConn, params []string) error {
-	if len(params) != 1 {
-		return fmt.Errorf("expected exactly one argument")
-	}
-
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
-	}
-
-	sha1Sum := sha1.Sum(net.SASL.External.CertBlob)
-	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
-	sha256Sum := sha256.Sum256(net.SASL.External.CertBlob)
-	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
-	return nil
-}
-
-func handleServiceCertfpReset(dc *downstreamConn, params []string) error {
-	if len(params) != 1 {
-		return fmt.Errorf("expected exactly one argument")
-	}
-
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
-	}
-
-	net.SASL.External.CertBlob = nil
-	net.SASL.External.PrivKeyBlob = nil
-
-	if net.SASL.Mechanism == "EXTERNAL" {
-		net.SASL.Mechanism = ""
-	}
-	if err := dc.srv.db.StoreNetwork(dc.user.Username, &net.Network); err != nil {
-		return err
-	}
-
-	sendServicePRIVMSG(dc, "certificate reset")
-	return nil
 }
 
 func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, l *[]string) {
@@ -434,7 +303,7 @@ func (fs *networkFlagSet) update(network *Network) error {
 	return nil
 }
 
-func handleServiceCreateNetwork(dc *downstreamConn, params []string) error {
+func handleServiceNetworkCreate(dc *downstreamConn, params []string) error {
 	fs := newNetworkFlagSet()
 	if err := fs.Parse(params); err != nil {
 		return err
@@ -540,6 +409,137 @@ func handleServiceNetworkDelete(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("deleted network %q", net.GetName()))
+	return nil
+}
+
+func handleServiceCertfpGenerate(dc *downstreamConn, params []string) error {
+	fs := newFlagSet()
+	keyType := fs.String("key-type", "rsa", "key type to generate (rsa, ecdsa, ed25519)")
+	bits := fs.Int("bits", 3072, "size of key to generate, meaningful only for RSA")
+
+	if err := fs.Parse(params); err != nil {
+		return err
+	}
+
+	if len(fs.Args()) != 1 {
+		return errors.New("exactly one argument is required")
+	}
+
+	net := dc.user.getNetwork(fs.Arg(0))
+	if net == nil {
+		return fmt.Errorf("unknown network %q", fs.Arg(0))
+	}
+
+	var (
+		privKey crypto.PrivateKey
+		pubKey  crypto.PublicKey
+	)
+	switch *keyType {
+	case "rsa":
+		key, err := rsa.GenerateKey(rand.Reader, *bits)
+		if err != nil {
+			return err
+		}
+		privKey = key
+		pubKey = key.Public()
+	case "ecdsa":
+		key, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+		if err != nil {
+			return err
+		}
+		privKey = key
+		pubKey = key.Public()
+	case "ed25519":
+		var err error
+		pubKey, privKey, err = ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Using PKCS#8 allows easier extension for new key types.
+	privKeyBytes, err := x509.MarshalPKCS8PrivateKey(privKey)
+	if err != nil {
+		return err
+	}
+
+	notBefore := time.Now()
+	// Lets make a fair assumption nobody will use the same cert for more than 20 years...
+	notAfter := notBefore.Add(24 * time.Hour * 365 * 20)
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return err
+	}
+	cert := &x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject:      pkix.Name{CommonName: "soju auto-generated certificate"},
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	derBytes, err := x509.CreateCertificate(rand.Reader, cert, cert, pubKey, privKey)
+	if err != nil {
+		return err
+	}
+
+	net.SASL.External.CertBlob = derBytes
+	net.SASL.External.PrivKeyBlob = privKeyBytes
+	net.SASL.Mechanism = "EXTERNAL"
+
+	if err := dc.srv.db.StoreNetwork(net.Username, &net.Network); err != nil {
+		return err
+	}
+
+	sendServicePRIVMSG(dc, "certificate generated")
+
+	sha1Sum := sha1.Sum(derBytes)
+	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
+	sha256Sum := sha256.Sum256(derBytes)
+	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
+
+	return nil
+}
+
+func handleServiceCertfpFingerprints(dc *downstreamConn, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+
+	net := dc.user.getNetwork(params[0])
+	if net == nil {
+		return fmt.Errorf("unknown network %q", params[0])
+	}
+
+	sha1Sum := sha1.Sum(net.SASL.External.CertBlob)
+	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
+	sha256Sum := sha256.Sum256(net.SASL.External.CertBlob)
+	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
+	return nil
+}
+
+func handleServiceCertfpReset(dc *downstreamConn, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+
+	net := dc.user.getNetwork(params[0])
+	if net == nil {
+		return fmt.Errorf("unknown network %q", params[0])
+	}
+
+	net.SASL.External.CertBlob = nil
+	net.SASL.External.PrivKeyBlob = nil
+
+	if net.SASL.Mechanism == "EXTERNAL" {
+		net.SASL.Mechanism = ""
+	}
+	if err := dc.srv.db.StoreNetwork(dc.user.Username, &net.Network); err != nil {
+		return err
+	}
+
+	sendServicePRIVMSG(dc, "certificate reset")
 	return nil
 }
 
