@@ -88,6 +88,26 @@ func (s *Server) Run() error {
 	select {}
 }
 
+func (s *Server) createUser(user *User) (*user, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if _, ok := s.users[user.Username]; ok {
+		return nil, fmt.Errorf("user %q already exists", user.Username)
+	}
+
+	err := s.db.StoreUser(user)
+	if err != nil {
+		return nil, fmt.Errorf("could not create user in db: %v", err)
+	}
+
+	s.Logger.Printf("starting bouncer for new user %q", user.Username)
+	u := newUser(s, user)
+	s.users[u.Username] = u
+	go u.run()
+	return u, nil
+}
+
 func (s *Server) getUser(name string) *user {
 	s.lock.Lock()
 	u := s.users[name]
