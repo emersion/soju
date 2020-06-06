@@ -138,6 +138,12 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		Connect with the specified nickname. By default, the account's username
 		is used.
 
+*network delete* <name>
+	Disconnect and delete a network.
+
+*network status*
+	Show a list of saved networks and their current status.
+
 *certfp generate* *[options...]* <network name>
 	Generate self-signed certificate and use it for authentication.
 
@@ -159,14 +165,11 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *certfp reset* <network name>
 	Disable SASL EXTERNAL authentication and remove stored certificate.
 
+*user create* -username <username> -password <password> [-admin]
+    Create a new soju user. Only admin users can create new accounts.
+
 *change-password* <new password>
 	Change current user password.
-
-*network delete* <name>
-	Disconnect and delete a network.
-
-*network status*
-	Show a list of saved networks and their current status.
 
 # AUTHORS
 

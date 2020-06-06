@@ -162,6 +162,17 @@ func init() {
 				},
 			},
 		},
+		"user": {
+			children: serviceCommandSet{
+				"create": {
+					usage:  "-username <username> -password <password> [-admin]",
+					desc:   "create a new soju user",
+					handle: handleUserCreate,
+					admin:  true,
+				},
+			},
+			admin: true,
+		},
 		"change-password": {
 			usage:  "<new password>",
 			desc:   "change your password",
@@ -565,5 +576,39 @@ func handlePasswordChange(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, "password updated")
+	return nil
+}
+
+func handleUserCreate(dc *downstreamConn, params []string) error {
+	fs := newFlagSet()
+	username := fs.String("username", "", "")
+	password := fs.String("password", "", "")
+	admin := fs.Bool("admin", false, "")
+
+	if err := fs.Parse(params); err != nil {
+		return err
+	}
+	if *username == "" {
+		return fmt.Errorf("flag -username is required")
+	}
+	if *password == "" {
+		return fmt.Errorf("flag -password is required")
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %v", err)
+	}
+
+	user := &User{
+		Username: *username,
+		Password: string(hashed),
+		Admin:    *admin,
+	}
+	if _, err := dc.srv.createUser(user); err != nil {
+		return fmt.Errorf("could not create user: %v", err)
+	}
+
+	sendServicePRIVMSG(dc, fmt.Sprintf("created user %q", *username))
 	return nil
 }
