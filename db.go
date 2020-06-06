@@ -13,6 +13,7 @@ type User struct {
 	Created  bool
 	Username string
 	Password string // hashed
+	Admin    bool
 }
 
 type SASL struct {
@@ -61,7 +62,8 @@ type Channel struct {
 const schema = `
 CREATE TABLE User (
 	username VARCHAR(255) PRIMARY KEY,
-	password VARCHAR(255) NOT NULL
+	password VARCHAR(255) NOT NULL,
+	admin INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE Network (
@@ -100,6 +102,7 @@ var migrations = []string{
 	"ALTER TABLE Channel ADD COLUMN detached INTEGER NOT NULL DEFAULT 0",
 	"ALTER TABLE Network ADD COLUMN sasl_external_cert BLOB DEFAULT NULL",
 	"ALTER TABLE Network ADD COLUMN sasl_external_key BLOB DEFAULT NULL",
+	"ALTER TABLE User ADD COLUMN admin INTEGER NOT NULL DEFAULT 0",
 }
 
 type DB struct {
@@ -187,7 +190,7 @@ func (db *DB) ListUsers() ([]User, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	rows, err := db.db.Query("SELECT username, password FROM User")
+	rows, err := db.db.Query("SELECT username, password, admin FROM User")
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +200,7 @@ func (db *DB) ListUsers() ([]User, error) {
 	for rows.Next() {
 		var user User
 		var password *string
-		if err := rows.Scan(&user.Username, &password); err != nil {
+		if err := rows.Scan(&user.Username, &password, &user.Admin); err != nil {
 			return nil, err
 		}
 		user.Created = true
@@ -218,8 +221,8 @@ func (db *DB) GetUser(username string) (*User, error) {
 	user := &User{Created: true, Username: username}
 
 	var password *string
-	row := db.db.QueryRow("SELECT password FROM User WHERE username = ?", username)
-	if err := row.Scan(&password); err != nil {
+	row := db.db.QueryRow("SELECT password, admin FROM User WHERE username = ?", username)
+	if err := row.Scan(&password, &user.Admin); err != nil {
 		return nil, err
 	}
 	user.Password = fromStringPtr(password)
@@ -234,11 +237,11 @@ func (db *DB) StoreUser(user *User) error {
 
 	var err error
 	if user.Created {
-		_, err = db.db.Exec("UPDATE User SET password = ? WHERE username = ?",
-			password, user.Username)
+		_, err = db.db.Exec("UPDATE User SET password = ?, admin = ? WHERE username = ?",
+			password, user.Admin, user.Username)
 	} else {
-		_, err = db.db.Exec("INSERT INTO User(username, password) VALUES (?, ?)",
-			user.Username, password)
+		_, err = db.db.Exec("INSERT INTO User(username, password, admin) VALUES (?, ?, ?)",
+			user.Username, password, user.Admin)
 		if err == nil {
 			user.Created = true
 		}
