@@ -40,6 +40,7 @@ type serviceCommand struct {
 	desc     string
 	handle   func(dc *downstreamConn, params []string) error
 	children serviceCommandSet
+	admin    bool
 }
 
 func sendServiceNOTICE(dc *downstreamConn, text string) {
@@ -68,6 +69,10 @@ func handleServicePRIVMSG(dc *downstreamConn, text string) {
 	cmd, params, err := serviceCommands.Get(words)
 	if err != nil {
 		sendServicePRIVMSG(dc, fmt.Sprintf(`error: %v (type "help" for a list of commands)`, err))
+		return
+	}
+	if cmd.admin && !dc.user.Admin {
+		sendServicePRIVMSG(dc, fmt.Sprintf(`error: you must be an admin to use this command`))
 		return
 	}
 
@@ -165,14 +170,17 @@ func init() {
 	}
 }
 
-func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, l *[]string) {
+func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, admin bool, l *[]string) {
 	for name, cmd := range cmds {
+		if cmd.admin && !admin {
+			continue
+		}
 		words := append(prefix, name)
 		if len(cmd.children) == 0 {
 			s := strings.Join(words, " ")
 			*l = append(*l, s)
 		} else {
-			appendServiceCommandSetHelp(cmd.children, words, l)
+			appendServiceCommandSetHelp(cmd.children, words, admin, l)
 		}
 	}
 }
@@ -187,7 +195,7 @@ func handleServiceHelp(dc *downstreamConn, params []string) error {
 
 		if len(cmd.children) > 0 {
 			var l []string
-			appendServiceCommandSetHelp(cmd.children, words, &l)
+			appendServiceCommandSetHelp(cmd.children, words, dc.user.Admin, &l)
 			sendServicePRIVMSG(dc, "available commands: "+strings.Join(l, ", "))
 		} else {
 			text := strings.Join(words, " ")
@@ -200,7 +208,7 @@ func handleServiceHelp(dc *downstreamConn, params []string) error {
 		}
 	} else {
 		var l []string
-		appendServiceCommandSetHelp(serviceCommands, nil, &l)
+		appendServiceCommandSetHelp(serviceCommands, nil, dc.user.Admin, &l)
 		sendServicePRIVMSG(dc, "available commands: "+strings.Join(l, ", "))
 	}
 	return nil
