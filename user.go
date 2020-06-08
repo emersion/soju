@@ -547,5 +547,5 @@ func (u *user) deleteNetwork(id int64) error {
 
 func (u *user) updatePassword(hashed string) error {
 	u.User.Password = hashed
-	return u.srv.db.UpdatePassword(&u.User)
+	return u.srv.db.StoreUser(&u.User)
 }

@@ -69,7 +69,7 @@ func main() {
 			Username: username,
 			Password: string(hashed),
 		}
-		if err := db.CreateUser(&user); err != nil {
+		if err := db.StoreUser(&user); err != nil {
 			log.Fatalf("failed to create user: %v", err)
 		}
 	case "change-password":
@@ -90,13 +90,13 @@ func main() {
 		}
 
 		user := soju.User{
+			Created:  true,
 			Username: username,
 			Password: string(hashed),
 		}
-		if err := db.UpdatePassword(&user); err != nil {
+		if err := db.StoreUser(&user); err != nil {
 			log.Fatalf("failed to update password: %v", err)
 		}
-
 	default:
 		flag.Usage()
 		if cmd != "help" {

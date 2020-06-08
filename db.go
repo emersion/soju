@@ -10,6 +10,7 @@ import (
 )
 
 type User struct {
+	Created  bool
 	Username string
 	Password string // hashed
 }
@@ -199,6 +200,7 @@ func (db *DB) ListUsers() ([]User, error) {
 		if err := rows.Scan(&user.Username, &password); err != nil {
 			return nil, err
 		}
+		user.Created = true
 		user.Password = fromStringPtr(password)
 		users = append(users, user)
 	}
@@ -213,7 +215,7 @@ func (db *DB) GetUser(username string) (*User, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	user := &User{Username: username}
+	user := &User{Created: true, Username: username}
 
 	var password *string
 	row := db.db.QueryRow("SELECT password FROM User WHERE username = ?", username)
@@ -224,24 +226,24 @@ func (db *DB) GetUser(username string) (*User, error) {
 	return user, nil
 }
 
-func (db *DB) CreateUser(user *User) error {
+func (db *DB) StoreUser(user *User) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
 	password := toStringPtr(user.Password)
-	_, err := db.db.Exec("INSERT INTO User(username, password) VALUES (?, ?)", user.Username, password)
-	return err
-}
 
-func (db *DB) UpdatePassword(user *User) error {
-	db.lock.Lock()
-	defer db.lock.Unlock()
+	var err error
+	if user.Created {
+		_, err = db.db.Exec("UPDATE User SET password = ? WHERE username = ?",
+			password, user.Username)
+	} else {
+		_, err = db.db.Exec("INSERT INTO User(username, password) VALUES (?, ?)",
+			user.Username, password)
+		if err == nil {
+			user.Created = true
+		}
+	}
 
-	password := toStringPtr(user.Password)
-	_, err := db.db.Exec(`UPDATE User
-	SET password = ?
-	WHERE username = ?`,
-		password, user.Username)
 	return err
 }
 
