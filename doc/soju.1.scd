@@ -166,7 +166,7 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	Disable SASL EXTERNAL authentication and remove stored certificate.
 
 *user create* -username <username> -password <password> [-admin]
-    Create a new soju user. Only admin users can create new accounts.
+	Create a new soju user. Only admin users can create new accounts.
 
 *change-password* <new password>
 	Change current user password.
