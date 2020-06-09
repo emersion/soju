@@ -76,6 +76,20 @@ func handleServicePRIVMSG(dc *downstreamConn, text string) {
 		return
 	}
 
+	if cmd.handle == nil {
+		if len(cmd.children) > 0 {
+			var l []string
+			appendServiceCommandSetHelp(cmd.children, words, &l)
+			sendServicePRIVMSG(dc, "available commands: "+strings.Join(l, ", "))
+		} else {
+			// Pretend the command does not exist if it has neither children nor handler.
+			// This is obviously a bug but it is better to not die anyway.
+			dc.logger.Printf("command without handler and subcommands invoked:", words[0])
+			sendServicePRIVMSG(dc, fmt.Sprintf("command %q not found", words[0]))
+		}
+		return
+	}
+
 	if err := cmd.handle(dc, params); err != nil {
 		sendServicePRIVMSG(dc, fmt.Sprintf("error: %v", err))
 	}
