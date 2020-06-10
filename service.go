@@ -79,7 +79,7 @@ func handleServicePRIVMSG(dc *downstreamConn, text string) {
 	if cmd.handle == nil {
 		if len(cmd.children) > 0 {
 			var l []string
-			appendServiceCommandSetHelp(cmd.children, words, &l)
+			appendServiceCommandSetHelp(cmd.children, words, dc.user.Admin, &l)
 			sendServicePRIVMSG(dc, "available commands: "+strings.Join(l, ", "))
 		} else {
 			// Pretend the command does not exist if it has neither children nor handler.
