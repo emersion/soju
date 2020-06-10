@@ -1,4 +1,4 @@
-# soju
+# [soju]
 
 [![builds.sr.ht status](https://builds.sr.ht/~emersion/soju/.build.yml.svg)](https://builds.sr.ht/~emersion/soju/.build.yml?)
 
@@ -30,6 +30,7 @@ AGPLv3, see LICENSE.
 
 Copyright (C) 2020 Simon Ser
 
+[soju]: https://soju.im
 [mailing list]: https://lists.sr.ht/~emersion/public-inbox
 [GitHub]: https://github.com/emersion/soju
 [issue tracker]: https://todo.sr.ht/~emersion/soju
