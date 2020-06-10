@@ -250,7 +250,7 @@ type stringPtrFlag struct {
 }
 
 func (f stringPtrFlag) String() string {
-	if *f.ptr == nil {
+	if f.ptr == nil || *f.ptr == nil {
 		return ""
 	}
 	return **f.ptr
