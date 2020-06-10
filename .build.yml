@@ -1,9 +1,11 @@
 image: alpine/edge
 packages:
   - go
+  - scdoc
 sources:
   - https://git.sr.ht/~emersion/soju
 tasks:
   - build: |
       cd soju
       go test -v ./...
+      scdoc <doc/soju.1.scd >/dev/null
