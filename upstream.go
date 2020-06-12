@@ -858,24 +858,27 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 
 			uc.appendLog(ch.Name, msg)
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				params := make([]string, len(msg.Params))
-				params[0] = dc.marshalEntity(uc.network, name)
-				params[1] = modeStr
 
-				copy(params[2:], msg.Params[2:])
-				for i, modeParam := range params[2:] {
-					if _, ok := needMarshaling[i]; ok {
-						params[2+i] = dc.marshalEntity(uc.network, modeParam)
+			if ch, ok := uc.network.channels[name]; !ok || !ch.Detached {
+				uc.forEachDownstream(func(dc *downstreamConn) {
+					params := make([]string, len(msg.Params))
+					params[0] = dc.marshalEntity(uc.network, name)
+					params[1] = modeStr
+
+					copy(params[2:], msg.Params[2:])
+					for i, modeParam := range params[2:] {
+						if _, ok := needMarshaling[i]; ok {
+							params[2+i] = dc.marshalEntity(uc.network, modeParam)
+						}
 					}
-				}
 
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
-					Command: "MODE",
-					Params:  params,
+					dc.SendMessage(&irc.Message{
+						Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
+						Command: "MODE",
+						Params:  params,
+					})
 				})
-			})
+			}
 		}
 	case irc.RPL_UMODEIS:
 		if err := parseMessageParams(msg, nil); err != nil {
@@ -912,18 +915,20 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 		if firstMode {
-			modeStr, modeParams := ch.modes.Format()
+			if c, ok := uc.network.channels[channel]; !ok || !c.Detached {
+				modeStr, modeParams := ch.modes.Format()
 
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				params := []string{dc.nick, dc.marshalEntity(uc.network, channel), modeStr}
-				params = append(params, modeParams...)
+				uc.forEachDownstream(func(dc *downstreamConn) {
+					params := []string{dc.nick, dc.marshalEntity(uc.network, channel), modeStr}
+					params = append(params, modeParams...)
 
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.srv.prefix(),
-					Command: irc.RPL_CHANNELMODEIS,
-					Params:  params,
+					dc.SendMessage(&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: irc.RPL_CHANNELMODEIS,
+						Params:  params,
+					})
 				})
-			})
+			}
 		}
 	case rpl_creationtime:
 		var channel, creationTime string
@@ -1048,9 +1053,11 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		ch.complete = true
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			forwardChannel(dc, ch)
-		})
+		if c, ok := uc.network.channels[name]; !ok || !c.Detached {
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				forwardChannel(dc, ch)
+			})
+		}
 	case irc.RPL_WHOREPLY:
 		var channel, username, host, server, nick, mode, trailing string
 		if err := parseMessageParams(msg, nil, &channel, &username, &host, &server, &nick, &mode, &trailing); err != nil {
