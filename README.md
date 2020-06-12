@@ -28,7 +28,7 @@ Send patches on the [mailing list] or on [GitHub], report bugs on the
 
 AGPLv3, see LICENSE.
 
-Copyright (C) 2020 Simon Ser
+Copyright (C) 2020 The soju Contributors
 
 [soju]: https://soju.im
 [mailing list]: https://lists.sr.ht/~emersion/public-inbox
