@@ -1682,6 +1682,8 @@ func parseNickServCredentials(text, nick string) (username, password string, ok 
 			username = nick
 			password = params[1]
 		}
+	default:
+		return "", "", false
 	}
 	return username, password, true
 }
