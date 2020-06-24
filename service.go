@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"sort"
 	"strings"
 	"time"
 
@@ -125,6 +126,15 @@ func (cmds serviceCommandSet) Get(params []string) (*serviceCommand, []string, e
 	return cmd.children.Get(params)
 }
 
+func (cmds serviceCommandSet) Names() []string {
+	l := make([]string, 0, len(cmds))
+	for name := range cmds {
+		l = append(l, name)
+	}
+	sort.Strings(l)
+	return l
+}
+
 var serviceCommands serviceCommandSet
 
 func init() {
@@ -196,7 +206,8 @@ func init() {
 }
 
 func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, admin bool, l *[]string) {
-	for name, cmd := range cmds {
+	for _, name := range cmds.Names() {
+		cmd := cmds[name]
 		if cmd.admin && !admin {
 			continue
 		}
