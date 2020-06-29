@@ -1336,6 +1336,19 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			})
 			return nil
 		}
+		if entity == serviceNick {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOREPLY,
+				Params:  []string{serviceNick, "*", servicePrefix.User, servicePrefix.Host, dc.srv.Hostname, serviceNick, "H", "0 " + serviceRealname},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFWHO,
+				Params:  []string{dc.nick, serviceNick, "End of /WHO list"},
+			})
+			return nil
+		}
 
 		uc, upstreamName, err := dc.unmarshalEntity(entity)
 		if err != nil {

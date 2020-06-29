@@ -27,6 +27,7 @@ import (
 )
 
 const serviceNick = "BouncerServ"
+const serviceRealname = "soju bouncer service"
 
 var servicePrefix = &irc.Prefix{
 	Name: serviceNick,

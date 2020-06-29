@@ -1337,7 +1337,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		// Ignore
 	case irc.ERR_PASSWDMISMATCH, irc.ERR_ERRONEUSNICKNAME, irc.ERR_NICKNAMEINUSE, irc.ERR_NICKCOLLISION, irc.ERR_UNAVAILRESOURCE:
 		if !uc.registered {
-			return fmt.Errorf("registration failed: %v", msg.Params[len(msg.Params) - 1])
+			return fmt.Errorf("registration failed: %v", msg.Params[len(msg.Params)-1])
 		}
 		fallthrough
 	default:
