@@ -3,6 +3,7 @@ package soju
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -47,7 +48,12 @@ func (wic websocketIRCConn) ReadMessage() (*irc.Message, error) {
 	}
 	_, b, err := wic.conn.Read(ctx)
 	if err != nil {
-		return nil, err
+		switch websocket.CloseStatus(err) {
+		case websocket.StatusNormalClosure, websocket.StatusGoingAway:
+			return nil, io.EOF
+		default:
+			return nil, err
+		}
 	}
 	return irc.ParseMessage(string(b))
 }
