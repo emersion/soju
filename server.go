@@ -151,11 +151,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		s.Logger.Printf("failed to serve HTTP connection: %v", err)
 		return
 	}
+
+	isLoopback := false
+	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		if ip := net.ParseIP(host); ip != nil {
+			isLoopback = ip.IsLoopback()
+		}
+	}
+
+	// Only trust X-Forwarded-* header fields if this is a loopback connection,
+	// to prevent users from spoofing the remote address
 	remoteAddr := req.RemoteAddr
 	forwardedHost := req.Header.Get("X-Forwarded-For")
 	forwardedPort := req.Header.Get("X-Forwarded-Port")
-	if forwardedHost != "" && forwardedPort != "" {
+	if isLoopback && forwardedHost != "" && forwardedPort != "" {
 		remoteAddr = net.JoinHostPort(forwardedHost, forwardedPort)
 	}
+
 	s.handle(newWebsocketIRCConn(conn), remoteAddr)
 }
