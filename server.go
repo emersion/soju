@@ -151,5 +151,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		s.Logger.Printf("failed to serve HTTP connection: %v", err)
 		return
 	}
-	s.handle(newWebsocketIRCConn(conn), req.RemoteAddr)
+	remoteAddr := req.RemoteAddr
+	forwardedHost := req.Header.Get("X-Forwarded-For")
+	forwardedPort := req.Header.Get("X-Forwarded-Port")
+	if forwardedHost != "" && forwardedPort != "" {
+		remoteAddr = net.JoinHostPort(forwardedHost, forwardedPort)
+	}
+	s.handle(newWebsocketIRCConn(conn), remoteAddr)
 }
