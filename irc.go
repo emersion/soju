@@ -16,6 +16,8 @@ const (
 	err_invalidcapcmd = "410"
 )
 
+const maxMessageLength = 512
+
 type userModes string
 
 func (ms userModes) Has(c byte) bool {
