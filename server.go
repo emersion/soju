@@ -117,9 +117,9 @@ func (s *Server) getUser(name string) *user {
 
 var lastDownstreamID uint64 = 0
 
-func (s *Server) handle(ic ircConn, remoteAddr string) {
+func (s *Server) handle(ic ircConn) {
 	id := atomic.AddUint64(&lastDownstreamID, 1)
-	dc := newDownstreamConn(s, ic, remoteAddr, id)
+	dc := newDownstreamConn(s, ic, id)
 	if err := dc.runUntilRegistered(); err != nil {
 		dc.logger.Print(err)
 	} else {
@@ -139,7 +139,7 @@ func (s *Server) Serve(ln net.Listener) error {
 			return fmt.Errorf("failed to accept connection: %v", err)
 		}
 
-		go s.handle(newNetIRCConn(conn), conn.RemoteAddr().String())
+		go s.handle(newNetIRCConn(conn))
 	}
 }
 
@@ -168,5 +168,5 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		remoteAddr = net.JoinHostPort(forwardedHost, forwardedPort)
 	}
 
-	s.handle(newWebsocketIRCConn(conn), remoteAddr)
+	s.handle(newWebsocketIRCConn(conn, remoteAddr))
 }

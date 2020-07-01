@@ -20,6 +20,7 @@ type ircConn interface {
 	Close() error
 	SetReadDeadline(time.Time) error
 	SetWriteDeadline(time.Time) error
+	RemoteAddr() net.Addr
 }
 
 func newNetIRCConn(c net.Conn) ircConn {
@@ -33,10 +34,11 @@ func newNetIRCConn(c net.Conn) ircConn {
 type websocketIRCConn struct {
 	conn                        *websocket.Conn
 	readDeadline, writeDeadline time.Time
+	remoteAddr                  string
 }
 
-func newWebsocketIRCConn(c *websocket.Conn) ircConn {
-	return websocketIRCConn{conn: c}
+func newWebsocketIRCConn(c *websocket.Conn, remoteAddr string) ircConn {
+	return websocketIRCConn{conn: c, remoteAddr: remoteAddr}
 }
 
 func (wic websocketIRCConn) ReadMessage() (*irc.Message, error) {
@@ -81,6 +83,20 @@ func (wic websocketIRCConn) SetReadDeadline(t time.Time) error {
 func (wic websocketIRCConn) SetWriteDeadline(t time.Time) error {
 	wic.writeDeadline = t
 	return nil
+}
+
+func (wic websocketIRCConn) RemoteAddr() net.Addr {
+	return websocketAddr(wic.remoteAddr)
+}
+
+type websocketAddr string
+
+func (websocketAddr) Network() string {
+	return "ws"
+}
+
+func (wa websocketAddr) String() string {
+	return string(wa)
 }
 
 type conn struct {

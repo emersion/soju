@@ -99,7 +99,8 @@ type downstreamConn struct {
 	saslServer sasl.Server
 }
 
-func newDownstreamConn(srv *Server, ic ircConn, remoteAddr string, id uint64) *downstreamConn {
+func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
+	remoteAddr := ic.RemoteAddr().String()
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", remoteAddr)}
 	dc := &downstreamConn{
 		conn:          *newConn(srv, ic, logger),
