@@ -48,7 +48,8 @@ func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 	for nick, memberships := range ch.Members {
 		s := memberships.Format(dc) + dc.marshalEntity(ch.conn.network, nick)
 
-		if buf.Len() != 0 && maxLength < buf.Len()+1+len(s) {
+		n := buf.Len() + 1 + len(s)
+		if buf.Len() != 0 && n > maxLength {
 			// There's not enough space for the next space + nick.
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
