@@ -753,11 +753,16 @@ func (dc *downstreamConn) loadNetwork() error {
 			}}
 		}
 
+		// Some clients only allow specifying the nickname (and use the
+		// nickname as a username too). Strip the network name from the
+		// nickname when auto-saving networks.
+		nick, _, _ := unmarshalUsername(dc.nick)
+
 		dc.logger.Printf("auto-saving network %q", dc.networkName)
 		var err error
 		network, err = dc.user.createNetwork(&Network{
 			Addr: dc.networkName,
-			Nick: dc.nick,
+			Nick: nick,
 		})
 		if err != nil {
 			return err
