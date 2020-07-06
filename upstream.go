@@ -553,19 +553,15 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		})
 
 		if len(uc.network.channels) > 0 {
-			// TODO: split this into multiple messages if need be
-			var names, keys []string
+			var channels, keys []string
 			for _, ch := range uc.network.channels {
-				names = append(names, ch.Name)
+				channels = append(channels, ch.Name)
 				keys = append(keys, ch.Key)
 			}
-			uc.SendMessage(&irc.Message{
-				Command: "JOIN",
-				Params: []string{
-					strings.Join(names, ","),
-					strings.Join(keys, ","),
-				},
-			})
+
+			for _, msg := range join(channels, keys) {
+				uc.SendMessage(msg)
+			}
 		}
 	case irc.RPL_MYINFO:
 		if err := parseMessageParams(msg, nil, &uc.serverName, nil, &uc.availableUserModes, nil); err != nil {
