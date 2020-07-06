@@ -98,13 +98,15 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	switch u.Scheme {
 	case "ircs":
 		addr := u.Host
-		if _, _, err := net.SplitHostPort(addr); err != nil {
-			addr = addr + ":6697"
+		host, _, err := net.SplitHostPort(u.Host)
+		if err != nil {
+			host = u.Host
+			addr = u.Host + ":6697"
 		}
 
 		logger.Printf("connecting to TLS server at address %q", addr)
 
-		var tlsConfig *tls.Config
+		tlsConfig := &tls.Config{ServerName: host}
 		if network.SASL.Mechanism == "EXTERNAL" {
 			if network.SASL.External.CertBlob == nil {
 				return nil, fmt.Errorf("missing certificate for authentication")
@@ -116,21 +118,24 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse private key: %v", err)
 			}
-			tlsConfig = &tls.Config{
-				Certificates: []tls.Certificate{
-					{
-						Certificate: [][]byte{network.SASL.External.CertBlob},
-						PrivateKey:  key.(crypto.PrivateKey),
-					},
+			tlsConfig.Certificates = []tls.Certificate{
+				{
+					Certificate: [][]byte{network.SASL.External.CertBlob},
+					PrivateKey:  key.(crypto.PrivateKey),
 				},
 			}
 			logger.Printf("using TLS client certificate %x", sha256.Sum256(network.SASL.External.CertBlob))
 		}
 
-		netConn, err = tls.DialWithDialer(&dialer, "tcp", addr, tlsConfig)
+		netConn, err = dialer.Dial("tcp", addr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to dial %q: %v", addr, err)
 		}
+
+		// Don't do the TLS handshake immediately, because we need to register
+		// the new connection with identd ASAP. See:
+		// https://todo.sr.ht/~emersion/soju/69#event-41859
+		netConn = tls.Client(netConn, tlsConfig)
 	case "irc+insecure":
 		addr := u.Host
 		if _, _, err := net.SplitHostPort(addr); err != nil {
