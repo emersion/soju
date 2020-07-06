@@ -98,7 +98,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	var err error
 	switch scheme {
 	case "ircs":
-		if !strings.ContainsRune(addr, ':') {
+		if _, _, err := net.SplitHostPort(addr); err != nil {
 			addr = addr + ":6697"
 		}
 
@@ -129,7 +129,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 
 		netConn, err = tls.DialWithDialer(&dialer, "tcp", addr, cfg)
 	case "irc+insecure":
-		if !strings.ContainsRune(addr, ':') {
+		if _, _, err := net.SplitHostPort(addr); err != nil {
 			addr = addr + ":6667"
 		}
 
