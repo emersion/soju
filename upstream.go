@@ -1315,15 +1315,13 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 		}
 
-		if downstreamID != 0 {
-			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Prefix:  uc.srv.prefix(),
-					Command: msg.Command,
-					Params:  []string{dc.nick, command, reason},
-				})
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+			dc.SendMessage(&irc.Message{
+				Prefix:  uc.srv.prefix(),
+				Command: msg.Command,
+				Params:  []string{dc.nick, command, reason},
 			})
-		}
+		})
 	case "ACK":
 		// Ignore
 	case irc.RPL_NOWAWAY, irc.RPL_UNAWAY:
@@ -1347,24 +1345,23 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		fallthrough
 	default:
 		uc.logger.Printf("unhandled message: %v", msg)
-		if downstreamID != 0 {
-			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-				// best effort marshaling for unknown messages, replies and errors:
-				// most numerics start with the user nick, marshal it if that's the case
-				// otherwise, conservately keep the params without marshaling
-				params := msg.Params
-				if _, err := strconv.Atoi(msg.Command); err == nil { // numeric
-					if len(msg.Params) > 0 && isOurNick(uc.network, msg.Params[0]) {
-						params[0] = dc.nick
-					}
+
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+			// best effort marshaling for unknown messages, replies and errors:
+			// most numerics start with the user nick, marshal it if that's the case
+			// otherwise, conservately keep the params without marshaling
+			params := msg.Params
+			if _, err := strconv.Atoi(msg.Command); err == nil { // numeric
+				if len(msg.Params) > 0 && isOurNick(uc.network, msg.Params[0]) {
+					params[0] = dc.nick
 				}
-				dc.SendMessage(&irc.Message{
-					Prefix:  uc.srv.prefix(),
-					Command: msg.Command,
-					Params:  params,
-				})
+			}
+			dc.SendMessage(&irc.Message{
+				Prefix:  uc.srv.prefix(),
+				Command: msg.Command,
+				Params:  params,
 			})
-		}
+		})
 	}
 	return nil
 }
