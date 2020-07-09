@@ -127,7 +127,7 @@ func OpenSQLDB(driver, source string) (*DB, error) {
 func (db *DB) Close() error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
-	return db.Close()
+	return db.db.Close()
 }
 
 func (db *DB) upgrade() error {
