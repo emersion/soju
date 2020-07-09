@@ -310,9 +310,9 @@ func (fs *networkFlagSet) update(network *Network) error {
 		if addrParts := strings.SplitN(*fs.Addr, "://", 2); len(addrParts) == 2 {
 			scheme := addrParts[0]
 			switch scheme {
-			case "ircs", "irc+insecure":
+			case "ircs", "irc+insecure", "unix":
 			default:
-				return fmt.Errorf("unknown scheme %q (supported schemes: ircs, irc+insecure)", scheme)
+				return fmt.Errorf("unknown scheme %q (supported schemes: ircs, irc+insecure, unix)", scheme)
 			}
 		}
 		network.Addr = *fs.Addr
