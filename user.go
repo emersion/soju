@@ -293,6 +293,7 @@ func (u *user) run() {
 		channels, err := u.srv.db.ListChannels(record.ID)
 		if err != nil {
 			u.srv.Logger.Printf("failed to list channels for user %q, network %q: %v", u.Username, record.GetName(), err)
+			continue
 		}
 
 		network := newNetwork(u, &record, channels)
