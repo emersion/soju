@@ -134,9 +134,41 @@ func formatMessage(msg *irc.Message) string {
 	}
 }
 
-func parseMessagesBefore(network *network, entity string, timestamp time.Time, limit int) ([]*irc.Message, error) {
-	year, month, day := timestamp.Date()
-	path := logPath(network, entity, timestamp)
+func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, error) {
+	var hour, minute, second int
+	_, err := fmt.Sscanf(line, "[%02d:%02d:%02d] ", &hour, &minute, &second)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	line = line[11:]
+
+	// TODO: support NOTICE
+	if !strings.HasPrefix(line, "<") {
+		return nil, time.Time{}, nil
+	}
+	i := strings.Index(line, "> ")
+	if i < 0 {
+		return nil, time.Time{}, nil
+	}
+
+	year, month, day := ref.Date()
+	t := time.Date(year, month, day, hour, minute, second, 0, time.Local)
+
+	sender := line[1:i]
+	text := line[i+2:]
+	msg := &irc.Message{
+		Tags: map[string]irc.TagValue{
+			"time": irc.TagValue(t.UTC().Format(serverTimeLayout)),
+		},
+		Prefix: &irc.Prefix{Name: sender},
+		Command: "PRIVMSG",
+		Params:  []string{entity, text},
+	}
+	return msg, t, nil
+}
+
+func parseMessagesBefore(network *network, entity string, ref time.Time, limit int) ([]*irc.Message, error) {
+	path := logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -151,38 +183,16 @@ func parseMessagesBefore(network *network, entity string, timestamp time.Time, l
 
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		line := sc.Text()
-		var hour, minute, second int
-		_, err := fmt.Sscanf(line, "[%02d:%02d:%02d] ", &hour, &minute, &second)
+		msg, t, err := parseMessage(sc.Text(), entity, ref)
 		if err != nil {
 			return nil, err
-		}
-		message := line[11:]
-		// TODO: support NOTICE
-		if !strings.HasPrefix(message, "<") {
+		} else if msg == nil {
 			continue
-		}
-		i := strings.Index(message, "> ")
-		if i == -1 {
-			continue
-		}
-		t := time.Date(year, month, day, hour, minute, second, 0, time.Local)
-		if !t.Before(timestamp) {
+		} else if !t.Before(ref) {
 			break
 		}
 
-		sender := message[1:i]
-		text := message[i+2:]
-		historyRing[cur%limit] = &irc.Message{
-			Tags: map[string]irc.TagValue{
-				"time": irc.TagValue(t.UTC().Format(serverTimeLayout)),
-			},
-			Prefix: &irc.Prefix{
-				Name: sender,
-			},
-			Command: "PRIVMSG",
-			Params:  []string{entity, text},
-		}
+		historyRing[cur%limit] = msg
 		cur++
 	}
 	if sc.Err() != nil {
@@ -203,4 +213,34 @@ func parseMessagesBefore(network *network, entity string, timestamp time.Time, l
 		copy(history[r:], historyRing[:n-r])
 		return history, nil
 	}
+}
+
+func parseMessagesAfter(network *network, entity string, ref time.Time, limit int) ([]*irc.Message, error) {
+	path := logPath(network, entity, ref)
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	var history []*irc.Message
+	sc := bufio.NewScanner(f)
+	for sc.Scan() && len(history) < limit {
+		msg, t, err := parseMessage(sc.Text(), entity, ref)
+		if err != nil {
+			return nil, err
+		} else if msg == nil || !t.After(ref) {
+			continue
+		}
+
+		history = append(history, msg)
+	}
+	if sc.Err() != nil {
+		return nil, sc.Err()
+	}
+
+	return history, nil
 }
