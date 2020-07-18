@@ -50,6 +50,7 @@ type Server struct {
 	Hostname       string
 	Logger         Logger
 	HistoryLimit   int
+	IdleLimit      int
 	LogPath        string
 	Debug          bool
 	HTTPOrigins    []string
@@ -68,6 +69,7 @@ func NewServer(db Database) *Server {
 	return &Server{
 		Logger:       log.New(log.Writer(), "", log.LstdFlags),
 		HistoryLimit: 1000,
+		IdleLimit:    1000,
 		db:           db,
 		listeners:    make(map[net.Listener]struct{}),
 		users:        make(map[string]*user),
