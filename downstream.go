@@ -97,6 +97,10 @@ type downstreamConn struct {
 	caps            map[string]bool
 
 	saslServer sasl.Server
+
+	idle           bool
+	idleHighlights []string
+	idleMessages   []*irc.Message
 }
 
 func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
@@ -107,6 +111,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		id:            id,
 		supportedCaps: make(map[string]string),
 		caps:          make(map[string]bool),
+		idleMessages:  make([]*irc.Message, 0, srv.IdleLimit),
 	}
 	dc.hostname = remoteAddr
 	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
@@ -256,6 +261,13 @@ func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	return nil
 }
 
+func (dc *downstreamConn) flushIdleMessages() {
+	for _, m := range dc.idleMessages {
+		dc.conn.SendMessage(m)
+	}
+	dc.idleMessages = make([]*irc.Message, 0, dc.srv.IdleLimit)
+}
+
 // SendMessage sends an outgoing message.
 //
 // This can only called from the user goroutine.
@@ -277,6 +289,33 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 		}
 	}
 
+	if !dc.idle {
+		dc.conn.SendMessage(msg)
+		return
+	}
+
+	flush := len(dc.idleMessages) >= dc.srv.IdleLimit
+	if msg.Command == "NOTICE" || msg.Command == "PRIVMSG" {
+		if !flush && len(msg.Params) > 0 && msg.Params[0] == dc.nick {
+			flush = true
+		}
+		if !flush {
+			text := strings.ToLower(msg.Params[1])
+			for _, highlight := range dc.idleHighlights {
+				if strings.Contains(text, highlight) {
+					flush = true
+					break
+				}
+			}
+		}
+	}
+
+	if !flush {
+		dc.idleMessages = append(dc.idleMessages, msg)
+		return
+	}
+
+	dc.flushIdleMessages()
 	dc.conn.SendMessage(msg)
 }
 
@@ -805,8 +844,16 @@ func (dc *downstreamConn) welcome() error {
 		Command: irc.RPL_MYINFO,
 		Params:  []string{dc.nick, dc.srv.Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
-	// TODO: RPL_ISUPPORT
-	// TODO: send CHATHISTORY in RPL_ISUPPORT when implemented
+	// TODO: send all MUST parameters in RPL_ISUPPORT
+	params := []string{dc.nick, "IDLE"}
+	if dc.srv.LogPath != "" {
+		params = append(params, fmt.Sprintf("CHATHISTORY=%d", dc.srv.HistoryLimit))
+	}
+	dc.SendMessage(&irc.Message{
+		Prefix:  dc.srv.prefix(),
+		Command: irc.RPL_ISUPPORT,
+		Params:  params,
+	})
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
@@ -934,6 +981,11 @@ func (dc *downstreamConn) runUntilRegistered() error {
 }
 
 func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
+	if dc.idle {
+		dc.idle = false
+		dc.idleHighlights = nil
+		dc.flushIdleMessages()
+	}
 	switch msg.Command {
 	case "CAP":
 		var subCmd string
@@ -1681,6 +1733,17 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  []string{"CHATHISTORY", "UNKNOWN_COMMAND", subcommand, "Unknown command"},
 			}}
 		}
+	case "IDLE":
+		var highlights []string
+		if len(msg.Params) > 0 {
+			highlights = strings.Split(msg.Params[0], ",")
+			for i, highlight := range highlights {
+				highlights[i] = strings.ToLower(highlight)
+			}
+		}
+
+		dc.idle = true
+		dc.idleHighlights = highlights
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
