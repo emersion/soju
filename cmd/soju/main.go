@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"log"
@@ -12,12 +13,16 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/pires/go-proxyproto"
 
 	"git.sr.ht/~emersion/soju"
 	"git.sr.ht/~emersion/soju/config"
 )
+
+// TCP keep-alive interval for downstream TCP connections
+const downstreamKeepAlive = 1 * time.Hour
 
 func main() {
 	var listen, configPath string
@@ -96,10 +101,14 @@ func main() {
 			}
 			ircsTLSCfg := tlsCfg.Clone()
 			ircsTLSCfg.NextProtos = []string{"irc"}
-			ln, err := tls.Listen("tcp", host, ircsTLSCfg)
+			lc := net.ListenConfig{
+				KeepAlive: downstreamKeepAlive,
+			}
+			l, err := lc.Listen(context.Background(), "tcp", host)
 			if err != nil {
 				log.Fatalf("failed to start TLS listener on %q: %v", listen, err)
 			}
+			ln := tls.NewListener(l, ircsTLSCfg)
 			ln = proxyProtoListener(ln, srv)
 			go func() {
 				if err := srv.Serve(ln); err != nil {
@@ -111,7 +120,10 @@ func main() {
 			if _, _, err := net.SplitHostPort(host); err != nil {
 				host = host + ":6667"
 			}
-			ln, err := net.Listen("tcp", host)
+			lc := net.ListenConfig{
+				KeepAlive: downstreamKeepAlive,
+			}
+			ln, err := lc.Listen(context.Background(), "tcp", host)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
