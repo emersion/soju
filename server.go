@@ -45,6 +45,7 @@ type Server struct {
 	Logger       Logger
 	RingCap      int
 	HistoryLimit int
+	IdleLimit    int
 	LogPath      string
 	Debug        bool
 	HTTPOrigins  []string
@@ -60,6 +61,7 @@ func NewServer(db *DB) *Server {
 		Logger:       log.New(log.Writer(), "", log.LstdFlags),
 		RingCap:      4096,
 		HistoryLimit: 1000,
+		IdleLimit:    1000,
 		users:        make(map[string]*user),
 		db:           db,
 	}
