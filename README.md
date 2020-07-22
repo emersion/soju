@@ -21,6 +21,11 @@ To create an admin user and start soju, run these commands:
     go run ./cmd/sojuctl create-user <soju username> -admin
     go run ./cmd/soju -listen irc+insecure://127.0.0.1:6667
 
+If you're migrating from ZNC, a tool is available to import users, networks and
+channels from a ZNC config file:
+
+    go run ./contrib/znc-import.go <znc config file>
+
 ### Client side
 
 soju can operate in two different modes: multi upstream and single upstream.
