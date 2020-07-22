@@ -153,9 +153,10 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	Show a list of saved networks and their current status.
 
 *certfp generate* [options...] <network name>
-	Generate self-signed certificate and use it for authentication.
+	Generate self-signed certificate and use it for authentication (via SASL
+	EXTERNAL).
 
-	Generates RSA-3072 private key by default.
+	Generates a RSA-3072 private key by default.
 
 	Options are:
 
