@@ -118,7 +118,7 @@ func Parse(r io.Reader) (*Server, error) {
 				return nil, err
 			}
 		case "http-origin":
-			srv.HTTPOrigins = append(srv.HTTPOrigins, d.Params...)
+			srv.HTTPOrigins = d.Params
 		case "accept-proxy-ip":
 			srv.AcceptProxyIPs = nil
 			for _, s := range d.Params {
