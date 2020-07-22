@@ -180,11 +180,6 @@ func init() {
 					desc:   "show fingerprints of certificate associated with the network",
 					handle: handleServiceCertfpFingerprints,
 				},
-				"reset": {
-					usage:  "<network name>",
-					desc:   "disable SASL EXTERNAL authentication and remove stored certificate",
-					handle: handleServiceCertfpReset,
-				},
 			},
 		},
 		"sasl": {
@@ -193,6 +188,11 @@ func init() {
 					usage:  "<network name> <username> <password>",
 					desc:   "set SASL PLAIN credentials",
 					handle: handleServiceSASLSetPlain,
+				},
+				"reset": {
+					usage:  "<network name>",
+					desc:   "disable SASL authentication and remove stored credentials",
+					handle: handleServiceSASLReset,
 				},
 			},
 		},
@@ -573,30 +573,6 @@ func handleServiceCertfpFingerprints(dc *downstreamConn, params []string) error 
 	return nil
 }
 
-func handleServiceCertfpReset(dc *downstreamConn, params []string) error {
-	if len(params) != 1 {
-		return fmt.Errorf("expected exactly one argument")
-	}
-
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
-	}
-
-	net.SASL.External.CertBlob = nil
-	net.SASL.External.PrivKeyBlob = nil
-
-	if net.SASL.Mechanism == "EXTERNAL" {
-		net.SASL.Mechanism = ""
-	}
-	if err := dc.srv.db.StoreNetwork(dc.user.Username, &net.Network); err != nil {
-		return err
-	}
-
-	sendServicePRIVMSG(dc, "certificate reset")
-	return nil
-}
-
 func handleServiceSASLSetPlain(dc *downstreamConn, params []string) error {
 	if len(params) != 3 {
 		return fmt.Errorf("expected exactly 3 arguments")
@@ -616,6 +592,30 @@ func handleServiceSASLSetPlain(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, "credentials saved")
+	return nil
+}
+
+func handleServiceSASLReset(dc *downstreamConn, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+
+	net := dc.user.getNetwork(params[0])
+	if net == nil {
+		return fmt.Errorf("unknown network %q", params[0])
+	}
+
+	net.SASL.Plain.Username = ""
+	net.SASL.Plain.Password = ""
+	net.SASL.External.CertBlob = nil
+	net.SASL.External.PrivKeyBlob = nil
+	net.SASL.Mechanism = ""
+
+	if err := dc.srv.db.StoreNetwork(dc.user.Username, &net.Network); err != nil {
+		return err
+	}
+
+	sendServicePRIVMSG(dc, "credentials reset")
 	return nil
 }
 
