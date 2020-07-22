@@ -142,7 +142,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to dial %q: %v", addr, err)
 		}
-	case "unix":
+	case "irc+unix", "unix":
 		logger.Printf("connecting to Unix socket at path %q", u.Path)
 		netConn, err = dialer.Dial("unix", u.Path)
 		if err != nil {
