@@ -63,6 +63,16 @@ be done by adding a "@<client>" suffix to the username.
 
 The config file has one directive per line.
 
+Example:
+
+```
+listen ircs://
+tls cert.pem key.pem
+hostname example.org
+```
+
+The following directives are supported:
+
 *listen* <uri>
 	Listening URI (default: ":6697").
 
