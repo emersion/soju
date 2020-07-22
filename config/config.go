@@ -4,23 +4,48 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"os"
 
 	"github.com/google/shlex"
 )
+
+type IPSet []*net.IPNet
+
+func (set IPSet) Contains(ip net.IP) bool {
+	for _, n := range set {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// loopbackIPs contains the loopback networks 127.0.0.0/8 and ::1/128.
+var loopbackIPs = IPSet{
+	&net.IPNet{
+		IP:   net.IP{127, 0, 0, 0},
+		Mask: net.CIDRMask(8, 32),
+	},
+	&net.IPNet{
+		IP:   net.IPv6loopback,
+		Mask: net.CIDRMask(128, 128),
+	},
+}
 
 type TLS struct {
 	CertPath, KeyPath string
 }
 
 type Server struct {
-	Listen      []string
-	Hostname    string
-	TLS         *TLS
-	SQLDriver   string
-	SQLSource   string
-	LogPath     string
-	HTTPOrigins []string
+	Listen         []string
+	Hostname       string
+	TLS            *TLS
+	SQLDriver      string
+	SQLSource      string
+	LogPath        string
+	HTTPOrigins    []string
+	AcceptProxyIPs IPSet
 }
 
 func Defaults() *Server {
@@ -29,9 +54,10 @@ func Defaults() *Server {
 		hostname = "localhost"
 	}
 	return &Server{
-		Hostname:  hostname,
-		SQLDriver: "sqlite3",
-		SQLSource: "soju.db",
+		Hostname:       hostname,
+		SQLDriver:      "sqlite3",
+		SQLSource:      "soju.db",
+		AcceptProxyIPs: loopbackIPs,
 	}
 }
 
@@ -93,6 +119,15 @@ func Parse(r io.Reader) (*Server, error) {
 			}
 		case "http-origin":
 			srv.HTTPOrigins = append(srv.HTTPOrigins, d.Params...)
+		case "accept-proxy-ip":
+			srv.AcceptProxyIPs = nil
+			for _, s := range d.Params {
+				_, n, err := net.ParseCIDR(s)
+				if err != nil {
+					return nil, fmt.Errorf("directive %q: failed to parse CIDR: %v", d.Name, err)
+				}
+				srv.AcceptProxyIPs = append(srv.AcceptProxyIPs, n)
+			}
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)
 		}

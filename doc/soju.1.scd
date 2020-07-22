@@ -109,6 +109,12 @@ The following directives are supported:
 	List of allowed HTTP origins for WebSocket listeners. The parameters are
 	interpreted as shell patterns, see *glob*(7).
 
+*accept-proxy-ip* <cidr...>
+	Allow the specified IPs to act as a proxy. Proxys have the ability to
+	overwrite the remote and local connection addresses (via the X-Forwarded-*
+	HTTP header fields). By default, the loopback addresses 127.0.0.0/8 and
+	::1/128 are accepted.
+
 # IRC SERVICE
 
 soju exposes an IRC service called *BouncerServ* to manage the bouncer.

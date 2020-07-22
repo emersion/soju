@@ -11,6 +11,8 @@ import (
 
 	"gopkg.in/irc.v3"
 	"nhooyr.io/websocket"
+
+	"git.sr.ht/~emersion/soju/config"
 )
 
 // TODO: make configurable
@@ -41,13 +43,14 @@ func (l *prefixLogger) Printf(format string, v ...interface{}) {
 }
 
 type Server struct {
-	Hostname     string
-	Logger       Logger
-	RingCap      int
-	HistoryLimit int
-	LogPath      string
-	Debug        bool
-	HTTPOrigins  []string
+	Hostname       string
+	Logger         Logger
+	RingCap        int
+	HistoryLimit   int
+	LogPath        string
+	Debug          bool
+	HTTPOrigins    []string
+	AcceptProxyIPs config.IPSet
 
 	db *DB
 
@@ -153,19 +156,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	isLoopback := false
+	isProxy := false
 	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		if ip := net.ParseIP(host); ip != nil {
-			isLoopback = ip.IsLoopback()
+			isProxy = s.AcceptProxyIPs.Contains(ip)
 		}
 	}
 
-	// Only trust X-Forwarded-* header fields if this is a loopback connection,
+	// Only trust X-Forwarded-* header fields if this is a trusted proxy IP
 	// to prevent users from spoofing the remote address
 	remoteAddr := req.RemoteAddr
 	forwardedHost := req.Header.Get("X-Forwarded-For")
 	forwardedPort := req.Header.Get("X-Forwarded-Port")
-	if isLoopback && forwardedHost != "" && forwardedPort != "" {
+	if isProxy && forwardedHost != "" && forwardedPort != "" {
 		remoteAddr = net.JoinHostPort(forwardedHost, forwardedPort)
 	}
 
