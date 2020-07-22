@@ -139,13 +139,20 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		Connect with the specified nickname. By default, the account's username
 		is used.
 
+*network update* <name> [options...]
+	Update an existing network. The options are the same as the
+	_network create_ command.
+
+	When this command is executed, soju will disconnect and re-connect to the
+	network.
+
 *network delete* <name>
 	Disconnect and delete a network.
 
 *network status*
 	Show a list of saved networks and their current status.
 
-*certfp generate* *[options...]* <network name>
+*certfp generate* [options...] <network name>
 	Generate self-signed certificate and use it for authentication.
 
 	Generates RSA-3072 private key by default.
