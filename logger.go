@@ -160,7 +160,7 @@ func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, 
 		Tags: map[string]irc.TagValue{
 			"time": irc.TagValue(t.UTC().Format(serverTimeLayout)),
 		},
-		Prefix: &irc.Prefix{Name: sender},
+		Prefix:  &irc.Prefix{Name: sender},
 		Command: "PRIVMSG",
 		Params:  []string{entity, text},
 	}

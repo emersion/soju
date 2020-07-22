@@ -1666,7 +1666,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				}
 				remaining -= len(buf)
 				year, month, day := timestamp.Date()
-				timestamp = time.Date(year, month, day + 1, 0, 0, 0, 0, timestamp.Location())
+				timestamp = time.Date(year, month, day+1, 0, 0, 0, 0, timestamp.Location())
 			}
 
 			dc.SendMessage(&irc.Message{
