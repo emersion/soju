@@ -173,6 +173,9 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *certfp reset* <network name>
 	Disable SASL EXTERNAL authentication and remove stored certificate.
 
+*sasl set-plain* <network name> <username> <password>
+	Set SASL PLAIN credentials.
+
 *user create* -username <username> -password <password> [-admin]
 	Create a new soju user. Only admin users can create new accounts.
 

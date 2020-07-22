@@ -187,6 +187,15 @@ func init() {
 				},
 			},
 		},
+		"sasl": {
+			children: serviceCommandSet{
+				"set-plain": {
+					usage:  "<network name> <username> <password>",
+					desc:   "set SASL PLAIN credentials",
+					handle: handleServiceSASLSetPlain,
+				},
+			},
+		},
 		"user": {
 			children: serviceCommandSet{
 				"create": {
@@ -585,6 +594,28 @@ func handleServiceCertfpReset(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, "certificate reset")
+	return nil
+}
+
+func handleServiceSASLSetPlain(dc *downstreamConn, params []string) error {
+	if len(params) != 3 {
+		return fmt.Errorf("expected exactly 3 arguments")
+	}
+
+	net := dc.user.getNetwork(params[0])
+	if net == nil {
+		return fmt.Errorf("unknown network %q", params[0])
+	}
+
+	net.SASL.Plain.Username = params[1]
+	net.SASL.Plain.Password = params[2]
+	net.SASL.Mechanism = "PLAIN"
+
+	if err := dc.srv.db.StoreNetwork(net.Username, &net.Network); err != nil {
+		return err
+	}
+
+	sendServicePRIVMSG(dc, "credentials saved")
 	return nil
 }
 
