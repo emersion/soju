@@ -111,7 +111,7 @@ The following directives are supported:
 
 *accept-proxy-ip* <cidr...>
 	Allow the specified IPs to act as a proxy. Proxys have the ability to
-	overwrite the remote and local connection addresses (via the X-Forwarded-*
+	overwrite the remote and local connection addresses (via the X-Forwarded-\*
 	HTTP header fields). By default, the loopback addresses 127.0.0.0/8 and
 	::1/128 are accepted.
 
