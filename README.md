@@ -1,6 +1,6 @@
 # [soju]
 
-[![builds.sr.ht status](https://builds.sr.ht/~emersion/soju/.build.yml.svg)](https://builds.sr.ht/~emersion/soju/.build.yml?)
+[![builds.sr.ht status](https://builds.sr.ht/~emersion/soju/commits.svg)](https://builds.sr.ht/~emersion/soju/commits?)
 
 A user-friendly IRC bouncer.
 
@@ -81,6 +81,6 @@ AGPLv3, see LICENSE.
 Copyright (C) 2020 The soju Contributors
 
 [soju]: https://soju.im
-[mailing list]: https://lists.sr.ht/~emersion/public-inbox
+[mailing list]: https://lists.sr.ht/~emersion/soju-dev
 [GitHub]: https://github.com/emersion/soju
 [issue tracker]: https://todo.sr.ht/~emersion/soju
