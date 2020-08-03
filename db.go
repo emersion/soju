@@ -250,6 +250,40 @@ func (db *DB) StoreUser(user *User) error {
 	return err
 }
 
+func (db *DB) DeleteUser(username string) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`DELETE FROM Channel
+		WHERE id IN (
+			SELECT Channel.id
+			FROM Channel
+			JOIN Network ON Channel.network = Network.id
+			WHERE Network.user = ?
+		)`, username)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec("DELETE FROM Network WHERE user = ?", username)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec("DELETE FROM User WHERE username = ?", username)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (db *DB) ListNetworks(username string) ([]Network, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
@@ -359,12 +393,12 @@ func (db *DB) DeleteNetwork(id int64) error {
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec("DELETE FROM Network WHERE id = ?", id)
+	_, err = tx.Exec("DELETE FROM Channel WHERE network = ?", id)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec("DELETE FROM Channel WHERE network = ?", id)
+	_, err = tx.Exec("DELETE FROM Network WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
