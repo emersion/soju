@@ -45,6 +45,8 @@ type eventDownstreamDisconnected struct {
 	dc *downstreamConn
 }
 
+type eventStop struct{}
+
 type networkHistory struct {
 	offlineClients map[string]uint64 // indexed by client name
 	ring           *Ring             // can be nil if there are no offline clients
@@ -416,6 +418,14 @@ func (u *user) run() {
 				dc.logger.Printf("failed to handle message %q: %v", msg, err)
 				dc.Close()
 			}
+		case eventStop:
+			u.forEachDownstream(func(dc *downstreamConn) {
+				dc.Close()
+			})
+			for _, n := range u.networks {
+				n.stop()
+			}
+			return
 		default:
 			u.srv.Logger.Printf("received unknown event type: %T", e)
 		}
@@ -549,4 +559,8 @@ func (u *user) deleteNetwork(id int64) error {
 func (u *user) updatePassword(hashed string) error {
 	u.User.Password = hashed
 	return u.srv.db.StoreUser(&u.User)
+}
+
+func (u *user) stop() {
+	u.events <- eventStop{}
 }
