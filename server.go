@@ -79,12 +79,8 @@ func (s *Server) Run() error {
 	}
 
 	s.lock.Lock()
-	for _, record := range users {
-		s.Logger.Printf("starting bouncer for user %q", record.Username)
-		u := newUser(s, &record)
-		s.users[u.Username] = u
-
-		go u.run()
+	for i := range users {
+		s.addUserLocked(&users[i])
 	}
 	s.lock.Unlock()
 
@@ -104,17 +100,29 @@ func (s *Server) createUser(user *User) (*user, error) {
 		return nil, fmt.Errorf("could not create user in db: %v", err)
 	}
 
-	s.Logger.Printf("starting bouncer for new user %q", user.Username)
-	u := newUser(s, user)
-	s.users[u.Username] = u
-	go u.run()
-	return u, nil
+	return s.addUserLocked(user), nil
 }
 
 func (s *Server) getUser(name string) *user {
 	s.lock.Lock()
 	u := s.users[name]
 	s.lock.Unlock()
+	return u
+}
+
+func (s *Server) addUserLocked(user *User) *user {
+	s.Logger.Printf("starting bouncer for user %q", user.Username)
+	u := newUser(s, user)
+	s.users[u.Username] = u
+
+	go func() {
+		u.run()
+
+		s.lock.Lock()
+		delete(s.users, u.Username)
+		s.lock.Unlock()
+	}()
+
 	return u
 }
 
