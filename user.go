@@ -219,6 +219,7 @@ type user struct {
 	srv *Server
 
 	events chan event
+	done   chan struct{}
 
 	networks        []*network
 	downstreamConns []*downstreamConn
@@ -238,6 +239,7 @@ func newUser(srv *Server, record *User) *user {
 		User:   *record,
 		srv:    srv,
 		events: make(chan event, 64),
+		done:   make(chan struct{}),
 	}
 }
 
@@ -284,6 +286,8 @@ func (u *user) getNetworkByID(id int64) *network {
 }
 
 func (u *user) run() {
+	defer close(u.done)
+
 	networks, err := u.srv.db.ListNetworks(u.Username)
 	if err != nil {
 		u.srv.Logger.Printf("failed to list networks for user %q: %v", u.Username, err)
@@ -563,4 +567,5 @@ func (u *user) updatePassword(hashed string) error {
 
 func (u *user) stop() {
 	u.events <- eventStop{}
+	<-u.done
 }
