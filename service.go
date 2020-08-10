@@ -204,6 +204,12 @@ func init() {
 					handle: handleUserCreate,
 					admin:  true,
 				},
+				"delete": {
+					usage:  "<username>",
+					desc:   "delete a user",
+					handle: handleUserDelete,
+					admin:  true,
+				},
 			},
 			admin: true,
 		},
@@ -667,5 +673,26 @@ func handleUserCreate(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("created user %q", *username))
+	return nil
+}
+
+func handleUserDelete(dc *downstreamConn, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+	username := params[0]
+
+	u := dc.srv.getUser(username)
+	if u == nil {
+		return fmt.Errorf("unknown username %q", username)
+	}
+
+	u.stop()
+
+	if err := dc.srv.db.DeleteUser(username); err != nil {
+		return fmt.Errorf("failed to delete user: %v", err)
+	}
+
+	sendServicePRIVMSG(dc, fmt.Sprintf("deleted user %q", username))
 	return nil
 }
