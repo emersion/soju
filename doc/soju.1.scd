@@ -86,6 +86,8 @@ The following directives are supported:
 	  port: 443)
 	- _ws+insecure://[host][:port]_ listens for plain-text WebSocket
 	  connections (default port: 80)
+	- _ident://[host][:port]_ listens for plain-text ident connections (default
+	  port: 113)
 
 	If the scheme is omitted, "ircs" is assumed. If multiple *listen*
 	directives are specified, soju will listen on each of them.
