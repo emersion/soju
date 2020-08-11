@@ -21,6 +21,7 @@ type ircConn interface {
 	SetReadDeadline(time.Time) error
 	SetWriteDeadline(time.Time) error
 	RemoteAddr() net.Addr
+	LocalAddr() net.Addr
 }
 
 func newNetIRCConn(c net.Conn) ircConn {
@@ -87,6 +88,12 @@ func (wic websocketIRCConn) SetWriteDeadline(t time.Time) error {
 
 func (wic websocketIRCConn) RemoteAddr() net.Addr {
 	return websocketAddr(wic.remoteAddr)
+}
+
+func (wic websocketIRCConn) LocalAddr() net.Addr {
+	// Behind a reverse HTTP proxy, we don't have access to the real listening
+	// address
+	return websocketAddr("")
 }
 
 type websocketAddr string
