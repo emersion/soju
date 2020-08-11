@@ -1635,33 +1635,34 @@ func (uc *upstreamConn) appendHistory(entity string, msg *irc.Message) {
 		detached = ch.Detached
 	}
 
-	// If no client is offline, no need to append the message to the buffer
-	if len(uc.network.offlineClients) == 0 && !detached {
-		return
-	}
-
 	history, ok := uc.network.history[entity]
 	if !ok {
 		history = &networkHistory{
-			offlineClients: make(map[string]uint64),
-			ring:           NewRing(uc.srv.RingCap),
+			clients: make(map[string]uint64),
+			ring:    NewRing(uc.srv.RingCap),
 		}
 		uc.network.history[entity] = history
 
 		for clientName, _ := range uc.network.offlineClients {
-			history.offlineClients[clientName] = 0
+			history.clients[clientName] = 0
 		}
 
 		if detached {
 			// If the channel is detached, online clients act as offline
 			// clients too
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				history.offlineClients[dc.clientName] = 0
+				history.clients[dc.clientName] = 0
 			})
 		}
 	}
 
 	history.ring.Produce(msg)
+
+	if !detached {
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			history.clients[dc.clientName] = history.ring.Cur()
+		})
+	}
 }
 
 // produce appends a message to the logs, adds it to the history and forwards

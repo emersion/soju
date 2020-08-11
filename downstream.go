@@ -864,17 +864,11 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 			continue
 		}
 
-		seq, ok := history.offlineClients[dc.clientName]
+		seq, ok := history.clients[dc.clientName]
 		if !ok {
 			continue
 		}
-		delete(history.offlineClients, dc.clientName)
-
-		// If all clients have received history, no need to keep the
-		// ring buffer around
-		if len(history.offlineClients) == 0 {
-			delete(net.history, target)
-		}
+		history.clients[dc.clientName] = history.ring.Cur()
 
 		consumer := history.ring.NewConsumer(seq)
 

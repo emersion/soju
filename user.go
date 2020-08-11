@@ -51,8 +51,8 @@ type eventDownstreamDisconnected struct {
 type eventStop struct{}
 
 type networkHistory struct {
-	offlineClients map[string]uint64 // indexed by client name
-	ring           *Ring             // can be nil if there are no offline clients
+	clients map[string]uint64 // indexed by client name
+	ring    *Ring             // can be nil if there are no offline clients
 }
 
 type network struct {
@@ -193,9 +193,6 @@ func (net *network) createUpdateChannel(ch *Channel) error {
 			net.user.srv.Logger.Printf("network %q: detaching channel %q", net.GetName(), ch.Name)
 			net.forEachDownstream(func(dc *downstreamConn) {
 				net.offlineClients[dc.clientName] = struct{}{}
-				if history != nil {
-					history.offlineClients[dc.clientName] = history.ring.Cur()
-				}
 
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.prefix(),
@@ -423,12 +420,6 @@ func (u *user) run() {
 				}
 
 				net.offlineClients[dc.clientName] = struct{}{}
-				for target, history := range net.history {
-					if ch, ok := net.channels[target]; ok && ch.Detached {
-						continue
-					}
-					history.offlineClients[dc.clientName] = history.ring.Cur()
-				}
 			})
 
 			u.forEachUpstream(func(uc *upstreamConn) {
