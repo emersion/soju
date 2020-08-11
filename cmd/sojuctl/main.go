@@ -94,12 +94,12 @@ func main() {
 			log.Fatalf("failed to hash password: %v", err)
 		}
 
-		user := soju.User{
-			Created:  true,
-			Username: username,
-			Password: string(hashed),
+		user, err := db.GetUser(username)
+		if err != nil {
+			log.Fatalf("failed to get user: %v", err)
 		}
-		if err := db.StoreUser(&user); err != nil {
+		user.Password = string(hashed)
+		if err := db.StoreUser(user); err != nil {
 			log.Fatalf("failed to update password: %v", err)
 		}
 	default:
