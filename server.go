@@ -51,6 +51,7 @@ type Server struct {
 	Debug          bool
 	HTTPOrigins    []string
 	AcceptProxyIPs config.IPSet
+	Identd         *Identd // can be nil
 
 	db *DB
 

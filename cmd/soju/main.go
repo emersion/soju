@@ -124,6 +124,22 @@ func main() {
 			go func() {
 				log.Fatal(httpSrv.ListenAndServe())
 			}()
+		case "ident":
+			if srv.Identd == nil {
+				srv.Identd = soju.NewIdentd()
+			}
+
+			host := u.Host
+			if _, _, err := net.SplitHostPort(host); err != nil {
+				host = host + ":113"
+			}
+			ln, err := net.Listen("tcp", host)
+			if err != nil {
+				log.Fatalf("failed to start listener on %q: %v", listen, err)
+			}
+			go func() {
+				log.Fatal(srv.Identd.Serve(ln))
+			}()
 		default:
 			log.Fatalf("failed to listen on %q: unsupported scheme", listen)
 		}

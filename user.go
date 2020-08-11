@@ -1,6 +1,9 @@
 package soju
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -99,6 +102,17 @@ func (net *network) isStopped() bool {
 	}
 }
 
+func userIdent(u *User) string {
+	// The ident is a string we will send to upstream servers in clear-text.
+	// For privacy reasons, make sure it doesn't expose any meaningful user
+	// metadata. We just use the base64-encoded hashed ID, so that people don't
+	// start relying on the string being an integer or following a pattern.
+	var b [64]byte
+	binary.LittleEndian.PutUint64(b[:], uint64(u.ID))
+	h := sha256.Sum256(b[:])
+	return base64.RawStdEncoding.EncodeToString(h[:])
+}
+
 func (net *network) run() {
 	var lastTry time.Time
 	for {
@@ -120,6 +134,10 @@ func (net *network) run() {
 			continue
 		}
 
+		if net.user.srv.Identd != nil {
+			net.user.srv.Identd.Store(uc.RemoteAddr().String(), uc.LocalAddr().String(), userIdent(&net.user.User))
+		}
+
 		uc.register()
 		if err := uc.runUntilRegistered(); err != nil {
 			uc.logger.Printf("failed to register: %v", err)
@@ -138,6 +156,10 @@ func (net *network) run() {
 		}
 		uc.Close()
 		net.user.events <- eventUpstreamDisconnected{uc}
+
+		if net.user.srv.Identd != nil {
+			net.user.srv.Identd.Delete(uc.RemoteAddr().String(), uc.LocalAddr().String())
+		}
 	}
 }
 
