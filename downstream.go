@@ -1598,82 +1598,12 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}}
 		}
 
-		batchRef := "history"
-		maxTries := 100
+		var history []*irc.Message
 		switch subcommand {
 		case "BEFORE":
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"+" + batchRef, "chathistory", target},
-			})
-
-			history := make([]*irc.Message, limit)
-			remaining := limit
-
-			tries := 0
-			for remaining > 0 && tries < maxTries {
-				buf, err := parseMessagesBefore(uc.network, entity, timestamp, remaining)
-				if err != nil {
-					dc.logger.Printf("failed parsing log messages for chathistory: %v", err)
-					return newChatHistoryError(subcommand, target)
-				}
-				if len(buf) == 0 {
-					tries++
-				} else {
-					tries = 0
-				}
-				copy(history[remaining-len(buf):], buf)
-				remaining -= len(buf)
-				year, month, day := timestamp.Date()
-				timestamp = time.Date(year, month, day, 0, 0, 0, 0, timestamp.Location()).Add(-1)
-			}
-
-			for _, msg := range history[remaining:] {
-				msg.Tags["batch"] = irc.TagValue(batchRef)
-				dc.SendMessage(dc.marshalMessage(msg, uc.network))
-			}
-
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"-" + batchRef},
-			})
+			history, err = loadHistoryBeforeTime(uc.network, entity, timestamp, limit)
 		case "AFTER":
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"+" + batchRef, "chathistory", target},
-			})
-
-			remaining := limit
-			tries := 0
-			now := time.Now()
-			for remaining > 0 && tries < maxTries && timestamp.Before(now) {
-				buf, err := parseMessagesAfter(uc.network, entity, timestamp, remaining)
-				if err != nil {
-					dc.logger.Printf("failed parsing log messages for chathistory: %v", err)
-					return newChatHistoryError(subcommand, target)
-				}
-				if len(buf) == 0 {
-					tries++
-				} else {
-					tries = 0
-				}
-				for _, msg := range buf {
-					msg.Tags["batch"] = irc.TagValue(batchRef)
-					dc.SendMessage(dc.marshalMessage(msg, uc.network))
-				}
-				remaining -= len(buf)
-				year, month, day := timestamp.Date()
-				timestamp = time.Date(year, month, day+1, 0, 0, 0, 0, timestamp.Location())
-			}
-
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"-" + batchRef},
-			})
+			history, err = loadHistoryAfterTime(uc.network, entity, timestamp, limit)
 		default:
 			// TODO: support LATEST, BETWEEN
 			return ircError{&irc.Message{
@@ -1681,6 +1611,28 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  []string{"CHATHISTORY", "UNKNOWN_COMMAND", subcommand, "Unknown command"},
 			}}
 		}
+		if err != nil {
+			dc.logger.Printf("failed parsing log messages for chathistory: %v", err)
+			return newChatHistoryError(subcommand, target)
+		}
+
+		batchRef := "history"
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "BATCH",
+			Params:  []string{"+" + batchRef, "chathistory", target},
+		})
+
+		for _, msg := range history {
+			msg.Tags["batch"] = irc.TagValue(batchRef)
+			dc.SendMessage(dc.marshalMessage(msg, uc.network))
+		}
+
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "BATCH",
+			Params:  []string{"-" + batchRef},
+		})
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)

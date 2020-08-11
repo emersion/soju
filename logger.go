@@ -11,6 +11,8 @@ import (
 	"gopkg.in/irc.v3"
 )
 
+const messageLoggerMaxTries = 100
+
 type messageLogger struct {
 	network *network
 	entity  string
@@ -242,5 +244,51 @@ func parseMessagesAfter(network *network, entity string, ref time.Time, limit in
 		return nil, sc.Err()
 	}
 
+	return history, nil
+}
+
+func loadHistoryBeforeTime(network *network, entity string, t time.Time, limit int) ([]*irc.Message, error) {
+	history := make([]*irc.Message, limit)
+	remaining := limit
+	tries := 0
+	for remaining > 0 && tries < messageLoggerMaxTries {
+		buf, err := parseMessagesBefore(network, entity, t, remaining)
+		if err != nil {
+			return nil, err
+		}
+		if len(buf) == 0 {
+			tries++
+		} else {
+			tries = 0
+		}
+		copy(history[remaining-len(buf):], buf)
+		remaining -= len(buf)
+		year, month, day := t.Date()
+		t = time.Date(year, month, day, 0, 0, 0, 0, t.Location()).Add(-1)
+	}
+
+	return history[remaining:], nil
+}
+
+func loadHistoryAfterTime(network *network, entity string, t time.Time, limit int) ([]*irc.Message, error) {
+	var history []*irc.Message
+	remaining := limit
+	tries := 0
+	now := time.Now()
+	for remaining > 0 && tries < messageLoggerMaxTries && t.Before(now) {
+		buf, err := parseMessagesAfter(network, entity, t, remaining)
+		if err != nil {
+			return nil, err
+		}
+		if len(buf) == 0 {
+			tries++
+		} else {
+			tries = 0
+		}
+		history = append(history, buf...)
+		remaining -= len(buf)
+		year, month, day := t.Date()
+		t = time.Date(year, month, day+1, 0, 0, 0, 0, t.Location())
+	}
 	return history, nil
 }
