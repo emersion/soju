@@ -199,3 +199,11 @@ func (c *conn) SendMessage(msg *irc.Message) {
 	}
 	c.outgoing <- msg
 }
+
+func (c *conn) RemoteAddr() net.Addr {
+	return c.conn.RemoteAddr()
+}
+
+func (c *conn) LocalAddr() net.Addr {
+	return c.conn.LocalAddr()
+}
