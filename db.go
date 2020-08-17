@@ -240,7 +240,7 @@ func (db *DB) StoreUser(user *User) error {
 			password, user.Admin, user.Username)
 	} else {
 		var res sql.Result
-		res, err = db.db.Exec("INSERT INTO User(username, password, admin) VALUES (?, ?, ?, ?)",
+		res, err = db.db.Exec("INSERT INTO User(username, password, admin) VALUES (?, ?, ?)",
 			user.Username, password, user.Admin)
 		if err != nil {
 			return err
