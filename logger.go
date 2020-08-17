@@ -130,7 +130,11 @@ func formatMessage(msg *irc.Message) string {
 	case "NOTICE":
 		return fmt.Sprintf("-%s- %s", msg.Prefix.Name, msg.Params[1])
 	case "PRIVMSG":
-		return fmt.Sprintf("<%s> %s", msg.Prefix.Name, msg.Params[1])
+		if cmd, params, ok := parseCTCPMessage(msg); ok && cmd == "ACTION" {
+			return fmt.Sprintf("* %s %s", msg.Prefix.Name, params)
+		} else {
+			return fmt.Sprintf("<%s> %s", msg.Prefix.Name, msg.Params[1])
+		}
 	default:
 		return ""
 	}
@@ -144,23 +148,31 @@ func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, 
 	}
 	line = line[11:]
 
-	var cmd, suffix string
+	var cmd, sender, text string
 	if strings.HasPrefix(line, "<") {
 		cmd = "PRIVMSG"
-		suffix = "> "
+		parts := strings.SplitN(line[1:], "> ", 2)
+		if len(parts) != 2 {
+			return nil, time.Time{}, nil
+		}
+		sender, text = parts[0], parts[1]
 	} else if strings.HasPrefix(line, "-") {
 		cmd = "NOTICE"
-		suffix = "- "
+		parts := strings.SplitN(line[1:], "- ", 2)
+		if len(parts) != 2 {
+			return nil, time.Time{}, nil
+		}
+		sender, text = parts[0], parts[1]
+	} else if strings.HasPrefix(line, "* ") {
+		cmd = "PRIVMSG"
+		parts := strings.SplitN(line[2:], " ", 2)
+		if len(parts) != 2 {
+			return nil, time.Time{}, nil
+		}
+		sender, text = parts[0], "\x01ACTION "+parts[1]+"\x01"
 	} else {
 		return nil, time.Time{}, nil
 	}
-
-	i := strings.Index(line, suffix)
-	if i < 0 {
-		return nil, time.Time{}, nil
-	}
-	sender := line[1:i]
-	text := line[i+2:]
 
 	year, month, day := ref.Date()
 	t := time.Date(year, month, day, hour, minute, second, 0, time.Local)

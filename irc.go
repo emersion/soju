@@ -369,3 +369,25 @@ func (js *joinSorter) Swap(i, j int) {
 	js.channels[i], js.channels[j] = js.channels[j], js.channels[i]
 	js.keys[i], js.keys[j] = js.keys[j], js.keys[i]
 }
+
+// parseCTCPMessage parses a CTCP message. CTCP is defined in
+// https://tools.ietf.org/html/draft-oakley-irc-ctcp-02
+func parseCTCPMessage(msg *irc.Message) (cmd string, params string, ok bool) {
+	if (msg.Command != "PRIVMSG" && msg.Command != "NOTICE") || len(msg.Params) < 2 {
+		return "", "", false
+	}
+	text := msg.Params[1]
+
+	if !strings.HasPrefix(text, "\x01") {
+		return "", "", false
+	}
+	text = strings.Trim(text, "\x01")
+
+	words := strings.SplitN(text, " ", 2)
+	cmd = strings.ToUpper(words[0])
+	if len(words) > 1 {
+		params = words[1]
+	}
+
+	return cmd, params, true
+}
