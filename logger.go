@@ -144,26 +144,33 @@ func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, 
 	}
 	line = line[11:]
 
-	// TODO: support NOTICE
-	if !strings.HasPrefix(line, "<") {
+	var cmd, suffix string
+	if strings.HasPrefix(line, "<") {
+		cmd = "PRIVMSG"
+		suffix = "> "
+	} else if strings.HasPrefix(line, "-") {
+		cmd = "NOTICE"
+		suffix = "- "
+	} else {
 		return nil, time.Time{}, nil
 	}
-	i := strings.Index(line, "> ")
+
+	i := strings.Index(line, suffix)
 	if i < 0 {
 		return nil, time.Time{}, nil
 	}
+	sender := line[1:i]
+	text := line[i+2:]
 
 	year, month, day := ref.Date()
 	t := time.Date(year, month, day, hour, minute, second, 0, time.Local)
 
-	sender := line[1:i]
-	text := line[i+2:]
 	msg := &irc.Message{
 		Tags: map[string]irc.TagValue{
 			"time": irc.TagValue(t.UTC().Format(serverTimeLayout)),
 		},
 		Prefix:  &irc.Prefix{Name: sender},
-		Command: "PRIVMSG",
+		Command: cmd,
 		Params:  []string{entity, text},
 	}
 	return msg, t, nil
