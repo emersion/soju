@@ -58,7 +58,6 @@ func (s *Identd) Store(remoteAddr, localAddr, ident string) {
 	if err != nil {
 		return
 	}
-	fmt.Println(remoteAddr, localAddr, ident)
 	s.lock.Lock()
 	s.entries[*k] = ident
 	s.lock.Unlock()
