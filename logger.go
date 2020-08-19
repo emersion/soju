@@ -28,14 +28,15 @@ func newMessageLogger(network *network, entity string) *messageLogger {
 	}
 }
 
+var escapeFilename = strings.NewReplacer("/", "-", "\\", "-")
+
 func logPath(network *network, entity string, t time.Time) string {
 	user := network.user
 	srv := user.srv
 
-	// TODO: handle/forbid network/entity names with illegal path characters
 	year, month, day := t.Date()
 	filename := fmt.Sprintf("%04d-%02d-%02d.log", year, month, day)
-	return filepath.Join(srv.LogPath, user.Username, network.GetName(), entity, filename)
+	return filepath.Join(srv.LogPath, escapeFilename.Replace(user.Username), escapeFilename.Replace(network.GetName()), escapeFilename.Replace(entity), filename)
 }
 
 func (ml *messageLogger) Append(msg *irc.Message) error {
