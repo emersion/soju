@@ -708,7 +708,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				delete(ch.Members, msg.Prefix.Name)
 				ch.Members[newNick] = memberships
 				uc.appendLog(ch.Name, msg)
-				uc.appendHistory(ch.Name, msg)
 			}
 		}
 
@@ -818,7 +817,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				delete(ch.Members, msg.Prefix.Name)
 
 				uc.appendLog(ch.Name, msg)
-				uc.appendHistory(ch.Name, msg)
 			}
 		}
 
@@ -1611,7 +1609,6 @@ func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message
 	uc.SendMessage(msg)
 }
 
-// TODO: handle moving logs when a network name changes, when support for this is added
 func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 	if uc.srv.LogPath == "" {
 		return
@@ -1623,13 +1620,6 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 		uc.messageLoggers[entity] = ml
 	}
 
-	if _, err := ml.Append(msg); err != nil {
-		uc.logger.Printf("failed to log message: %v", err)
-	}
-}
-
-// appendHistory appends a message to the history. entity can be empty.
-func (uc *upstreamConn) appendHistory(entity string, msg *irc.Message) {
 	detached := false
 	if ch, ok := uc.network.channels[entity]; ok {
 		detached = ch.Detached
@@ -1637,36 +1627,45 @@ func (uc *upstreamConn) appendHistory(entity string, msg *irc.Message) {
 
 	history, ok := uc.network.history[entity]
 	if !ok {
+		lastID, err := lastMsgID(uc.network, entity, time.Now())
+		if err != nil {
+			uc.logger.Printf("failed to log message: failed to get last message ID: %v", err)
+			return
+		}
+
 		history = &networkHistory{
-			clients: make(map[string]uint64),
-			ring:    NewRing(uc.srv.RingCap),
+			clients: make(map[string]string),
 		}
 		uc.network.history[entity] = history
 
 		for clientName, _ := range uc.network.offlineClients {
-			history.clients[clientName] = 0
+			history.clients[clientName] = lastID
 		}
 
 		if detached {
 			// If the channel is detached, online clients act as offline
 			// clients too
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				history.clients[dc.clientName] = 0
+				history.clients[dc.clientName] = lastID
 			})
 		}
 	}
 
-	history.ring.Produce(msg)
+	msgID, err := ml.Append(msg)
+	if err != nil {
+		uc.logger.Printf("failed to log message: %v", err)
+		return
+	}
 
 	if !detached {
 		uc.forEachDownstream(func(dc *downstreamConn) {
-			history.clients[dc.clientName] = history.ring.Cur()
+			history.clients[dc.clientName] = msgID
 		})
 	}
 }
 
-// produce appends a message to the logs, adds it to the history and forwards
-// it to connected downstream connections.
+// produce appends a message to the logs and forwards it to connected downstream
+// connections.
 //
 // If origin is not nil and origin doesn't support echo-message, the message is
 // forwarded to all connections except origin.
@@ -1674,8 +1673,6 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 	if target != "" {
 		uc.appendLog(target, msg)
 	}
-
-	uc.appendHistory(target, msg)
 
 	// Don't forward messages if it's a detached channel
 	if ch, ok := uc.network.channels[target]; ok && ch.Detached {

@@ -47,7 +47,6 @@ func (l *prefixLogger) Printf(format string, v ...interface{}) {
 type Server struct {
 	Hostname       string
 	Logger         Logger
-	RingCap        int
 	HistoryLimit   int
 	LogPath        string
 	Debug          bool
@@ -64,7 +63,6 @@ type Server struct {
 func NewServer(db *DB) *Server {
 	return &Server{
 		Logger:       log.New(log.Writer(), "", log.LstdFlags),
-		RingCap:      4096,
 		HistoryLimit: 1000,
 		users:        make(map[string]*user),
 		db:           db,

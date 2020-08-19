@@ -850,13 +850,27 @@ func (dc *downstreamConn) welcome() error {
 			dc.sendNetworkHistory(net)
 			delete(net.offlineClients, dc.clientName)
 		}
+
+		// Fast-forward history to last message
+		for target, history := range net.history {
+			if ch, ok := net.channels[target]; ok && ch.Detached {
+				continue
+			}
+
+			lastID, err := lastMsgID(net, target, time.Now())
+			if err != nil {
+				dc.logger.Printf("failed to get last message ID: %v", err)
+				continue
+			}
+			history.clients[dc.clientName] = lastID
+		}
 	})
 
 	return nil
 }
 
 func (dc *downstreamConn) sendNetworkHistory(net *network) {
-	if dc.caps["draft/chathistory"] {
+	if dc.caps["draft/chathistory"] || dc.srv.LogPath == "" {
 		return
 	}
 	for target, history := range net.history {
@@ -864,13 +878,17 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 			continue
 		}
 
-		seq, ok := history.clients[dc.clientName]
+		lastDelivered, ok := history.clients[dc.clientName]
 		if !ok {
 			continue
 		}
-		history.clients[dc.clientName] = history.ring.Cur()
 
-		consumer := history.ring.NewConsumer(seq)
+		limit := 4000
+		history, err := loadHistoryLatestID(dc.network, target, lastDelivered, limit)
+		if err != nil {
+			dc.logger.Printf("failed to send implicit history for %q: %v", target, err)
+			continue
+		}
 
 		batchRef := "history"
 		if dc.caps["batch"] {
@@ -881,12 +899,7 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 			})
 		}
 
-		for {
-			msg := consumer.Consume()
-			if msg == nil {
-				break
-			}
-
+		for _, msg := range history {
 			// Don't replay all messages, because that would mess up client
 			// state. For instance we just sent the list of users, sending
 			// PART messages for one of these users would be incorrect.
@@ -900,10 +913,8 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 			}
 
 			if dc.caps["batch"] {
-				msg = msg.Copy()
 				msg.Tags["batch"] = irc.TagValue(batchRef)
 			}
-
 			dc.SendMessage(dc.marshalMessage(msg, net))
 		}
 

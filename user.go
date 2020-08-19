@@ -51,8 +51,7 @@ type eventDownstreamDisconnected struct {
 type eventStop struct{}
 
 type networkHistory struct {
-	clients map[string]uint64 // indexed by client name
-	ring    *Ring             // can be nil if there are no offline clients
+	clients map[string]string // indexed by client name
 }
 
 type network struct {
