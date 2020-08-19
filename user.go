@@ -2,8 +2,8 @@ package soju
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -110,7 +110,7 @@ func userIdent(u *User) string {
 	var b [64]byte
 	binary.LittleEndian.PutUint64(b[:], uint64(u.ID))
 	h := sha256.Sum256(b[:])
-	return base64.RawStdEncoding.EncodeToString(h[:])
+	return hex.EncodeToString(h[:16])
 }
 
 func (net *network) run() {
