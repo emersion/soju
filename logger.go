@@ -233,7 +233,7 @@ func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, 
 	return msg, t, nil
 }
 
-func parseMessagesBefore(network *network, entity string, ref time.Time, limit int) ([]*irc.Message, error) {
+func parseMessagesBefore(network *network, entity string, ref time.Time, limit int, afterOffset int64) ([]*irc.Message, error) {
 	path := logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -248,6 +248,14 @@ func parseMessagesBefore(network *network, entity string, ref time.Time, limit i
 	cur := 0
 
 	sc := bufio.NewScanner(f)
+
+	if afterOffset >= 0 {
+		if _, err := f.Seek(afterOffset, io.SeekStart); err != nil {
+			return nil, nil
+		}
+		sc.Scan() // skip till next newline
+	}
+
 	for sc.Scan() {
 		msg, t, err := parseMessage(sc.Text(), entity, ref)
 		if err != nil {
@@ -316,7 +324,7 @@ func loadHistoryBeforeTime(network *network, entity string, t time.Time, limit i
 	remaining := limit
 	tries := 0
 	for remaining > 0 && tries < messageLoggerMaxTries {
-		buf, err := parseMessagesBefore(network, entity, t, remaining)
+		buf, err := parseMessagesBefore(network, entity, t, remaining, -1)
 		if err != nil {
 			return nil, err
 		}
@@ -355,4 +363,52 @@ func loadHistoryAfterTime(network *network, entity string, t time.Time, limit in
 		t = time.Date(year, month, day+1, 0, 0, 0, 0, t.Location())
 	}
 	return history, nil
+}
+
+func truncateDay(t time.Time) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, t.Location())
+}
+
+func loadHistoryLatestID(network *network, entity, id string, limit int) ([]*irc.Message, error) {
+	var afterTime time.Time
+	var afterOffset int64
+	if id != "" {
+		var idNet, idEntity string
+		var err error
+		idNet, idEntity, afterTime, afterOffset, err = parseMsgID(id)
+		if err != nil {
+			return nil, err
+		}
+		if idNet != network.GetName() || idEntity != entity {
+			return nil, fmt.Errorf("cannot find message ID: message ID doesn't match network/entity")
+		}
+	}
+
+	history := make([]*irc.Message, limit)
+	t := time.Now()
+	remaining := limit
+	tries := 0
+	for remaining > 0 && tries < messageLoggerMaxTries && !truncateDay(t).Before(afterTime) {
+		var offset int64 = -1
+		if afterOffset >= 0 && truncateDay(t).Equal(afterTime) {
+			offset = afterOffset
+		}
+
+		buf, err := parseMessagesBefore(network, entity, t, remaining, offset)
+		if err != nil {
+			return nil, err
+		}
+		if len(buf) == 0 {
+			tries++
+		} else {
+			tries = 0
+		}
+		copy(history[remaining-len(buf):], buf)
+		remaining -= len(buf)
+		year, month, day := t.Date()
+		t = time.Date(year, month, day, 0, 0, 0, 0, t.Location()).Add(-1)
+	}
+
+	return history[remaining:], nil
 }
