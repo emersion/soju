@@ -16,9 +16,11 @@ import (
 )
 
 // TODO: make configurable
-var retryConnectMinDelay = time.Minute
+var retryConnectDelay = time.Minute
 var connectTimeout = 15 * time.Second
 var writeTimeout = 10 * time.Second
+var upstreamMessageDelay = 2 * time.Second
+var upstreamMessageBurst = 10
 
 type Logger interface {
 	Print(v ...interface{})

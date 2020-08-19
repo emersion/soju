@@ -157,8 +157,14 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		return nil, fmt.Errorf("failed to dial %q: unknown scheme: %v", network.Addr, u.Scheme)
 	}
 
+	options := connOptions{
+		Logger: logger,
+		RateLimitDelay: upstreamMessageDelay,
+		RateLimitBurst: upstreamMessageBurst,
+	}
+
 	uc := &upstreamConn{
-		conn:                     *newConn(network.user.srv, newNetIRCConn(netConn), logger),
+		conn:                     *newConn(network.user.srv, newNetIRCConn(netConn), &options),
 		network:                  network,
 		user:                     network.user,
 		channels:                 make(map[string]*upstreamChannel),

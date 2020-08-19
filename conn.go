@@ -106,6 +106,52 @@ func (wa websocketAddr) String() string {
 	return string(wa)
 }
 
+type rateLimiter struct {
+	C <-chan struct{}
+	ticker *time.Ticker
+	stopped chan struct{}
+}
+
+func newRateLimiter(delay time.Duration, burst int) *rateLimiter {
+	ch := make(chan struct{}, burst)
+	for i := 0; i < burst; i++ {
+		ch <- struct{}{}
+	}
+	ticker := time.NewTicker(delay)
+	stopped := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				select {
+				case ch <- struct{}{}:
+					// This space is intentionally left blank
+				case <-stopped:
+					return
+				}
+			case <-stopped:
+				return
+			}
+		}
+	}()
+	return &rateLimiter{
+		C: ch,
+		ticker: ticker,
+		stopped: stopped,
+	}
+}
+
+func (rl *rateLimiter) Stop() {
+	rl.ticker.Stop()
+	close(rl.stopped)
+}
+
+type connOptions struct {
+	Logger Logger
+	RateLimitDelay time.Duration
+	RateLimitBurst int
+}
+
 type conn struct {
 	conn   ircConn
 	srv    *Server
@@ -116,17 +162,27 @@ type conn struct {
 	closed   bool
 }
 
-func newConn(srv *Server, ic ircConn, logger Logger) *conn {
+func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 	outgoing := make(chan *irc.Message, 64)
 	c := &conn{
 		conn:     ic,
 		srv:      srv,
 		outgoing: outgoing,
-		logger:   logger,
+		logger:   options.Logger,
 	}
 
 	go func() {
+		var rl *rateLimiter
+		if options.RateLimitDelay > 0 && options.RateLimitBurst > 0 {
+			rl = newRateLimiter(options.RateLimitDelay, options.RateLimitBurst)
+			defer rl.Stop()
+		}
+
 		for msg := range outgoing {
+			if rl != nil {
+				<-rl.C
+			}
+
 			if c.srv.Debug {
 				c.logger.Printf("sent: %v", msg)
 			}

@@ -102,8 +102,9 @@ type downstreamConn struct {
 func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	remoteAddr := ic.RemoteAddr().String()
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", remoteAddr)}
+	options := connOptions{Logger: logger}
 	dc := &downstreamConn{
-		conn:          *newConn(srv, ic, logger),
+		conn:          *newConn(srv, ic, &options),
 		id:            id,
 		supportedCaps: make(map[string]string),
 		caps:          make(map[string]bool),

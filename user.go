@@ -120,8 +120,8 @@ func (net *network) run() {
 			return
 		}
 
-		if dur := time.Now().Sub(lastTry); dur < retryConnectMinDelay {
-			delay := retryConnectMinDelay - dur
+		if dur := time.Now().Sub(lastTry); dur < retryConnectDelay {
+			delay := retryConnectDelay - dur
 			net.user.srv.Logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), net.Addr)
 			time.Sleep(delay)
 		}
