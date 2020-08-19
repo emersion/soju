@@ -1623,7 +1623,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 		uc.messageLoggers[entity] = ml
 	}
 
-	if err := ml.Append(msg); err != nil {
+	if _, err := ml.Append(msg); err != nil {
 		uc.logger.Printf("failed to log message: %v", err)
 	}
 }

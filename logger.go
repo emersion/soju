@@ -3,6 +3,7 @@ package soju
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,10 +40,48 @@ func logPath(network *network, entity string, t time.Time) string {
 	return filepath.Join(srv.LogPath, escapeFilename.Replace(user.Username), escapeFilename.Replace(network.GetName()), escapeFilename.Replace(entity), filename)
 }
 
-func (ml *messageLogger) Append(msg *irc.Message) error {
+func parseMsgID(s string) (network, entity string, t time.Time, offset int64, err error) {
+	var year, month, day int
+	_, err = fmt.Sscanf(s, "%s %s %04d-%02d-%02d %d", &network, &entity, &year, &month, &day, &offset)
+	if err != nil {
+		return "", "", time.Time{}, 0, fmt.Errorf("invalid message ID: %v", err)
+	}
+	t = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
+	return network, entity, t, offset, nil
+}
+
+func formatMsgID(network, entity string, t time.Time, offset int64) string {
+	year, month, day := t.Date()
+	return fmt.Sprintf("%s %s %04d-%02d-%02d %d", network, entity, year, month, day, offset)
+}
+
+// nextMsgID queries the message ID for the next message to be written to f.
+func nextMsgID(network *network, entity string, t time.Time, f *os.File) (string, error) {
+	offset, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return "", err
+	}
+	return formatMsgID(network.GetName(), entity, t, offset), nil
+}
+
+// lastMsgID queries the last message ID for the given network, entity and
+// date. The message ID returned may not refer to a valid message, but can be
+// used in history queries.
+func lastMsgID(network *network, entity string, t time.Time) (string, error) {
+	p := logPath(network, entity, t)
+	fi, err := os.Stat(p)
+	if os.IsNotExist(err) {
+		return formatMsgID(network.GetName(), entity, t, -1), nil
+	} else if err != nil {
+		return "", err
+	}
+	return formatMsgID(network.GetName(), entity, t, fi.Size()-1), nil
+}
+
+func (ml *messageLogger) Append(msg *irc.Message) (string, error) {
 	s := formatMessage(msg)
 	if s == "" {
-		return nil
+		return "", nil
 	}
 
 	var t time.Time
@@ -50,7 +89,7 @@ func (ml *messageLogger) Append(msg *irc.Message) error {
 		var err error
 		t, err = time.Parse(serverTimeLayout, string(tag))
 		if err != nil {
-			return fmt.Errorf("failed to parse message time tag: %v", err)
+			return "", fmt.Errorf("failed to parse message time tag: %v", err)
 		}
 		t = t.In(time.Local)
 	} else {
@@ -67,23 +106,28 @@ func (ml *messageLogger) Append(msg *irc.Message) error {
 
 		dir := filepath.Dir(path)
 		if err := os.MkdirAll(dir, 0700); err != nil {
-			return fmt.Errorf("failed to create logs directory %q: %v", dir, err)
+			return "", fmt.Errorf("failed to create logs directory %q: %v", dir, err)
 		}
 
 		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
 		if err != nil {
-			return fmt.Errorf("failed to open log file %q: %v", path, err)
+			return "", fmt.Errorf("failed to open log file %q: %v", path, err)
 		}
 
 		ml.path = path
 		ml.file = f
 	}
 
-	_, err := fmt.Fprintf(ml.file, "[%02d:%02d:%02d] %s\n", t.Hour(), t.Minute(), t.Second(), s)
+	msgID, err := nextMsgID(ml.network, ml.entity, t, ml.file)
 	if err != nil {
-		return fmt.Errorf("failed to log message to %q: %v", ml.path, err)
+		return "", fmt.Errorf("failed to generate message ID: %v", err)
 	}
-	return nil
+
+	_, err = fmt.Fprintf(ml.file, "[%02d:%02d:%02d] %s\n", t.Hour(), t.Minute(), t.Second(), s)
+	if err != nil {
+		return "", fmt.Errorf("failed to log message to %q: %v", ml.path, err)
+	}
+	return msgID, nil
 }
 
 func (ml *messageLogger) Close() error {
