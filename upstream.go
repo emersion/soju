@@ -32,6 +32,12 @@ var permanentUpstreamCaps = map[string]bool{
 	"server-time":      true,
 }
 
+type registrationError string
+
+func (err registrationError) Error() string {
+	return fmt.Sprintf("registration error: %v", string(err))
+}
+
 type upstreamChannel struct {
 	Name         string
 	conn         *upstreamConn
@@ -1357,7 +1363,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		return fmt.Errorf("fatal server error: %v", text)
 	case irc.ERR_PASSWDMISMATCH, irc.ERR_ERRONEUSNICKNAME, irc.ERR_NICKNAMEINUSE, irc.ERR_NICKCOLLISION, irc.ERR_UNAVAILRESOURCE, irc.ERR_NOPERMFORHOST, irc.ERR_YOUREBANNEDCREEP:
 		if !uc.registered {
-			return fmt.Errorf("registration failed: %v", msg.Params[len(msg.Params)-1])
+			text := msg.Params[len(msg.Params)-1]
+			return registrationError(text)
 		}
 		fallthrough
 	default:
@@ -1526,8 +1533,12 @@ func (uc *upstreamConn) runUntilRegistered() error {
 		}
 
 		if err := uc.handleMessage(msg); err != nil {
-			msg.Tags = nil // prevent message tags from cluttering logs
-			return fmt.Errorf("failed to handle message %q: %v", msg, err)
+			if _, ok := err.(registrationError); ok {
+				return err
+			} else {
+				msg.Tags = nil // prevent message tags from cluttering logs
+				return fmt.Errorf("failed to handle message %q: %v", msg, err)
+			}
 		}
 	}
 

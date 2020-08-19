@@ -140,8 +140,12 @@ func (net *network) run() {
 
 		uc.register()
 		if err := uc.runUntilRegistered(); err != nil {
-			uc.logger.Printf("failed to register: %v", err)
-			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to register: %v", err)}
+			text := err.Error()
+			if regErr, ok := err.(registrationError); ok {
+				text = string(regErr)
+			}
+			uc.logger.Printf("failed to register: %v", text)
+			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to register: %v", text)}
 			uc.Close()
 			continue
 		}
