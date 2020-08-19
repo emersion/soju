@@ -1520,6 +1520,7 @@ func (uc *upstreamConn) runUntilRegistered() error {
 		}
 
 		if err := uc.handleMessage(msg); err != nil {
+			msg.Tags = nil // prevent message tags from cluttering logs
 			return fmt.Errorf("failed to handle message %q: %v", msg, err)
 		}
 	}
