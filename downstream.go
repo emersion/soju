@@ -57,6 +57,8 @@ var errAuthFailed = ircError{&irc.Message{
 	Params:  []string{"*", "Invalid username or password"},
 }}
 
+const illegalNickChars = " :/@!*?"
+
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
 var permanentDownstreamCaps = map[string]string{
@@ -329,6 +331,12 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		var nick string
 		if err := parseMessageParams(msg, &nick); err != nil {
 			return err
+		}
+		if strings.ContainsAny(nick, illegalNickChars) {
+			return ircError{&irc.Message{
+				Command: irc.ERR_ERRONEUSNICKNAME,
+				Params:  []string{dc.nick, nick, "contains illegal characters"},
+			}}
 		}
 		if nick == serviceNick {
 			return ircError{&irc.Message{
@@ -969,6 +977,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				upstream = uc
 				nick = unmarshaledNick
 			}
+		}
+
+		if strings.ContainsAny(nick, illegalNickChars) {
+			return ircError{&irc.Message{
+				Command: irc.ERR_ERRONEUSNICKNAME,
+				Params:  []string{dc.nick, nick, "contains illegal characters"},
+			}}
 		}
 
 		var err error
