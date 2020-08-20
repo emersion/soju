@@ -107,8 +107,8 @@ func (wa websocketAddr) String() string {
 }
 
 type rateLimiter struct {
-	C <-chan struct{}
-	ticker *time.Ticker
+	C       <-chan struct{}
+	ticker  *time.Ticker
 	stopped chan struct{}
 }
 
@@ -135,8 +135,8 @@ func newRateLimiter(delay time.Duration, burst int) *rateLimiter {
 		}
 	}()
 	return &rateLimiter{
-		C: ch,
-		ticker: ticker,
+		C:       ch,
+		ticker:  ticker,
 		stopped: stopped,
 	}
 }
@@ -147,7 +147,7 @@ func (rl *rateLimiter) Stop() {
 }
 
 type connOptions struct {
-	Logger Logger
+	Logger         Logger
 	RateLimitDelay time.Duration
 	RateLimitBurst int
 }

@@ -164,7 +164,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	}
 
 	options := connOptions{
-		Logger: logger,
+		Logger:         logger,
 		RateLimitDelay: upstreamMessageDelay,
 		RateLimitBurst: upstreamMessageBurst,
 	}
