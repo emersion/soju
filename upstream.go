@@ -42,7 +42,7 @@ type upstreamChannel struct {
 	Name         string
 	conn         *upstreamConn
 	Topic        string
-	TopicWho     string
+	TopicWho     *irc.Prefix
 	TopicTime    time.Time
 	Status       channelStatus
 	modes        channelModes
@@ -842,6 +842,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			ch.Topic = ""
 		}
 	case "TOPIC":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
 		var name string
 		if err := parseMessageParams(msg, &name); err != nil {
 			return err
@@ -852,6 +856,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 		if len(msg.Params) > 1 {
 			ch.Topic = msg.Params[1]
+			ch.TopicWho = msg.Prefix.Copy()
+			ch.TopicTime = time.Now() // TODO use msg.Tags["time"]
 		} else {
 			ch.Topic = ""
 		}
@@ -983,12 +989,28 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if err != nil {
 			return err
 		}
-		ch.TopicWho = who
+		firstTopicWhoTime := ch.TopicWho == nil
+		ch.TopicWho = irc.ParsePrefix(who)
 		sec, err := strconv.ParseInt(timeStr, 10, 64)
 		if err != nil {
 			return fmt.Errorf("failed to parse topic time: %v", err)
 		}
 		ch.TopicTime = time.Unix(sec, 0)
+		if firstTopicWhoTime {
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				topicWho := dc.marshalUserPrefix(uc.network, ch.TopicWho)
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: rpl_topicwhotime,
+					Params: []string{
+						dc.nick,
+						dc.marshalEntity(uc.network, ch.Name),
+						topicWho.String(),
+						timeStr,
+					},
+				})
+			})
+		}
 	case irc.RPL_LIST:
 		var channel, clients, topic string
 		if err := parseMessageParams(msg, nil, &channel, &clients, &topic); err != nil {

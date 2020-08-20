@@ -1,8 +1,10 @@
 package soju
 
 import (
-	"gopkg.in/irc.v3"
+	"strconv"
 	"strings"
+
+	"gopkg.in/irc.v3"
 )
 
 func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
@@ -11,8 +13,6 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 	}
 
 	sendTopic(dc, ch)
-
-	// TODO: rpl_topicwhotime
 	sendNames(dc, ch)
 }
 
@@ -25,6 +25,15 @@ func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
 			Command: irc.RPL_TOPIC,
 			Params:  []string{dc.nick, downstreamName, ch.Topic},
 		})
+		if ch.TopicWho != nil {
+			topicWho := dc.marshalUserPrefix(ch.conn.network, ch.TopicWho)
+			topicTime := strconv.FormatInt(ch.TopicTime.Unix(), 10)
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: rpl_topicwhotime,
+				Params:  []string{dc.nick, downstreamName, topicWho.String(), topicTime},
+			})
+		}
 	} else {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
