@@ -1540,7 +1540,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if ucChannel != ucUser {
 			return ircError{&irc.Message{
 				Command: irc.ERR_USERNOTINCHANNEL,
-				Params:  []string{dc.nick, user, channel, "They aren't on that channel"},
+				Params:  []string{dc.nick, user, channel, "They are on another network"},
 			}}
 		}
 		uc := ucChannel
