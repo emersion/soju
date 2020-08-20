@@ -970,7 +970,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: rpl_creationtime,
-					Params:  []string{dc.nick, channel, creationTime},
+					Params:  []string{dc.nick, dc.marshalEntity(uc.network, ch.Name), creationTime},
 				})
 			})
 		}
