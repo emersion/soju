@@ -57,7 +57,9 @@ var errAuthFailed = ircError{&irc.Message{
 	Params:  []string{"*", "Invalid username or password"},
 }}
 
-const illegalNickChars = " :/@!*?"
+// ' ' and ':' break the IRC message wire format, '@' and '!' break prefixes,
+// '*' and '?' break masks
+const illegalNickChars = " :@!*?"
 
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
