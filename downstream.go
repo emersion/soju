@@ -886,7 +886,7 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 		}
 
 		limit := 4000
-		history, err := loadHistoryLatestID(dc.network, target, lastDelivered, limit)
+		history, err := loadHistoryLatestID(net, target, lastDelivered, limit)
 		if err != nil {
 			dc.logger.Printf("failed to send implicit history for %q: %v", target, err)
 			continue
@@ -970,7 +970,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if destination != "" && destination != dc.srv.Hostname {
 			return ircError{&irc.Message{
 				Command: irc.ERR_NOSUCHSERVER,
-				Params: []string{dc.nick, destination, "No such server"},
+				Params:  []string{dc.nick, destination, "No such server"},
 			}}
 		}
 		dc.SendMessage(&irc.Message{
