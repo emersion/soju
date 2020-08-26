@@ -960,10 +960,23 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return err
 		}
 	case "PING":
+		var source, destination string
+		if err := parseMessageParams(msg, &source); err != nil {
+			return err
+		}
+		if len(msg.Params) > 1 {
+			destination = msg.Params[1]
+		}
+		if destination != "" && destination != dc.srv.Hostname {
+			return ircError{&irc.Message{
+				Command: irc.ERR_NOSUCHSERVER,
+				Params: []string{dc.nick, destination, "No such server"},
+			}}
+		}
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "PONG",
-			Params:  msg.Params,
+			Params:  []string{dc.srv.Hostname, source},
 		})
 		return nil
 	case "USER":
