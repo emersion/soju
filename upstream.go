@@ -1607,9 +1607,13 @@ func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message
 	uc.SendMessage(msg)
 }
 
-func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
+// appendLog appends a message to the log file.
+//
+// The internal message ID is returned. If the message isn't recorded in the
+// log file, an empty string is returned.
+func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string) {
 	if uc.user.msgStore == nil {
-		return
+		return ""
 	}
 
 	detached := false
@@ -1622,7 +1626,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 		lastID, err := uc.user.msgStore.LastMsgID(uc.network, entity, time.Now())
 		if err != nil {
 			uc.logger.Printf("failed to log message: failed to get last message ID: %v", err)
-			return
+			return ""
 		}
 
 		history = &networkHistory{
@@ -1646,14 +1650,10 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 	msgID, err := uc.user.msgStore.Append(uc.network, entity, msg)
 	if err != nil {
 		uc.logger.Printf("failed to log message: %v", err)
-		return
+		return ""
 	}
 
-	if !detached && msgID != "" {
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			history.clients[dc.clientName] = msgID
-		})
-	}
+	return msgID
 }
 
 // produce appends a message to the logs and forwards it to connected downstream
@@ -1662,8 +1662,9 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 // If origin is not nil and origin doesn't support echo-message, the message is
 // forwarded to all connections except origin.
 func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstreamConn) {
+	var msgID string
 	if target != "" {
-		uc.appendLog(target, msg)
+		msgID = uc.appendLog(target, msg)
 	}
 
 	// Don't forward messages if it's a detached channel
@@ -1673,7 +1674,9 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		if dc != origin || dc.caps["echo-message"] {
-			dc.SendMessage(dc.marshalMessage(msg, uc.network))
+			dc.sendMessageWithID(dc.marshalMessage(msg, uc.network), msgID)
+		} else {
+			dc.advanceMessageWithID(msg, msgID)
 		}
 	})
 }
