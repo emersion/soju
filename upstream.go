@@ -1657,7 +1657,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 		return
 	}
 
-	if !detached {
+	if !detached && msgID != "" {
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			history.clients[dc.clientName] = msgID
 		})
