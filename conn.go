@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"gopkg.in/irc.v3"
 	"nhooyr.io/websocket"
@@ -62,7 +64,7 @@ func (wic websocketIRCConn) ReadMessage() (*irc.Message, error) {
 }
 
 func (wic websocketIRCConn) WriteMessage(msg *irc.Message) error {
-	b := []byte(msg.String())
+	b := []byte(strings.ToValidUTF8(msg.String(), string(unicode.ReplacementChar)))
 	ctx := context.Background()
 	if !wic.writeDeadline.IsZero() {
 		var cancel context.CancelFunc
