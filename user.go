@@ -229,7 +229,11 @@ func (net *network) createUpdateChannel(ch *Channel) error {
 }
 
 func (net *network) deleteChannel(name string) error {
-	if err := net.user.srv.db.DeleteChannel(net.ID, name); err != nil {
+	ch, ok := net.channels[name]
+	if !ok {
+		return fmt.Errorf("unknown channel %q", name)
+	}
+	if err := net.user.srv.db.DeleteChannel(ch.ID); err != nil {
 		return err
 	}
 	delete(net.channels, name)

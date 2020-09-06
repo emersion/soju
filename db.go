@@ -461,10 +461,10 @@ func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
 	return err
 }
 
-func (db *DB) DeleteChannel(networkID int64, name string) error {
+func (db *DB) DeleteChannel(id int64) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	_, err := db.db.Exec("DELETE FROM Channel WHERE network = ? AND name = ?", networkID, name)
+	_, err := db.db.Exec("DELETE FROM Channel WHERE id = ?", id)
 	return err
 }
