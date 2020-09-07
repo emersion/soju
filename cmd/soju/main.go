@@ -58,6 +58,7 @@ func main() {
 	srv.Hostname = cfg.Hostname
 	srv.LogPath = cfg.LogPath
 	srv.HTTPOrigins = cfg.HTTPOrigins
+	srv.AcceptProxyIPs = cfg.AcceptProxyIPs
 	srv.Debug = debug
 
 	for _, listen := range cfg.Listen {
