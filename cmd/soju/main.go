@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/pires/go-proxyproto"
+
 	"git.sr.ht/~emersion/soju"
 	"git.sr.ht/~emersion/soju/config"
 )
@@ -85,6 +87,7 @@ func main() {
 			if err != nil {
 				log.Fatalf("failed to start TLS listener on %q: %v", listen, err)
 			}
+			ln = proxyProtoListener(ln, srv)
 			go func() {
 				log.Fatal(srv.Serve(ln))
 			}()
@@ -97,6 +100,7 @@ func main() {
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
+			ln = proxyProtoListener(ln, srv)
 			go func() {
 				log.Fatal(srv.Serve(ln))
 			}()
@@ -138,6 +142,7 @@ func main() {
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
+			ln = proxyProtoListener(ln, srv)
 			go func() {
 				log.Fatal(srv.Identd.Serve(ln))
 			}()
@@ -148,4 +153,20 @@ func main() {
 		log.Printf("server listening on %q", listen)
 	}
 	log.Fatal(srv.Run())
+}
+
+func proxyProtoListener(ln net.Listener, srv *soju.Server) net.Listener {
+	return &proxyproto.Listener{
+		Listener: ln,
+		Policy: func(upstream net.Addr) (proxyproto.Policy, error) {
+			tcpAddr, ok := upstream.(*net.TCPAddr)
+			if !ok {
+				return proxyproto.IGNORE, nil
+			}
+			if srv.AcceptProxyIPs.Contains(tcpAddr.IP) {
+				return proxyproto.USE, nil
+			}
+			return proxyproto.IGNORE, nil
+		},
+	}
 }
