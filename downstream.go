@@ -75,8 +75,9 @@ var permanentDownstreamCaps = map[string]string{
 // needAllDownstreamCaps is the list of downstream capabilities that
 // require support from all upstreams to be enabled
 var needAllDownstreamCaps = map[string]string{
-	"away-notify":  "",
-	"multi-prefix": "",
+	"away-notify":   "",
+	"extended-join": "",
+	"multi-prefix":  "",
 }
 
 type downstreamConn struct {
@@ -280,6 +281,9 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 				delete(msg.Tags, name)
 			}
 		}
+	}
+	if msg.Command == "JOIN" && !dc.caps["extended-join"] {
+		msg.Params = msg.Params[:1]
 	}
 
 	dc.conn.SendMessage(msg)

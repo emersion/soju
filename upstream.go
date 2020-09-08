@@ -26,6 +26,7 @@ import (
 var permanentUpstreamCaps = map[string]bool{
 	"away-notify":      true,
 	"batch":            true,
+	"extended-join":    true,
 	"labeled-response": true,
 	"message-tags":     true,
 	"multi-prefix":     true,
