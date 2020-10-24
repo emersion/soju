@@ -1016,7 +1016,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return
 			}
 			n.Nick = nick
-			err = dc.srv.db.StoreNetwork(dc.user.Username, &n.Network)
+			err = dc.srv.db.StoreNetwork(dc.user.ID, &n.Network)
 		})
 		if err != nil {
 			return err
@@ -1697,7 +1697,7 @@ func (dc *downstreamConn) handleNickServPRIVMSG(uc *upstreamConn, text string) {
 	n.SASL.Mechanism = "PLAIN"
 	n.SASL.Plain.Username = username
 	n.SASL.Plain.Password = password
-	if err := dc.srv.db.StoreNetwork(dc.user.Username, &n.Network); err != nil {
+	if err := dc.srv.db.StoreNetwork(dc.user.ID, &n.Network); err != nil {
 		dc.logger.Printf("failed to save NickServ credentials: %v", err)
 	}
 }

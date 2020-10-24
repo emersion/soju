@@ -114,8 +114,9 @@ func main() {
 		if err := db.StoreUser(u); err != nil {
 			log.Fatalf("failed to store user %q: %v", username, err)
 		}
+		userID := u.ID
 
-		l, err := db.ListNetworks(username)
+		l, err := db.ListNetworks(userID)
 		if err != nil {
 			log.Fatalf("failed to list networks for user %q: %v", username, err)
 		}
@@ -181,7 +182,7 @@ func main() {
 			n.Realname = netRealname
 			n.Pass = pass
 
-			if err := db.StoreNetwork(username, n); err != nil {
+			if err := db.StoreNetwork(userID, n); err != nil {
 				logger.Fatalf("failed to store network: %v", err)
 			}
 

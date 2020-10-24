@@ -70,7 +70,7 @@ CREATE TABLE User (
 CREATE TABLE Network (
 	id INTEGER PRIMARY KEY,
 	name VARCHAR(255),
-	user VARCHAR(255) NOT NULL,
+	user INTEGER NOT NULL,
 	addr VARCHAR(255) NOT NULL,
 	nick VARCHAR(255) NOT NULL,
 	username VARCHAR(255),
@@ -82,8 +82,9 @@ CREATE TABLE Network (
 	sasl_plain_password VARCHAR(255),
 	sasl_external_cert BLOB DEFAULT NULL,
 	sasl_external_key BLOB DEFAULT NULL,
-	FOREIGN KEY(user) REFERENCES User(username),
-	UNIQUE(user, addr, nick)
+	FOREIGN KEY(user) REFERENCES User(id),
+	UNIQUE(user, addr, nick),
+	UNIQUE(user, name)
 );
 
 CREATE TABLE Channel (
@@ -114,6 +115,36 @@ var migrations = []string{
 		INSERT INTO UserNew SELECT rowid, username, password, admin FROM User;
 		DROP TABLE User;
 		ALTER TABLE UserNew RENAME TO User;
+	`,
+	`
+		CREATE TABLE NetworkNew (
+			id INTEGER PRIMARY KEY,
+			name VARCHAR(255),
+			user INTEGER NOT NULL,
+			addr VARCHAR(255) NOT NULL,
+			nick VARCHAR(255) NOT NULL,
+			username VARCHAR(255),
+			realname VARCHAR(255),
+			pass VARCHAR(255),
+			connect_commands VARCHAR(1023),
+			sasl_mechanism VARCHAR(255),
+			sasl_plain_username VARCHAR(255),
+			sasl_plain_password VARCHAR(255),
+			sasl_external_cert BLOB DEFAULT NULL,
+			sasl_external_key BLOB DEFAULT NULL,
+			FOREIGN KEY(user) REFERENCES User(id),
+			UNIQUE(user, addr, nick),
+			UNIQUE(user, name)
+		);
+		INSERT INTO NetworkNew
+			SELECT Network.id, name, User.id as user, addr, nick,
+				Network.username, realname, pass, connect_commands,
+				sasl_mechanism, sasl_plain_username, sasl_plain_password,
+				sasl_external_cert, sasl_external_key
+			FROM Network
+			JOIN User ON Network.user = User.username;
+		DROP TABLE Network;
+		ALTER TABLE NetworkNew RENAME TO Network;
 	`,
 }
 
@@ -263,7 +294,7 @@ func (db *DB) StoreUser(user *User) error {
 	return err
 }
 
-func (db *DB) DeleteUser(username string) error {
+func (db *DB) DeleteUser(id int64) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -279,17 +310,17 @@ func (db *DB) DeleteUser(username string) error {
 			FROM Channel
 			JOIN Network ON Channel.network = Network.id
 			WHERE Network.user = ?
-		)`, username)
+		)`, id)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec("DELETE FROM Network WHERE user = ?", username)
+	_, err = tx.Exec("DELETE FROM Network WHERE user = ?", id)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec("DELETE FROM User WHERE username = ?", username)
+	_, err = tx.Exec("DELETE FROM User WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -297,7 +328,7 @@ func (db *DB) DeleteUser(username string) error {
 	return tx.Commit()
 }
 
-func (db *DB) ListNetworks(username string) ([]Network, error) {
+func (db *DB) ListNetworks(userID int64) ([]Network, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
@@ -306,7 +337,7 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 			sasl_external_cert, sasl_external_key
 		FROM Network
 		WHERE user = ?`,
-		username)
+		userID)
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +373,7 @@ func (db *DB) ListNetworks(username string) ([]Network, error) {
 	return networks, nil
 }
 
-func (db *DB) StoreNetwork(username string, network *Network) error {
+func (db *DB) StoreNetwork(userID int64, network *Network) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -385,7 +416,7 @@ func (db *DB) StoreNetwork(username string, network *Network) error {
 				realname, pass, connect_commands, sasl_mechanism, sasl_plain_username,
 				sasl_plain_password, sasl_external_cert, sasl_external_key)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			username, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
+			userID, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
 			network.SASL.External.PrivKeyBlob)
 		if err != nil {

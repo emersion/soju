@@ -548,7 +548,7 @@ func handleServiceCertfpGenerate(dc *downstreamConn, params []string) error {
 	net.SASL.External.PrivKeyBlob = privKeyBytes
 	net.SASL.Mechanism = "EXTERNAL"
 
-	if err := dc.srv.db.StoreNetwork(net.Username, &net.Network); err != nil {
+	if err := dc.srv.db.StoreNetwork(dc.user.ID, &net.Network); err != nil {
 		return err
 	}
 
@@ -593,7 +593,7 @@ func handleServiceSASLSetPlain(dc *downstreamConn, params []string) error {
 	net.SASL.Plain.Password = params[2]
 	net.SASL.Mechanism = "PLAIN"
 
-	if err := dc.srv.db.StoreNetwork(net.Username, &net.Network); err != nil {
+	if err := dc.srv.db.StoreNetwork(dc.user.ID, &net.Network); err != nil {
 		return err
 	}
 
@@ -617,7 +617,7 @@ func handleServiceSASLReset(dc *downstreamConn, params []string) error {
 	net.SASL.External.PrivKeyBlob = nil
 	net.SASL.Mechanism = ""
 
-	if err := dc.srv.db.StoreNetwork(dc.user.Username, &net.Network); err != nil {
+	if err := dc.srv.db.StoreNetwork(dc.user.ID, &net.Network); err != nil {
 		return err
 	}
 
@@ -689,7 +689,7 @@ func handleUserDelete(dc *downstreamConn, params []string) error {
 
 	u.stop()
 
-	if err := dc.srv.db.DeleteUser(username); err != nil {
+	if err := dc.srv.db.DeleteUser(dc.user.ID); err != nil {
 		return fmt.Errorf("failed to delete user: %v", err)
 	}
 

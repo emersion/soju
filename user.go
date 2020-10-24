@@ -314,7 +314,7 @@ func (u *user) getNetworkByID(id int64) *network {
 func (u *user) run() {
 	defer close(u.done)
 
-	networks, err := u.srv.db.ListNetworks(u.Username)
+	networks, err := u.srv.db.ListNetworks(u.ID)
 	if err != nil {
 		u.srv.Logger.Printf("failed to list networks for user %q: %v", u.Username, err)
 		return
@@ -508,7 +508,7 @@ func (u *user) createNetwork(record *Network) (*network, error) {
 	}
 
 	network := newNetwork(u, record, nil)
-	err := u.srv.db.StoreNetwork(u.Username, &network.Network)
+	err := u.srv.db.StoreNetwork(u.ID, &network.Network)
 	if err != nil {
 		return nil, err
 	}
@@ -528,7 +528,7 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 		panic("tried updating a non-existing network")
 	}
 
-	if err := u.srv.db.StoreNetwork(u.Username, record); err != nil {
+	if err := u.srv.db.StoreNetwork(u.ID, record); err != nil {
 		return nil, err
 	}
 
