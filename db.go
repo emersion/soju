@@ -61,8 +61,9 @@ type Channel struct {
 
 const schema = `
 CREATE TABLE User (
-	username VARCHAR(255) PRIMARY KEY,
-	password VARCHAR(255) NOT NULL,
+	id INTEGER PRIMARY KEY,
+	username VARCHAR(255) NOT NULL UNIQUE,
+	password VARCHAR(255),
 	admin INTEGER NOT NULL DEFAULT 0
 );
 
@@ -103,6 +104,17 @@ var migrations = []string{
 	"ALTER TABLE Network ADD COLUMN sasl_external_cert BLOB DEFAULT NULL",
 	"ALTER TABLE Network ADD COLUMN sasl_external_key BLOB DEFAULT NULL",
 	"ALTER TABLE User ADD COLUMN admin INTEGER NOT NULL DEFAULT 0",
+	`
+		CREATE TABLE UserNew (
+			id INTEGER PRIMARY KEY,
+			username VARCHAR(255) NOT NULL UNIQUE,
+			password VARCHAR(255),
+			admin INTEGER NOT NULL DEFAULT 0
+		);
+		INSERT INTO UserNew SELECT rowid, username, password, admin FROM User;
+		DROP TABLE User;
+		ALTER TABLE UserNew RENAME TO User;
+	`,
 }
 
 type DB struct {
@@ -190,7 +202,7 @@ func (db *DB) ListUsers() ([]User, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	rows, err := db.db.Query("SELECT rowid, username, password, admin FROM User")
+	rows, err := db.db.Query("SELECT id, username, password, admin FROM User")
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +232,7 @@ func (db *DB) GetUser(username string) (*User, error) {
 	user := &User{Username: username}
 
 	var password *string
-	row := db.db.QueryRow("SELECT rowid, password, admin FROM User WHERE username = ?", username)
+	row := db.db.QueryRow("SELECT id, password, admin FROM User WHERE username = ?", username)
 	if err := row.Scan(&user.ID, &password, &user.Admin); err != nil {
 		return nil, err
 	}
