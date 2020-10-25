@@ -52,10 +52,9 @@ func Defaults() *Server {
 		hostname = "localhost"
 	}
 	return &Server{
-		Hostname:       hostname,
-		SQLDriver:      "sqlite3",
-		SQLSource:      "soju.db",
-		AcceptProxyIPs: loopbackIPs,
+		Hostname:  hostname,
+		SQLDriver: "sqlite3",
+		SQLSource: "soju.db",
 	}
 }
 
@@ -100,6 +99,10 @@ func parse(cfg scfg.Block) (*Server, error) {
 		case "accept-proxy-ip":
 			srv.AcceptProxyIPs = nil
 			for _, s := range d.Params {
+				if s == "localhost" {
+					srv.AcceptProxyIPs = append(srv.AcceptProxyIPs, loopbackIPs...)
+					continue
+				}
 				_, n, err := net.ParseCIDR(s)
 				if err != nil {
 					return nil, fmt.Errorf("directive %q: failed to parse CIDR: %v", d.Name, err)
