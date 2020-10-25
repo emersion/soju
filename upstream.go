@@ -81,8 +81,6 @@ type upstreamConn struct {
 
 	// set of LIST commands in progress, per downstream
 	pendingLISTDownstreamSet map[uint64]struct{}
-
-	messageLoggers map[string]*messageLogger
 }
 
 func connectToUpstream(network *network) (*upstreamConn, error) {
@@ -182,7 +180,6 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		availableChannelModes:    stdChannelModes,
 		availableMemberships:     stdMemberships,
 		pendingLISTDownstreamSet: make(map[uint64]struct{}),
-		messageLoggers:           make(map[string]*messageLogger),
 	}
 	return uc, nil
 }
@@ -1611,14 +1608,8 @@ func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message
 }
 
 func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
-	if uc.srv.LogPath == "" {
+	if uc.user.msgStore == nil {
 		return
-	}
-
-	ml, ok := uc.messageLoggers[entity]
-	if !ok {
-		ml = newMessageLogger(uc.network, entity)
-		uc.messageLoggers[entity] = ml
 	}
 
 	detached := false
@@ -1628,7 +1619,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 
 	history, ok := uc.network.history[entity]
 	if !ok {
-		lastID, err := lastMsgID(uc.network, entity, time.Now())
+		lastID, err := uc.user.msgStore.LastMsgID(uc.network, entity, time.Now())
 		if err != nil {
 			uc.logger.Printf("failed to log message: failed to get last message ID: %v", err)
 			return
@@ -1652,7 +1643,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) {
 		}
 	}
 
-	msgID, err := ml.Append(msg)
+	msgID, err := uc.user.msgStore.Append(uc.network, entity, msg)
 	if err != nil {
 		uc.logger.Printf("failed to log message: %v", err)
 		return

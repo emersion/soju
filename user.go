@@ -249,6 +249,7 @@ type user struct {
 
 	networks        []*network
 	downstreamConns []*downstreamConn
+	msgStore        *messageStore
 
 	// LIST commands in progress
 	pendingLISTs []pendingLIST
@@ -261,11 +262,17 @@ type pendingLIST struct {
 }
 
 func newUser(srv *Server, record *User) *user {
+	var msgStore *messageStore
+	if srv.LogPath != "" {
+		msgStore = newMessageStore(srv.LogPath, record.Username)
+	}
+
 	return &user{
-		User:   *record,
-		srv:    srv,
-		events: make(chan event, 64),
-		done:   make(chan struct{}),
+		User:     *record,
+		srv:      srv,
+		events:   make(chan event, 64),
+		done:     make(chan struct{}),
+		msgStore: msgStore,
 	}
 }
 
@@ -312,7 +319,14 @@ func (u *user) getNetworkByID(id int64) *network {
 }
 
 func (u *user) run() {
-	defer close(u.done)
+	defer func() {
+		if u.msgStore != nil {
+			if err := u.msgStore.Close(); err != nil {
+				u.srv.Logger.Printf("failed to close message store for user %q: %v", u.Username, err)
+			}
+		}
+		close(u.done)
+	}()
 
 	networks, err := u.srv.db.ListNetworks(u.ID)
 	if err != nil {
@@ -458,12 +472,6 @@ func (u *user) run() {
 
 func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	uc.network.conn = nil
-
-	for _, ml := range uc.messageLoggers {
-		if err := ml.Close(); err != nil {
-			uc.logger.Printf("failed to close message logger: %v", err)
-		}
-	}
 
 	uc.endPendingLISTs(true)
 

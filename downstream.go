@@ -863,7 +863,7 @@ func (dc *downstreamConn) welcome() error {
 				continue
 			}
 
-			lastID, err := lastMsgID(net, target, time.Now())
+			lastID, err := dc.user.msgStore.LastMsgID(net, target, time.Now())
 			if err != nil {
 				dc.logger.Printf("failed to get last message ID: %v", err)
 				continue
@@ -876,7 +876,7 @@ func (dc *downstreamConn) welcome() error {
 }
 
 func (dc *downstreamConn) sendNetworkHistory(net *network) {
-	if dc.caps["draft/chathistory"] || dc.srv.LogPath == "" {
+	if dc.caps["draft/chathistory"] || dc.user.msgStore == nil {
 		return
 	}
 	for target, history := range net.history {
@@ -890,7 +890,7 @@ func (dc *downstreamConn) sendNetworkHistory(net *network) {
 		}
 
 		limit := 4000
-		history, err := loadHistoryLatestID(net, target, lastDelivered, limit)
+		history, err := dc.user.msgStore.LoadLatestID(net, target, lastDelivered, limit)
 		if err != nil {
 			dc.logger.Printf("failed to send implicit history for %q: %v", target, err)
 			continue
@@ -1601,7 +1601,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}}
 		}
 
-		if dc.srv.LogPath == "" {
+		if dc.user.msgStore == nil {
 			return ircError{&irc.Message{
 				Command: irc.ERR_UNKNOWNCOMMAND,
 				Params:  []string{dc.nick, subcommand, "Unknown command"},
@@ -1641,9 +1641,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		var history []*irc.Message
 		switch subcommand {
 		case "BEFORE":
-			history, err = loadHistoryBeforeTime(uc.network, entity, timestamp, limit)
+			history, err = dc.user.msgStore.LoadBeforeTime(uc.network, entity, timestamp, limit)
 		case "AFTER":
-			history, err = loadHistoryAfterTime(uc.network, entity, timestamp, limit)
+			history, err = dc.user.msgStore.LoadAfterTime(uc.network, entity, timestamp, limit)
 		default:
 			// TODO: support LATEST, BETWEEN
 			return ircError{&irc.Message{
