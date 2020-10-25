@@ -3,6 +3,7 @@ module git.sr.ht/~emersion/soju
 go 1.13
 
 require (
+	git.sr.ht/~emersion/go-scfg v0.0.0-20201019143924-142a8aa629fc
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/klauspost/compress v1.10.11 // indirect

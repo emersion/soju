@@ -1,13 +1,11 @@
 package config
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"net"
 	"os"
 
-	"github.com/google/shlex"
+	"git.sr.ht/~emersion/go-scfg"
 )
 
 type IPSet []*net.IPNet
@@ -62,59 +60,39 @@ func Defaults() *Server {
 }
 
 func Load(path string) (*Server, error) {
-	f, err := os.Open(path)
+	cfg, err := scfg.Load(path)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-
-	return Parse(f)
+	return parse(cfg)
 }
 
-func Parse(r io.Reader) (*Server, error) {
-	scanner := bufio.NewScanner(r)
-
-	var directives []directive
-	for scanner.Scan() {
-		words, err := shlex.Split(scanner.Text())
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse config file: %v", err)
-		} else if len(words) == 0 {
-			continue
-		}
-
-		name, params := words[0], words[1:]
-		directives = append(directives, directive{name, params})
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read config file: %v", err)
-	}
-
+func parse(cfg scfg.Block) (*Server, error) {
 	srv := Defaults()
-	for _, d := range directives {
+	for _, d := range cfg {
 		switch d.Name {
 		case "listen":
 			var uri string
-			if err := d.parseParams(&uri); err != nil {
+			if err := d.ParseParams(&uri); err != nil {
 				return nil, err
 			}
 			srv.Listen = append(srv.Listen, uri)
 		case "hostname":
-			if err := d.parseParams(&srv.Hostname); err != nil {
+			if err := d.ParseParams(&srv.Hostname); err != nil {
 				return nil, err
 			}
 		case "tls":
 			tls := &TLS{}
-			if err := d.parseParams(&tls.CertPath, &tls.KeyPath); err != nil {
+			if err := d.ParseParams(&tls.CertPath, &tls.KeyPath); err != nil {
 				return nil, err
 			}
 			srv.TLS = tls
 		case "sql":
-			if err := d.parseParams(&srv.SQLDriver, &srv.SQLSource); err != nil {
+			if err := d.ParseParams(&srv.SQLDriver, &srv.SQLSource); err != nil {
 				return nil, err
 			}
 		case "log":
-			if err := d.parseParams(&srv.LogPath); err != nil {
+			if err := d.ParseParams(&srv.LogPath); err != nil {
 				return nil, err
 			}
 		case "http-origin":
@@ -134,19 +112,4 @@ func Parse(r io.Reader) (*Server, error) {
 	}
 
 	return srv, nil
-}
-
-type directive struct {
-	Name   string
-	Params []string
-}
-
-func (d *directive) parseParams(out ...*string) error {
-	if len(d.Params) != len(out) {
-		return fmt.Errorf("directive %q has wrong number of parameters: expected %v, got %v", d.Name, len(out), len(d.Params))
-	}
-	for i := range out {
-		*out[i] = d.Params[i]
-	}
-	return nil
 }

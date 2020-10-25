@@ -1,3 +1,5 @@
+git.sr.ht/~emersion/go-scfg v0.0.0-20201019143924-142a8aa629fc h1:51BD67xFX+bozd3ZRuOUfalrhx4/nQSh6A9lI08rYOk=
+git.sr.ht/~emersion/go-scfg v0.0.0-20201019143924-142a8aa629fc/go.mod h1:t+Ww6SR24yYnXzEWiNlOY0AFo5E9B73X++10lrSpp4U=
 github.com/PuerkitoBio/goquery v1.5.1/go.mod h1:GsLWisAFVj4WgDibEWF4pvYnkVQBpKBKeU+7zCJoLcc=
 github.com/andybalholm/cascadia v1.1.0/go.mod h1:GsXiBklL0woXo1j/WYWtSYYC4ouU9PqHO0sqidkEA4Y=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
