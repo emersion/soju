@@ -1553,6 +1553,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if err != nil {
 				return err
 			}
+			if _, ok := uc.caps["message-tags"]; !ok {
+				continue
+			}
 
 			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Tags:    tags,
