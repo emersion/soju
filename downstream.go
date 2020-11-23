@@ -1568,6 +1568,16 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 		for _, name := range strings.Split(targetsStr, ",") {
 			if name == serviceNick {
+				if dc.caps["echo-message"] {
+					echoTags := tags.Copy()
+					echoTags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
+					dc.SendMessage(&irc.Message{
+						Tags:    echoTags,
+						Prefix:  dc.prefix(),
+						Command: "PRIVMSG",
+						Params:  []string{name, text},
+					})
+				}
 				handleServicePRIVMSG(dc, text)
 				continue
 			}
