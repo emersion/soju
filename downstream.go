@@ -1068,11 +1068,12 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Params:  []string{dc.nick, "You may not reregister"},
 		}}
 	case "NICK":
-		var nick string
-		if err := parseMessageParams(msg, &nick); err != nil {
+		var rawNick string
+		if err := parseMessageParams(msg, &rawNick); err != nil {
 			return err
 		}
 
+		nick := rawNick
 		var upstream *upstreamConn
 		if dc.upstream() == nil {
 			uc, unmarshaledNick, err := dc.unmarshalEntity(nick)
@@ -1086,6 +1087,12 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return ircError{&irc.Message{
 				Command: irc.ERR_ERRONEUSNICKNAME,
 				Params:  []string{dc.nick, nick, "contains illegal characters"},
+			}}
+		}
+		if nick == serviceNick {
+			return ircError{&irc.Message{
+				Command: irc.ERR_NICKNAMEINUSE,
+				Params:  []string{dc.nick, rawNick, "Nickname reserved for bouncer service"},
 			}}
 		}
 
