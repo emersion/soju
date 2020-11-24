@@ -1086,7 +1086,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if strings.ContainsAny(nick, illegalNickChars) {
 			return ircError{&irc.Message{
 				Command: irc.ERR_ERRONEUSNICKNAME,
-				Params:  []string{dc.nick, nick, "contains illegal characters"},
+				Params:  []string{dc.nick, rawNick, "contains illegal characters"},
 			}}
 		}
 		if nick == serviceNick {
