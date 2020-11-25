@@ -775,7 +775,7 @@ func (dc *downstreamConn) authenticate(username, password string) error {
 
 	u, err := dc.srv.db.GetUser(username)
 	if err != nil {
-		dc.logger.Printf("failed authentication for %q: %v", username, err)
+		dc.logger.Printf("failed authentication for %q: user not found: %v", username, err)
 		return errAuthFailed
 	}
 
@@ -786,7 +786,7 @@ func (dc *downstreamConn) authenticate(username, password string) error {
 
 	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
 	if err != nil {
-		dc.logger.Printf("failed authentication for %q: %v", username, err)
+		dc.logger.Printf("failed authentication for %q: wrong password: %v", username, err)
 		return errAuthFailed
 	}
 
