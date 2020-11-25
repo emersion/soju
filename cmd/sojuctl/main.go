@@ -84,6 +84,11 @@ func main() {
 			os.Exit(1)
 		}
 
+		user, err := db.GetUser(username)
+		if err != nil {
+			log.Fatalf("failed to get user: %v", err)
+		}
+
 		password, err := readPassword()
 		if err != nil {
 			log.Fatalf("failed to read password: %v", err)
@@ -94,10 +99,6 @@ func main() {
 			log.Fatalf("failed to hash password: %v", err)
 		}
 
-		user, err := db.GetUser(username)
-		if err != nil {
-			log.Fatalf("failed to get user: %v", err)
-		}
 		user.Password = string(hashed)
 		if err := db.StoreUser(user); err != nil {
 			log.Fatalf("failed to update password: %v", err)
