@@ -555,6 +555,14 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 				return err
 			}
 		}
+		if !dc.registered && dc.capVersion >= 302 {
+			// Let downstream show everything it supports, and trim
+			// down the available capabilities when upstreams are
+			// known.
+			for k, v := range needAllDownstreamCaps {
+				dc.supportedCaps[k] = v
+			}
+		}
 
 		caps := make([]string, 0, len(dc.supportedCaps))
 		for k, v := range dc.supportedCaps {
@@ -896,6 +904,7 @@ func (dc *downstreamConn) welcome() error {
 	})
 
 	dc.updateNick()
+	dc.updateSupportedCaps()
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
 		for _, ch := range uc.channels {

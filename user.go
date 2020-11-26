@@ -435,8 +435,6 @@ func (u *user) run() {
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
 			})
-
-			dc.updateSupportedCaps()
 		case eventDownstreamDisconnected:
 			dc := e.dc
 
