@@ -3,8 +3,10 @@ package soju
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -52,11 +54,40 @@ func (net *Network) GetName() string {
 	return net.Addr
 }
 
+type MessageFilter int
+
+const (
+	// TODO: use customizable user defaults for FilterDefault
+	FilterDefault MessageFilter = iota
+	FilterNone
+	FilterHighlight
+	FilterMessage
+)
+
+func parseFilter(filter string) (MessageFilter, error) {
+	switch filter {
+	case "default":
+		return FilterDefault, nil
+	case "none":
+		return FilterNone, nil
+	case "highlight":
+		return FilterHighlight, nil
+	case "message":
+		return FilterMessage, nil
+	}
+	return 0, fmt.Errorf("unknown filter: %q", filter)
+}
+
 type Channel struct {
 	ID       int64
 	Name     string
 	Key      string
 	Detached bool
+
+	RelayDetached MessageFilter
+	ReattachOn    MessageFilter
+	DetachAfter   time.Duration
+	DetachOn      MessageFilter
 }
 
 const schema = `
@@ -93,6 +124,10 @@ CREATE TABLE Channel (
 	name VARCHAR(255) NOT NULL,
 	key VARCHAR(255),
 	detached INTEGER NOT NULL DEFAULT 0,
+	relay_detached INTEGER NOT NULL DEFAULT 0,
+	reattach_on INTEGER NOT NULL DEFAULT 0,
+	detach_after INTEGER NOT NULL DEFAULT 0,
+	detach_on INTEGER NOT NULL DEFAULT 0,
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, name)
 );
@@ -145,6 +180,12 @@ var migrations = []string{
 			JOIN User ON Network.user = User.username;
 		DROP TABLE Network;
 		ALTER TABLE NetworkNew RENAME TO Network;
+	`,
+	`
+		ALTER TABLE Channel ADD COLUMN relay_detached INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE Channel ADD COLUMN reattach_on INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE Channel ADD COLUMN detach_after INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE Channel ADD COLUMN detach_on INTEGER NOT NULL DEFAULT 0;
 	`,
 }
 
@@ -447,7 +488,7 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	rows, err := db.db.Query(`SELECT id, name, key, detached
+	rows, err := db.db.Query(`SELECT id, name, key, detached, relay_detached, reattach_on, detach_after, detach_on
 		FROM Channel
 		WHERE network = ?`, networkID)
 	if err != nil {
@@ -459,10 +500,12 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	for rows.Next() {
 		var ch Channel
 		var key sql.NullString
-		if err := rows.Scan(&ch.ID, &ch.Name, &key, &ch.Detached); err != nil {
+		var detachAfter int64
+		if err := rows.Scan(&ch.ID, &ch.Name, &key, &ch.Detached, &ch.RelayDetached, &ch.ReattachOn, &detachAfter, &ch.DetachOn); err != nil {
 			return nil, err
 		}
 		ch.Key = key.String
+		ch.DetachAfter = time.Duration(detachAfter) * time.Second
 		channels = append(channels, ch)
 	}
 	if err := rows.Err(); err != nil {
@@ -477,18 +520,19 @@ func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
 	defer db.lock.Unlock()
 
 	key := toNullString(ch.Key)
+	detachAfter := int64(math.Ceil(ch.DetachAfter.Seconds()))
 
 	var err error
 	if ch.ID != 0 {
 		_, err = db.db.Exec(`UPDATE Channel
-			SET network = ?, name = ?, key = ?, detached = ?
+			SET network = ?, name = ?, key = ?, detached = ?, relay_detached = ?, reattach_on = ?, detach_after = ?, detach_on = ?
 			WHERE id = ?`,
-			networkID, ch.Name, key, ch.Detached, ch.ID)
+			networkID, ch.Name, key, ch.Detached, ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn, ch.ID)
 	} else {
 		var res sql.Result
-		res, err = db.db.Exec(`INSERT INTO Channel(network, name, key, detached)
-			VALUES (?, ?, ?, ?)`,
-			networkID, ch.Name, key, ch.Detached)
+		res, err = db.db.Exec(`INSERT INTO Channel(network, name, key, detached, relay_detached, reattach_on, detach_after, detach_on)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			networkID, ch.Name, key, ch.Detached, ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn)
 		if err != nil {
 			return err
 		}
