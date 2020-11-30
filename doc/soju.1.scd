@@ -170,6 +170,70 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *network status*
 	Show a list of saved networks and their current status.
 
+*channel update* <name> [options...]
+	Update the options of an existing channel.
+
+	Options are:
+
+	*-relay-detached* <mode>
+		Set when to relay messages from detached channels to the user with a BouncerServ NOTICE.
+
+		Modes are:
+
+		*message*
+			Relay any message from this channel when detached.
+
+		*highlight*
+			Relay only messages mentioning you when detached.
+
+		*none*
+			Don't relay any messages from this channel when detached.
+
+		*default*
+			Currently same as *highlight*. This is the default behaviour.
+
+	*-reattach-on* <mode>
+		Set when to automatically reattach to detached channels.
+
+		Modes are:
+
+		*message*
+			Reattach to this channel when any message is received.
+
+		*highlight*
+			Reattach to this channel when any message mentioning you is received.
+
+		*none*
+			Never automatically reattach to this channel.
+
+		*default*
+			Currently same as *none*. This is the default behaviour.
+
+	*-detach-after* <duration>
+		Automatically detach this channel after the specified duration has elapsed without receving any message corresponding to *-detach-on*.
+
+		Example duration values: *1h30m*, *30s*, *2.5h*.
+
+		Setting this value to 0 will disable this behaviour, i.e. this channel will never be automatically detached. This is the default behaviour.
+
+	*-detach-on* <mode>
+		Set when to reset the auto-detach timer used by *-detach-after*, causing it to wait again for the auto-detach duration timer before detaching.
+		Joining, reattaching, sending a message, or changing any channel option will reset the timer, in addition to the messages specified by the mode.
+
+		Modes are:
+
+		*message*
+			Receiving any message from this channel will reset the auto-detach timer.
+
+		*highlight*
+			Receiving any message mentioning you from this channel will reset the auto-detach timer.
+
+		*none*
+			Receiving messages from this channel will not reset the auto-detach timer. Sending messages or joining the channel will still reset the timer.
+
+		*default*
+			Currently same as *message*. This is the default behaviour.
+
 *certfp generate* [options...] <network name>
 	Generate self-signed certificate and use it for authentication (via SASL
 	EXTERNAL).

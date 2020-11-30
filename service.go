@@ -218,6 +218,15 @@ func init() {
 			desc:   "change your password",
 			handle: handlePasswordChange,
 		},
+		"channel": {
+			children: serviceCommandSet{
+				"update": {
+					usage:  "<name> [-relay-detached <default|none|highlight|message>] [-reattach-on <default|none|highlight|message>] [-detach-after <duration>] [-detach-on <default|none|highlight|message>]",
+					desc:   "update a channel",
+					handle: handleServiceChannelUpdate,
+				},
+			},
+		},
 	}
 }
 
@@ -427,7 +436,7 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 
 func handleServiceNetworkUpdate(dc *downstreamConn, params []string) error {
 	if len(params) < 1 {
-		return fmt.Errorf("expected exactly one argument")
+		return fmt.Errorf("expected at least one argument")
 	}
 
 	fs := newNetworkFlagSet()
@@ -694,5 +703,86 @@ func handleUserDelete(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("deleted user %q", username))
+	return nil
+}
+
+type channelFlagSet struct {
+	*flag.FlagSet
+	RelayDetached, ReattachOn, DetachAfter, DetachOn *string
+}
+
+func newChannelFlagSet() *channelFlagSet {
+	fs := &channelFlagSet{FlagSet: newFlagSet()}
+	fs.Var(stringPtrFlag{&fs.RelayDetached}, "relay-detached", "")
+	fs.Var(stringPtrFlag{&fs.ReattachOn}, "reattach-on", "")
+	fs.Var(stringPtrFlag{&fs.DetachAfter}, "detach-after", "")
+	fs.Var(stringPtrFlag{&fs.DetachOn}, "detach-on", "")
+	return fs
+}
+
+func (fs *channelFlagSet) update(channel *Channel) error {
+	if fs.RelayDetached != nil {
+		filter, err := parseFilter(*fs.RelayDetached)
+		if err != nil {
+			return err
+		}
+		channel.RelayDetached = filter
+	}
+	if fs.ReattachOn != nil {
+		filter, err := parseFilter(*fs.ReattachOn)
+		if err != nil {
+			return err
+		}
+		channel.ReattachOn = filter
+	}
+	if fs.DetachAfter != nil {
+		dur, err := time.ParseDuration(*fs.DetachAfter)
+		if err != nil || dur < 0 {
+			return fmt.Errorf("unknown duration for -detach-after %q (duration format: 0, 300s, 22h30m, ...)", *fs.DetachAfter)
+		}
+		channel.DetachAfter = dur
+	}
+	if fs.DetachOn != nil {
+		filter, err := parseFilter(*fs.DetachOn)
+		if err != nil {
+			return err
+		}
+		channel.DetachOn = filter
+	}
+	return nil
+}
+
+func handleServiceChannelUpdate(dc *downstreamConn, params []string) error {
+	if len(params) < 1 {
+		return fmt.Errorf("expected at least one argument")
+	}
+	name := params[0]
+
+	fs := newChannelFlagSet()
+	if err := fs.Parse(params[1:]); err != nil {
+		return err
+	}
+
+	uc, upstreamName, err := dc.unmarshalEntity(name)
+	if err != nil {
+		return fmt.Errorf("unknown channel %q", name)
+	}
+
+	ch, ok := uc.network.channels[upstreamName]
+	if !ok {
+		return fmt.Errorf("unknown channel %q", name)
+	}
+
+	if err := fs.update(ch); err != nil {
+		return err
+	}
+
+	uc.updateChannelAutoDetach(upstreamName)
+
+	if err := dc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
+		return fmt.Errorf("failed to update channel: %v", err)
+	}
+
+	sendServicePRIVMSG(dc, fmt.Sprintf("updated channel %q", name))
 	return nil
 }
