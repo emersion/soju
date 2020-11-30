@@ -50,6 +50,25 @@ type upstreamChannel struct {
 	creationTime string
 	Members      map[string]*memberships
 	complete     bool
+	detachTimer  *time.Timer
+}
+
+func (uc *upstreamChannel) updateAutoDetach(dur time.Duration) {
+	if uc.detachTimer != nil {
+		uc.detachTimer.Stop()
+		uc.detachTimer = nil
+	}
+
+	if dur == 0 {
+		return
+	}
+
+	uc.detachTimer = time.AfterFunc(dur, func() {
+		uc.conn.network.user.events <- eventChannelDetach{
+			uc:   uc.conn,
+			name: uc.Name,
+		}
+	})
 }
 
 type upstreamConn struct {
@@ -403,14 +422,19 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if target == uc.nick {
 				target = msg.Prefix.Name
 			}
-			uc.produce(target, msg, nil)
 
-			highlight := msg.Prefix.Name != uc.nick && isHighlight(text, uc.nick)
-			if ch, ok := uc.network.channels[target]; ok && ch.Detached && highlight {
-				uc.forEachDownstream(func(dc *downstreamConn) {
-					sendServiceNOTICE(dc, fmt.Sprintf("highlight in %v: <%v> %v", dc.marshalEntity(uc.network, ch.Name), msg.Prefix.Name, text))
-				})
+			if ch, ok := uc.network.channels[target]; ok {
+				if ch.Detached {
+					uc.handleDetachedMessage(msg.Prefix.Name, text, ch)
+				}
+
+				highlight := msg.Prefix.Name != uc.nick && isHighlight(text, uc.nick)
+				if ch.DetachOn == FilterMessage || ch.DetachOn == FilterDefault || (ch.DetachOn == FilterHighlight && highlight) {
+					uc.updateChannelAutoDetach(target)
+				}
 			}
+
+			uc.produce(target, msg, nil)
 		}
 	case "CAP":
 		var subCmd string
@@ -736,6 +760,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 					conn:    uc,
 					Members: make(map[string]*memberships),
 				}
+				uc.updateChannelAutoDetach(ch)
 
 				uc.SendMessage(&irc.Message{
 					Command: "MODE",
@@ -766,7 +791,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		for _, ch := range strings.Split(channels, ",") {
 			if msg.Prefix.Name == uc.nick {
 				uc.logger.Printf("parted channel %q", ch)
-				delete(uc.channels, ch)
+				if uch, ok := uc.channels[ch]; ok {
+					delete(uc.channels, ch)
+					uch.updateAutoDetach(0)
+				}
 			} else {
 				ch, err := uc.getChannel(ch)
 				if err != nil {
@@ -1408,6 +1436,25 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	return nil
 }
 
+func (uc *upstreamConn) handleDetachedMessage(sender string, text string, ch *Channel) {
+	highlight := sender != uc.nick && isHighlight(text, uc.nick)
+	if ch.RelayDetached == FilterMessage || ((ch.RelayDetached == FilterHighlight || ch.RelayDetached == FilterDefault) && highlight) {
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			if highlight {
+				sendServiceNOTICE(dc, fmt.Sprintf("highlight in %v: <%v> %v", dc.marshalEntity(uc.network, ch.Name), sender, text))
+			} else {
+				sendServiceNOTICE(dc, fmt.Sprintf("message in %v: <%v> %v", dc.marshalEntity(uc.network, ch.Name), sender, text))
+			}
+		})
+	}
+	if ch.ReattachOn == FilterMessage || (ch.ReattachOn == FilterHighlight && highlight) {
+		uc.network.attach(ch)
+		if err := uc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
+			uc.logger.Printf("failed to update channel %q: %v", ch.Name, err)
+		}
+	}
+}
+
 func (uc *upstreamConn) handleSupportedCaps(capsStr string) {
 	caps := strings.Fields(capsStr)
 	for _, s := range caps {
@@ -1700,4 +1747,12 @@ func (uc *upstreamConn) updateAway() {
 		})
 	}
 	uc.away = away
+}
+
+func (uc *upstreamConn) updateChannelAutoDetach(name string) {
+	if uch, ok := uc.channels[name]; ok {
+		if ch, ok := uc.network.channels[name]; ok && !ch.Detached {
+			uch.updateAutoDetach(ch.DetachAfter)
+		}
+	}
 }

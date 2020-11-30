@@ -1157,13 +1157,23 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 
-			ch := &Channel{Name: upstreamName, Key: key, Detached: false}
-			if current, ok := uc.network.channels[ch.Name]; ok && key == "" {
+			var ch *Channel
+			var ok bool
+			if ch, ok = uc.network.channels[upstreamName]; ok {
 				// Don't clear the channel key if there's one set
 				// TODO: add a way to unset the channel key
-				ch.Key = current.Key
+				if key != "" {
+					ch.Key = key
+				}
+				uc.network.attach(ch)
+			} else {
+				ch = &Channel{
+					Name: upstreamName,
+					Key:  key,
+				}
+				uc.network.channels[upstreamName] = ch
 			}
-			if err := uc.network.createUpdateChannel(ch); err != nil {
+			if err := dc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
 				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 			}
 		}
@@ -1185,9 +1195,19 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			if strings.EqualFold(reason, "detach") {
-				ch := &Channel{Name: upstreamName, Detached: true}
-				if err := uc.network.createUpdateChannel(ch); err != nil {
-					dc.logger.Printf("failed to detach channel %q: %v", upstreamName, err)
+				var ch *Channel
+				var ok bool
+				if ch, ok = uc.network.channels[upstreamName]; ok {
+					uc.network.detach(ch)
+				} else {
+					ch = &Channel{
+						Name:     name,
+						Detached: true,
+					}
+					uc.network.channels[upstreamName] = ch
+				}
+				if err := dc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
+					dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 				}
 			} else {
 				params := []string{upstreamName}
@@ -1613,6 +1633,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  []string{upstreamName, text},
 			}
 			uc.produce(upstreamName, echoMsg, dc)
+
+			uc.updateChannelAutoDetach(upstreamName)
 		}
 	case "NOTICE":
 		var targetsStr, text string
@@ -1636,6 +1658,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Command: "NOTICE",
 				Params:  []string{upstreamName, unmarshaledText},
 			})
+
+			uc.updateChannelAutoDetach(upstreamName)
 		}
 	case "TAGMSG":
 		var targetsStr string
@@ -1658,6 +1682,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Command: "TAGMSG",
 				Params:  []string{upstreamName},
 			})
+
+			uc.updateChannelAutoDetach(upstreamName)
 		}
 	case "INVITE":
 		var user, channel string
