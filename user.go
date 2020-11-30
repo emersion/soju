@@ -48,6 +48,11 @@ type eventDownstreamDisconnected struct {
 	dc *downstreamConn
 }
 
+type eventChannelDetach struct {
+	uc   *upstreamConn
+	name string
+}
+
 type eventStop struct{}
 
 type networkHistory struct {
@@ -176,56 +181,59 @@ func (net *network) stop() {
 	}
 }
 
-func (net *network) createUpdateChannel(ch *Channel) error {
-	if current, ok := net.channels[ch.Name]; ok {
-		ch.ID = current.ID // update channel if it already exists
+func (net *network) detach(ch *Channel) {
+	if ch.Detached {
+		return
 	}
-	if err := net.user.srv.db.StoreChannel(net.ID, ch); err != nil {
-		return err
-	}
-	prev := net.channels[ch.Name]
-	net.channels[ch.Name] = ch
+	ch.Detached = true
+	net.user.srv.Logger.Printf("network %q: detaching channel %q", net.GetName(), ch.Name)
 
-	if prev != nil && prev.Detached != ch.Detached {
-		history := net.history[ch.Name]
-		if ch.Detached {
-			net.user.srv.Logger.Printf("network %q: detaching channel %q", net.GetName(), ch.Name)
-			net.forEachDownstream(func(dc *downstreamConn) {
-				net.offlineClients[dc.clientName] = struct{}{}
-
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.prefix(),
-					Command: "PART",
-					Params:  []string{dc.marshalEntity(net, ch.Name), "Detach"},
-				})
-			})
-		} else {
-			net.user.srv.Logger.Printf("network %q: attaching channel %q", net.GetName(), ch.Name)
-
-			var uch *upstreamChannel
-			if net.conn != nil {
-				uch = net.conn.channels[ch.Name]
-			}
-
-			net.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.prefix(),
-					Command: "JOIN",
-					Params:  []string{dc.marshalEntity(net, ch.Name)},
-				})
-
-				if uch != nil {
-					forwardChannel(dc, uch)
-				}
-
-				if history != nil {
-					dc.sendNetworkHistory(net)
-				}
-			})
+	if net.conn != nil {
+		if uch, ok := net.conn.channels[ch.Name]; ok {
+			uch.updateAutoDetach(0)
 		}
 	}
 
-	return nil
+	net.forEachDownstream(func(dc *downstreamConn) {
+		net.offlineClients[dc.clientName] = struct{}{}
+
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.prefix(),
+			Command: "PART",
+			Params:  []string{dc.marshalEntity(net, ch.Name), "Detach"},
+		})
+	})
+}
+
+func (net *network) attach(ch *Channel) {
+	if !ch.Detached {
+		return
+	}
+	ch.Detached = false
+	net.user.srv.Logger.Printf("network %q: attaching channel %q", net.GetName(), ch.Name)
+
+	var uch *upstreamChannel
+	if net.conn != nil {
+		uch = net.conn.channels[ch.Name]
+
+		net.conn.updateChannelAutoDetach(ch.Name)
+	}
+
+	net.forEachDownstream(func(dc *downstreamConn) {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.prefix(),
+			Command: "JOIN",
+			Params:  []string{dc.marshalEntity(net, ch.Name)},
+		})
+
+		if uch != nil {
+			forwardChannel(dc, uch)
+		}
+
+		if net.history[ch.Name] != nil {
+			dc.sendNetworkHistory(net)
+		}
+	})
 }
 
 func (net *network) deleteChannel(name string) error {
@@ -233,6 +241,12 @@ func (net *network) deleteChannel(name string) error {
 	if !ok {
 		return fmt.Errorf("unknown channel %q", name)
 	}
+	if net.conn != nil {
+		if uch, ok := net.conn.channels[ch.Name]; ok {
+			uch.updateAutoDetach(0)
+		}
+	}
+
 	if err := net.user.srv.db.DeleteChannel(ch.ID); err != nil {
 		return err
 	}
@@ -398,6 +412,16 @@ func (u *user) run() {
 			if err := uc.handleMessage(msg); err != nil {
 				uc.logger.Printf("failed to handle message %q: %v", msg, err)
 			}
+		case eventChannelDetach:
+			uc, name := e.uc, e.name
+			c, ok := uc.network.channels[name]
+			if !ok || c.Detached {
+				continue
+			}
+			uc.network.detach(c)
+			if err := uc.srv.db.StoreChannel(uc.network.ID, c); err != nil {
+				u.srv.Logger.Printf("failed to store updated detached channel %q: %v", c.Name, err)
+			}
 		case eventDownstreamConnected:
 			dc := e.dc
 
@@ -474,6 +498,10 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	uc.network.conn = nil
 
 	uc.endPendingLISTs(true)
+
+	for _, uch := range uc.channels {
+		uch.updateAutoDetach(0)
+	}
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		dc.updateSupportedCaps()
