@@ -263,7 +263,7 @@ type user struct {
 
 	networks        []*network
 	downstreamConns []*downstreamConn
-	msgStore        *messageStore
+	msgStore        messageStore
 
 	// LIST commands in progress
 	pendingLISTs []pendingLIST
@@ -276,9 +276,9 @@ type pendingLIST struct {
 }
 
 func newUser(srv *Server, record *User) *user {
-	var msgStore *messageStore
+	var msgStore messageStore
 	if srv.LogPath != "" {
-		msgStore = newMessageStore(srv.LogPath, record.Username)
+		msgStore = newFSMessageStore(srv.LogPath, record.Username)
 	}
 
 	return &user{
