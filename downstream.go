@@ -1735,7 +1735,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}}
 		}
 
-		if dc.user.msgStore == nil {
+		store, ok := dc.user.msgStore.(chatHistoryMessageStore)
+		if !ok {
 			return ircError{&irc.Message{
 				Command: irc.ERR_UNKNOWNCOMMAND,
 				Params:  []string{dc.nick, subcommand, "Unknown command"},
@@ -1775,9 +1776,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		var history []*irc.Message
 		switch subcommand {
 		case "BEFORE":
-			history, err = dc.user.msgStore.LoadBeforeTime(uc.network, entity, timestamp, limit)
+			history, err = store.LoadBeforeTime(uc.network, entity, timestamp, limit)
 		case "AFTER":
-			history, err = dc.user.msgStore.LoadAfterTime(uc.network, entity, timestamp, limit)
+			history, err = store.LoadAfterTime(uc.network, entity, timestamp, limit)
 		default:
 			// TODO: support LATEST, BETWEEN
 			return ircError{&irc.Message{
