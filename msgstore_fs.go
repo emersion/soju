@@ -36,39 +36,45 @@ func (ms *fsMessageStore) logPath(network *network, entity string, t time.Time) 
 	return filepath.Join(ms.root, escapeFilename.Replace(network.GetName()), escapeFilename.Replace(entity), filename)
 }
 
-func parseMsgID(s string) (network, entity string, t time.Time, offset int64, err error) {
-	var year, month, day int
-	_, err = fmt.Sscanf(s, "%s %s %04d-%02d-%02d %d", &network, &entity, &year, &month, &day, &offset)
+func parseFSMsgID(s string) (netID int64, entity string, t time.Time, offset int64, err error) {
+	netID, entity, extra, err := parseMsgID(s)
 	if err != nil {
-		return "", "", time.Time{}, 0, fmt.Errorf("invalid message ID: %v", err)
+		return 0, "", time.Time{}, 0, err
+	}
+
+	var year, month, day int
+	_, err = fmt.Sscanf(extra, "%04d-%02d-%02d %d", &year, &month, &day, &offset)
+	if err != nil {
+		return 0, "", time.Time{}, 0, fmt.Errorf("invalid message ID %q: %v", s, err)
 	}
 	t = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
-	return network, entity, t, offset, nil
+	return netID, entity, t, offset, nil
 }
 
-func formatMsgID(network, entity string, t time.Time, offset int64) string {
+func formatFSMsgID(netID int64, entity string, t time.Time, offset int64) string {
 	year, month, day := t.Date()
-	return fmt.Sprintf("%s %s %04d-%02d-%02d %d", network, entity, year, month, day, offset)
+	extra := fmt.Sprintf("%04d-%02d-%02d %d", year, month, day, offset)
+	return formatMsgID(netID, entity, extra)
 }
 
 // nextMsgID queries the message ID for the next message to be written to f.
-func nextMsgID(network *network, entity string, t time.Time, f *os.File) (string, error) {
+func nextFSMsgID(network *network, entity string, t time.Time, f *os.File) (string, error) {
 	offset, err := f.Seek(0, io.SeekEnd)
 	if err != nil {
 		return "", err
 	}
-	return formatMsgID(network.GetName(), entity, t, offset), nil
+	return formatFSMsgID(network.ID, entity, t, offset), nil
 }
 
 func (ms *fsMessageStore) LastMsgID(network *network, entity string, t time.Time) (string, error) {
 	p := ms.logPath(network, entity, t)
 	fi, err := os.Stat(p)
 	if os.IsNotExist(err) {
-		return formatMsgID(network.GetName(), entity, t, -1), nil
+		return formatFSMsgID(network.ID, entity, t, -1), nil
 	} else if err != nil {
 		return "", err
 	}
-	return formatMsgID(network.GetName(), entity, t, fi.Size()-1), nil
+	return formatFSMsgID(network.ID, entity, t, fi.Size()-1), nil
 }
 
 func (ms *fsMessageStore) Append(network *network, entity string, msg *irc.Message) (string, error) {
@@ -113,7 +119,7 @@ func (ms *fsMessageStore) Append(network *network, entity string, msg *irc.Messa
 		ms.files[entity] = f
 	}
 
-	msgID, err := nextMsgID(network, entity, t, f)
+	msgID, err := nextFSMsgID(network, entity, t, f)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate message ID: %v", err)
 	}
@@ -373,13 +379,14 @@ func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limi
 	var afterTime time.Time
 	var afterOffset int64
 	if id != "" {
-		var idNet, idEntity string
+		var idNet int64
+		var idEntity string
 		var err error
-		idNet, idEntity, afterTime, afterOffset, err = parseMsgID(id)
+		idNet, idEntity, afterTime, afterOffset, err = parseFSMsgID(id)
 		if err != nil {
 			return nil, err
 		}
-		if idNet != network.GetName() || idEntity != entity {
+		if idNet != network.ID || idEntity != entity {
 			return nil, fmt.Errorf("cannot find message ID: message ID doesn't match network/entity")
 		}
 	}

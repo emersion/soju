@@ -313,13 +313,13 @@ func (dc *downstreamConn) advanceMessageWithID(msg *irc.Message, id string) {
 
 // ackMsgID acknowledges that a message has been received.
 func (dc *downstreamConn) ackMsgID(id string) {
-	netName, entity, _, _, err := parseMsgID(id)
+	netID, entity, _, err := parseMsgID(id)
 	if err != nil {
 		dc.logger.Printf("failed to ACK message ID %q: %v", id, err)
 		return
 	}
 
-	network := dc.user.getNetwork(netName)
+	network := dc.user.getNetworkByID(netID)
 	if network == nil {
 		return
 	}
