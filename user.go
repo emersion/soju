@@ -279,6 +279,8 @@ func newUser(srv *Server, record *User) *user {
 	var msgStore messageStore
 	if srv.LogPath != "" {
 		msgStore = newFSMessageStore(srv.LogPath, record.Username)
+	} else {
+		msgStore = newMemoryMessageStore()
 	}
 
 	return &user{
