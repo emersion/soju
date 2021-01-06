@@ -365,6 +365,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if label == "" {
 			label = msgBatch.Label
 		}
+		delete(msg.Tags, "batch")
 	}
 
 	var downstreamID uint64 = 0
