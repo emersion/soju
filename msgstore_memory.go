@@ -95,7 +95,7 @@ func (ms *memoryMessageStore) LoadLatestID(network *network, entity, id string, 
 
 type messageRingBuffer struct {
 	buf []*irc.Message
-	cur    uint64
+	cur uint64
 }
 
 func newMessageRingBuffer(capacity int) *messageRingBuffer {
