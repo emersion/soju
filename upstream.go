@@ -27,6 +27,7 @@ var permanentUpstreamCaps = map[string]bool{
 	"away-notify":      true,
 	"batch":            true,
 	"extended-join":    true,
+	"invite-notify":    true,
 	"labeled-response": true,
 	"message-tags":     true,
 	"multi-prefix":     true,
@@ -1279,7 +1280,12 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
+		weAreInvited := nick == uc.nick
+
 		uc.forEachDownstream(func(dc *downstreamConn) {
+			if !weAreInvited && !dc.caps["invite-notify"] {
+				return
+			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
 				Command: "INVITE",

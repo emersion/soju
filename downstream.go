@@ -64,12 +64,13 @@ const illegalNickChars = " :@!*?"
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
 var permanentDownstreamCaps = map[string]string{
-	"batch":        "",
-	"cap-notify":   "",
-	"echo-message": "",
-	"message-tags": "",
-	"sasl":         "PLAIN",
-	"server-time":  "",
+	"batch":         "",
+	"cap-notify":    "",
+	"echo-message":  "",
+	"invite-notify": "",
+	"message-tags":  "",
+	"sasl":          "PLAIN",
+	"server-time":   "",
 }
 
 // needAllDownstreamCaps is the list of downstream capabilities that
