@@ -875,6 +875,10 @@ func (dc *downstreamConn) welcome() error {
 		return err
 	}
 
+	isupport := []string{
+		fmt.Sprintf("CHATHISTORY=%v", dc.srv.HistoryLimit),
+	}
+
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_WELCOME,
@@ -895,8 +899,12 @@ func (dc *downstreamConn) welcome() error {
 		Command: irc.RPL_MYINFO,
 		Params:  []string{dc.nick, dc.srv.Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
-	// TODO: RPL_ISUPPORT
-	// TODO: send CHATHISTORY in RPL_ISUPPORT when implemented
+	// TODO: other RPL_ISUPPORT tokens
+	dc.SendMessage(&irc.Message{
+		Prefix: dc.srv.prefix(),
+		Command: irc.RPL_ISUPPORT,
+		Params: append(append([]string{dc.nick}, isupport...), "are supported"),
+	})
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
