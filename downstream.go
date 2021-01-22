@@ -879,6 +879,10 @@ func (dc *downstreamConn) welcome() error {
 		fmt.Sprintf("CHATHISTORY=%v", dc.srv.HistoryLimit),
 	}
 
+	if uc := dc.upstream(); uc != nil && uc.networkName != "" {
+		isupport = append(isupport, fmt.Sprintf("NETWORK=%v", uc.networkName))
+	}
+
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_WELCOME,
@@ -901,9 +905,9 @@ func (dc *downstreamConn) welcome() error {
 	})
 	// TODO: other RPL_ISUPPORT tokens
 	dc.SendMessage(&irc.Message{
-		Prefix: dc.srv.prefix(),
+		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_ISUPPORT,
-		Params: append(append([]string{dc.nick}, isupport...), "are supported"),
+		Params:  append(append([]string{dc.nick}, isupport...), "are supported"),
 	})
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
