@@ -57,6 +57,17 @@ var errAuthFailed = ircError{&irc.Message{
 	Params:  []string{"*", "Invalid username or password"},
 }}
 
+func parseBouncerNetID(s string) (int64, error) {
+	id, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, ircError{&irc.Message{
+			Command: "FAIL",
+			Params:  []string{"BOUNCER", "INVALID_NETID", s, "Invalid network ID"},
+		}}
+	}
+	return id, nil
+}
+
 // ' ' and ':' break the IRC message wire format, '@' and '!' break prefixes,
 // '*' and '?' break masks
 const illegalNickChars = " :@!*?"
@@ -64,13 +75,14 @@ const illegalNickChars = " :@!*?"
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
 var permanentDownstreamCaps = map[string]string{
-	"batch":         "",
-	"cap-notify":    "",
-	"echo-message":  "",
-	"invite-notify": "",
-	"message-tags":  "",
-	"sasl":          "PLAIN",
-	"server-time":   "",
+	"batch":                    "",
+	"soju.im/bouncer-networks": "",
+	"cap-notify":               "",
+	"echo-message":             "",
+	"invite-notify":            "",
+	"message-tags":             "",
+	"sasl":                     "PLAIN",
+	"server-time":              "",
 }
 
 // needAllDownstreamCaps is the list of downstream capabilities that
@@ -168,12 +180,15 @@ func (dc *downstreamConn) prefix() *irc.Prefix {
 func (dc *downstreamConn) forEachNetwork(f func(*network)) {
 	if dc.network != nil {
 		f(dc.network)
-	} else {
+	} else if !dc.caps["soju.im/bouncer-networks"] {
 		dc.user.forEachNetwork(f)
 	}
 }
 
 func (dc *downstreamConn) forEachUpstream(f func(*upstreamConn)) {
+	if dc.network == nil && dc.caps["soju.im/bouncer-networks"] {
+		return
+	}
 	dc.user.forEachUpstream(func(uc *upstreamConn) {
 		if dc.network != nil && uc.network != dc.network {
 			return
@@ -557,6 +572,52 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 				Params:  []string{challengeStr},
 			})
 		}
+	case "BOUNCER":
+		var subcommand string
+		if err := parseMessageParams(msg, &subcommand); err != nil {
+			return err
+		}
+
+		switch strings.ToUpper(subcommand) {
+		case "BIND":
+			var idStr string
+			if err := parseMessageParams(msg, nil, &idStr); err != nil {
+				return err
+			}
+
+			if dc.registered {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"BOUNCER", "REGISTRATION_IS_COMPLETED", "BIND", "Cannot bind bouncer network after registration"},
+				}}
+			}
+			if dc.user == nil {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"BOUNCER", "ACCOUNT_REQUIRED", "BIND", "Authentication needed to bind to bouncer network"},
+				}}
+			}
+
+			id, err := parseBouncerNetID(idStr)
+			if err != nil {
+				return err
+			}
+
+			var match *network
+			dc.user.forEachNetwork(func(net *network) {
+				if net.ID == id {
+					match = net
+				}
+			})
+			if match == nil {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"BOUNCER", "INVALID_NETID", idStr, "Unknown network ID"},
+				}}
+			}
+
+			dc.networkName = match.GetName()
+		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
@@ -909,6 +970,10 @@ func (dc *downstreamConn) welcome() error {
 	isupport := []string{
 		fmt.Sprintf("CHATHISTORY=%v", dc.srv.HistoryLimit),
 		"CASEMAPPING=ascii",
+	}
+
+	if dc.network != nil {
+		isupport = append(isupport, fmt.Sprintf("BOUNCER_NETID=%v", dc.network.ID))
 	}
 
 	if uc := dc.upstream(); uc != nil {
@@ -1906,6 +1971,181 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Command: "BATCH",
 			Params:  []string{"-" + batchRef},
 		})
+	case "BOUNCER":
+		var subcommand string
+		if err := parseMessageParams(msg, &subcommand); err != nil {
+			return err
+		}
+
+		switch strings.ToUpper(subcommand) {
+		case "LISTNETWORKS":
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BATCH",
+				Params:  []string{"+networks", "bouncer-networks"},
+			})
+			dc.user.forEachNetwork(func(network *network) {
+				id := fmt.Sprintf("%v", network.ID)
+
+				state := "disconnected"
+				if uc := network.conn; uc != nil {
+					state = "connected"
+				}
+
+				attrs := irc.Tags{
+					"name":  irc.TagValue(network.GetName()),
+					"state": irc.TagValue(state),
+				}
+
+				dc.SendMessage(&irc.Message{
+					Tags:    irc.Tags{"batch": irc.TagValue("networks")},
+					Prefix:  dc.srv.prefix(),
+					Command: "BOUNCER",
+					Params:  []string{"NETWORK", id, attrs.String()},
+				})
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BATCH",
+				Params:  []string{"-networks"},
+			})
+		case "ADDNETWORK":
+			var attrsStr string
+			if err := parseMessageParams(msg, nil, &attrsStr); err != nil {
+				return err
+			}
+			attrs := irc.ParseTags(attrsStr)
+
+			host, ok := attrs.GetTag("host")
+			if !ok {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"BOUNCER", "NEED_ATTRIBUTE", subcommand, "host", "Missing required host attribute"},
+				}}
+			}
+
+			addr := host
+			if port, ok := attrs.GetTag("port"); ok {
+				addr += ":" + port
+			}
+
+			if tlsStr, ok := attrs.GetTag("tls"); ok && tlsStr == "0" {
+				addr = "irc+insecure://" + tlsStr
+			}
+
+			nick, ok := attrs.GetTag("nickname")
+			if !ok {
+				nick = dc.nick
+			}
+
+			username, _ := attrs.GetTag("username")
+			realname, _ := attrs.GetTag("realname")
+
+			// TODO: reject unknown attributes
+
+			record := &Network{
+				Addr:     addr,
+				Nick:     nick,
+				Username: username,
+				Realname: realname,
+			}
+			network, err := dc.user.createNetwork(record)
+			if err != nil {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"BOUNCER", "UNKNOWN_ERROR", subcommand, fmt.Sprintf("Failed to create network: %v", err)},
+				}}
+			}
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BOUNCER",
+				Params:  []string{"ADDNETWORK", fmt.Sprintf("%v", network.ID)},
+			})
+		case "CHANGENETWORK":
+			var idStr, attrsStr string
+			if err := parseMessageParams(msg, nil, &idStr, &attrsStr); err != nil {
+				return err
+			}
+			id, err := parseBouncerNetID(idStr)
+			if err != nil {
+				return err
+			}
+			attrs := irc.ParseTags(attrsStr)
+
+			net := dc.user.getNetworkByID(id)
+			if net == nil {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"BOUNCER", "INVALID_NETID", idStr, "Invalid network ID"},
+				}}
+			}
+
+			record := net.Network // copy network record because we'll mutate it
+			for k, v := range attrs {
+				s := string(v)
+				switch k {
+				// TODO: host, port, tls
+				case "nickname":
+					record.Nick = s
+				case "username":
+					record.Username = s
+				case "realname":
+					record.Realname = s
+				default:
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"BOUNCER", "UNKNOWN_ATTRIBUTE", subcommand, k, "Unknown attribute"},
+					}}
+				}
+			}
+
+			_, err = dc.user.updateNetwork(&record)
+			if err != nil {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"BOUNCER", "UNKNOWN_ERROR", subcommand, fmt.Sprintf("Failed to update network: %v", err)},
+				}}
+			}
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BOUNCER",
+				Params:  []string{"CHANGENETWORK", idStr},
+			})
+		case "DELNETWORK":
+			var idStr string
+			if err := parseMessageParams(msg, nil, &idStr); err != nil {
+				return err
+			}
+			id, err := parseBouncerNetID(idStr)
+			if err != nil {
+				return err
+			}
+
+			net := dc.user.getNetworkByID(id)
+			if net == nil {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"BOUNCER", "INVALID_NETID", idStr, "Invalid network ID"},
+				}}
+			}
+
+			if err := dc.user.deleteNetwork(net.ID); err != nil {
+				return err
+			}
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BOUNCER",
+				Params:  []string{"DELNETWORK", idStr},
+			})
+		default:
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"BOUNCER", "UNKNOWN_COMMAND", subcommand, "Unknown subcommand"},
+			}}
+		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)

@@ -141,6 +141,9 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 
 func (net *network) forEachDownstream(f func(*downstreamConn)) {
 	net.user.forEachDownstream(func(dc *downstreamConn) {
+		if dc.network == nil && dc.caps["soju.im/bouncer-networks"] {
+			return
+		}
 		if dc.network != nil && dc.network != net {
 			return
 		}
@@ -511,9 +514,19 @@ func (u *user) run() {
 
 			uc.updateAway()
 
+			netIDStr := fmt.Sprintf("%v", uc.network.ID)
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateSupportedCaps()
-				sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
+
+				if dc.caps["soju.im/bouncer-networks"] {
+					dc.SendMessage(&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: "BOUNCER",
+						Params:  []string{"NETWORK", netIDStr, "status=connected"},
+					})
+				} else {
+					sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
+				}
 
 				dc.updateNick()
 			})
@@ -640,13 +653,24 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 		uch.updateAutoDetach(0)
 	}
 
+	netIDStr := fmt.Sprintf("%v", uc.network.ID)
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		dc.updateSupportedCaps()
+
+		if dc.caps["soju.im/bouncer-networks"] {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BOUNCER",
+				Params:  []string{"NETWORK", netIDStr, "status=disconnected"},
+			})
+		}
 	})
 
 	if uc.network.lastError == nil {
 		uc.forEachDownstream(func(dc *downstreamConn) {
-			sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s", uc.network.GetName()))
+			if !dc.caps["soju.im/bouncer-networks"] {
+				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s", uc.network.GetName()))
+			}
 		})
 	}
 }
@@ -701,6 +725,18 @@ func (u *user) createNetwork(record *Network) (*network, error) {
 
 	u.addNetwork(network)
 
+	// TODO: broadcast network status
+	idStr := fmt.Sprintf("%v", network.ID)
+	u.forEachDownstream(func(dc *downstreamConn) {
+		if dc.caps["soju.im/bouncer-networks"] {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BOUNCER",
+				Params:  []string{"NETWORK", idStr, "network=" + network.GetName()},
+			})
+		}
+	})
+
 	return network, nil
 }
 
@@ -754,6 +790,8 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 	// This will re-connect to the upstream server
 	u.addNetwork(updatedNetwork)
 
+	// TODO: broadcast BOUNCER NETWORK notifications
+
 	return updatedNetwork, nil
 }
 
@@ -768,6 +806,18 @@ func (u *user) deleteNetwork(id int64) error {
 	}
 
 	u.removeNetwork(network)
+
+	idStr := fmt.Sprintf("%v", network.ID)
+	u.forEachDownstream(func(dc *downstreamConn) {
+		if dc.caps["soju.im/bouncer-networks"] {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BOUNCER",
+				Params:  []string{"NETWORK", idStr, "*"},
+			})
+		}
+	})
+
 	return nil
 }
 
