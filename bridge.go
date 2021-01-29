@@ -1,13 +1,15 @@
 package soju
 
 import (
+	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"gopkg.in/irc.v3"
 )
 
-func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
+func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel) {
 	if !ch.complete {
 		panic("Tried to forward a partial channel")
 	}
@@ -16,6 +18,25 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 	if ch.Topic != "" {
 		sendTopic(dc, ch)
 	}
+
+	if dc.caps["soju.im/read"] {
+		channelCM := ch.conn.network.casemap(ch.Name)
+		r, err := dc.srv.db.GetReadReceipt(ctx, ch.conn.network.ID, channelCM)
+		if err != nil {
+			dc.logger.Printf("failed to get the read receipt for %q: %v", ch.Name, err)
+		} else {
+			timestampStr := "*"
+			if r != nil {
+				timestampStr = fmt.Sprintf("timestamp=%s", r.Timestamp.UTC().Format(serverTimeLayout))
+			}
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.prefix(),
+				Command: "READ",
+				Params:  []string{dc.marshalEntity(ch.conn.network, ch.Name), timestampStr},
+			})
+		}
+	}
+
 	sendNames(dc, ch)
 }
 

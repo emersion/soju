@@ -1337,7 +1337,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		c := uc.network.channels.Value(name)
 		if c == nil || !c.Detached {
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				forwardChannel(dc, ch)
+				forwardChannel(ctx, dc, ch)
 			})
 		}
 	case irc.RPL_WHOREPLY:
@@ -1768,7 +1768,7 @@ func (uc *upstreamConn) handleDetachedMessage(ctx context.Context, ch *Channel, 
 		})
 	}
 	if ch.ReattachOn == FilterMessage || (ch.ReattachOn == FilterHighlight && uc.network.isHighlight(msg)) {
-		uc.network.attach(ch)
+		uc.network.attach(ctx, ch)
 		if err := uc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 			uc.logger.Printf("failed to update channel %q: %v", ch.Name, err)
 		}

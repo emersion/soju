@@ -225,6 +225,7 @@ var permanentDownstreamCaps = map[string]string{
 
 	"soju.im/bouncer-networks":        "",
 	"soju.im/bouncer-networks-notify": "",
+	"soju.im/read":                    "",
 }
 
 // needAllDownstreamCaps is the list of downstream capabilities that
@@ -551,6 +552,9 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 		return
 	}
 	if msg.Command == "ACCOUNT" && !dc.caps["account-notify"] {
+		return
+	}
+	if msg.Command == "READ" && !dc.caps["soju.im/read"] {
 		return
 	}
 
@@ -1469,7 +1473,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 				Params:  []string{dc.marshalEntity(ch.conn.network, ch.Name)},
 			})
 
-			forwardChannel(dc, ch)
+			forwardChannel(ctx, dc, ch)
 		}
 	})
 
@@ -1817,7 +1821,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				if key != "" {
 					ch.Key = key
 				}
-				uc.network.attach(ch)
+				uc.network.attach(ctx, ch)
 			} else {
 				ch = &Channel{
 					Name: upstreamName,
@@ -2748,6 +2752,85 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			for _, msg := range history {
 				msg.Tags["batch"] = batchRef
 				dc.SendMessage(dc.marshalMessage(msg, network))
+			}
+		})
+	case "READ":
+		var target, criteria string
+		if err := parseMessageParams(msg, &target); err != nil {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"READ", "NEED_MORE_PARAMS", "Missing parameters"},
+			}}
+		}
+		if len(msg.Params) > 1 {
+			criteria = msg.Params[1]
+		}
+
+		uc, entity, err := dc.unmarshalEntity(target)
+		if err != nil {
+			return err
+		}
+		entityCM := uc.network.casemap(entity)
+
+		r, err := dc.srv.db.GetReadReceipt(ctx, uc.network.ID, entityCM)
+		if err != nil {
+			dc.logger.Printf("failed to get the read receipt for %q: %v", entity, err)
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"READ", "INTERNAL_ERROR", target, "Internal error"},
+			}}
+		} else if r == nil {
+			r = &ReadReceipt{
+				Target: entityCM,
+			}
+		}
+
+		broadcast := false
+		if len(criteria) > 0 {
+			// TODO: support msgid criteria
+			criteriaParts := strings.SplitN(criteria, "=", 2)
+			if len(criteriaParts) != 2 || criteriaParts[0] != "timestamp" {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"READ", "INVALID_PARAMS", criteria, "Unknown criteria"},
+				}}
+			}
+
+			timestamp, err := time.Parse(serverTimeLayout, criteriaParts[1])
+			if err != nil {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"READ", "INVALID_PARAMS", criteria, "Invalid criteria"},
+				}}
+			}
+			now := time.Now()
+			if timestamp.After(now) {
+				timestamp = now
+			}
+			if r.Timestamp.Before(timestamp) {
+				r.Timestamp = timestamp
+				if err := dc.srv.db.StoreReadReceipt(ctx, uc.network.ID, r); err != nil {
+					dc.logger.Printf("failed to store receipt for %q: %v", entity, err)
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"READ", "INTERNAL_ERROR", target, "Internal error"},
+					}}
+				}
+				broadcast = true
+			}
+		}
+
+		timestampStr := "*"
+		if !r.Timestamp.IsZero() {
+			timestampStr = fmt.Sprintf("timestamp=%s", r.Timestamp.UTC().Format(serverTimeLayout))
+		}
+		uc.forEachDownstream(func(d *downstreamConn) {
+			if broadcast || dc.id == d.id {
+				d.SendMessage(&irc.Message{
+					Prefix:  d.prefix(),
+					Command: "READ",
+					Params:  []string{d.marshalEntity(uc.network, entity), timestampStr},
+				})
 			}
 		})
 	case "BOUNCER":

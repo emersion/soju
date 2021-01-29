@@ -70,6 +70,15 @@ CREATE TABLE DeliveryReceipt (
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, target, client)
 );
+
+CREATE TABLE ReadReceipt (
+	id INTEGER PRIMARY KEY,
+	network INTEGER NOT NULL,
+	target TEXT NOT NULL,
+	timestamp TEXT NOT NULL,
+	FOREIGN KEY(network) REFERENCES Network(id),
+	UNIQUE(network, target)
+);
 `
 
 var sqliteMigrations = []string{
@@ -169,6 +178,16 @@ var sqliteMigrations = []string{
 			FROM Network;
 		DROP TABLE Network;
 		ALTER TABLE NetworkNew RENAME TO Network;
+	`,
+	`
+		CREATE TABLE ReadReceipt (
+			id INTEGER PRIMARY KEY,
+			network INTEGER NOT NULL,
+			target TEXT NOT NULL,
+			timestamp TEXT NOT NULL,
+			FOREIGN KEY(network) REFERENCES Network(id),
+			UNIQUE(network, target)
+		);
 	`,
 }
 
@@ -383,6 +402,17 @@ func (db *SqliteDB) DeleteUser(ctx context.Context, id int64) error {
 		return err
 	}
 
+	_, err = tx.ExecContext(ctx, `DELETE FROM ReadReceipt
+		WHERE id IN (
+			SELECT ReadReceipt.id
+			FROM ReadReceipt
+			JOIN Network ON ReadReceipt.network = Network.id
+			WHERE Network.user = ?
+		)`, id)
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.ExecContext(ctx, `DELETE FROM Channel
 		WHERE id IN (
 			SELECT Channel.id
@@ -541,6 +571,11 @@ func (db *SqliteDB) DeleteNetwork(ctx context.Context, id int64) error {
 	defer tx.Rollback()
 
 	_, err = tx.ExecContext(ctx, "DELETE FROM DeliveryReceipt WHERE network = ?", id)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, "DELETE FROM ReadReceipt WHERE network = ?", id)
 	if err != nil {
 		return err
 	}
@@ -718,4 +753,70 @@ func (db *SqliteDB) StoreClientDeliveryReceipts(ctx context.Context, networkID i
 	}
 
 	return tx.Commit()
+}
+
+func (db *SqliteDB) GetReadReceipt(ctx context.Context, networkID int64, name string) (*ReadReceipt, error) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	receipt := &ReadReceipt{
+		Target: name,
+	}
+
+	row := db.db.QueryRowContext(ctx, `
+		SELECT id, timestamp FROM ReadReceipt WHERE network = :network AND target = :target`,
+		sql.Named("network", networkID),
+		sql.Named("target", name),
+	)
+	var timestamp string
+	if err := row.Scan(&receipt.ID, &timestamp); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if t, err := time.Parse(serverTimeLayout, timestamp); err != nil {
+		return nil, err
+	} else {
+		receipt.Timestamp = t
+	}
+	return receipt, nil
+}
+
+func (db *SqliteDB) StoreReadReceipt(ctx context.Context, networkID int64, receipt *ReadReceipt) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	args := []interface{}{
+		sql.Named("id", receipt.ID),
+		sql.Named("timestamp", receipt.Timestamp.UTC().Format(serverTimeLayout)),
+		sql.Named("network", networkID),
+		sql.Named("target", receipt.Target),
+	}
+
+	var err error
+	if receipt.ID != 0 {
+		_, err = db.db.ExecContext(ctx, `
+			UPDATE ReadReceipt SET timestamp = :timestamp WHERE id = :id`,
+			args...)
+	} else {
+		var res sql.Result
+		res, err = db.db.ExecContext(ctx, `
+			INSERT INTO
+			ReadReceipt(network, target, timestamp)
+			VALUES (:network, :target, :timestamp)`,
+			args...)
+		if err != nil {
+			return err
+		}
+		receipt.ID, err = res.LastInsertId()
+	}
+
+	return err
 }
