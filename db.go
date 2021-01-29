@@ -28,6 +28,9 @@ type Database interface {
 
 	ListDeliveryReceipts(ctx context.Context, networkID int64) ([]DeliveryReceipt, error)
 	StoreClientDeliveryReceipts(ctx context.Context, networkID int64, client string, receipts []DeliveryReceipt) error
+
+	GetReadReceipt(ctx context.Context, networkID int64, name string) (*ReadReceipt, error)
+	StoreReadReceipt(ctx context.Context, networkID int64, receipt *ReadReceipt) error
 }
 
 type MetricsCollectorDatabase interface {
@@ -179,4 +182,10 @@ type DeliveryReceipt struct {
 	Target        string // channel or nick
 	Client        string
 	InternalMsgID string
+}
+
+type ReadReceipt struct {
+	ID        int64
+	Target    string // channel or nick
+	Timestamp time.Time
 }

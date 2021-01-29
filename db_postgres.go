@@ -77,6 +77,14 @@ CREATE TABLE "DeliveryReceipt" (
 	internal_msgid VARCHAR(255) NOT NULL,
 	UNIQUE(network, target, client)
 );
+
+CREATE TABLE "ReadReceipt" (
+	id SERIAL PRIMARY KEY,
+	network INTEGER NOT NULL REFERENCES "Network"(id) ON DELETE CASCADE,
+	target VARCHAR(255) NOT NULL,
+	timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+	UNIQUE(network, target)
+);
 `
 
 var postgresMigrations = []string{
@@ -88,6 +96,15 @@ var postgresMigrations = []string{
 			ALTER COLUMN sasl_mechanism
 			TYPE sasl_mechanism
 			USING sasl_mechanism::sasl_mechanism;
+	`,
+	`
+		CREATE TABLE "ReadReceipt" (
+			id SERIAL PRIMARY KEY,
+			network INTEGER NOT NULL REFERENCES "Network"(id) ON DELETE CASCADE,
+			target VARCHAR(255) NOT NULL,
+			timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+			UNIQUE(network, target)
+		);
 	`,
 }
 
@@ -499,4 +516,45 @@ func (db *PostgresDB) StoreClientDeliveryReceipts(ctx context.Context, networkID
 	}
 
 	return tx.Commit()
+}
+
+func (db *PostgresDB) GetReadReceipt(ctx context.Context, networkID int64, name string) (*ReadReceipt, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	receipt := &ReadReceipt{
+		Target: name,
+	}
+
+	row := db.db.QueryRowContext(ctx,
+		`SELECT id, timestamp FROM "ReadReceipt" WHERE network = $1 AND target = $2`,
+		networkID, name)
+	if err := row.Scan(&receipt.ID, &receipt.Timestamp); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return receipt, nil
+}
+
+func (db *PostgresDB) StoreReadReceipt(ctx context.Context, networkID int64, receipt *ReadReceipt) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	var err error
+	if receipt.ID != 0 {
+		_, err = db.db.ExecContext(ctx, `
+			UPDATE "ReadReceipt"
+			SET timestamp = $1
+			WHERE id = $2`,
+			receipt.Timestamp, receipt.ID)
+	} else {
+		err = db.db.QueryRowContext(ctx, `
+			INSERT INTO "ReadReceipt" (network, target, timestamp)
+			VALUES ($1, $2, $3)
+			RETURNING id`,
+			networkID, receipt.Target, receipt.Timestamp).Scan(&receipt.ID)
+	}
+	return err
 }

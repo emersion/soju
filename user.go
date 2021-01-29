@@ -303,7 +303,7 @@ func (net *network) detach(ch *Channel) {
 	})
 }
 
-func (net *network) attach(ch *Channel) {
+func (net *network) attach(ctx context.Context, ch *Channel) {
 	if !ch.Detached {
 		return
 	}
@@ -329,11 +329,11 @@ func (net *network) attach(ch *Channel) {
 		})
 
 		if uch != nil {
-			forwardChannel(dc, uch)
+			forwardChannel(ctx, dc, uch)
 		}
 
 		if detachedMsgID != "" {
-			dc.sendTargetBacklog(context.TODO(), net, ch.Name, detachedMsgID)
+			dc.sendTargetBacklog(ctx, net, ch.Name, detachedMsgID)
 		}
 	})
 }
