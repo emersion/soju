@@ -24,6 +24,9 @@ type Database interface {
 
 	ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, error)
 	StoreClientDeliveryReceipts(networkID int64, client string, receipts []DeliveryReceipt) error
+
+	GetReadReceipt(networkID int64, name string) (*ReadReceipt, error)
+	StoreReadReceipt(networkID int64, receipt *ReadReceipt) error
 }
 
 type User struct {
@@ -146,4 +149,10 @@ type DeliveryReceipt struct {
 	Target        string // channel or nick
 	Client        string
 	InternalMsgID string
+}
+
+type ReadReceipt struct {
+	ID        int64
+	Target    string // channel or nick
+	Timestamp time.Time
 }
