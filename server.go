@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -54,18 +55,21 @@ type Server struct {
 	AcceptProxyIPs config.IPSet
 	Identd         *Identd // can be nil
 
-	db *DB
+	db     *DB
+	stopWG sync.WaitGroup
 
-	lock  sync.Mutex
-	users map[string]*user
+	lock      sync.Mutex
+	listeners map[net.Listener]struct{}
+	users     map[string]*user
 }
 
 func NewServer(db *DB) *Server {
 	return &Server{
 		Logger:       log.New(log.Writer(), "", log.LstdFlags),
 		HistoryLimit: 1000,
-		users:        make(map[string]*user),
 		db:           db,
+		listeners:    make(map[net.Listener]struct{}),
+		users:        make(map[string]*user),
 	}
 }
 
@@ -73,7 +77,7 @@ func (s *Server) prefix() *irc.Prefix {
 	return &irc.Prefix{Name: s.Hostname}
 }
 
-func (s *Server) Run() error {
+func (s *Server) Start() error {
 	users, err := s.db.ListUsers()
 	if err != nil {
 		return err
@@ -85,7 +89,22 @@ func (s *Server) Run() error {
 	}
 	s.lock.Unlock()
 
-	select {}
+	return nil
+}
+
+func (s *Server) Shutdown() {
+	s.lock.Lock()
+	for ln := range s.listeners {
+		if err := ln.Close(); err != nil {
+			s.Logger.Printf("failed to stop listener: %v", err)
+		}
+	}
+	for _, u := range s.users {
+		u.events <- eventStop{}
+	}
+	s.lock.Unlock()
+
+	s.stopWG.Wait()
 }
 
 func (s *Server) createUser(user *User) (*user, error) {
@@ -116,12 +135,16 @@ func (s *Server) addUserLocked(user *User) *user {
 	u := newUser(s, user)
 	s.users[u.Username] = u
 
+	s.stopWG.Add(1)
+
 	go func() {
 		u.run()
 
 		s.lock.Lock()
 		delete(s.users, u.Username)
 		s.lock.Unlock()
+
+		s.stopWG.Done()
 	}()
 
 	return u
@@ -145,9 +168,26 @@ func (s *Server) handle(ic ircConn) {
 }
 
 func (s *Server) Serve(ln net.Listener) error {
+	s.lock.Lock()
+	s.listeners[ln] = struct{}{}
+	s.lock.Unlock()
+
+	s.stopWG.Add(1)
+
+	defer func() {
+		s.lock.Lock()
+		delete(s.listeners, ln)
+		s.lock.Unlock()
+
+		s.stopWG.Done()
+	}()
+
 	for {
 		conn, err := ln.Accept()
-		if err != nil {
+		// TODO: use net.ErrClosed when available
+		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
+			return nil
+		} else if err != nil {
 			return fmt.Errorf("failed to accept connection: %v", err)
 		}
 

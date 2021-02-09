@@ -7,7 +7,10 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/pires/go-proxyproto"
 
@@ -89,7 +92,9 @@ func main() {
 			}
 			ln = proxyProtoListener(ln, srv)
 			go func() {
-				log.Fatal(srv.Serve(ln))
+				if err := srv.Serve(ln); err != nil {
+					log.Printf("serving %q: %v", listen, err)
+				}
 			}()
 		case "irc+insecure":
 			host := u.Host
@@ -102,7 +107,9 @@ func main() {
 			}
 			ln = proxyProtoListener(ln, srv)
 			go func() {
-				log.Fatal(srv.Serve(ln))
+				if err := srv.Serve(ln); err != nil {
+					log.Printf("serving %q: %v", listen, err)
+				}
 			}()
 		case "wss":
 			addr := u.Host
@@ -115,7 +122,9 @@ func main() {
 				Handler:   srv,
 			}
 			go func() {
-				log.Fatal(httpSrv.ListenAndServeTLS("", ""))
+				if err := httpSrv.ListenAndServeTLS("", ""); err != nil {
+					log.Fatalf("serving %q: %v", listen, err)
+				}
 			}()
 		case "ws+insecure":
 			addr := u.Host
@@ -127,7 +136,9 @@ func main() {
 				Handler: srv,
 			}
 			go func() {
-				log.Fatal(httpSrv.ListenAndServe())
+				if err := httpSrv.ListenAndServe(); err != nil {
+					log.Fatalf("serving %q: %v", listen, err)
+				}
 			}()
 		case "ident":
 			if srv.Identd == nil {
@@ -144,7 +155,9 @@ func main() {
 			}
 			ln = proxyProtoListener(ln, srv)
 			go func() {
-				log.Fatal(srv.Identd.Serve(ln))
+				if err := srv.Identd.Serve(ln); err != nil {
+					log.Printf("serving %q: %v", listen, err)
+				}
 			}()
 		default:
 			log.Fatalf("failed to listen on %q: unsupported scheme", listen)
@@ -152,7 +165,17 @@ func main() {
 
 		log.Printf("server listening on %q", listen)
 	}
-	log.Fatal(srv.Run())
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	if err := srv.Start(); err != nil {
+		log.Fatal(err)
+	}
+
+	<-sigCh
+	log.Print("shutting down server")
+	srv.Shutdown()
 }
 
 func proxyProtoListener(ln net.Listener, srv *soju.Server) net.Listener {
