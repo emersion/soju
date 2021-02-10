@@ -942,7 +942,7 @@ func (dc *downstreamConn) welcome() error {
 		// Only send history if we're the first connected client with that name
 		// for the network
 		if _, ok := net.offlineClients[dc.clientName]; ok {
-			dc.sendNetworkHistory(net)
+			dc.sendNetworkBacklog(net)
 			delete(net.offlineClients, dc.clientName)
 		}
 
@@ -978,7 +978,7 @@ func (dc *downstreamConn) messageSupportsHistory(msg *irc.Message) bool {
 	return false
 }
 
-func (dc *downstreamConn) sendNetworkHistory(net *network) {
+func (dc *downstreamConn) sendNetworkBacklog(net *network) {
 	if dc.caps["draft/chathistory"] || dc.user.msgStore == nil {
 		return
 	}

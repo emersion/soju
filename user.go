@@ -231,7 +231,7 @@ func (net *network) attach(ch *Channel) {
 		}
 
 		if net.history[ch.Name] != nil {
-			dc.sendNetworkHistory(net)
+			dc.sendNetworkBacklog(net)
 		}
 	})
 }
