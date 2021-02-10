@@ -979,53 +979,60 @@ func (dc *downstreamConn) messageSupportsHistory(msg *irc.Message) bool {
 }
 
 func (dc *downstreamConn) sendNetworkBacklog(net *network) {
+	for target := range net.delivered {
+		dc.sendTargetBacklog(net, target)
+	}
+}
+
+func (dc *downstreamConn) sendTargetBacklog(net *network, target string) {
 	if dc.caps["draft/chathistory"] || dc.user.msgStore == nil {
 		return
 	}
-	for target, delivered := range net.delivered {
-		if ch, ok := net.channels[target]; ok && ch.Detached {
+	if ch, ok := net.channels[target]; ok && ch.Detached {
+		return
+	}
+	delivered, ok := net.delivered[target]
+	if !ok {
+		return
+	}
+	lastDelivered, ok := delivered[dc.clientName]
+	if !ok {
+		return
+	}
+
+	limit := 4000
+	history, err := dc.user.msgStore.LoadLatestID(net, target, lastDelivered, limit)
+	if err != nil {
+		dc.logger.Printf("failed to send implicit history for %q: %v", target, err)
+		return
+	}
+
+	batchRef := "history"
+	if dc.caps["batch"] {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "BATCH",
+			Params:  []string{"+" + batchRef, "chathistory", dc.marshalEntity(net, target)},
+		})
+	}
+
+	for _, msg := range history {
+		if !dc.messageSupportsHistory(msg) {
 			continue
-		}
-
-		lastDelivered, ok := delivered[dc.clientName]
-		if !ok {
-			continue
-		}
-
-		limit := 4000
-		history, err := dc.user.msgStore.LoadLatestID(net, target, lastDelivered, limit)
-		if err != nil {
-			dc.logger.Printf("failed to send implicit history for %q: %v", target, err)
-			continue
-		}
-
-		batchRef := "history"
-		if dc.caps["batch"] {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"+" + batchRef, "chathistory", dc.marshalEntity(net, target)},
-			})
-		}
-
-		for _, msg := range history {
-			if !dc.messageSupportsHistory(msg) {
-				continue
-			}
-
-			if dc.caps["batch"] {
-				msg.Tags["batch"] = irc.TagValue(batchRef)
-			}
-			dc.SendMessage(dc.marshalMessage(msg, net))
 		}
 
 		if dc.caps["batch"] {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"-" + batchRef},
-			})
+			msg.Tags["batch"] = irc.TagValue(batchRef)
 		}
+		dc.SendMessage(dc.marshalMessage(msg, net))
+	}
+
+	if dc.caps["batch"] {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "BATCH",
+			Params:  []string{"-" + batchRef},
+		})
 	}
 }
 
