@@ -92,6 +92,20 @@ func (ds deliveredStore) ForEachTarget(f func(target string)) {
 	}
 }
 
+func (ds deliveredStore) ForEachClient(f func(clientName string)) {
+	clients := make(map[string]struct{})
+	for _, entry := range ds.m.innerMap {
+		delivered := entry.value.(deliveredClientMap)
+		for clientName := range delivered {
+			clients[clientName] = struct{}{}
+		}
+	}
+
+	for clientName := range clients {
+		f(clientName)
+	}
+}
+
 type network struct {
 	Network
 	user    *user
@@ -298,6 +312,28 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 	}
 }
 
+func (net *network) storeClientDeliveryReceipts(clientName string) {
+	if !net.user.hasPersistentMsgStore() {
+		return
+	}
+
+	var receipts []DeliveryReceipt
+	net.delivered.ForEachTarget(func(target string) {
+		msgID := net.delivered.LoadID(target, clientName)
+		if msgID == "" {
+			return
+		}
+		receipts = append(receipts, DeliveryReceipt{
+			Target:        target,
+			InternalMsgID: msgID,
+		})
+	})
+
+	if err := net.user.srv.db.StoreClientDeliveryReceipts(net.ID, clientName, receipts); err != nil {
+		net.user.srv.Logger.Printf("failed to store delivery receipts for user %q, client %q, network %q: %v", net.user.Username, clientName, net.GetName(), err)
+	}
+}
+
 type user struct {
 	User
 	srv *Server
@@ -308,7 +344,6 @@ type user struct {
 	networks        []*network
 	downstreamConns []*downstreamConn
 	msgStore        messageStore
-	clientNames     map[string]struct{}
 
 	// LIST commands in progress
 	pendingLISTs []pendingLIST
@@ -329,12 +364,11 @@ func newUser(srv *Server, record *User) *user {
 	}
 
 	return &user{
-		User:        *record,
-		srv:         srv,
-		events:      make(chan event, 64),
-		done:        make(chan struct{}),
-		msgStore:    msgStore,
-		clientNames: make(map[string]struct{}),
+		User:     *record,
+		srv:      srv,
+		events:   make(chan event, 64),
+		done:     make(chan struct{}),
+		msgStore: msgStore,
 	}
 }
 
@@ -406,6 +440,18 @@ func (u *user) run() {
 
 		network := newNetwork(u, &record, channels)
 		u.networks = append(u.networks, network)
+
+		if u.hasPersistentMsgStore() {
+			receipts, err := u.srv.db.ListDeliveryReceipts(record.ID)
+			if err != nil {
+				u.srv.Logger.Printf("failed to load delivery receipts for user %q, network %q: %v", u.Username, network.GetName(), err)
+				return
+			}
+
+			for _, rcpt := range receipts {
+				network.delivered.StoreID(rcpt.Target, rcpt.Client, rcpt.InternalMsgID)
+			}
+		}
 
 		go network.run()
 	}
@@ -489,8 +535,6 @@ func (u *user) run() {
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
 			})
-
-			u.clientNames[dc.clientName] = struct{}{}
 		case eventDownstreamDisconnected:
 			dc := e.dc
 
@@ -500,6 +544,10 @@ func (u *user) run() {
 					break
 				}
 			}
+
+			dc.forEachNetwork(func(net *network) {
+				net.storeClientDeliveryReceipts(dc.clientName)
+			})
 
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
@@ -524,6 +572,10 @@ func (u *user) run() {
 			})
 			for _, n := range u.networks {
 				n.stop()
+
+				n.delivered.ForEachClient(func(clientName string) {
+					n.storeClientDeliveryReceipts(clientName)
+				})
 			}
 			return
 		default:
@@ -664,4 +716,12 @@ func (u *user) updatePassword(hashed string) error {
 func (u *user) stop() {
 	u.events <- eventStop{}
 	<-u.done
+}
+
+func (u *user) hasPersistentMsgStore() bool {
+	if u.msgStore == nil {
+		return false
+	}
+	_, isMem := u.msgStore.(*memoryMessageStore)
+	return !isMem
 }

@@ -1752,9 +1752,9 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 			return ""
 		}
 
-		for clientName, _ := range uc.user.clientNames {
+		uc.network.delivered.ForEachClient(func(clientName string) {
 			uc.network.delivered.StoreID(entity, clientName, lastID)
-		}
+		})
 	}
 
 	msgID, err := uc.user.msgStore.Append(uc.network, entityCM, msg)

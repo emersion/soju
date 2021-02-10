@@ -120,6 +120,13 @@ type Channel struct {
 	DetachOn      MessageFilter
 }
 
+type DeliveryReceipt struct {
+	ID            int64
+	Target        string // channel or nick
+	Client        string
+	InternalMsgID string
+}
+
 const schema = `
 CREATE TABLE User (
 	id INTEGER PRIMARY KEY,
@@ -160,6 +167,16 @@ CREATE TABLE Channel (
 	detach_on INTEGER NOT NULL DEFAULT 0,
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, name)
+);
+
+CREATE TABLE DeliveryReceipt (
+	id INTEGER PRIMARY KEY,
+	network INTEGER NOT NULL,
+	target VARCHAR(255) NOT NULL,
+	client VARCHAR(255),
+	internal_msgid VARCHAR(255) NOT NULL,
+	FOREIGN KEY(network) REFERENCES Network(id),
+	UNIQUE(network, target, client)
 );
 `
 
@@ -216,6 +233,17 @@ var migrations = []string{
 		ALTER TABLE Channel ADD COLUMN reattach_on INTEGER NOT NULL DEFAULT 0;
 		ALTER TABLE Channel ADD COLUMN detach_after INTEGER NOT NULL DEFAULT 0;
 		ALTER TABLE Channel ADD COLUMN detach_on INTEGER NOT NULL DEFAULT 0;
+	`,
+	`
+		CREATE TABLE DeliveryReceipt (
+			id INTEGER PRIMARY KEY,
+			network INTEGER NOT NULL,
+			target VARCHAR(255) NOT NULL,
+			client VARCHAR(255),
+			internal_msgid VARCHAR(255) NOT NULL,
+			FOREIGN KEY(network) REFERENCES Network(id),
+			UNIQUE(network, target, client)
+		);
 	`,
 }
 
@@ -577,4 +605,66 @@ func (db *DB) DeleteChannel(id int64) error {
 
 	_, err := db.db.Exec("DELETE FROM Channel WHERE id = ?", id)
 	return err
+}
+
+func (db *DB) ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, error) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+
+	rows, err := db.db.Query(`SELECT id, target, client, internal_msgid
+		FROM DeliveryReceipt
+		WHERE network = ?`, networkID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var receipts []DeliveryReceipt
+	for rows.Next() {
+		var rcpt DeliveryReceipt
+		var client sql.NullString
+		if err := rows.Scan(&rcpt.ID, &rcpt.Target, &client, &rcpt.InternalMsgID); err != nil {
+			return nil, err
+		}
+		rcpt.Client = client.String
+		receipts = append(receipts, rcpt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return receipts, nil
+}
+
+func (db *DB) StoreClientDeliveryReceipts(networkID int64, client string, receipts []DeliveryReceipt) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("DELETE FROM DeliveryReceipt WHERE network = ? AND client = ?",
+		networkID, toNullString(client))
+	if err != nil {
+		return err
+	}
+
+	for i := range receipts {
+		rcpt := &receipts[i]
+
+		res, err := tx.Exec("INSERT INTO DeliveryReceipt(network, target, client, internal_msgid) VALUES (?, ?, ?, ?)",
+			networkID, rcpt.Target, toNullString(client), rcpt.InternalMsgID)
+		if err != nil {
+			return err
+		}
+		rcpt.ID, err = res.LastInsertId()
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
