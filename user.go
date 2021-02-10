@@ -226,9 +226,7 @@ func (net *network) attach(ch *Channel) {
 			forwardChannel(dc, uch)
 		}
 
-		if _, ok := net.delivered[ch.Name]; ok {
-			dc.sendNetworkBacklog(net)
-		}
+		dc.sendTargetBacklog(net, ch.Name)
 	})
 }
 
