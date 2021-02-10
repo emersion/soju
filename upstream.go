@@ -1678,7 +1678,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		detached = ch.Detached
 	}
 
-	history, ok := uc.network.history[entity]
+	delivered, ok := uc.network.delivered[entity]
 	if !ok {
 		lastID, err := uc.user.msgStore.LastMsgID(uc.network, entity, time.Now())
 		if err != nil {
@@ -1686,20 +1686,18 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 			return ""
 		}
 
-		history = &networkHistory{
-			clients: make(map[string]string),
-		}
-		uc.network.history[entity] = history
+		delivered = make(map[string]string)
+		uc.network.delivered[entity] = delivered
 
 		for clientName, _ := range uc.network.offlineClients {
-			history.clients[clientName] = lastID
+			delivered[clientName] = lastID
 		}
 
 		if detached {
 			// If the channel is detached, online clients act as offline
 			// clients too
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				history.clients[dc.clientName] = lastID
+				delivered[dc.clientName] = lastID
 			})
 		}
 	}

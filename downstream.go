@@ -325,12 +325,12 @@ func (dc *downstreamConn) ackMsgID(id string) {
 		return
 	}
 
-	history, ok := network.history[entity]
+	delivered, ok := network.delivered[entity]
 	if !ok {
 		return
 	}
 
-	history.clients[dc.clientName] = id
+	delivered[dc.clientName] = id
 }
 
 func (dc *downstreamConn) sendPing(msgID string) {
@@ -947,7 +947,7 @@ func (dc *downstreamConn) welcome() error {
 		}
 
 		// Fast-forward history to last message
-		for target, history := range net.history {
+		for target, delivered := range net.delivered {
 			if ch, ok := net.channels[target]; ok && ch.Detached {
 				continue
 			}
@@ -957,7 +957,7 @@ func (dc *downstreamConn) welcome() error {
 				dc.logger.Printf("failed to get last message ID: %v", err)
 				continue
 			}
-			history.clients[dc.clientName] = lastID
+			delivered[dc.clientName] = lastID
 		}
 	})
 
@@ -982,12 +982,12 @@ func (dc *downstreamConn) sendNetworkBacklog(net *network) {
 	if dc.caps["draft/chathistory"] || dc.user.msgStore == nil {
 		return
 	}
-	for target, history := range net.history {
+	for target, delivered := range net.delivered {
 		if ch, ok := net.channels[target]; ok && ch.Detached {
 			continue
 		}
 
-		lastDelivered, ok := history.clients[dc.clientName]
+		lastDelivered, ok := delivered[dc.clientName]
 		if !ok {
 			continue
 		}

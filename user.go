@@ -55,10 +55,6 @@ type eventChannelDetach struct {
 
 type eventStop struct{}
 
-type networkHistory struct {
-	clients map[string]string // indexed by client name
-}
-
 type network struct {
 	Network
 	user    *user
@@ -66,8 +62,8 @@ type network struct {
 
 	conn           *upstreamConn
 	channels       map[string]*Channel
-	history        map[string]*networkHistory // indexed by entity
-	offlineClients map[string]struct{}        // indexed by client name
+	delivered      map[string]map[string]string // entity -> client name -> msg ID
+	offlineClients map[string]struct{}          // indexed by client name
 	lastError      error
 }
 
@@ -83,7 +79,7 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 		user:           user,
 		stopped:        make(chan struct{}),
 		channels:       m,
-		history:        make(map[string]*networkHistory),
+		delivered:      make(map[string]map[string]string),
 		offlineClients: make(map[string]struct{}),
 	}
 }
@@ -230,7 +226,7 @@ func (net *network) attach(ch *Channel) {
 			forwardChannel(dc, uch)
 		}
 
-		if net.history[ch.Name] != nil {
+		if _, ok := net.delivered[ch.Name]; ok {
 			dc.sendNetworkBacklog(net)
 		}
 	})
