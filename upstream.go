@@ -227,10 +227,7 @@ func (uc *upstreamConn) getChannel(name string) (*upstreamChannel, error) {
 }
 
 func (uc *upstreamConn) isChannel(entity string) bool {
-	if i := strings.IndexByte(uc.availableChannelTypes, entity[0]); i >= 0 {
-		return true
-	}
-	return false
+	return strings.ContainsRune(uc.availableChannelTypes, rune(entity[0]))
 }
 
 func (uc *upstreamConn) getPendingLIST() *pendingLIST {
