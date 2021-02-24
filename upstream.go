@@ -132,7 +132,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 
 		logger.Printf("connecting to TLS server at address %q", addr)
 
-		tlsConfig := &tls.Config{ServerName: host}
+		tlsConfig := &tls.Config{ServerName: host, NextProtos: []string{"irc"}}
 		if network.SASL.Mechanism == "EXTERNAL" {
 			if network.SASL.External.CertBlob == nil {
 				return nil, fmt.Errorf("missing certificate for authentication")

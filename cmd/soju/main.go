@@ -55,7 +55,10 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to load TLS certificate and key: %v", err)
 		}
-		tlsCfg = &tls.Config{Certificates: []tls.Certificate{cert}}
+		tlsCfg = &tls.Config{
+			NextProtos:   []string{"irc"},
+			Certificates: []tls.Certificate{cert},
+		}
 	}
 
 	srv := soju.NewServer(db)
