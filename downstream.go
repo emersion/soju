@@ -1759,7 +1759,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if !ok {
 			return ircError{&irc.Message{
 				Command: irc.ERR_UNKNOWNCOMMAND,
-				Params:  []string{dc.nick, subcommand, "Unknown command"},
+				Params:  []string{dc.nick, "CHATHISTORY", "Unknown command"},
 			}}
 		}
 
@@ -1773,7 +1773,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if len(criteriaParts) != 2 || criteriaParts[0] != "timestamp" {
 			return ircError{&irc.Message{
 				Command: "FAIL",
-				Params:  []string{"CHATHISTORY", "UNKNOWN_CRITERIA", criteria, "Unknown criteria"},
+				Params:  []string{"CHATHISTORY", "INVALID_PARAMS", subcommand, criteria, "Unknown criteria"},
 			}}
 		}
 
@@ -1781,7 +1781,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if err != nil {
 			return ircError{&irc.Message{
 				Command: "FAIL",
-				Params:  []string{"CHATHISTORY", "INVALID_CRITERIA", criteria, "Invalid criteria"},
+				Params:  []string{"CHATHISTORY", "INVALID_PARAMS", subcommand, criteria, "Invalid criteria"},
 			}}
 		}
 
@@ -1789,7 +1789,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if err != nil || limit < 0 || limit > dc.srv.HistoryLimit {
 			return ircError{&irc.Message{
 				Command: "FAIL",
-				Params:  []string{"CHATHISTORY", "INVALID_LIMIT", limitStr, "Invalid limit"},
+				Params:  []string{"CHATHISTORY", "INVALID_PARAMS", subcommand, limitStr, "Invalid limit"},
 			}}
 		}
 
