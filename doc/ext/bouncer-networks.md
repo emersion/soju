@@ -220,6 +220,7 @@ Bouncers MUST recognise the following network attributes:
 * `nickname`: the nickname to use during registration.
 * `username`: the username to use during registration.
 * `realname`: the realname to use during registration.
+* `pass`: the server password (PASS) to use during registration.
 
 TODO: more attributes
 

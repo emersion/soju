@@ -2040,6 +2040,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 			username, _ := attrs.GetTag("username")
 			realname, _ := attrs.GetTag("realname")
+			pass, _ := attrs.GetTag("pass")
 
 			// TODO: reject unknown attributes
 
@@ -2048,6 +2049,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Nick:     nick,
 				Username: username,
 				Realname: realname,
+				Pass:     pass,
 			}
 			network, err := dc.user.createNetwork(record)
 			if err != nil {
@@ -2092,6 +2094,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					record.Username = s
 				case "realname":
 					record.Realname = s
+				case "pass":
+					record.Pass = s
 				default:
 					return ircError{&irc.Message{
 						Command: "FAIL",
