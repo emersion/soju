@@ -1993,8 +1993,34 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				}
 
 				attrs := irc.Tags{
-					"name":  irc.TagValue(network.GetName()),
-					"state": irc.TagValue(state),
+					"name":     irc.TagValue(network.GetName()),
+					"state":    irc.TagValue(state),
+					"nickname": irc.TagValue(network.Nick),
+				}
+
+				if network.Username != "" {
+					attrs["username"] = irc.TagValue(network.Username)
+				}
+				if network.Realname != "" {
+					attrs["realname"] = irc.TagValue(network.Realname)
+				}
+
+				if u, err := network.URL(); err == nil {
+					hasHostPort := true
+					switch u.Scheme {
+					case "ircs":
+						attrs["tls"] = irc.TagValue("1")
+					case "irc+insecure":
+						attrs["tls"] = irc.TagValue("0")
+					default:
+						hasHostPort = false
+					}
+					if host, port, err := net.SplitHostPort(u.Host); err == nil && hasHostPort {
+						attrs["host"] = irc.TagValue(host)
+						attrs["port"] = irc.TagValue(port)
+					} else if hasHostPort {
+						attrs["host"] = irc.TagValue(u.Host)
+					}
 				}
 
 				dc.SendMessage(&irc.Message{
