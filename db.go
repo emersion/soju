@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +53,35 @@ func (net *Network) GetName() string {
 		return net.Name
 	}
 	return net.Addr
+}
+
+func (net *Network) URL() (*url.URL, error) {
+	s := net.Addr
+	if !strings.Contains(s, "://") {
+		// This is a raw domain name, make it an URL with the default scheme
+		s = "ircs://" + s
+	}
+
+	u, err := url.Parse(s)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse upstream server URL: %v", err)
+	}
+
+	return u, nil
+}
+
+func (net *Network) GetUsername() string {
+	if net.Username != "" {
+		return net.Username
+	}
+	return net.Nick
+}
+
+func (net *Network) GetRealname() string {
+	if net.Realname != "" {
+		return net.Realname
+	}
+	return net.Nick
 }
 
 type MessageFilter int

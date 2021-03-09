@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -109,15 +108,9 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 
 	dialer := net.Dialer{Timeout: connectTimeout}
 
-	s := network.Addr
-	if !strings.Contains(s, "://") {
-		// This is a raw domain name, make it an URL with the default scheme
-		s = "ircs://" + s
-	}
-
-	u, err := url.Parse(s)
+	u, err := network.URL()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse upstream server URL: %v", err)
+		return nil, err
 	}
 
 	var netConn net.Conn
@@ -1566,14 +1559,8 @@ func splitSpace(s string) []string {
 
 func (uc *upstreamConn) register() {
 	uc.nick = uc.network.Nick
-	uc.username = uc.network.Username
-	if uc.username == "" {
-		uc.username = uc.nick
-	}
-	uc.realname = uc.network.Realname
-	if uc.realname == "" {
-		uc.realname = uc.nick
-	}
+	uc.username = uc.network.GetUsername()
+	uc.realname = uc.network.GetRealname()
 
 	uc.SendMessage(&irc.Message{
 		Command: "CAP",
