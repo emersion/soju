@@ -518,7 +518,7 @@ func (u *user) run() {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateSupportedCaps()
 
-				if dc.caps["soju.im/bouncer-networks"] {
+				if dc.caps["soju.im/bouncer-networks-notify"] {
 					dc.SendMessage(&irc.Message{
 						Prefix:  dc.srv.prefix(),
 						Command: "BOUNCER",
@@ -657,7 +657,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		dc.updateSupportedCaps()
 
-		if dc.caps["soju.im/bouncer-networks"] {
+		if dc.caps["soju.im/bouncer-networks-notify"] {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
@@ -725,14 +725,14 @@ func (u *user) createNetwork(record *Network) (*network, error) {
 
 	u.addNetwork(network)
 
-	// TODO: broadcast network status
 	idStr := fmt.Sprintf("%v", network.ID)
+	attrs := getNetworkAttrs(network)
 	u.forEachDownstream(func(dc *downstreamConn) {
-		if dc.caps["soju.im/bouncer-networks"] {
+		if dc.caps["soju.im/bouncer-networks-notify"] {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
-				Params:  []string{"NETWORK", idStr, "network=" + network.GetName()},
+				Params:  []string{"NETWORK", idStr, attrs.String()},
 			})
 		}
 	})
@@ -790,7 +790,18 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 	// This will re-connect to the upstream server
 	u.addNetwork(updatedNetwork)
 
-	// TODO: broadcast BOUNCER NETWORK notifications
+	// TODO: only broadcast attributes that have changed
+	idStr := fmt.Sprintf("%v", updatedNetwork.ID)
+	attrs := getNetworkAttrs(updatedNetwork)
+	u.forEachDownstream(func(dc *downstreamConn) {
+		if dc.caps["soju.im/bouncer-networks-notify"] {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BOUNCER",
+				Params:  []string{"NETWORK", idStr, attrs.String()},
+			})
+		}
+	})
 
 	return updatedNetwork, nil
 }
@@ -809,7 +820,7 @@ func (u *user) deleteNetwork(id int64) error {
 
 	idStr := fmt.Sprintf("%v", network.ID)
 	u.forEachDownstream(func(dc *downstreamConn) {
-		if dc.caps["soju.im/bouncer-networks"] {
+		if dc.caps["soju.im/bouncer-networks-notify"] {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",

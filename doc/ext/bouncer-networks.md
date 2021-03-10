@@ -42,6 +42,13 @@ format. Clients MUST ignore unknown attributes.
 The `bouncer-networks` extension defines a new `RPL_ISUPPORT` token and a new
 `BOUNCER` command.
 
+The `bouncer-networks` capability MUST be negociated. This allows the server and
+client to behave differently when the client is aware of the bouncer networks.
+
+The `bouncer-networks-notify` capability MAY be negociated. This allows the
+client to signal that it is capable of receiving and correctly processing
+bouncer network notifications.
+
 ### `RPL_ISUPPORT` token
 
 The server can advertise a `BOUNCER_NETID` token in its `RPL_ISUPPORT` message.
@@ -127,13 +134,25 @@ On success, the server replies with:
 
 ### Network notifications
 
-When a network attributes are updated, the bouncer MUST broadcast a
-`BOUNCER NETWORK` message to all connected clients with the updated attributes:
+If the client has negociated the `bouncer-networks-notify` capability, the
+server MUST send an initial batch of `BOUNCER NETWORK` messages with the current
+list of network, and MUST send notification messages whenever a network is
+added, updated or removed.
+
+If the client has not negociated the `bouncer-networks-notify` capability, the
+server MUST NOT send implicit `BOUNCER NETWORK` messages.
+
+When network attributes are updated, the bouncer MUST broadcast a
+`BOUNCER NETWORK` message with the updated attributes to all connected clients
+with the `bouncer-networks-notify` capability enabled:
 
     BOUNCER NETWORK <netid> <attributes>
 
+The notification SHOULD NOT contain attributes that haven't been updated.
+
 When a network is removed, the bouncer MUST broadcast a `BOUNCER NETWORK`
-message to all connected clients:
+message with the special argument `*` to all connected clients with the
+`bouncer-networks-notify` capability enabled:
 
     BOUNCER NETWORK <netid> *
 
@@ -231,7 +250,7 @@ Binding to a network:
     C: CAP LS 302
     C: NICK emersion
     C: USER emersion 0 0 :Simon
-    S: CAP * LS :sasl=PLAIN bouncer-networks
+    S: CAP * LS :sasl=PLAIN bouncer-networks bouncer-networks-notify
     C: CAP REQ :sasl bouncer-networks
     [SASL authentication]
     C: BOUNCER BIND 42
@@ -248,7 +267,7 @@ Listing networks:
 Adding a new network:
 
     C: BOUNCER ADDNETWORK name=OFTC;host=irc.oftc.net
-    S: BOUNCER NETWORK 44 status=connecting
+    S: BOUNCER NETWORK 44 name=OFTC;host=irc.oftc.net;status=connecting
     S: BOUNCER ADDNETWORK 44
     S: BOUNCER NETWORK 44 status=connected
 

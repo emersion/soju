@@ -57,15 +57,55 @@ var errAuthFailed = ircError{&irc.Message{
 	Params:  []string{"*", "Invalid username or password"},
 }}
 
-func parseBouncerNetID(s string) (int64, error) {
+func parseBouncerNetID(subcommand, s string) (int64, error) {
 	id, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return 0, ircError{&irc.Message{
 			Command: "FAIL",
-			Params:  []string{"BOUNCER", "INVALID_NETID", s, "Invalid network ID"},
+			Params:  []string{"BOUNCER", "INVALID_NETID", subcommand, s, "Invalid network ID"},
 		}}
 	}
 	return id, nil
+}
+
+func getNetworkAttrs(network *network) irc.Tags {
+	state := "disconnected"
+	if uc := network.conn; uc != nil {
+		state = "connected"
+	}
+
+	attrs := irc.Tags{
+		"name":     irc.TagValue(network.GetName()),
+		"state":    irc.TagValue(state),
+		"nickname": irc.TagValue(network.Nick),
+	}
+
+	if network.Username != "" {
+		attrs["username"] = irc.TagValue(network.Username)
+	}
+	if network.Realname != "" {
+		attrs["realname"] = irc.TagValue(network.Realname)
+	}
+
+	if u, err := network.URL(); err == nil {
+		hasHostPort := true
+		switch u.Scheme {
+		case "ircs":
+			attrs["tls"] = irc.TagValue("1")
+		case "irc+insecure":
+			attrs["tls"] = irc.TagValue("0")
+		default:
+			hasHostPort = false
+		}
+		if host, port, err := net.SplitHostPort(u.Host); err == nil && hasHostPort {
+			attrs["host"] = irc.TagValue(host)
+			attrs["port"] = irc.TagValue(port)
+		} else if hasHostPort {
+			attrs["host"] = irc.TagValue(u.Host)
+		}
+	}
+
+	return attrs
 }
 
 // ' ' and ':' break the IRC message wire format, '@' and '!' break prefixes,
@@ -75,14 +115,16 @@ const illegalNickChars = " :@!*?"
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
 var permanentDownstreamCaps = map[string]string{
-	"batch":                    "",
-	"soju.im/bouncer-networks": "",
-	"cap-notify":               "",
-	"echo-message":             "",
-	"invite-notify":            "",
-	"message-tags":             "",
-	"sasl":                     "PLAIN",
-	"server-time":              "",
+	"batch":         "",
+	"cap-notify":    "",
+	"echo-message":  "",
+	"invite-notify": "",
+	"message-tags":  "",
+	"sasl":          "PLAIN",
+	"server-time":   "",
+
+	"soju.im/bouncer-networks":        "",
+	"soju.im/bouncer-networks-notify": "",
 }
 
 // needAllDownstreamCaps is the list of downstream capabilities that
@@ -598,7 +640,7 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 				}}
 			}
 
-			id, err := parseBouncerNetID(idStr)
+			id, err := parseBouncerNetID(subcommand, idStr)
 			if err != nil {
 				return err
 			}
@@ -1021,6 +1063,29 @@ func (dc *downstreamConn) welcome() error {
 
 	dc.updateNick()
 	dc.updateSupportedCaps()
+
+	if dc.caps["soju.im/bouncer-networks-notify"] {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "BATCH",
+			Params:  []string{"+networks", "bouncer-networks"},
+		})
+		dc.user.forEachNetwork(func(network *network) {
+			idStr := fmt.Sprintf("%v", network.ID)
+			attrs := getNetworkAttrs(network)
+			dc.SendMessage(&irc.Message{
+				Tags:    irc.Tags{"batch": irc.TagValue("networks")},
+				Prefix:  dc.srv.prefix(),
+				Command: "BOUNCER",
+				Params:  []string{"NETWORK", idStr, attrs.String()},
+			})
+		})
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "BATCH",
+			Params:  []string{"-networks"},
+		})
+	}
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
 		for _, entry := range uc.channels.innerMap {
@@ -1985,49 +2050,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  []string{"+networks", "bouncer-networks"},
 			})
 			dc.user.forEachNetwork(func(network *network) {
-				id := fmt.Sprintf("%v", network.ID)
-
-				state := "disconnected"
-				if uc := network.conn; uc != nil {
-					state = "connected"
-				}
-
-				attrs := irc.Tags{
-					"name":     irc.TagValue(network.GetName()),
-					"state":    irc.TagValue(state),
-					"nickname": irc.TagValue(network.Nick),
-				}
-
-				if network.Username != "" {
-					attrs["username"] = irc.TagValue(network.Username)
-				}
-				if network.Realname != "" {
-					attrs["realname"] = irc.TagValue(network.Realname)
-				}
-
-				if u, err := network.URL(); err == nil {
-					hasHostPort := true
-					switch u.Scheme {
-					case "ircs":
-						attrs["tls"] = irc.TagValue("1")
-					case "irc+insecure":
-						attrs["tls"] = irc.TagValue("0")
-					default:
-						hasHostPort = false
-					}
-					if host, port, err := net.SplitHostPort(u.Host); err == nil && hasHostPort {
-						attrs["host"] = irc.TagValue(host)
-						attrs["port"] = irc.TagValue(port)
-					} else if hasHostPort {
-						attrs["host"] = irc.TagValue(u.Host)
-					}
-				}
-
+				idStr := fmt.Sprintf("%v", network.ID)
+				attrs := getNetworkAttrs(network)
 				dc.SendMessage(&irc.Message{
 					Tags:    irc.Tags{"batch": irc.TagValue("networks")},
 					Prefix:  dc.srv.prefix(),
 					Command: "BOUNCER",
-					Params:  []string{"NETWORK", id, attrs.String()},
+					Params:  []string{"NETWORK", idStr, attrs.String()},
 				})
 			})
 			dc.SendMessage(&irc.Message{
@@ -2095,7 +2124,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if err := parseMessageParams(msg, nil, &idStr, &attrsStr); err != nil {
 				return err
 			}
-			id, err := parseBouncerNetID(idStr)
+			id, err := parseBouncerNetID(subcommand, idStr)
 			if err != nil {
 				return err
 			}
@@ -2105,7 +2134,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if net == nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",
-					Params:  []string{"BOUNCER", "INVALID_NETID", idStr, "Invalid network ID"},
+					Params:  []string{"BOUNCER", "INVALID_NETID", subcommand, idStr, "Invalid network ID"},
 				}}
 			}
 
@@ -2148,7 +2177,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if err := parseMessageParams(msg, nil, &idStr); err != nil {
 				return err
 			}
-			id, err := parseBouncerNetID(idStr)
+			id, err := parseBouncerNetID(subcommand, idStr)
 			if err != nil {
 				return err
 			}
@@ -2157,7 +2186,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if net == nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",
-					Params:  []string{"BOUNCER", "INVALID_NETID", idStr, "Invalid network ID"},
+					Params:  []string{"BOUNCER", "INVALID_NETID", subcommand, idStr, "Invalid network ID"},
 				}}
 			}
 
