@@ -524,7 +524,7 @@ func (u *user) run() {
 						Command: "BOUNCER",
 						Params:  []string{"NETWORK", netIDStr, "status=connected"},
 					})
-				} else {
+				} else if !dc.caps["soju.im/bouncer-networks"] {
 					sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
 				}
 
