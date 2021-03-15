@@ -83,6 +83,7 @@ type upstreamConn struct {
 	availableChannelModes map[byte]channelModeType
 	availableChannelTypes string
 	availableMemberships  []membership
+	isupport              map[string]*string
 
 	registered    bool
 	nick          string
@@ -193,6 +194,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		availableChannelTypes:    stdChannelTypes,
 		availableChannelModes:    stdChannelModes,
 		availableMemberships:     stdMemberships,
+		isupport:                 make(map[string]*string),
 		pendingLISTDownstreamSet: make(map[uint64]struct{}),
 	}
 	return uc, nil
@@ -613,17 +615,28 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 		for _, token := range msg.Params[1 : len(msg.Params)-1] {
-			negate := false
 			parameter := token
-			value := ""
+			var negate, hasValue bool
+			var value string
 			if strings.HasPrefix(token, "-") {
 				negate = true
 				token = token[1:]
 			} else if i := strings.IndexByte(token, '='); i >= 0 {
 				parameter = token[:i]
 				value = token[i+1:]
+				hasValue = true
 			}
-			if !negate {
+
+			if hasValue {
+				uc.isupport[parameter] = &value
+			} else if !negate {
+				uc.isupport[parameter] = nil
+			} else {
+				delete(uc.isupport, parameter)
+			}
+
+			if !negate && hasValue {
+				// TODO: reset to defaults when the token is negated
 				switch parameter {
 				case "CHANMODES":
 					if err := uc.handleChanModes(value); err != nil {
@@ -638,8 +651,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				case "NETWORK":
 					uc.networkName = value
 				}
-			} else {
-				// TODO: handle ISUPPORT negations
 			}
 		}
 	case "BATCH":
