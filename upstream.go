@@ -628,39 +628,14 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if !negate {
 				switch parameter {
 				case "CHANMODES":
-					parts := strings.SplitN(value, ",", 5)
-					if len(parts) < 4 {
-						return fmt.Errorf("malformed ISUPPORT CHANMODES value: %v", value)
+					if err := uc.handleChanModes(value); err != nil {
+						return err
 					}
-					modes := make(map[byte]channelModeType)
-					for i, mt := range []channelModeType{modeTypeA, modeTypeB, modeTypeC, modeTypeD} {
-						for j := 0; j < len(parts[i]); j++ {
-							mode := parts[i][j]
-							modes[mode] = mt
-						}
-					}
-					uc.availableChannelModes = modes
 				case "CHANTYPES":
 					uc.availableChannelTypes = value
 				case "PREFIX":
-					if value == "" {
-						uc.availableMemberships = nil
-					} else {
-						if value[0] != '(' {
-							return fmt.Errorf("malformed ISUPPORT PREFIX value: %v", value)
-						}
-						sep := strings.IndexByte(value, ')')
-						if sep < 0 || len(value) != sep*2 {
-							return fmt.Errorf("malformed ISUPPORT PREFIX value: %v", value)
-						}
-						memberships := make([]membership, len(value)/2-1)
-						for i := range memberships {
-							memberships[i] = membership{
-								Mode:   value[i+1],
-								Prefix: value[sep+i+1],
-							}
-						}
-						uc.availableMemberships = memberships
+					if err := uc.handleMemberships(value); err != nil {
+						return err
 					}
 				case "NETWORK":
 					uc.networkName = value
@@ -1453,6 +1428,46 @@ func (uc *upstreamConn) handleDetachedMessage(sender string, text string, ch *Ch
 			uc.logger.Printf("failed to update channel %q: %v", ch.Name, err)
 		}
 	}
+}
+
+func (uc *upstreamConn) handleChanModes(s string) error {
+	parts := strings.SplitN(s, ",", 5)
+	if len(parts) < 4 {
+		return fmt.Errorf("malformed ISUPPORT CHANMODES value: %v", s)
+	}
+	modes := make(map[byte]channelModeType)
+	for i, mt := range []channelModeType{modeTypeA, modeTypeB, modeTypeC, modeTypeD} {
+		for j := 0; j < len(parts[i]); j++ {
+			mode := parts[i][j]
+			modes[mode] = mt
+		}
+	}
+	uc.availableChannelModes = modes
+	return nil
+}
+
+func (uc *upstreamConn) handleMemberships(s string) error {
+	if s == "" {
+		uc.availableMemberships = nil
+		return nil
+	}
+
+	if s[0] != '(' {
+		return fmt.Errorf("malformed ISUPPORT PREFIX value: %v", s)
+	}
+	sep := strings.IndexByte(s, ')')
+	if sep < 0 || len(s) != sep*2 {
+		return fmt.Errorf("malformed ISUPPORT PREFIX value: %v", s)
+	}
+	memberships := make([]membership, len(s)/2-1)
+	for i := range memberships {
+		memberships[i] = membership{
+			Mode:   s[i+1],
+			Prefix: s[sep+i+1],
+		}
+	}
+	uc.availableMemberships = memberships
+	return nil
 }
 
 func (uc *upstreamConn) handleSupportedCaps(capsStr string) {
