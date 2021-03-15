@@ -880,8 +880,8 @@ func (dc *downstreamConn) welcome() error {
 		fmt.Sprintf("CHATHISTORY=%v", dc.srv.HistoryLimit),
 	}
 
-	if uc := dc.upstream(); uc != nil && uc.networkName != "" {
-		isupport = append(isupport, fmt.Sprintf("NETWORK=%v", uc.networkName))
+	if uc := dc.upstream(); uc != nil && uc.isupport["NETWORK"] != nil {
+		isupport = append(isupport, fmt.Sprintf("NETWORK=%v", *uc.isupport["NETWORK"]))
 	}
 
 	dc.SendMessage(&irc.Message{

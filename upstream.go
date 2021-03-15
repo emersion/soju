@@ -78,7 +78,6 @@ type upstreamConn struct {
 	user    *user
 
 	serverName            string
-	networkName           string
 	availableUserModes    string
 	availableChannelModes map[byte]channelModeType
 	availableChannelTypes string
@@ -648,8 +647,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 					if err := uc.handleMemberships(value); err != nil {
 						return err
 					}
-				case "NETWORK":
-					uc.networkName = value
 				}
 			}
 		}
