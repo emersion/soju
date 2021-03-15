@@ -619,11 +619,9 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if strings.HasPrefix(token, "-") {
 				negate = true
 				token = token[1:]
-			} else {
-				if i := strings.IndexByte(token, '='); i >= 0 {
-					parameter = token[:i]
-					value = token[i+1:]
-				}
+			} else if i := strings.IndexByte(token, '='); i >= 0 {
+				parameter = token[:i]
+				value = token[i+1:]
 			}
 			if !negate {
 				switch parameter {
