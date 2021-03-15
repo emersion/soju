@@ -17,7 +17,10 @@ const (
 	err_invalidcapcmd = "410"
 )
 
-const maxMessageLength = 512
+const (
+	maxMessageLength = 512
+	maxMessageParams = 15
+)
 
 // The server-time layout, as defined in the IRCv3 spec.
 const serverTimeLayout = "2006-01-02T15:04:05.000Z"
@@ -343,6 +346,30 @@ func join(channels, keys []string) []*irc.Message {
 			params = append(params, keysBuf.String())
 		}
 		msgs = append(msgs, &irc.Message{Command: "JOIN", Params: params})
+	}
+
+	return msgs
+}
+
+func generateIsupport(prefix *irc.Prefix, nick string, tokens []string) []*irc.Message {
+	maxTokens := maxMessageParams - 2 // 2 reserved params: nick + text
+
+	var msgs []*irc.Message
+	for len(tokens) > 0 {
+		var msgTokens []string
+		if len(tokens) > maxTokens {
+			msgTokens = tokens[:maxTokens]
+			tokens = tokens[maxTokens:]
+		} else {
+			msgTokens = tokens
+			tokens = nil
+		}
+
+		msgs = append(msgs, &irc.Message{
+			Prefix:  prefix,
+			Command: irc.RPL_ISUPPORT,
+			Params:  append(append([]string{nick}, msgTokens...), "are supported"),
+		})
 	}
 
 	return msgs

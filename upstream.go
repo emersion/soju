@@ -613,6 +613,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if err := parseMessageParams(msg, nil, nil); err != nil {
 			return err
 		}
+
+		var downstreamIsupport []string
 		for _, token := range msg.Params[1 : len(msg.Params)-1] {
 			parameter := token
 			var negate, hasValue bool
@@ -658,7 +660,21 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if err != nil {
 				return err
 			}
+
+			if passthroughIsupport[parameter] {
+				downstreamIsupport = append(downstreamIsupport, token)
+			}
 		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			if dc.network == nil {
+				return
+			}
+			msgs := generateIsupport(dc.srv.prefix(), dc.nick, downstreamIsupport)
+			for _, msg := range msgs {
+				dc.SendMessage(msg)
+			}
+		})
 	case "BATCH":
 		var tag string
 		if err := parseMessageParams(msg, &tag); err != nil {

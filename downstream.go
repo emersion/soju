@@ -81,6 +81,33 @@ var needAllDownstreamCaps = map[string]string{
 	"multi-prefix":  "",
 }
 
+// passthroughIsupport is the set of ISUPPORT tokens that are directly passed
+// through from the upstream server to downstream clients.
+//
+// This is only effective in single-upstream mode.
+var passthroughIsupport = map[string]bool{
+	"AWAYLEN":    true,
+	"CHANLIMIT":  true,
+	"CHANMODES":  true,
+	"CHANNELLEN": true,
+	"CHANTYPES":  true,
+	"EXCEPTS":    true,
+	"EXTBAN":     true,
+	"HOSTLEN":    true,
+	"INVEX":      true,
+	"KICKLEN":    true,
+	"MAXLIST":    true,
+	"MAXTARGETS": true,
+	"MODES":      true,
+	"NETWORK":    true,
+	"NICKLEN":    true,
+	"PREFIX":     true,
+	"SAFELIST":   true,
+	"TARGMAX":    true,
+	"TOPICLEN":   true,
+	"USERLEN":    true,
+}
+
 type downstreamConn struct {
 	conn
 
@@ -880,8 +907,18 @@ func (dc *downstreamConn) welcome() error {
 		fmt.Sprintf("CHATHISTORY=%v", dc.srv.HistoryLimit),
 	}
 
-	if uc := dc.upstream(); uc != nil && uc.isupport["NETWORK"] != nil {
-		isupport = append(isupport, fmt.Sprintf("NETWORK=%v", *uc.isupport["NETWORK"]))
+	if uc := dc.upstream(); uc != nil {
+		for k := range passthroughIsupport {
+			v, ok := uc.isupport[k]
+			if !ok {
+				continue
+			}
+			if v != nil {
+				isupport = append(isupport, fmt.Sprintf("%v=%v", k, *v))
+			} else {
+				isupport = append(isupport, k)
+			}
+		}
 	}
 
 	dc.SendMessage(&irc.Message{
@@ -904,12 +941,9 @@ func (dc *downstreamConn) welcome() error {
 		Command: irc.RPL_MYINFO,
 		Params:  []string{dc.nick, dc.srv.Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
-	// TODO: other RPL_ISUPPORT tokens
-	dc.SendMessage(&irc.Message{
-		Prefix:  dc.srv.prefix(),
-		Command: irc.RPL_ISUPPORT,
-		Params:  append(append([]string{dc.nick}, isupport...), "are supported"),
-	})
+	for _, msg := range generateIsupport(dc.srv.prefix(), dc.nick, isupport) {
+		dc.SendMessage(msg)
+	}
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
