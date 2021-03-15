@@ -634,20 +634,29 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				delete(uc.isupport, parameter)
 			}
 
-			if !negate && hasValue {
-				// TODO: reset to defaults when the token is negated
-				switch parameter {
-				case "CHANMODES":
-					if err := uc.handleChanModes(value); err != nil {
-						return err
-					}
-				case "CHANTYPES":
-					uc.availableChannelTypes = value
-				case "PREFIX":
-					if err := uc.handleMemberships(value); err != nil {
-						return err
-					}
+			var err error
+			switch parameter {
+			case "CHANMODES":
+				if !negate {
+					err = uc.handleChanModes(value)
+				} else {
+					uc.availableChannelModes = stdChannelModes
 				}
+			case "CHANTYPES":
+				if !negate {
+					uc.availableChannelTypes = value
+				} else {
+					uc.availableChannelTypes = stdChannelTypes
+				}
+			case "PREFIX":
+				if !negate {
+					err = uc.handleMemberships(value)
+				} else {
+					uc.availableMemberships = stdMemberships
+				}
+			}
+			if err != nil {
+				return err
 			}
 		}
 	case "BATCH":
