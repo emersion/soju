@@ -1702,6 +1702,11 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 	if uc.user.msgStore == nil {
 		return ""
 	}
+	if entity == "NickServ" {
+		// The messages sent/received from NickServ may contain
+		// security-related information (like passwords). Don't store these.
+		return ""
+	}
 
 	detached := false
 	if ch, ok := uc.network.channels[entity]; ok {
