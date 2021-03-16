@@ -114,6 +114,17 @@ func main() {
 					log.Printf("serving %q: %v", listen, err)
 				}
 			}()
+		case "unix":
+			ln, err := net.Listen("unix", u.Path)
+			if err != nil {
+				log.Fatalf("failed to start listener on %q: %v", listen, err)
+			}
+			ln = proxyProtoListener(ln, srv)
+			go func() {
+				if err := srv.Serve(ln); err != nil {
+					log.Printf("serving %q: %v", listen, err)
+				}
+			}()
 		case "wss":
 			addr := u.Host
 			if _, _, err := net.SplitHostPort(addr); err != nil {
