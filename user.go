@@ -428,6 +428,12 @@ func (u *user) run() {
 
 			u.downstreamConns = append(u.downstreamConns, dc)
 
+			dc.forEachNetwork(func(network *network) {
+				if network.lastError != nil {
+					sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", network.GetName(), network.lastError))
+				}
+			})
+
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
 			})
