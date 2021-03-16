@@ -61,17 +61,18 @@ type network struct {
 	stopped chan struct{}
 
 	conn           *upstreamConn
-	channels       map[string]*Channel
-	delivered      map[string]map[string]string // entity -> client name -> msg ID
-	offlineClients map[string]struct{}          // indexed by client name
+	channels       channelCasemapMap
+	delivered      mapStringStringCasemapMap // entity -> client name -> msg ID
+	offlineClients map[string]struct{}       // indexed by client name
 	lastError      error
+	casemap        casemapping
 }
 
 func newNetwork(user *user, record *Network, channels []Channel) *network {
-	m := make(map[string]*Channel, len(channels))
+	m := channelCasemapMap{newCasemapMap(0)}
 	for _, ch := range channels {
 		ch := ch
-		m[ch.Name] = &ch
+		m.SetValue(ch.Name, &ch)
 	}
 
 	return &network{
@@ -79,8 +80,9 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 		user:           user,
 		stopped:        make(chan struct{}),
 		channels:       m,
-		delivered:      make(map[string]map[string]string),
+		delivered:      mapStringStringCasemapMap{newCasemapMap(0)},
 		offlineClients: make(map[string]struct{}),
+		casemap:        casemapRFC1459,
 	}
 }
 
@@ -185,7 +187,8 @@ func (net *network) detach(ch *Channel) {
 	net.user.srv.Logger.Printf("network %q: detaching channel %q", net.GetName(), ch.Name)
 
 	if net.conn != nil {
-		if uch, ok := net.conn.channels[ch.Name]; ok {
+		uch := net.conn.channels.Value(ch.Name)
+		if uch != nil {
 			uch.updateAutoDetach(0)
 		}
 	}
@@ -210,7 +213,7 @@ func (net *network) attach(ch *Channel) {
 
 	var uch *upstreamChannel
 	if net.conn != nil {
-		uch = net.conn.channels[ch.Name]
+		uch = net.conn.channels.Value(ch.Name)
 
 		net.conn.updateChannelAutoDetach(ch.Name)
 	}
@@ -231,12 +234,13 @@ func (net *network) attach(ch *Channel) {
 }
 
 func (net *network) deleteChannel(name string) error {
-	ch, ok := net.channels[name]
-	if !ok {
+	ch := net.channels.Value(name)
+	if ch == nil {
 		return fmt.Errorf("unknown channel %q", name)
 	}
 	if net.conn != nil {
-		if uch, ok := net.conn.channels[ch.Name]; ok {
+		uch := net.conn.channels.Value(ch.Name)
+		if uch != nil {
 			uch.updateAutoDetach(0)
 		}
 	}
@@ -244,8 +248,21 @@ func (net *network) deleteChannel(name string) error {
 	if err := net.user.srv.db.DeleteChannel(ch.ID); err != nil {
 		return err
 	}
-	delete(net.channels, name)
+	net.channels.Delete(name)
 	return nil
+}
+
+func (net *network) updateCasemapping(newCasemap casemapping) {
+	net.casemap = newCasemap
+	net.channels.SetCasemapping(newCasemap)
+	net.delivered.SetCasemapping(newCasemap)
+	if net.conn != nil {
+		net.conn.channels.SetCasemapping(newCasemap)
+		for _, entry := range net.conn.channels.innerMap {
+			uch := entry.value.(*upstreamChannel)
+			uch.Members.SetCasemapping(newCasemap)
+		}
+	}
 }
 
 type user struct {
@@ -410,8 +427,8 @@ func (u *user) run() {
 			}
 		case eventChannelDetach:
 			uc, name := e.uc, e.name
-			c, ok := uc.network.channels[name]
-			if !ok || c.Detached {
+			c := uc.network.channels.Value(name)
+			if c == nil || c.Detached {
 				continue
 			}
 			uc.network.detach(c)
@@ -499,7 +516,8 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 
 	uc.endPendingLISTs(true)
 
-	for _, uch := range uc.channels {
+	for _, entry := range uc.channels.innerMap {
+		uch := entry.value.(*upstreamChannel)
 		uch.updateAutoDetach(0)
 	}
 
@@ -570,8 +588,9 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 
 	// Most network changes require us to re-connect to the upstream server
 
-	channels := make([]Channel, 0, len(network.channels))
-	for _, ch := range network.channels {
+	channels := make([]Channel, 0, network.channels.Len())
+	for _, entry := range network.channels.innerMap {
+		ch := entry.value.(*Channel)
 		channels = append(channels, *ch)
 	}
 

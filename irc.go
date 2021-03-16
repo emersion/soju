@@ -121,12 +121,13 @@ outer:
 					return nil, fmt.Errorf("malformed modestring %q: missing mode argument for %c%c", modeStr, plusMinus, mode)
 				}
 				member := arguments[nextArgument]
-				if _, ok := ch.Members[member]; ok {
+				m := ch.Members.Value(member)
+				if m != nil {
 					if plusMinus == '+' {
-						ch.Members[member].Add(ch.conn.availableMemberships, membership)
+						m.Add(ch.conn.availableMemberships, membership)
 					} else {
 						// TODO: for upstreams without multi-prefix, query the user modes again
-						ch.Members[member].Remove(membership)
+						m.Remove(membership)
 					}
 				}
 				needMarshaling[nextArgument] = struct{}{}
@@ -417,4 +418,194 @@ func parseCTCPMessage(msg *irc.Message) (cmd string, params string, ok bool) {
 	}
 
 	return cmd, params, true
+}
+
+type casemapping func(string) string
+
+func casemapNone(name string) string {
+	return name
+}
+
+// CasemapASCII of name is the canonical representation of name according to the
+// ascii casemapping.
+func casemapASCII(name string) string {
+	var sb strings.Builder
+	sb.Grow(len(name))
+	for _, r := range name {
+		if 'A' <= r && r <= 'Z' {
+			r += 'a' - 'A'
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
+
+// casemapRFC1459 of name is the canonical representation of name according to the
+// rfc1459 casemapping.
+func casemapRFC1459(name string) string {
+	var sb strings.Builder
+	sb.Grow(len(name))
+	for _, r := range name {
+		if 'A' <= r && r <= 'Z' {
+			r += 'a' - 'A'
+		} else if r == '{' {
+			r = '['
+		} else if r == '}' {
+			r = ']'
+		} else if r == '\\' {
+			r = '|'
+		} else if r == '~' {
+			r = '^'
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
+
+// casemapRFC1459Strict of name is the canonical representation of name
+// according to the rfc1459-strict casemapping.
+func casemapRFC1459Strict(name string) string {
+	var sb strings.Builder
+	sb.Grow(len(name))
+	for _, r := range name {
+		if 'A' <= r && r <= 'Z' {
+			r += 'a' - 'A'
+		} else if r == '{' {
+			r = '['
+		} else if r == '}' {
+			r = ']'
+		} else if r == '\\' {
+			r = '|'
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
+
+func parseCasemappingToken(tokenValue string) (casemap casemapping, ok bool) {
+	switch tokenValue {
+	case "ascii":
+		casemap = casemapASCII
+	case "rfc1459":
+		casemap = casemapRFC1459
+	case "rfc1459-strict":
+		casemap = casemapRFC1459Strict
+	default:
+		return nil, false
+	}
+	return casemap, true
+}
+
+func partialCasemap(higher casemapping, name string) string {
+	nameFullyCM := higher(name)
+	var sb strings.Builder
+	sb.Grow(len(name))
+	for i, r := range nameFullyCM {
+		if 'a' <= r && r <= 'z' {
+			r = rune(name[i])
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
+
+type casemapMap struct {
+	innerMap map[string]casemapEntry
+	casemap  casemapping
+}
+
+type casemapEntry struct {
+	originalKey string
+	value       interface{}
+}
+
+func newCasemapMap(size int) casemapMap {
+	return casemapMap{
+		innerMap: make(map[string]casemapEntry, size),
+		casemap:  casemapNone,
+	}
+}
+
+func (cm *casemapMap) OriginalKey(name string) (key string, ok bool) {
+	entry, ok := cm.innerMap[cm.casemap(name)]
+	if !ok {
+		return "", false
+	}
+	return entry.originalKey, true
+}
+
+func (cm *casemapMap) Has(name string) bool {
+	_, ok := cm.innerMap[cm.casemap(name)]
+	return ok
+}
+
+func (cm *casemapMap) Len() int {
+	return len(cm.innerMap)
+}
+
+func (cm *casemapMap) SetValue(name string, value interface{}) {
+	nameCM := cm.casemap(name)
+	entry, ok := cm.innerMap[nameCM]
+	if !ok {
+		cm.innerMap[nameCM] = casemapEntry{
+			originalKey: name,
+			value:       value,
+		}
+		return
+	}
+	entry.value = value
+	cm.innerMap[nameCM] = entry
+}
+
+func (cm *casemapMap) Delete(name string) {
+	delete(cm.innerMap, cm.casemap(name))
+}
+
+func (cm *casemapMap) SetCasemapping(newCasemap casemapping) {
+	cm.casemap = newCasemap
+	newInnerMap := make(map[string]casemapEntry, len(cm.innerMap))
+	for _, entry := range cm.innerMap {
+		newInnerMap[cm.casemap(entry.originalKey)] = entry
+	}
+	cm.innerMap = newInnerMap
+}
+
+type upstreamChannelCasemapMap struct{ casemapMap }
+
+func (cm *upstreamChannelCasemapMap) Value(name string) *upstreamChannel {
+	entry, ok := cm.innerMap[cm.casemap(name)]
+	if !ok {
+		return nil
+	}
+	return entry.value.(*upstreamChannel)
+}
+
+type channelCasemapMap struct{ casemapMap }
+
+func (cm *channelCasemapMap) Value(name string) *Channel {
+	entry, ok := cm.innerMap[cm.casemap(name)]
+	if !ok {
+		return nil
+	}
+	return entry.value.(*Channel)
+}
+
+type membershipsCasemapMap struct{ casemapMap }
+
+func (cm *membershipsCasemapMap) Value(name string) *memberships {
+	entry, ok := cm.innerMap[cm.casemap(name)]
+	if !ok {
+		return nil
+	}
+	return entry.value.(*memberships)
+}
+
+type mapStringStringCasemapMap struct{ casemapMap }
+
+func (cm *mapStringStringCasemapMap) Value(name string) map[string]string {
+	entry, ok := cm.innerMap[cm.casemap(name)]
+	if !ok {
+		return nil
+	}
+	return entry.value.(map[string]string)
 }

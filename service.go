@@ -27,6 +27,7 @@ import (
 )
 
 const serviceNick = "BouncerServ"
+const serviceNickCM = "bouncerserv"
 const serviceRealname = "soju bouncer service"
 
 var servicePrefix = &irc.Prefix{
@@ -408,7 +409,7 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 			} else {
 				statuses = append(statuses, "connected")
 			}
-			details = fmt.Sprintf("%v channels", len(uc.channels))
+			details = fmt.Sprintf("%v channels", uc.channels.Len())
 		} else {
 			statuses = append(statuses, "disconnected")
 			if net.lastError != nil {
@@ -768,8 +769,8 @@ func handleServiceChannelUpdate(dc *downstreamConn, params []string) error {
 		return fmt.Errorf("unknown channel %q", name)
 	}
 
-	ch, ok := uc.network.channels[upstreamName]
-	if !ok {
+	ch := uc.network.channels.Value(upstreamName)
+	if ch == nil {
 		return fmt.Errorf("unknown channel %q", name)
 	}
 

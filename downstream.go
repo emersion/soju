@@ -116,6 +116,7 @@ type downstreamConn struct {
 	registered  bool
 	user        *user
 	nick        string
+	nickCM      string
 	rawUsername string
 	networkName string
 	clientName  string
@@ -192,13 +193,13 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 func isOurNick(net *network, nick string) bool {
 	// TODO: this doesn't account for nick changes
 	if net.conn != nil {
-		return nick == net.conn.nick
+		return net.casemap(nick) == net.conn.nickCM
 	}
 	// We're not currently connected to the upstream connection, so we don't
 	// know whether this name is our nickname. Best-effort: use the network's
 	// configured nickname and hope it was the one being used when we were
 	// connected.
-	return nick == net.Nick
+	return net.casemap(nick) == net.casemap(net.Nick)
 }
 
 // marshalEntity converts an upstream entity name (ie. channel or nick) into a
@@ -210,6 +211,7 @@ func (dc *downstreamConn) marshalEntity(net *network, name string) string {
 	if isOurNick(net, name) {
 		return dc.nick
 	}
+	name = partialCasemap(net.casemap, name)
 	if dc.network != nil {
 		if dc.network != net {
 			panic("soju: tried to marshal an entity for another network")
@@ -223,6 +225,7 @@ func (dc *downstreamConn) marshalUserPrefix(net *network, prefix *irc.Prefix) *i
 	if isOurNick(net, prefix.Name) {
 		return dc.prefix()
 	}
+	prefix.Name = partialCasemap(net.casemap, prefix.Name)
 	if dc.network != nil {
 		if dc.network != net {
 			panic("soju: tried to marshal a user prefix for another network")
@@ -358,8 +361,8 @@ func (dc *downstreamConn) ackMsgID(id string) {
 		return
 	}
 
-	delivered, ok := network.delivered[entity]
-	if !ok {
+	delivered := network.delivered.Value(entity)
+	if delivered == nil {
 		return
 	}
 
@@ -445,13 +448,15 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 				Params:  []string{dc.nick, nick, "contains illegal characters"},
 			}}
 		}
-		if nick == serviceNick {
+		nickCM := casemapASCII(nick)
+		if nickCM == serviceNickCM {
 			return ircError{&irc.Message{
 				Command: irc.ERR_NICKNAMEINUSE,
 				Params:  []string{dc.nick, nick, "Nickname reserved for bouncer service"},
 			}}
 		}
 		dc.nick = nick
+		dc.nickCM = nickCM
 	case "USER":
 		if err := parseMessageParams(msg, &dc.rawUsername, nil, nil, &dc.realname); err != nil {
 			return err
@@ -766,6 +771,7 @@ func (dc *downstreamConn) updateNick() {
 			Params:  []string{uc.nick},
 		})
 		dc.nick = uc.nick
+		dc.nickCM = casemapASCII(dc.nick)
 	}
 }
 
@@ -911,6 +917,7 @@ func (dc *downstreamConn) welcome() error {
 
 	isupport := []string{
 		fmt.Sprintf("CHATHISTORY=%v", dc.srv.HistoryLimit),
+		"CASEMAPPING=ascii",
 	}
 
 	if uc := dc.upstream(); uc != nil {
@@ -960,11 +967,13 @@ func (dc *downstreamConn) welcome() error {
 	dc.updateSupportedCaps()
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
-		for _, ch := range uc.channels {
+		for _, entry := range uc.channels.innerMap {
+			ch := entry.value.(*upstreamChannel)
 			if !ch.complete {
 				continue
 			}
-			if record, ok := uc.network.channels[ch.Name]; ok && record.Detached {
+			record := uc.network.channels.Value(ch.Name)
+			if record != nil && record.Detached {
 				continue
 			}
 
@@ -987,8 +996,10 @@ func (dc *downstreamConn) welcome() error {
 		}
 
 		// Fast-forward history to last message
-		for target, delivered := range net.delivered {
-			if ch, ok := net.channels[target]; ok && ch.Detached {
+		for target, entry := range net.delivered.innerMap {
+			delivered := entry.value.(map[string]string)
+			ch := net.channels.Value(target)
+			if ch != nil && ch.Detached {
 				continue
 			}
 
@@ -1019,7 +1030,8 @@ func (dc *downstreamConn) messageSupportsHistory(msg *irc.Message) bool {
 }
 
 func (dc *downstreamConn) sendNetworkBacklog(net *network) {
-	for target := range net.delivered {
+	for _, entry := range net.delivered.innerMap {
+		target := entry.originalKey
 		dc.sendTargetBacklog(net, target)
 	}
 }
@@ -1028,11 +1040,11 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target string) {
 	if dc.caps["draft/chathistory"] || dc.user.msgStore == nil {
 		return
 	}
-	if ch, ok := net.channels[target]; ok && ch.Detached {
+	if ch := net.channels.Value(target); ch != nil && ch.Detached {
 		return
 	}
-	delivered, ok := net.delivered[target]
-	if !ok {
+	delivered := net.delivered.Value(target)
+	if delivered == nil {
 		return
 	}
 	lastDelivered, ok := delivered[dc.clientName]
@@ -1158,7 +1170,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  []string{dc.nick, rawNick, "contains illegal characters"},
 			}}
 		}
-		if nick == serviceNick {
+		if casemapASCII(nick) == serviceNickCM {
 			return ircError{&irc.Message{
 				Command: irc.ERR_NICKNAMEINUSE,
 				Params:  []string{dc.nick, rawNick, "Nickname reserved for bouncer service"},
@@ -1194,6 +1206,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  []string{nick},
 			})
 			dc.nick = nick
+			dc.nickCM = casemapASCII(dc.nick)
 		}
 	case "JOIN":
 		var namesStr string
@@ -1226,9 +1239,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 
-			var ch *Channel
-			var ok bool
-			if ch, ok = uc.network.channels[upstreamName]; ok {
+			ch := uc.network.channels.Value(upstreamName)
+			if ch != nil {
 				// Don't clear the channel key if there's one set
 				// TODO: add a way to unset the channel key
 				if key != "" {
@@ -1240,7 +1252,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					Name: upstreamName,
 					Key:  key,
 				}
-				uc.network.channels[upstreamName] = ch
+				uc.network.channels.SetValue(upstreamName, ch)
 			}
 			if err := dc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
 				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
@@ -1264,16 +1276,15 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			if strings.EqualFold(reason, "detach") {
-				var ch *Channel
-				var ok bool
-				if ch, ok = uc.network.channels[upstreamName]; ok {
+				ch := uc.network.channels.Value(upstreamName)
+				if ch != nil {
 					uc.network.detach(ch)
 				} else {
 					ch = &Channel{
 						Name:     name,
 						Detached: true,
 					}
-					uc.network.channels[upstreamName] = ch
+					uc.network.channels.SetValue(upstreamName, ch)
 				}
 				if err := dc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
 					dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
@@ -1360,7 +1371,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			modeStr = msg.Params[1]
 		}
 
-		if name == dc.nick {
+		if casemapASCII(name) == dc.nickCM {
 			if modeStr != "" {
 				dc.forEachUpstream(func(uc *upstreamConn) {
 					uc.SendMessageLabeled(dc.id, &irc.Message{
@@ -1398,8 +1409,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Params:  params,
 			})
 		} else {
-			ch, ok := uc.channels[upstreamName]
-			if !ok {
+			ch := uc.channels.Value(upstreamName)
+			if ch == nil {
 				return ircError{&irc.Message{
 					Command: irc.ERR_NOSUCHCHANNEL,
 					Params:  []string{dc.nick, name, "No such channel"},
@@ -1435,7 +1446,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return err
 		}
 
-		uc, upstreamChannel, err := dc.unmarshalEntity(channel)
+		uc, upstreamName, err := dc.unmarshalEntity(channel)
 		if err != nil {
 			return err
 		}
@@ -1444,14 +1455,14 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			topic := msg.Params[1]
 			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Command: "TOPIC",
-				Params:  []string{upstreamChannel, topic},
+				Params:  []string{upstreamName, topic},
 			})
 		} else { // getting topic
-			ch, ok := uc.channels[upstreamChannel]
-			if !ok {
+			ch := uc.channels.Value(upstreamName)
+			if ch == nil {
 				return ircError{&irc.Message{
 					Command: irc.ERR_NOSUCHCHANNEL,
-					Params:  []string{dc.nick, upstreamChannel, "No such channel"},
+					Params:  []string{dc.nick, upstreamName, "No such channel"},
 				}}
 			}
 			sendTopic(dc, ch)
@@ -1513,19 +1524,19 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 		channels := strings.Split(msg.Params[0], ",")
 		for _, channel := range channels {
-			uc, upstreamChannel, err := dc.unmarshalEntity(channel)
+			uc, upstreamName, err := dc.unmarshalEntity(channel)
 			if err != nil {
 				return err
 			}
 
-			ch, ok := uc.channels[upstreamChannel]
-			if ok {
+			ch := uc.channels.Value(upstreamName)
+			if ch != nil {
 				sendNames(dc, ch)
 			} else {
 				// NAMES on a channel we have not joined, ask upstream
 				uc.SendMessageLabeled(dc.id, &irc.Message{
 					Command: "NAMES",
-					Params:  []string{upstreamChannel},
+					Params:  []string{upstreamName},
 				})
 			}
 		}
@@ -1542,8 +1553,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 		// TODO: support WHO masks
 		entity := msg.Params[0]
+		entityCM := casemapASCII(entity)
 
-		if entity == dc.nick {
+		if entityCM == dc.nickCM {
 			// TODO: support AWAY (H/G) in self WHO reply
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -1557,7 +1569,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			})
 			return nil
 		}
-		if entity == serviceNick {
+		if entityCM == serviceNickCM {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOREPLY,
@@ -1608,7 +1620,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			mask = mask[:i]
 		}
 
-		if mask == dc.nick {
+		if casemapASCII(mask) == dc.nickCM {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISUSER,

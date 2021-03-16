@@ -54,7 +54,9 @@ func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 	maxLength := maxMessageLength - len(emptyNameReply.String())
 
 	var buf strings.Builder
-	for nick, memberships := range ch.Members {
+	for _, entry := range ch.Members.innerMap {
+		nick := entry.originalKey
+		memberships := entry.value.(*memberships)
 		s := memberships.Format(dc) + dc.marshalEntity(ch.conn.network, nick)
 
 		n := buf.Len() + 1 + len(s)
