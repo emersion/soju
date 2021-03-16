@@ -41,10 +41,10 @@ type websocketIRCConn struct {
 }
 
 func newWebsocketIRCConn(c *websocket.Conn, remoteAddr string) ircConn {
-	return websocketIRCConn{conn: c, remoteAddr: remoteAddr}
+	return &websocketIRCConn{conn: c, remoteAddr: remoteAddr}
 }
 
-func (wic websocketIRCConn) ReadMessage() (*irc.Message, error) {
+func (wic *websocketIRCConn) ReadMessage() (*irc.Message, error) {
 	ctx := context.Background()
 	if !wic.readDeadline.IsZero() {
 		var cancel context.CancelFunc
@@ -63,7 +63,7 @@ func (wic websocketIRCConn) ReadMessage() (*irc.Message, error) {
 	return irc.ParseMessage(string(b))
 }
 
-func (wic websocketIRCConn) WriteMessage(msg *irc.Message) error {
+func (wic *websocketIRCConn) WriteMessage(msg *irc.Message) error {
 	b := []byte(strings.ToValidUTF8(msg.String(), string(unicode.ReplacementChar)))
 	ctx := context.Background()
 	if !wic.writeDeadline.IsZero() {
@@ -74,25 +74,25 @@ func (wic websocketIRCConn) WriteMessage(msg *irc.Message) error {
 	return wic.conn.Write(ctx, websocket.MessageText, b)
 }
 
-func (wic websocketIRCConn) Close() error {
+func (wic *websocketIRCConn) Close() error {
 	return wic.conn.Close(websocket.StatusNormalClosure, "")
 }
 
-func (wic websocketIRCConn) SetReadDeadline(t time.Time) error {
+func (wic *websocketIRCConn) SetReadDeadline(t time.Time) error {
 	wic.readDeadline = t
 	return nil
 }
 
-func (wic websocketIRCConn) SetWriteDeadline(t time.Time) error {
+func (wic *websocketIRCConn) SetWriteDeadline(t time.Time) error {
 	wic.writeDeadline = t
 	return nil
 }
 
-func (wic websocketIRCConn) RemoteAddr() net.Addr {
+func (wic *websocketIRCConn) RemoteAddr() net.Addr {
 	return websocketAddr(wic.remoteAddr)
 }
 
-func (wic websocketIRCConn) LocalAddr() net.Addr {
+func (wic *websocketIRCConn) LocalAddr() net.Addr {
 	// Behind a reverse HTTP proxy, we don't have access to the real listening
 	// address
 	return websocketAddr("")
