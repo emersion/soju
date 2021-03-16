@@ -590,10 +590,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		uc.registered = true
 		uc.logger.Printf("connection registered")
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			dc.updateSupportedCaps()
-		})
-
 		if len(uc.network.channels) > 0 {
 			var channels, keys []string
 			for _, ch := range uc.network.channels {
