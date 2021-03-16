@@ -244,6 +244,12 @@ func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, e
 	if uc := dc.upstream(); uc != nil {
 		return uc, name, nil
 	}
+	if dc.network != nil {
+		return nil, "", ircError{&irc.Message{
+			Command: irc.ERR_NOSUCHCHANNEL,
+			Params:  []string{name, "Disconnected from upstream network"},
+		}}
+	}
 
 	var conn *upstreamConn
 	if i := strings.LastIndexByte(name, '/'); i >= 0 {
@@ -261,7 +267,7 @@ func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, e
 	if conn == nil {
 		return nil, "", ircError{&irc.Message{
 			Command: irc.ERR_NOSUCHCHANNEL,
-			Params:  []string{name, "No such channel"},
+			Params:  []string{name, "Missing network suffix in channel name"},
 		}}
 	}
 	return conn, name, nil
