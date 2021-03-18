@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/pires/go-proxyproto"
@@ -50,12 +51,19 @@ func main() {
 	}
 
 	var tlsCfg *tls.Config
+	var tlsCert atomic.Value
 	if cfg.TLS != nil {
 		cert, err := tls.LoadX509KeyPair(cfg.TLS.CertPath, cfg.TLS.KeyPath)
 		if err != nil {
 			log.Fatalf("failed to load TLS certificate and key: %v", err)
 		}
-		tlsCfg = &tls.Config{Certificates: []tls.Certificate{cert}}
+		tlsCert.Store(cert)
+
+		tlsCfg = &tls.Config{
+			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+				return tlsCert.Load().(*tls.Certificate), nil
+			},
+		}
 	}
 
 	srv := soju.NewServer(db)
@@ -180,15 +188,30 @@ func main() {
 	}
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	if err := srv.Start(); err != nil {
 		log.Fatal(err)
 	}
 
-	<-sigCh
-	log.Print("shutting down server")
-	srv.Shutdown()
+	for sig := range sigCh {
+		switch sig {
+		case syscall.SIGHUP:
+			if cfg.TLS != nil {
+				log.Print("reloading TLS certificate")
+				cert, err := tls.LoadX509KeyPair(cfg.TLS.CertPath, cfg.TLS.KeyPath)
+				if err != nil {
+					log.Printf("failed to reload TLS certificate and key: %v", err)
+					break
+				}
+				tlsCert.Store(cert)
+			}
+		case syscall.SIGINT, syscall.SIGTERM:
+			log.Print("shutting down server")
+			srv.Shutdown()
+			return
+		}
+	}
 }
 
 func proxyProtoListener(ln net.Listener, srv *soju.Server) net.Listener {

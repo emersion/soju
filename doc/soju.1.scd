@@ -44,6 +44,8 @@ soju supports two connection modes:
 For per-client history to work, clients need to indicate their name. This can
 be done by adding a "@<client>" suffix to the username.
 
+soju will reload the TLS certificate and key when it receives the HUP signal.
+
 # OPTIONS
 
 *-h, -help*
