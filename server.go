@@ -219,8 +219,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		forwarded := parseForwarded(req.Header)
 		forwardedHost := req.Header.Get("X-Forwarded-For")
 		forwardedPort := req.Header.Get("X-Forwarded-Port")
-		if forwarded["for"] != "" && forwarded["port"] != "" {
-			remoteAddr = net.JoinHostPort(forwarded["for"], forwarded["port"])
+		if forwarded["for"] != "" {
+			remoteAddr = forwarded["for"]
 		} else if forwardedHost != "" && forwardedPort != "" {
 			remoteAddr = net.JoinHostPort(forwardedHost, forwardedPort)
 		}
