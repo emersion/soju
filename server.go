@@ -212,17 +212,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// Only trust X-Forwarded-* header fields if this is a trusted proxy IP
+	// Only trust the Forwarded header field if this is a trusted proxy IP
 	// to prevent users from spoofing the remote address
 	remoteAddr := req.RemoteAddr
 	if isProxy {
 		forwarded := parseForwarded(req.Header)
-		forwardedHost := req.Header.Get("X-Forwarded-For")
-		forwardedPort := req.Header.Get("X-Forwarded-Port")
 		if forwarded["for"] != "" {
 			remoteAddr = forwarded["for"]
-		} else if forwardedHost != "" && forwardedPort != "" {
-			remoteAddr = net.JoinHostPort(forwardedHost, forwardedPort)
 		}
 	}
 
@@ -232,7 +228,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func parseForwarded(h http.Header) map[string]string {
 	forwarded := h.Get("Forwarded")
 	if forwarded == "" {
-		return nil
+		return map[string]string{
+			"for":   h.Get("X-Forwarded-For"),
+			"proto": h.Get("X-Forwarded-Proto"),
+			"host":  h.Get("X-Forwarded-Host"),
+		}
 	}
 	// Hack to easily parse header parameters
 	_, params, _ := mime.ParseMediaType("hack; " + forwarded)
