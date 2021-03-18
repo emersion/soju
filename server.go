@@ -198,7 +198,6 @@ func (s *Server) Serve(ln net.Listener) error {
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	conn, err := websocket.Accept(w, req, &websocket.AcceptOptions{
 		OriginPatterns: s.HTTPOrigins,
-		Subprotocols:   []string{"irc"},
 	})
 	if err != nil {
 		s.Logger.Printf("failed to serve HTTP connection: %v", err)
