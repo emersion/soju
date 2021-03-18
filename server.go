@@ -3,6 +3,7 @@ package soju
 import (
 	"fmt"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"strings"
@@ -214,11 +215,26 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Only trust X-Forwarded-* header fields if this is a trusted proxy IP
 	// to prevent users from spoofing the remote address
 	remoteAddr := req.RemoteAddr
-	forwardedHost := req.Header.Get("X-Forwarded-For")
-	forwardedPort := req.Header.Get("X-Forwarded-Port")
-	if isProxy && forwardedHost != "" && forwardedPort != "" {
-		remoteAddr = net.JoinHostPort(forwardedHost, forwardedPort)
+	if isProxy {
+		forwarded := parseForwarded(req.Header)
+		forwardedHost := req.Header.Get("X-Forwarded-For")
+		forwardedPort := req.Header.Get("X-Forwarded-Port")
+		if forwarded["for"] != "" && forwarded["port"] != "" {
+			remoteAddr = net.JoinHostPort(forwarded["for"], forwarded["port"])
+		} else if forwardedHost != "" && forwardedPort != "" {
+			remoteAddr = net.JoinHostPort(forwardedHost, forwardedPort)
+		}
 	}
 
 	s.handle(newWebsocketIRCConn(conn, remoteAddr))
+}
+
+func parseForwarded(h http.Header) map[string]string {
+	forwarded := h.Get("Forwarded")
+	if forwarded == "" {
+		return nil
+	}
+	// Hack to easily parse header parameters
+	_, params, _ := mime.ParseMediaType("hack; " + forwarded)
+	return params
 }
