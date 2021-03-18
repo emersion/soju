@@ -55,10 +55,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to load TLS certificate and key: %v", err)
 		}
-		tlsCfg = &tls.Config{
-			NextProtos:   []string{"irc"},
-			Certificates: []tls.Certificate{cert},
-		}
+		tlsCfg = &tls.Config{Certificates: []tls.Certificate{cert}}
 	}
 
 	srv := soju.NewServer(db)
@@ -89,7 +86,9 @@ func main() {
 			if _, _, err := net.SplitHostPort(host); err != nil {
 				host = host + ":6697"
 			}
-			ln, err := tls.Listen("tcp", host, tlsCfg)
+			ircsTLSCfg := tlsCfg.Clone()
+			ircsTLSCfg.NextProtos = []string{"irc"}
+			ln, err := tls.Listen("tcp", host, ircsTLSCfg)
 			if err != nil {
 				log.Fatalf("failed to start TLS listener on %q: %v", listen, err)
 			}
