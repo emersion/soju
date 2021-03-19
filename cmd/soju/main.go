@@ -57,7 +57,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to load TLS certificate and key: %v", err)
 		}
-		tlsCert.Store(cert)
+		tlsCert.Store(&cert)
 
 		tlsCfg = &tls.Config{
 			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -204,7 +204,7 @@ func main() {
 					log.Printf("failed to reload TLS certificate and key: %v", err)
 					break
 				}
-				tlsCert.Store(cert)
+				tlsCert.Store(&cert)
 			}
 		case syscall.SIGINT, syscall.SIGTERM:
 			log.Print("shutting down server")
