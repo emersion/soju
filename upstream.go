@@ -1754,7 +1754,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 			return ""
 		}
 
-		delivered = make(map[string]string)
+		delivered = make(deliveredClientMap)
 		uc.network.delivered.SetValue(entity, delivered)
 
 		for clientName, _ := range uc.network.offlineClients {

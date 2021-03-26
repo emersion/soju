@@ -55,6 +55,8 @@ type eventChannelDetach struct {
 
 type eventStop struct{}
 
+type deliveredClientMap map[string]string // client name -> msg ID
+
 type network struct {
 	Network
 	user    *user
@@ -62,8 +64,8 @@ type network struct {
 
 	conn           *upstreamConn
 	channels       channelCasemapMap
-	delivered      mapStringStringCasemapMap // entity -> client name -> msg ID
-	offlineClients map[string]struct{}       // indexed by client name
+	delivered      deliveredCasemapMap
+	offlineClients map[string]struct{} // indexed by client name
 	lastError      error
 	casemap        casemapping
 }
@@ -80,7 +82,7 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 		user:           user,
 		stopped:        make(chan struct{}),
 		channels:       m,
-		delivered:      mapStringStringCasemapMap{newCasemapMap(0)},
+		delivered:      deliveredCasemapMap{newCasemapMap(0)},
 		offlineClients: make(map[string]struct{}),
 		casemap:        casemapRFC1459,
 	}

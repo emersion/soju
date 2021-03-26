@@ -600,12 +600,12 @@ func (cm *membershipsCasemapMap) Value(name string) *memberships {
 	return entry.value.(*memberships)
 }
 
-type mapStringStringCasemapMap struct{ casemapMap }
+type deliveredCasemapMap struct{ casemapMap }
 
-func (cm *mapStringStringCasemapMap) Value(name string) map[string]string {
+func (cm *deliveredCasemapMap) Value(name string) deliveredClientMap {
 	entry, ok := cm.innerMap[cm.casemap(name)]
 	if !ok {
 		return nil
 	}
-	return entry.value.(map[string]string)
+	return entry.value.(deliveredClientMap)
 }

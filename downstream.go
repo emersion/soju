@@ -997,7 +997,7 @@ func (dc *downstreamConn) welcome() error {
 
 		// Fast-forward history to last message
 		for target, entry := range net.delivered.innerMap {
-			delivered := entry.value.(map[string]string)
+			delivered := entry.value.(deliveredClientMap)
 			ch := net.channels.Value(target)
 			if ch != nil && ch.Detached {
 				continue
