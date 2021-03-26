@@ -1819,6 +1819,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if err != nil {
 			return err
 		}
+		entity = uc.network.casemap(entity)
 
 		// TODO: support msgid criteria
 		criteriaParts := strings.SplitN(criteria, "=", 2)
