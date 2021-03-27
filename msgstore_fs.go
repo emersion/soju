@@ -257,7 +257,7 @@ func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, 
 	return msg, t, nil
 }
 
-func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, ref time.Time, limit int, afterOffset int64) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, ref time.Time, end time.Time, limit int, afterOffset int64) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -284,7 +284,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, r
 		msg, t, err := parseMessage(sc.Text(), entity, ref)
 		if err != nil {
 			return nil, err
-		} else if msg == nil {
+		} else if msg == nil || !t.After(end) {
 			continue
 		} else if !t.Before(ref) {
 			break
@@ -313,7 +313,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, r
 	}
 }
 
-func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, ref time.Time, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, ref time.Time, end time.Time, limit int) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -332,6 +332,8 @@ func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, re
 			return nil, err
 		} else if msg == nil || !t.After(ref) {
 			continue
+		} else if !t.Before(end) {
+			break
 		}
 
 		history = append(history, msg)
@@ -343,12 +345,12 @@ func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, re
 	return history, nil
 }
 
-func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, t time.Time, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, start time.Time, end time.Time, limit int) ([]*irc.Message, error) {
 	history := make([]*irc.Message, limit)
 	remaining := limit
 	tries := 0
-	for remaining > 0 && tries < fsMessageStoreMaxTries {
-		buf, err := ms.parseMessagesBefore(network, entity, t, remaining, -1)
+	for remaining > 0 && tries < fsMessageStoreMaxTries && end.Before(start) {
+		buf, err := ms.parseMessagesBefore(network, entity, start, end, remaining, -1)
 		if err != nil {
 			return nil, err
 		}
@@ -359,20 +361,19 @@ func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, t time
 		}
 		copy(history[remaining-len(buf):], buf)
 		remaining -= len(buf)
-		year, month, day := t.Date()
-		t = time.Date(year, month, day, 0, 0, 0, 0, t.Location()).Add(-1)
+		year, month, day := start.Date()
+		start = time.Date(year, month, day, 0, 0, 0, 0, start.Location()).Add(-1)
 	}
 
 	return history[remaining:], nil
 }
 
-func (ms *fsMessageStore) LoadAfterTime(network *network, entity string, t time.Time, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadAfterTime(network *network, entity string, start time.Time, end time.Time, limit int) ([]*irc.Message, error) {
 	var history []*irc.Message
 	remaining := limit
 	tries := 0
-	now := time.Now()
-	for remaining > 0 && tries < fsMessageStoreMaxTries && t.Before(now) {
-		buf, err := ms.parseMessagesAfter(network, entity, t, remaining)
+	for remaining > 0 && tries < fsMessageStoreMaxTries && start.Before(end) {
+		buf, err := ms.parseMessagesAfter(network, entity, start, end, remaining)
 		if err != nil {
 			return nil, err
 		}
@@ -383,8 +384,8 @@ func (ms *fsMessageStore) LoadAfterTime(network *network, entity string, t time.
 		}
 		history = append(history, buf...)
 		remaining -= len(buf)
-		year, month, day := t.Date()
-		t = time.Date(year, month, day+1, 0, 0, 0, 0, t.Location())
+		year, month, day := start.Date()
+		start = time.Date(year, month, day+1, 0, 0, 0, 0, start.Location())
 	}
 	return history, nil
 }
@@ -420,7 +421,7 @@ func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limi
 			offset = afterOffset
 		}
 
-		buf, err := ms.parseMessagesBefore(network, entity, t, remaining, offset)
+		buf, err := ms.parseMessagesBefore(network, entity, t, time.Time{}, remaining, offset)
 		if err != nil {
 			return nil, err
 		}

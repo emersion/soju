@@ -1801,11 +1801,22 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if err := parseMessageParams(msg, &subcommand); err != nil {
 			return err
 		}
-		var target, criteria, limitStr string
-		if err := parseMessageParams(msg, nil, &target, &criteria, &limitStr); err != nil {
+		var target, limitStr string
+		var boundsStr [2]string
+		switch subcommand {
+		case "AFTER", "BEFORE":
+			if err := parseMessageParams(msg, nil, &target, &boundsStr[0], &limitStr); err != nil {
+				return err
+			}
+		case "BETWEEN":
+			if err := parseMessageParams(msg, nil, &target, &boundsStr[0], &boundsStr[1], &limitStr); err != nil {
+				return err
+			}
+		default:
+			// TODO: support LATEST, AROUND
 			return ircError{&irc.Message{
 				Command: "FAIL",
-				Params:  []string{"CHATHISTORY", "NEED_MORE_PARAMS", subcommand, "Missing parameters"},
+				Params:  []string{"CHATHISTORY", "INVALID_PARAMS", subcommand, "Unknown command"},
 			}}
 		}
 
@@ -1824,20 +1835,23 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		entity = uc.network.casemap(entity)
 
 		// TODO: support msgid criteria
-		criteriaParts := strings.SplitN(criteria, "=", 2)
-		if len(criteriaParts) != 2 || criteriaParts[0] != "timestamp" {
+		var bounds [2]time.Time
+		bounds[0] = parseChatHistoryBound(boundsStr[0])
+		if bounds[0].IsZero() {
 			return ircError{&irc.Message{
 				Command: "FAIL",
-				Params:  []string{"CHATHISTORY", "INVALID_PARAMS", subcommand, criteria, "Unknown criteria"},
+				Params:  []string{"CHATHISTORY", "INVALID_PARAMS", subcommand, boundsStr[0], "Invalid first bound"},
 			}}
 		}
 
-		timestamp, err := time.Parse(serverTimeLayout, criteriaParts[1])
-		if err != nil {
-			return ircError{&irc.Message{
-				Command: "FAIL",
-				Params:  []string{"CHATHISTORY", "INVALID_PARAMS", subcommand, criteria, "Invalid criteria"},
-			}}
+		if boundsStr[1] != "" {
+			bounds[1] = parseChatHistoryBound(boundsStr[1])
+			if bounds[1].IsZero() {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"CHATHISTORY", "INVALID_PARAMS", subcommand, boundsStr[1], "Invalid second bound"},
+				}}
+			}
 		}
 
 		limit, err := strconv.Atoi(limitStr)
@@ -1851,15 +1865,15 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		var history []*irc.Message
 		switch subcommand {
 		case "BEFORE":
-			history, err = store.LoadBeforeTime(uc.network, entity, timestamp, limit)
+			history, err = store.LoadBeforeTime(uc.network, entity, bounds[0], time.Time{}, limit)
 		case "AFTER":
-			history, err = store.LoadAfterTime(uc.network, entity, timestamp, limit)
-		default:
-			// TODO: support LATEST, BETWEEN
-			return ircError{&irc.Message{
-				Command: "FAIL",
-				Params:  []string{"CHATHISTORY", "UNKNOWN_COMMAND", subcommand, "Unknown command"},
-			}}
+			history, err = store.LoadAfterTime(uc.network, entity, bounds[0], time.Now(), limit)
+		case "BETWEEN":
+			if bounds[0].Before(bounds[1]) {
+				history, err = store.LoadAfterTime(uc.network, entity, bounds[0], bounds[1], limit)
+			} else {
+				history, err = store.LoadBeforeTime(uc.network, entity, bounds[0], bounds[1], limit)
+			}
 		}
 		if err != nil {
 			dc.logger.Printf("failed fetching %q messages for chathistory: %v", target, err)

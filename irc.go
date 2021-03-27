@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -635,5 +636,24 @@ func isHighlight(text, nick string) bool {
 		}
 
 		text = text[i+len(nick):]
+	}
+}
+
+// parseChatHistoryBound parses the given CHATHISTORY parameter as a bound.
+// The zero time is returned on error.
+func parseChatHistoryBound(param string) time.Time {
+	parts := strings.SplitN(param, "=", 2)
+	if len(parts) != 2 {
+		return time.Time{}
+	}
+	switch parts[0] {
+	case "timestamp":
+		timestamp, err := time.Parse(serverTimeLayout, parts[1])
+		if err != nil {
+			return time.Time{}
+		}
+		return timestamp
+	default:
+		return time.Time{}
 	}
 }

@@ -26,8 +26,14 @@ type messageStore interface {
 type chatHistoryMessageStore interface {
 	messageStore
 
-	LoadBeforeTime(network *network, entity string, t time.Time, limit int) ([]*irc.Message, error)
-	LoadAfterTime(network *network, entity string, t time.Time, limit int) ([]*irc.Message, error)
+	// LoadBeforeTime loads up to limit messages before start down to end. The
+	// returned messages must be between and excluding the provided bounds.
+	// end is before start.
+	LoadBeforeTime(network *network, entity string, start, end time.Time, limit int) ([]*irc.Message, error)
+	// LoadBeforeTime loads up to limit messages after start up to end. The
+	// returned messages must be between and excluding the provided bounds.
+	// end is after start.
+	LoadAfterTime(network *network, entity string, start, end time.Time, limit int) ([]*irc.Message, error)
 }
 
 type msgIDType uint
