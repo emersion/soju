@@ -57,6 +57,41 @@ type eventStop struct{}
 
 type deliveredClientMap map[string]string // client name -> msg ID
 
+type deliveredStore struct {
+	m deliveredCasemapMap
+}
+
+func newDeliveredStore() deliveredStore {
+	return deliveredStore{deliveredCasemapMap{newCasemapMap(0)}}
+}
+
+func (ds deliveredStore) HasTarget(target string) bool {
+	return ds.m.Value(target) != nil
+}
+
+func (ds deliveredStore) LoadID(target, clientName string) string {
+	clients := ds.m.Value(target)
+	if clients == nil {
+		return ""
+	}
+	return clients[clientName]
+}
+
+func (ds deliveredStore) StoreID(target, clientName, msgID string) {
+	clients := ds.m.Value(target)
+	if clients == nil {
+		clients = make(deliveredClientMap)
+		ds.m.SetValue(target, clients)
+	}
+	clients[clientName] = msgID
+}
+
+func (ds deliveredStore) ForEachTarget(f func(target string)) {
+	for _, entry := range ds.m.innerMap {
+		f(entry.originalKey)
+	}
+}
+
 type network struct {
 	Network
 	user    *user
@@ -64,7 +99,7 @@ type network struct {
 
 	conn      *upstreamConn
 	channels  channelCasemapMap
-	delivered deliveredCasemapMap
+	delivered deliveredStore
 	lastError error
 	casemap   casemapping
 }
@@ -81,7 +116,7 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 		user:      user,
 		stopped:   make(chan struct{}),
 		channels:  m,
-		delivered: deliveredCasemapMap{newCasemapMap(0)},
+		delivered: newDeliveredStore(),
 		casemap:   casemapRFC1459,
 	}
 }
@@ -253,7 +288,7 @@ func (net *network) deleteChannel(name string) error {
 func (net *network) updateCasemapping(newCasemap casemapping) {
 	net.casemap = newCasemap
 	net.channels.SetCasemapping(newCasemap)
-	net.delivered.SetCasemapping(newCasemap)
+	net.delivered.m.SetCasemapping(newCasemap)
 	if net.conn != nil {
 		net.conn.channels.SetCasemapping(newCasemap)
 		for _, entry := range net.conn.channels.innerMap {

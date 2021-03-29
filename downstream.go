@@ -361,12 +361,7 @@ func (dc *downstreamConn) ackMsgID(id string) {
 		return
 	}
 
-	delivered := network.delivered.Value(entity)
-	if delivered == nil {
-		return
-	}
-
-	delivered[dc.clientName] = id
+	network.delivered.StoreID(entity, dc.clientName, id)
 }
 
 func (dc *downstreamConn) sendPing(msgID string) {
@@ -997,24 +992,27 @@ func (dc *downstreamConn) welcome() error {
 			}
 		})
 		if firstClient {
-			dc.sendNetworkBacklog(net)
+			net.delivered.ForEachTarget(func(target string) {
+				dc.sendTargetBacklog(net, target)
+			})
 		}
 
 		// Fast-forward history to last message
-		for targetCM, entry := range net.delivered.innerMap {
-			delivered := entry.value.(deliveredClientMap)
-			ch := net.channels.Value(targetCM)
+		net.delivered.ForEachTarget(func(target string) {
+			ch := net.channels.Value(target)
 			if ch != nil && ch.Detached {
-				continue
+				return
 			}
 
+			targetCM := net.casemap(target)
 			lastID, err := dc.user.msgStore.LastMsgID(net, targetCM, time.Now())
 			if err != nil {
 				dc.logger.Printf("failed to get last message ID: %v", err)
-				continue
+				return
 			}
-			delivered[dc.clientName] = lastID
-		}
+
+			net.delivered.StoreID(target, dc.clientName, lastID)
+		})
 	})
 
 	return nil
@@ -1034,13 +1032,6 @@ func (dc *downstreamConn) messageSupportsHistory(msg *irc.Message) bool {
 	return false
 }
 
-func (dc *downstreamConn) sendNetworkBacklog(net *network) {
-	for _, entry := range net.delivered.innerMap {
-		target := entry.originalKey
-		dc.sendTargetBacklog(net, target)
-	}
-}
-
 func (dc *downstreamConn) sendTargetBacklog(net *network, target string) {
 	if dc.caps["draft/chathistory"] || dc.user.msgStore == nil {
 		return
@@ -1048,12 +1039,9 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target string) {
 	if ch := net.channels.Value(target); ch != nil && ch.Detached {
 		return
 	}
-	delivered := net.delivered.Value(target)
-	if delivered == nil {
-		return
-	}
-	lastDelivered, ok := delivered[dc.clientName]
-	if !ok {
+
+	lastDelivered := net.delivered.LoadID(target, dc.clientName)
+	if lastDelivered == "" {
 		return
 	}
 

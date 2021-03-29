@@ -1740,9 +1740,9 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		return ""
 	}
 
-	delivered := uc.network.delivered.Value(entity)
 	entityCM := uc.network.casemap(entity)
-	if delivered == nil {
+
+	if !uc.network.delivered.HasTarget(entity) {
 		// This is the first message we receive from this target. Save the last
 		// message ID in delivery receipts, so that we can send the new message
 		// in the backlog if an offline client reconnects.
@@ -1752,11 +1752,8 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 			return ""
 		}
 
-		delivered = make(deliveredClientMap)
-		uc.network.delivered.SetValue(entity, delivered)
-
 		for clientName, _ := range uc.user.clients {
-			delivered[clientName] = lastID
+			uc.network.delivered.StoreID(entity, clientName, lastID)
 		}
 	}
 
