@@ -990,9 +990,14 @@ func (dc *downstreamConn) welcome() error {
 	dc.forEachNetwork(func(net *network) {
 		// Only send history if we're the first connected client with that name
 		// for the network
-		if _, ok := net.offlineClients[dc.clientName]; ok {
+		firstClient := true
+		dc.user.forEachDownstream(func(c *downstreamConn) {
+			if c != dc && c.clientName == dc.clientName && c.network == dc.network {
+				firstClient = false
+			}
+		})
+		if firstClient {
 			dc.sendNetworkBacklog(net)
-			delete(net.offlineClients, dc.clientName)
 		}
 
 		// Fast-forward history to last message

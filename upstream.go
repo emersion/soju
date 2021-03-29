@@ -1740,14 +1740,12 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		return ""
 	}
 
-	detached := false
-	if ch := uc.network.channels.Value(entity); ch != nil {
-		detached = ch.Detached
-	}
-
 	delivered := uc.network.delivered.Value(entity)
 	entityCM := uc.network.casemap(entity)
 	if delivered == nil {
+		// This is the first message we receive from this target. Save the last
+		// message ID in delivery receipts, so that we can send the new message
+		// in the backlog if an offline client reconnects.
 		lastID, err := uc.user.msgStore.LastMsgID(uc.network, entityCM, time.Now())
 		if err != nil {
 			uc.logger.Printf("failed to log message: failed to get last message ID: %v", err)
@@ -1757,16 +1755,8 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		delivered = make(deliveredClientMap)
 		uc.network.delivered.SetValue(entity, delivered)
 
-		for clientName, _ := range uc.network.offlineClients {
+		for clientName, _ := range uc.network.clients {
 			delivered[clientName] = lastID
-		}
-
-		if detached {
-			// If the channel is detached, online clients act as offline
-			// clients too
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				delivered[dc.clientName] = lastID
-			})
 		}
 	}
 

@@ -62,12 +62,12 @@ type network struct {
 	user    *user
 	stopped chan struct{}
 
-	conn           *upstreamConn
-	channels       channelCasemapMap
-	delivered      deliveredCasemapMap
-	offlineClients map[string]struct{} // indexed by client name
-	lastError      error
-	casemap        casemapping
+	conn      *upstreamConn
+	channels  channelCasemapMap
+	delivered deliveredCasemapMap
+	clients   map[string]struct{} // indexed by client name
+	lastError error
+	casemap   casemapping
 }
 
 func newNetwork(user *user, record *Network, channels []Channel) *network {
@@ -78,13 +78,13 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 	}
 
 	return &network{
-		Network:        *record,
-		user:           user,
-		stopped:        make(chan struct{}),
-		channels:       m,
-		delivered:      deliveredCasemapMap{newCasemapMap(0)},
-		offlineClients: make(map[string]struct{}),
-		casemap:        casemapRFC1459,
+		Network:   *record,
+		user:      user,
+		stopped:   make(chan struct{}),
+		channels:  m,
+		delivered: deliveredCasemapMap{newCasemapMap(0)},
+		clients:   make(map[string]struct{}),
+		casemap:   casemapRFC1459,
 	}
 }
 
@@ -196,8 +196,6 @@ func (net *network) detach(ch *Channel) {
 	}
 
 	net.forEachDownstream(func(dc *downstreamConn) {
-		net.offlineClients[dc.clientName] = struct{}{}
-
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.prefix(),
 			Command: "PART",
@@ -448,6 +446,7 @@ func (u *user) run() {
 			u.downstreamConns = append(u.downstreamConns, dc)
 
 			dc.forEachNetwork(func(network *network) {
+				network.clients[dc.clientName] = struct{}{}
 				if network.lastError != nil {
 					sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", network.GetName(), network.lastError))
 				}
@@ -465,22 +464,6 @@ func (u *user) run() {
 					break
 				}
 			}
-
-			// Save history if we're the last client with this name
-			skipHistory := make(map[*network]bool)
-			u.forEachDownstream(func(conn *downstreamConn) {
-				if dc.clientName == conn.clientName {
-					skipHistory[conn.network] = true
-				}
-			})
-
-			dc.forEachNetwork(func(net *network) {
-				if skipHistory[net] || skipHistory[nil] {
-					return
-				}
-
-				net.offlineClients[dc.clientName] = struct{}{}
-			})
 
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
