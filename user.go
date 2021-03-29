@@ -65,7 +65,6 @@ type network struct {
 	conn      *upstreamConn
 	channels  channelCasemapMap
 	delivered deliveredCasemapMap
-	clients   map[string]struct{} // indexed by client name
 	lastError error
 	casemap   casemapping
 }
@@ -83,7 +82,6 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 		stopped:   make(chan struct{}),
 		channels:  m,
 		delivered: deliveredCasemapMap{newCasemapMap(0)},
-		clients:   make(map[string]struct{}),
 		casemap:   casemapRFC1459,
 	}
 }
@@ -275,6 +273,7 @@ type user struct {
 	networks        []*network
 	downstreamConns []*downstreamConn
 	msgStore        messageStore
+	clients         map[string]struct{} // indexed by client name
 
 	// LIST commands in progress
 	pendingLISTs []pendingLIST
@@ -300,6 +299,7 @@ func newUser(srv *Server, record *User) *user {
 		events:   make(chan event, 64),
 		done:     make(chan struct{}),
 		msgStore: msgStore,
+		clients:  make(map[string]struct{}),
 	}
 }
 
@@ -446,7 +446,6 @@ func (u *user) run() {
 			u.downstreamConns = append(u.downstreamConns, dc)
 
 			dc.forEachNetwork(func(network *network) {
-				network.clients[dc.clientName] = struct{}{}
 				if network.lastError != nil {
 					sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", network.GetName(), network.lastError))
 				}
@@ -455,6 +454,8 @@ func (u *user) run() {
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
 			})
+
+			u.clients[dc.clientName] = struct{}{}
 		case eventDownstreamDisconnected:
 			dc := e.dc
 

@@ -1755,7 +1755,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		delivered = make(deliveredClientMap)
 		uc.network.delivered.SetValue(entity, delivered)
 
-		for clientName, _ := range uc.network.clients {
+		for clientName, _ := range uc.user.clients {
 			delivered[clientName] = lastID
 		}
 	}
