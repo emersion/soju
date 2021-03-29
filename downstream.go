@@ -1001,14 +1001,14 @@ func (dc *downstreamConn) welcome() error {
 		}
 
 		// Fast-forward history to last message
-		for target, entry := range net.delivered.innerMap {
+		for targetCM, entry := range net.delivered.innerMap {
 			delivered := entry.value.(deliveredClientMap)
-			ch := net.channels.Value(target)
+			ch := net.channels.Value(targetCM)
 			if ch != nil && ch.Detached {
 				continue
 			}
 
-			lastID, err := dc.user.msgStore.LastMsgID(net, target, time.Now())
+			lastID, err := dc.user.msgStore.LastMsgID(net, targetCM, time.Now())
 			if err != nil {
 				dc.logger.Printf("failed to get last message ID: %v", err)
 				continue
@@ -1058,7 +1058,8 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target string) {
 	}
 
 	limit := 4000
-	history, err := dc.user.msgStore.LoadLatestID(net, target, lastDelivered, limit)
+	targetCM := net.casemap(target)
+	history, err := dc.user.msgStore.LoadLatestID(net, targetCM, lastDelivered, limit)
 	if err != nil {
 		dc.logger.Printf("failed to send implicit history for %q: %v", target, err)
 		return
