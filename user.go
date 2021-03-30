@@ -308,7 +308,7 @@ type user struct {
 	networks        []*network
 	downstreamConns []*downstreamConn
 	msgStore        messageStore
-	clients         map[string]struct{} // indexed by client name
+	clientNames     map[string]struct{}
 
 	// LIST commands in progress
 	pendingLISTs []pendingLIST
@@ -329,12 +329,12 @@ func newUser(srv *Server, record *User) *user {
 	}
 
 	return &user{
-		User:     *record,
-		srv:      srv,
-		events:   make(chan event, 64),
-		done:     make(chan struct{}),
-		msgStore: msgStore,
-		clients:  make(map[string]struct{}),
+		User:        *record,
+		srv:         srv,
+		events:      make(chan event, 64),
+		done:        make(chan struct{}),
+		msgStore:    msgStore,
+		clientNames: make(map[string]struct{}),
 	}
 }
 
@@ -490,7 +490,7 @@ func (u *user) run() {
 				uc.updateAway()
 			})
 
-			u.clients[dc.clientName] = struct{}{}
+			u.clientNames[dc.clientName] = struct{}{}
 		case eventDownstreamDisconnected:
 			dc := e.dc
 
