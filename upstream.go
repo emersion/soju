@@ -1734,13 +1734,13 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 	if uc.user.msgStore == nil {
 		return ""
 	}
-	if entity == "NickServ" {
+
+	entityCM := uc.network.casemap(entity)
+	if entityCM == "nickserv" {
 		// The messages sent/received from NickServ may contain
 		// security-related information (like passwords). Don't store these.
 		return ""
 	}
-
-	entityCM := uc.network.casemap(entity)
 
 	if !uc.network.delivered.HasTarget(entity) {
 		// This is the first message we receive from this target. Save the last

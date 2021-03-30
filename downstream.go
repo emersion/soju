@@ -1682,7 +1682,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return err
 			}
 
-			if upstreamName == "NickServ" {
+			if uc.network.casemap(upstreamName) == "nickserv" {
 				dc.handleNickServPRIVMSG(uc, text)
 			}
 
