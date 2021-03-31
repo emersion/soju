@@ -59,7 +59,7 @@ soju will reload the TLS certificate and key when it receives the HUP signal.
 	passwords).
 
 *-listen* <uri>
-	Listening URI (default: ":6697").
+	Listening URI (default: ":6697"). Can be specified multiple times.
 
 # CONFIG FILE
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -24,10 +25,22 @@ import (
 // TCP keep-alive interval for downstream TCP connections
 const downstreamKeepAlive = 1 * time.Hour
 
+type stringSliceFlag []string
+
+func (v *stringSliceFlag) String() string {
+	return fmt.Sprint([]string(*v))
+}
+
+func (v *stringSliceFlag) Set(s string) error {
+	*v = append(*v, s)
+	return nil
+}
+
 func main() {
-	var listen, configPath string
+	var listen []string
+	var configPath string
 	var debug bool
-	flag.StringVar(&listen, "listen", "", "listening address")
+	flag.Var((*stringSliceFlag)(&listen), "listen", "listening address")
 	flag.StringVar(&configPath, "config", "", "path to configuration file")
 	flag.BoolVar(&debug, "debug", false, "enable debug logging")
 	flag.Parse()
@@ -43,9 +56,7 @@ func main() {
 		cfg = config.Defaults()
 	}
 
-	if listen != "" {
-		cfg.Listen = append(cfg.Listen, listen)
-	}
+	cfg.Listen = append(cfg.Listen, listen...)
 	if len(cfg.Listen) == 0 {
 		cfg.Listen = []string{":6697"}
 	}
