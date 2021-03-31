@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	git.sr.ht/~emersion/go-scfg v0.0.0-20201019143924-142a8aa629fc
+	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210331145808-46f9b5e5bcf9
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/klauspost/compress v1.11.7 // indirect

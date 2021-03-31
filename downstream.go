@@ -350,7 +350,7 @@ func (dc *downstreamConn) advanceMessageWithID(msg *irc.Message, id string) {
 
 // ackMsgID acknowledges that a message has been received.
 func (dc *downstreamConn) ackMsgID(id string) {
-	netID, entity, _, err := parseMsgID(id)
+	netID, entity, err := parseMsgID(id, nil)
 	if err != nil {
 		dc.logger.Printf("failed to ACK message ID %q: %v", id, err)
 		return
@@ -365,7 +365,7 @@ func (dc *downstreamConn) ackMsgID(id string) {
 }
 
 func (dc *downstreamConn) sendPing(msgID string) {
-	token := "soju-msgid-" + base64.RawURLEncoding.EncodeToString([]byte(msgID))
+	token := "soju-msgid-" + msgID
 	dc.SendMessage(&irc.Message{
 		Command: "PING",
 		Params:  []string{token},
@@ -377,14 +377,7 @@ func (dc *downstreamConn) handlePong(token string) {
 		dc.logger.Printf("received unrecognized PONG token %q", token)
 		return
 	}
-	token = strings.TrimPrefix(token, "soju-msgid-")
-	b, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		dc.logger.Printf("received malformed PONG token: %v", err)
-		return
-	}
-	msgID := string(b)
-
+	msgID := strings.TrimPrefix(token, "soju-msgid-")
 	dc.ackMsgID(msgID)
 }
 

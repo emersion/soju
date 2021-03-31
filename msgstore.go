@@ -1,11 +1,12 @@
 package soju
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
+	"git.sr.ht/~sircmpwn/go-bare"
 	"gopkg.in/irc.v3"
 )
 
@@ -29,18 +30,73 @@ type chatHistoryMessageStore interface {
 	LoadAfterTime(network *network, entity string, t time.Time, limit int) ([]*irc.Message, error)
 }
 
-func formatMsgID(netID int64, entity, extra string) string {
-	return fmt.Sprintf("%v %v %v", netID, entity, extra)
+type msgIDType uint
+
+const (
+	msgIDNone msgIDType = iota
+	msgIDMemory
+	msgIDFS
+)
+
+const msgIDVersion uint = 0
+
+type msgIDHeader struct {
+	Version uint
+	Network bare.Int
+	Target  string
+	Type    msgIDType
 }
 
-func parseMsgID(s string) (netID int64, entity, extra string, err error) {
-	l := strings.SplitN(s, " ", 3)
-	if len(l) != 3 {
-		return 0, "", "", fmt.Errorf("invalid message ID %q: expected 3 fields", s)
+type msgIDBody interface {
+	msgIDType() msgIDType
+}
+
+func formatMsgID(netID int64, target string, body msgIDBody) string {
+	var buf bytes.Buffer
+	w := bare.NewWriter(&buf)
+
+	header := msgIDHeader{
+		Version: msgIDVersion,
+		Network: bare.Int(netID),
+		Target:  target,
+		Type:    body.msgIDType(),
 	}
-	netID, err = strconv.ParseInt(l[0], 10, 64)
+	if err := bare.MarshalWriter(w, &header); err != nil {
+		panic(err)
+	}
+	if err := bare.MarshalWriter(w, body); err != nil {
+		panic(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf.Bytes())
+}
+
+func parseMsgID(s string, body msgIDBody) (netID int64, target string, err error) {
+	b, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
-		return 0, "", "", fmt.Errorf("invalid message ID %q: %v", s, err)
+		return 0, "", fmt.Errorf("invalid internal message ID: %v", err)
 	}
-	return netID, l[1], l[2], nil
+
+	r := bare.NewReader(bytes.NewReader(b))
+
+	var header msgIDHeader
+	if err := bare.UnmarshalBareReader(r, &header); err != nil {
+		return 0, "", fmt.Errorf("invalid internal message ID: %v", err)
+	}
+
+	if header.Version != msgIDVersion {
+		return 0, "", fmt.Errorf("invalid internal message ID: got version %v, want %v", header.Version, msgIDVersion)
+	}
+
+	if body != nil {
+		typ := body.msgIDType()
+		if header.Type != typ {
+			return 0, "", fmt.Errorf("invalid internal message ID: got type %v, want %v", header.Type, typ)
+		}
+
+		if err := bare.UnmarshalBareReader(r, body); err != nil {
+			return 0, "", fmt.Errorf("invalid internal message ID: %v", err)
+		}
+	}
+
+	return int64(header.Network), header.Target, nil
 }

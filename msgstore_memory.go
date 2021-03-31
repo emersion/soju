@@ -2,29 +2,34 @@ package soju
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
+	"git.sr.ht/~sircmpwn/go-bare"
 	"gopkg.in/irc.v3"
 )
 
 const messageRingBufferCap = 4096
 
+type memoryMsgID struct {
+	Seq bare.Uint
+}
+
+func (memoryMsgID) msgIDType() msgIDType {
+	return msgIDMemory
+}
+
 func parseMemoryMsgID(s string) (netID int64, entity string, seq uint64, err error) {
-	netID, entity, extra, err := parseMsgID(s)
+	var id memoryMsgID
+	netID, entity, err = parseMsgID(s, &id)
 	if err != nil {
 		return 0, "", 0, err
 	}
-	seq, err = strconv.ParseUint(extra, 10, 64)
-	if err != nil {
-		return 0, "", 0, fmt.Errorf("failed to parse message ID %q: %v", s, err)
-	}
-	return netID, entity, seq, nil
+	return netID, entity, uint64(id.Seq), nil
 }
 
 func formatMemoryMsgID(netID int64, entity string, seq uint64) string {
-	extra := strconv.FormatUint(seq, 10)
-	return formatMsgID(netID, entity, extra)
+	id := memoryMsgID{bare.Uint(seq)}
+	return formatMsgID(netID, entity, &id)
 }
 
 type ringBufferKey struct {

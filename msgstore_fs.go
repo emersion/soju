@@ -9,12 +9,52 @@ import (
 	"strings"
 	"time"
 
+	"git.sr.ht/~sircmpwn/go-bare"
 	"gopkg.in/irc.v3"
 )
 
 const fsMessageStoreMaxTries = 100
 
 var escapeFilename = strings.NewReplacer("/", "-", "\\", "-")
+
+type date struct {
+	Year, Month, Day int
+}
+
+func newDate(t time.Time) date {
+	year, month, day := t.Date()
+	return date{year, int(month), day}
+}
+
+func (d date) Time() time.Time {
+	return time.Date(d.Year, time.Month(d.Month), d.Day, 0, 0, 0, 0, time.Local)
+}
+
+type fsMsgID struct {
+	Date   date
+	Offset bare.Int
+}
+
+func (fsMsgID) msgIDType() msgIDType {
+	return msgIDFS
+}
+
+func parseFSMsgID(s string) (netID int64, entity string, t time.Time, offset int64, err error) {
+	var id fsMsgID
+	netID, entity, err = parseMsgID(s, &id)
+	if err != nil {
+		return 0, "", time.Time{}, 0, err
+	}
+	return netID, entity, id.Date.Time(), int64(id.Offset), nil
+}
+
+func formatFSMsgID(netID int64, entity string, t time.Time, offset int64) string {
+	id := fsMsgID{
+		Date:   newDate(t),
+		Offset: bare.Int(offset),
+	}
+	return formatMsgID(netID, entity, &id)
+}
 
 // fsMessageStore is a per-user on-disk store for IRC messages.
 type fsMessageStore struct {
@@ -34,27 +74,6 @@ func (ms *fsMessageStore) logPath(network *network, entity string, t time.Time) 
 	year, month, day := t.Date()
 	filename := fmt.Sprintf("%04d-%02d-%02d.log", year, month, day)
 	return filepath.Join(ms.root, escapeFilename.Replace(network.GetName()), escapeFilename.Replace(entity), filename)
-}
-
-func parseFSMsgID(s string) (netID int64, entity string, t time.Time, offset int64, err error) {
-	netID, entity, extra, err := parseMsgID(s)
-	if err != nil {
-		return 0, "", time.Time{}, 0, err
-	}
-
-	var year, month, day int
-	_, err = fmt.Sscanf(extra, "%04d-%02d-%02d %d", &year, &month, &day, &offset)
-	if err != nil {
-		return 0, "", time.Time{}, 0, fmt.Errorf("invalid message ID %q: %v", s, err)
-	}
-	t = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
-	return netID, entity, t, offset, nil
-}
-
-func formatFSMsgID(netID int64, entity string, t time.Time, offset int64) string {
-	year, month, day := t.Date()
-	extra := fmt.Sprintf("%04d-%02d-%02d %d", year, month, day, offset)
-	return formatMsgID(netID, entity, extra)
 }
 
 // nextMsgID queries the message ID for the next message to be written to f.
