@@ -583,7 +583,7 @@ func (u *user) run() {
 			}
 			return
 		default:
-			u.logger.Printf("received unknown event type: %T", e)
+			panic(fmt.Sprintf("received unknown event type: %T", e))
 		}
 	}
 }
