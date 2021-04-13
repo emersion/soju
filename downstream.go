@@ -976,6 +976,10 @@ func (dc *downstreamConn) welcome() error {
 	})
 
 	dc.forEachNetwork(func(net *network) {
+		if dc.caps["draft/chathistory"] || dc.user.msgStore == nil {
+			return
+		}
+
 		// Only send history if we're the first connected client with that name
 		// for the network
 		firstClient := true
