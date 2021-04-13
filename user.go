@@ -276,7 +276,12 @@ func (net *network) attach(ch *Channel) {
 			forwardChannel(dc, uch)
 		}
 
-		dc.sendTargetBacklog(net, ch.Name)
+		lastDelivered := net.delivered.LoadID(ch.Name, dc.clientName)
+		if lastDelivered == "" {
+			return
+		}
+
+		dc.sendTargetBacklog(net, ch.Name, lastDelivered)
 	})
 }
 

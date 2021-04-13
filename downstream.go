@@ -986,26 +986,23 @@ func (dc *downstreamConn) welcome() error {
 		})
 		if firstClient {
 			net.delivered.ForEachTarget(func(target string) {
-				dc.sendTargetBacklog(net, target)
+				lastDelivered := net.delivered.LoadID(target, dc.clientName)
+				if lastDelivered == "" {
+					return
+				}
+
+				dc.sendTargetBacklog(net, target, lastDelivered)
+
+				// Fast-forward history to last message
+				targetCM := net.casemap(target)
+				lastID, err := dc.user.msgStore.LastMsgID(net, targetCM, time.Now())
+				if err != nil {
+					dc.logger.Printf("failed to get last message ID: %v", err)
+					return
+				}
+				net.delivered.StoreID(target, dc.clientName, lastID)
 			})
 		}
-
-		// Fast-forward history to last message
-		net.delivered.ForEachTarget(func(target string) {
-			ch := net.channels.Value(target)
-			if ch != nil && ch.Detached {
-				return
-			}
-
-			targetCM := net.casemap(target)
-			lastID, err := dc.user.msgStore.LastMsgID(net, targetCM, time.Now())
-			if err != nil {
-				dc.logger.Printf("failed to get last message ID: %v", err)
-				return
-			}
-
-			net.delivered.StoreID(target, dc.clientName, lastID)
-		})
 	})
 
 	return nil
@@ -1025,7 +1022,7 @@ func (dc *downstreamConn) messageSupportsHistory(msg *irc.Message) bool {
 	return false
 }
 
-func (dc *downstreamConn) sendTargetBacklog(net *network, target string) {
+func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) {
 	if dc.caps["draft/chathistory"] || dc.user.msgStore == nil {
 		return
 	}
@@ -1033,16 +1030,11 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target string) {
 		return
 	}
 
-	lastDelivered := net.delivered.LoadID(target, dc.clientName)
-	if lastDelivered == "" {
-		return
-	}
-
 	limit := 4000
 	targetCM := net.casemap(target)
-	history, err := dc.user.msgStore.LoadLatestID(net, targetCM, lastDelivered, limit)
+	history, err := dc.user.msgStore.LoadLatestID(net, targetCM, msgID, limit)
 	if err != nil {
-		dc.logger.Printf("failed to send implicit history for %q: %v", target, err)
+		dc.logger.Printf("failed to send backlog for %q: %v", target, err)
 		return
 	}
 
