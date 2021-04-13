@@ -671,9 +671,22 @@ func (u *user) removeNetwork(network *network) {
 	panic("tried to remove a non-existing network")
 }
 
+func (u *user) checkNetwork(record *Network) error {
+	for _, net := range u.networks {
+		if net.GetName() == record.GetName() && net.ID != record.ID {
+			return fmt.Errorf("a network with the name %q already exists", record.GetName())
+		}
+	}
+	return nil
+}
+
 func (u *user) createNetwork(record *Network) (*network, error) {
 	if record.ID != 0 {
 		panic("tried creating an already-existing network")
+	}
+
+	if err := u.checkNetwork(record); err != nil {
+		return nil, err
 	}
 
 	network := newNetwork(u, record, nil)
@@ -690,6 +703,10 @@ func (u *user) createNetwork(record *Network) (*network, error) {
 func (u *user) updateNetwork(record *Network) (*network, error) {
 	if record.ID == 0 {
 		panic("tried updating a new network")
+	}
+
+	if err := u.checkNetwork(record); err != nil {
+		return nil, err
 	}
 
 	network := u.getNetworkByID(record.ID)
