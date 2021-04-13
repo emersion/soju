@@ -109,6 +109,7 @@ func (ds deliveredStore) ForEachClient(f func(clientName string)) {
 type network struct {
 	Network
 	user    *user
+	logger  Logger
 	stopped chan struct{}
 
 	conn      *upstreamConn
@@ -119,6 +120,8 @@ type network struct {
 }
 
 func newNetwork(user *user, record *Network, channels []Channel) *network {
+	logger := &prefixLogger{user.logger, fmt.Sprintf("network %q: ", record.GetName())}
+
 	m := channelCasemapMap{newCasemapMap(0)}
 	for _, ch := range channels {
 		ch := ch
@@ -128,6 +131,7 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 	return &network{
 		Network:   *record,
 		user:      user,
+		logger:    logger,
 		stopped:   make(chan struct{}),
 		channels:  m,
 		delivered: newDeliveredStore(),
@@ -173,14 +177,14 @@ func (net *network) run() {
 
 		if dur := time.Now().Sub(lastTry); dur < retryConnectDelay {
 			delay := retryConnectDelay - dur
-			net.user.logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), net.Addr)
+			net.logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), net.Addr)
 			time.Sleep(delay)
 		}
 		lastTry = time.Now()
 
 		uc, err := connectToUpstream(net)
 		if err != nil {
-			net.user.logger.Printf("failed to connect to upstream server %q: %v", net.Addr, err)
+			net.logger.Printf("failed to connect to upstream server %q: %v", net.Addr, err)
 			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to connect: %v", err)}
 			continue
 		}
@@ -233,7 +237,7 @@ func (net *network) detach(ch *Channel) {
 		return
 	}
 
-	net.user.logger.Printf("network %q: detaching channel %q", net.GetName(), ch.Name)
+	net.logger.Printf("detaching channel %q", ch.Name)
 
 	ch.Detached = true
 
@@ -241,7 +245,7 @@ func (net *network) detach(ch *Channel) {
 		nameCM := net.casemap(ch.Name)
 		lastID, err := net.user.msgStore.LastMsgID(net, nameCM, time.Now())
 		if err != nil {
-			net.user.logger.Printf("failed to get last message ID for channel %q: %v", ch.Name, err)
+			net.logger.Printf("failed to get last message ID for channel %q: %v", ch.Name, err)
 		}
 		ch.DetachedInternalMsgID = lastID
 	}
@@ -267,7 +271,7 @@ func (net *network) attach(ch *Channel) {
 		return
 	}
 
-	net.user.logger.Printf("network %q: attaching channel %q", net.GetName(), ch.Name)
+	net.logger.Printf("attaching channel %q", ch.Name)
 
 	detachedMsgID := ch.DetachedInternalMsgID
 	ch.Detached = false
@@ -347,7 +351,7 @@ func (net *network) storeClientDeliveryReceipts(clientName string) {
 	})
 
 	if err := net.user.srv.db.StoreClientDeliveryReceipts(net.ID, clientName, receipts); err != nil {
-		net.user.logger.Printf("failed to store delivery receipts for user %q, client %q, network %q: %v", net.user.Username, clientName, net.GetName(), err)
+		net.logger.Printf("failed to store delivery receipts for client %q: %v", clientName, err)
 	}
 }
 
