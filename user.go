@@ -173,14 +173,14 @@ func (net *network) run() {
 
 		if dur := time.Now().Sub(lastTry); dur < retryConnectDelay {
 			delay := retryConnectDelay - dur
-			net.user.srv.Logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), net.Addr)
+			net.user.logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), net.Addr)
 			time.Sleep(delay)
 		}
 		lastTry = time.Now()
 
 		uc, err := connectToUpstream(net)
 		if err != nil {
-			net.user.srv.Logger.Printf("failed to connect to upstream server %q: %v", net.Addr, err)
+			net.user.logger.Printf("failed to connect to upstream server %q: %v", net.Addr, err)
 			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to connect: %v", err)}
 			continue
 		}
@@ -233,7 +233,7 @@ func (net *network) detach(ch *Channel) {
 		return
 	}
 	ch.Detached = true
-	net.user.srv.Logger.Printf("network %q: detaching channel %q", net.GetName(), ch.Name)
+	net.user.logger.Printf("network %q: detaching channel %q", net.GetName(), ch.Name)
 
 	if net.conn != nil {
 		uch := net.conn.channels.Value(ch.Name)
@@ -256,7 +256,7 @@ func (net *network) attach(ch *Channel) {
 		return
 	}
 	ch.Detached = false
-	net.user.srv.Logger.Printf("network %q: attaching channel %q", net.GetName(), ch.Name)
+	net.user.logger.Printf("network %q: attaching channel %q", net.GetName(), ch.Name)
 
 	var uch *upstreamChannel
 	if net.conn != nil {
@@ -330,13 +330,14 @@ func (net *network) storeClientDeliveryReceipts(clientName string) {
 	})
 
 	if err := net.user.srv.db.StoreClientDeliveryReceipts(net.ID, clientName, receipts); err != nil {
-		net.user.srv.Logger.Printf("failed to store delivery receipts for user %q, client %q, network %q: %v", net.user.Username, clientName, net.GetName(), err)
+		net.user.logger.Printf("failed to store delivery receipts for user %q, client %q, network %q: %v", net.user.Username, clientName, net.GetName(), err)
 	}
 }
 
 type user struct {
 	User
-	srv *Server
+	srv    *Server
+	logger Logger
 
 	events chan event
 	done   chan struct{}
@@ -356,6 +357,8 @@ type pendingLIST struct {
 }
 
 func newUser(srv *Server, record *User) *user {
+	logger := &prefixLogger{srv.Logger, fmt.Sprintf("user %q: ", record.Username)}
+
 	var msgStore messageStore
 	if srv.LogPath != "" {
 		msgStore = newFSMessageStore(srv.LogPath, record.Username)
@@ -366,6 +369,7 @@ func newUser(srv *Server, record *User) *user {
 	return &user{
 		User:     *record,
 		srv:      srv,
+		logger:   logger,
 		events:   make(chan event, 64),
 		done:     make(chan struct{}),
 		msgStore: msgStore,
@@ -418,7 +422,7 @@ func (u *user) run() {
 	defer func() {
 		if u.msgStore != nil {
 			if err := u.msgStore.Close(); err != nil {
-				u.srv.Logger.Printf("failed to close message store for user %q: %v", u.Username, err)
+				u.logger.Printf("failed to close message store for user %q: %v", u.Username, err)
 			}
 		}
 		close(u.done)
@@ -426,7 +430,7 @@ func (u *user) run() {
 
 	networks, err := u.srv.db.ListNetworks(u.ID)
 	if err != nil {
-		u.srv.Logger.Printf("failed to list networks for user %q: %v", u.Username, err)
+		u.logger.Printf("failed to list networks for user %q: %v", u.Username, err)
 		return
 	}
 
@@ -434,7 +438,7 @@ func (u *user) run() {
 		record := record
 		channels, err := u.srv.db.ListChannels(record.ID)
 		if err != nil {
-			u.srv.Logger.Printf("failed to list channels for user %q, network %q: %v", u.Username, record.GetName(), err)
+			u.logger.Printf("failed to list channels for user %q, network %q: %v", u.Username, record.GetName(), err)
 			continue
 		}
 
@@ -444,7 +448,7 @@ func (u *user) run() {
 		if u.hasPersistentMsgStore() {
 			receipts, err := u.srv.db.ListDeliveryReceipts(record.ID)
 			if err != nil {
-				u.srv.Logger.Printf("failed to load delivery receipts for user %q, network %q: %v", u.Username, network.GetName(), err)
+				u.logger.Printf("failed to load delivery receipts for user %q, network %q: %v", u.Username, network.GetName(), err)
 				return
 			}
 
@@ -514,7 +518,7 @@ func (u *user) run() {
 			}
 			uc.network.detach(c)
 			if err := uc.srv.db.StoreChannel(uc.network.ID, c); err != nil {
-				u.srv.Logger.Printf("failed to store updated detached channel %q: %v", c.Name, err)
+				u.logger.Printf("failed to store updated detached channel %q: %v", c.Name, err)
 			}
 		case eventDownstreamConnected:
 			dc := e.dc
@@ -579,7 +583,7 @@ func (u *user) run() {
 			}
 			return
 		default:
-			u.srv.Logger.Printf("received unknown event type: %T", e)
+			u.logger.Printf("received unknown event type: %T", e)
 		}
 	}
 }
