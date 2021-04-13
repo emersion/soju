@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"gopkg.in/irc.v3"
 )
@@ -600,4 +602,38 @@ func (cm *deliveredCasemapMap) Value(name string) deliveredClientMap {
 		return nil
 	}
 	return entry.value.(deliveredClientMap)
+}
+
+func isWordBoundary(r rune) bool {
+	switch r {
+	case '-', '_', '|':
+		return false
+	case '\u00A0':
+		return true
+	default:
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	}
+}
+
+func isHighlight(text, nick string) bool {
+	for {
+		i := strings.Index(text, nick)
+		if i < 0 {
+			return false
+		}
+
+		// Detect word boundaries
+		var left, right rune
+		if i > 0 {
+			left, _ = utf8.DecodeLastRuneInString(text[:i])
+		}
+		if i < len(text) {
+			right, _ = utf8.DecodeRuneInString(text[i+len(nick):])
+		}
+		if isWordBoundary(left) && isWordBoundary(right) {
+			return true
+		}
+
+		text = text[i+len(nick):]
+	}
 }
