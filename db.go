@@ -109,10 +109,12 @@ func parseFilter(filter string) (MessageFilter, error) {
 }
 
 type Channel struct {
-	ID       int64
-	Name     string
-	Key      string
-	Detached bool
+	ID   int64
+	Name string
+	Key  string
+
+	Detached              bool
+	DetachedInternalMsgID string
 
 	RelayDetached MessageFilter
 	ReattachOn    MessageFilter
@@ -161,6 +163,7 @@ CREATE TABLE Channel (
 	name VARCHAR(255) NOT NULL,
 	key VARCHAR(255),
 	detached INTEGER NOT NULL DEFAULT 0,
+	detached_internal_msgid VARCHAR(255),
 	relay_detached INTEGER NOT NULL DEFAULT 0,
 	reattach_on INTEGER NOT NULL DEFAULT 0,
 	detach_after INTEGER NOT NULL DEFAULT 0,
@@ -245,6 +248,7 @@ var migrations = []string{
 			UNIQUE(network, target, client)
 		);
 	`,
+	"ALTER TABLE Channel ADD COLUMN detached_internal_msgid VARCHAR(255)",
 }
 
 type DB struct {
@@ -546,7 +550,9 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	rows, err := db.db.Query(`SELECT id, name, key, detached, relay_detached, reattach_on, detach_after, detach_on
+	rows, err := db.db.Query(`SELECT
+			id, name, key, detached, detached_internal_msgid,
+			relay_detached, reattach_on, detach_after, detach_on
 		FROM Channel
 		WHERE network = ?`, networkID)
 	if err != nil {
@@ -557,12 +563,13 @@ func (db *DB) ListChannels(networkID int64) ([]Channel, error) {
 	var channels []Channel
 	for rows.Next() {
 		var ch Channel
-		var key sql.NullString
+		var key, detachedInternalMsgID sql.NullString
 		var detachAfter int64
-		if err := rows.Scan(&ch.ID, &ch.Name, &key, &ch.Detached, &ch.RelayDetached, &ch.ReattachOn, &detachAfter, &ch.DetachOn); err != nil {
+		if err := rows.Scan(&ch.ID, &ch.Name, &key, &ch.Detached, &detachedInternalMsgID, &ch.RelayDetached, &ch.ReattachOn, &detachAfter, &ch.DetachOn); err != nil {
 			return nil, err
 		}
 		ch.Key = key.String
+		ch.DetachedInternalMsgID = detachedInternalMsgID.String
 		ch.DetachAfter = time.Duration(detachAfter) * time.Second
 		channels = append(channels, ch)
 	}
@@ -583,14 +590,14 @@ func (db *DB) StoreChannel(networkID int64, ch *Channel) error {
 	var err error
 	if ch.ID != 0 {
 		_, err = db.db.Exec(`UPDATE Channel
-			SET network = ?, name = ?, key = ?, detached = ?, relay_detached = ?, reattach_on = ?, detach_after = ?, detach_on = ?
+			SET network = ?, name = ?, key = ?, detached = ?, detached_internal_msgid = ?, relay_detached = ?, reattach_on = ?, detach_after = ?, detach_on = ?
 			WHERE id = ?`,
-			networkID, ch.Name, key, ch.Detached, ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn, ch.ID)
+			networkID, ch.Name, key, ch.Detached, toNullString(ch.DetachedInternalMsgID), ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn, ch.ID)
 	} else {
 		var res sql.Result
-		res, err = db.db.Exec(`INSERT INTO Channel(network, name, key, detached, relay_detached, reattach_on, detach_after, detach_on)
+		res, err = db.db.Exec(`INSERT INTO Channel(network, name, key, detached, detached_internal_msgid, relay_detached, reattach_on, detach_after, detach_on)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			networkID, ch.Name, key, ch.Detached, ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn)
+			networkID, ch.Name, key, ch.Detached, toNullString(ch.DetachedInternalMsgID), ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn)
 		if err != nil {
 			return err
 		}

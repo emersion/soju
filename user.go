@@ -232,8 +232,19 @@ func (net *network) detach(ch *Channel) {
 	if ch.Detached {
 		return
 	}
-	ch.Detached = true
+
 	net.user.logger.Printf("network %q: detaching channel %q", net.GetName(), ch.Name)
+
+	ch.Detached = true
+
+	if net.user.msgStore != nil {
+		nameCM := net.casemap(ch.Name)
+		lastID, err := net.user.msgStore.LastMsgID(net, nameCM, time.Now())
+		if err != nil {
+			net.user.logger.Printf("failed to get last message ID for channel %q: %v", ch.Name, err)
+		}
+		ch.DetachedInternalMsgID = lastID
+	}
 
 	if net.conn != nil {
 		uch := net.conn.channels.Value(ch.Name)
@@ -255,8 +266,12 @@ func (net *network) attach(ch *Channel) {
 	if !ch.Detached {
 		return
 	}
-	ch.Detached = false
+
 	net.user.logger.Printf("network %q: attaching channel %q", net.GetName(), ch.Name)
+
+	detachedMsgID := ch.DetachedInternalMsgID
+	ch.Detached = false
+	ch.DetachedInternalMsgID = ""
 
 	var uch *upstreamChannel
 	if net.conn != nil {
@@ -276,12 +291,9 @@ func (net *network) attach(ch *Channel) {
 			forwardChannel(dc, uch)
 		}
 
-		lastDelivered := net.delivered.LoadID(ch.Name, dc.clientName)
-		if lastDelivered == "" {
-			return
+		if detachedMsgID != "" {
+			dc.sendTargetBacklog(net, ch.Name, detachedMsgID)
 		}
-
-		dc.sendTargetBacklog(net, ch.Name, lastDelivered)
 	})
 }
 
