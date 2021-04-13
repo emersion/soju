@@ -351,6 +351,27 @@ func (net *network) storeClientDeliveryReceipts(clientName string) {
 	}
 }
 
+func (net *network) isHighlight(msg *irc.Message) bool {
+	if msg.Command != "PRIVMSG" && msg.Command != "NOTICE" {
+		return false
+	}
+
+	text := msg.Params[1]
+
+	nick := net.Nick
+	if net.conn != nil {
+		nick = net.conn.nick
+	}
+
+	// TODO: use case-mapping aware comparison here
+	return msg.Prefix.Name != nick && isHighlight(text, nick)
+}
+
+func (net *network) detachedMessageNeedsRelay(ch *Channel, msg *irc.Message) bool {
+	highlight := net.isHighlight(msg)
+	return ch.RelayDetached == FilterMessage || ((ch.RelayDetached == FilterHighlight || ch.RelayDetached == FilterDefault) && highlight)
+}
+
 type user struct {
 	User
 	srv    *Server

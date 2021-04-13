@@ -1030,9 +1030,8 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) 
 	if dc.caps["draft/chathistory"] || dc.user.msgStore == nil {
 		return
 	}
-	if ch := net.channels.Value(target); ch != nil && ch.Detached {
-		return
-	}
+
+	ch := net.channels.Value(target)
 
 	limit := 4000
 	targetCM := net.casemap(target)
@@ -1056,10 +1055,16 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) 
 			continue
 		}
 
-		if dc.caps["batch"] {
-			msg.Tags["batch"] = irc.TagValue(batchRef)
+		if ch != nil && ch.Detached {
+			if net.detachedMessageNeedsRelay(ch, msg) {
+				dc.relayDetachedMessage(net, msg)
+			}
+		} else {
+			if dc.caps["batch"] {
+				msg.Tags["batch"] = irc.TagValue(batchRef)
+			}
+			dc.SendMessage(dc.marshalMessage(msg, net))
 		}
-		dc.SendMessage(dc.marshalMessage(msg, net))
 	}
 
 	if dc.caps["batch"] {
@@ -1068,6 +1073,20 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) 
 			Command: "BATCH",
 			Params:  []string{"-" + batchRef},
 		})
+	}
+}
+
+func (dc *downstreamConn) relayDetachedMessage(net *network, msg *irc.Message) {
+	if msg.Command != "PRIVMSG" && msg.Command != "NOTICE" {
+		return
+	}
+
+	sender := msg.Prefix.Name
+	target, text := msg.Params[0], msg.Params[1]
+	if net.isHighlight(msg) {
+		sendServiceNOTICE(dc, fmt.Sprintf("highlight in %v: <%v> %v", dc.marshalEntity(net, target), sender, text))
+	} else {
+		sendServiceNOTICE(dc, fmt.Sprintf("message in %v: <%v> %v", dc.marshalEntity(net, target), sender, text))
 	}
 }
 

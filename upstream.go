@@ -391,10 +391,10 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			ch := uc.network.channels.Value(target)
 			if ch != nil {
 				if ch.Detached {
-					uc.handleDetachedMessage(msg.Prefix.Name, text, ch)
+					uc.handleDetachedMessage(ch, msg)
 				}
 
-				highlight := msg.Prefix.Name != uc.nick && isHighlight(text, uc.nick)
+				highlight := uc.network.isHighlight(msg)
 				if ch.DetachOn == FilterMessage || ch.DetachOn == FilterDefault || (ch.DetachOn == FilterHighlight && highlight) {
 					uc.updateChannelAutoDetach(target)
 				}
@@ -1437,18 +1437,13 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	return nil
 }
 
-func (uc *upstreamConn) handleDetachedMessage(sender string, text string, ch *Channel) {
-	highlight := sender != uc.nick && isHighlight(text, uc.nick)
-	if ch.RelayDetached == FilterMessage || ((ch.RelayDetached == FilterHighlight || ch.RelayDetached == FilterDefault) && highlight) {
+func (uc *upstreamConn) handleDetachedMessage(ch *Channel, msg *irc.Message) {
+	if uc.network.detachedMessageNeedsRelay(ch, msg) {
 		uc.forEachDownstream(func(dc *downstreamConn) {
-			if highlight {
-				sendServiceNOTICE(dc, fmt.Sprintf("highlight in %v: <%v> %v", dc.marshalEntity(uc.network, ch.Name), sender, text))
-			} else {
-				sendServiceNOTICE(dc, fmt.Sprintf("message in %v: <%v> %v", dc.marshalEntity(uc.network, ch.Name), sender, text))
-			}
+			dc.relayDetachedMessage(uc.network, msg)
 		})
 	}
-	if ch.ReattachOn == FilterMessage || (ch.ReattachOn == FilterHighlight && highlight) {
+	if ch.ReattachOn == FilterMessage || (ch.ReattachOn == FilterHighlight && uc.network.isHighlight(msg)) {
 		uc.network.attach(ch)
 		if err := uc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
 			uc.logger.Printf("failed to update channel %q: %v", ch.Name, err)
@@ -1743,12 +1738,10 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 
 	// Don't forward messages if it's a detached channel
 	ch := uc.network.channels.Value(target)
-	if ch != nil && ch.Detached {
-		return
-	}
+	detached := ch != nil && ch.Detached
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		if dc != origin || dc.caps["echo-message"] {
+		if !detached && (dc != origin || dc.caps["echo-message"]) {
 			dc.sendMessageWithID(dc.marshalMessage(msg, uc.network), msgID)
 		} else {
 			dc.advanceMessageWithID(msg, msgID)
