@@ -429,57 +429,51 @@ func casemapNone(name string) string {
 // CasemapASCII of name is the canonical representation of name according to the
 // ascii casemapping.
 func casemapASCII(name string) string {
-	var sb strings.Builder
-	sb.Grow(len(name))
-	for _, r := range name {
+	nameBytes := []byte(name)
+	for i, r := range nameBytes {
 		if 'A' <= r && r <= 'Z' {
-			r += 'a' - 'A'
+			nameBytes[i] = r + 'a' - 'A'
 		}
-		sb.WriteRune(r)
 	}
-	return sb.String()
+	return string(nameBytes)
 }
 
 // casemapRFC1459 of name is the canonical representation of name according to the
 // rfc1459 casemapping.
 func casemapRFC1459(name string) string {
-	var sb strings.Builder
-	sb.Grow(len(name))
-	for _, r := range name {
+	nameBytes := []byte(name)
+	for i, r := range nameBytes {
 		if 'A' <= r && r <= 'Z' {
-			r += 'a' - 'A'
+			nameBytes[i] = r + 'a' - 'A'
 		} else if r == '{' {
-			r = '['
+			nameBytes[i] = '['
 		} else if r == '}' {
-			r = ']'
+			nameBytes[i] = ']'
 		} else if r == '\\' {
-			r = '|'
+			nameBytes[i] = '|'
 		} else if r == '~' {
-			r = '^'
+			nameBytes[i] = '^'
 		}
-		sb.WriteRune(r)
 	}
-	return sb.String()
+	return string(nameBytes)
 }
 
 // casemapRFC1459Strict of name is the canonical representation of name
 // according to the rfc1459-strict casemapping.
 func casemapRFC1459Strict(name string) string {
-	var sb strings.Builder
-	sb.Grow(len(name))
-	for _, r := range name {
+	nameBytes := []byte(name)
+	for i, r := range nameBytes {
 		if 'A' <= r && r <= 'Z' {
-			r += 'a' - 'A'
+			nameBytes[i] = r + 'a' - 'A'
 		} else if r == '{' {
-			r = '['
+			nameBytes[i] = '['
 		} else if r == '}' {
-			r = ']'
+			nameBytes[i] = ']'
 		} else if r == '\\' {
-			r = '|'
+			nameBytes[i] = '|'
 		}
-		sb.WriteRune(r)
 	}
-	return sb.String()
+	return string(nameBytes)
 }
 
 func parseCasemappingToken(tokenValue string) (casemap casemapping, ok bool) {
@@ -497,16 +491,14 @@ func parseCasemappingToken(tokenValue string) (casemap casemapping, ok bool) {
 }
 
 func partialCasemap(higher casemapping, name string) string {
-	nameFullyCM := higher(name)
-	var sb strings.Builder
-	sb.Grow(len(name))
-	for i, r := range nameFullyCM {
-		if 'a' <= r && r <= 'z' {
-			r = rune(name[i])
+	nameFullyCM := []byte(higher(name))
+	nameBytes := []byte(name)
+	for i, r := range nameBytes {
+		if !('A' <= r && r <= 'Z') && !('a' <= r && r <= 'z') {
+			nameBytes[i] = nameFullyCM[i]
 		}
-		sb.WriteRune(r)
 	}
-	return sb.String()
+	return string(nameBytes)
 }
 
 type casemapMap struct {
