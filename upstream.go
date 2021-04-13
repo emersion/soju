@@ -105,7 +105,7 @@ type upstreamConn struct {
 }
 
 func connectToUpstream(network *network) (*upstreamConn, error) {
-	logger := &prefixLogger{network.user.srv.Logger, fmt.Sprintf("upstream %q: ", network.Addr)}
+	logger := &prefixLogger{network.user.logger, fmt.Sprintf("upstream %q: ", network.GetName())}
 
 	dialer := net.Dialer{Timeout: connectTimeout}
 
