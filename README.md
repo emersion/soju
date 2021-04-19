@@ -12,14 +12,14 @@ A user-friendly IRC bouncer.
 
 ## Usage
 
-See the man page at `doc/soju.1.scd` for more information.
+See the man page for more information.
 
 ### Server side
 
 To create an admin user and start soju, run these commands:
 
-    go run ./cmd/sojuctl create-user <soju username> -admin
-    go run ./cmd/soju -listen irc+insecure://127.0.0.1:6667
+    sojuctl create-user <soju username> -admin
+    soju -listen irc+insecure://127.0.0.1:6667
 
 If you're migrating from ZNC, a tool is available to import users, networks and
 channels from a ZNC config file:
@@ -65,9 +65,14 @@ name:
     /join #soju/freenode
     /join #somechannel/rizon
 
-#### Notes
+## Building and installing
 
-soju will automatically save and restore the channels you were connected to.
+For end users, a `Makefile` is provided:
+
+    make
+    sudo make install
+
+For development, you can use `go run ./cmd/soju` as usual.
 
 ## Contributing
 
