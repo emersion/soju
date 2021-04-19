@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -125,12 +126,13 @@ func readPassword() ([]byte, error) {
 		fmt.Printf("\n")
 	} else {
 		fmt.Fprintf(os.Stderr, "Warning: Reading password from stdin.\n")
+		// TODO: the buffering messes up repeated calls to readPassword
 		scanner := bufio.NewScanner(os.Stdin)
 		if !scanner.Scan() {
 			if err := scanner.Err(); err != nil {
-				log.Fatalf("failed to read password from stdin: %v", err)
+				return nil, err
 			}
-			log.Fatalf("failed to read password from stdin: stdin is empty")
+			return nil, io.ErrUnexpectedEOF
 		}
 		password = scanner.Bytes()
 
