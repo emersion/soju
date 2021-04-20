@@ -389,7 +389,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 
 			ch := uc.network.channels.Value(target)
-			if ch != nil {
+			if ch != nil && msg.Command != "TAGMSG" {
 				if ch.Detached {
 					uc.handleDetachedMessage(ch, msg)
 				}
