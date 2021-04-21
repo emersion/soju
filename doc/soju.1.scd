@@ -101,12 +101,10 @@ The following directives are supported:
 *tls* <cert> <key>
 	Enable TLS support. The certificate and the key files must be PEM-encoded.
 
-*sql* <driver> <source>
-	Set the SQL driver settings. The only supported driver is "sqlite3". The
-	source is the path to the SQLite database file. By default, the path to the
-	database file is "soju.db".
+*db* sqlite3 <path>
+	Set the SQLite database path (default: "soju.db" in the current directory).
 
-*log* <path>
+*log* fs <path>
 	Path to the bouncer logs root directory, or empty to disable logging. By
 	default, logging is disabled.
 

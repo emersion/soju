@@ -86,13 +86,17 @@ func parse(cfg scfg.Block) (*Server, error) {
 				return nil, err
 			}
 			srv.TLS = tls
-		case "sql":
+		case "db":
 			if err := d.ParseParams(&srv.SQLDriver, &srv.SQLSource); err != nil {
 				return nil, err
 			}
 		case "log":
-			if err := d.ParseParams(&srv.LogPath); err != nil {
+			var driver string
+			if err := d.ParseParams(&driver, &srv.LogPath); err != nil {
 				return nil, err
+			}
+			if driver != "fs" {
+				return nil, fmt.Errorf("directive %q: unknown driver %q", d.Name, driver)
 			}
 		case "http-origin":
 			srv.HTTPOrigins = d.Params
