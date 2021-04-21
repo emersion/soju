@@ -1,0 +1,2 @@
+sql sqlite3 /var/lib/soju/main.db
+log /var/lib/soju/logs/
