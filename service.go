@@ -699,7 +699,7 @@ func handleUserDelete(dc *downstreamConn, params []string) error {
 
 	u.stop()
 
-	if err := dc.srv.db.DeleteUser(dc.user.ID); err != nil {
+	if err := dc.srv.db.DeleteUser(u.ID); err != nil {
 		return fmt.Errorf("failed to delete user: %v", err)
 	}
 
