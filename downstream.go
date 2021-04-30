@@ -1201,7 +1201,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			})
 		})
 
-		if dc.upstream() == nil && dc.nick != nick {
+		if dc.upstream() == nil && upstream == nil && dc.nick != nick {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),
 				Command: "NICK",
