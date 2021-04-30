@@ -1670,7 +1670,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
-			if name == serviceNick {
+			if casemapASCII(name) == serviceNickCM {
 				if dc.caps["echo-message"] {
 					echoTags := tags.Copy()
 					echoTags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
