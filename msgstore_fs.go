@@ -80,7 +80,7 @@ func (ms *fsMessageStore) logPath(network *network, entity string, t time.Time) 
 func nextFSMsgID(network *network, entity string, t time.Time, f *os.File) (string, error) {
 	offset, err := f.Seek(0, io.SeekEnd)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to query next FS message ID: %v", err)
 	}
 	return formatFSMsgID(network.ID, entity, t, offset), nil
 }
@@ -91,7 +91,7 @@ func (ms *fsMessageStore) LastMsgID(network *network, entity string, t time.Time
 	if os.IsNotExist(err) {
 		return formatFSMsgID(network.ID, entity, t, -1), nil
 	} else if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to query last FS message ID: %v", err)
 	}
 	return formatFSMsgID(network.ID, entity, t, fi.Size()-1), nil
 }
@@ -213,7 +213,7 @@ func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, 
 	var hour, minute, second int
 	_, err := fmt.Sscanf(line, "[%02d:%02d:%02d] ", &hour, &minute, &second)
 	if err != nil {
-		return nil, time.Time{}, err
+		return nil, time.Time{}, fmt.Errorf("malformed timestamp prefix: %v", err)
 	}
 	line = line[11:]
 
@@ -264,7 +264,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, r
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to parse messages before ref: %v", err)
 	}
 	defer f.Close()
 
@@ -294,7 +294,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, r
 		cur++
 	}
 	if sc.Err() != nil {
-		return nil, sc.Err()
+		return nil, fmt.Errorf("failed to parse messages before ref: scanner error: %v", sc.Err())
 	}
 
 	n := limit
@@ -320,7 +320,7 @@ func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, re
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to parse messages after ref: %v", err)
 	}
 	defer f.Close()
 
@@ -337,7 +337,7 @@ func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, re
 		history = append(history, msg)
 	}
 	if sc.Err() != nil {
-		return nil, sc.Err()
+		return nil, fmt.Errorf("failed to parse messages after ref: scanner error: %v", sc.Err())
 	}
 
 	return history, nil

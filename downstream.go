@@ -1862,7 +1862,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}}
 		}
 		if err != nil {
-			dc.logger.Printf("failed parsing log messages for chathistory: %v", err)
+			dc.logger.Printf("failed fetching %q messages for chathistory: %v", target, err)
 			return newChatHistoryError(subcommand, target)
 		}
 
