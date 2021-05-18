@@ -63,6 +63,9 @@ type fsMessageStore struct {
 	files map[string]*os.File // indexed by entity
 }
 
+var _ messageStore = (*fsMessageStore)(nil)
+var _ chatHistoryMessageStore = (*fsMessageStore)(nil)
+
 func newFSMessageStore(root, username string) *fsMessageStore {
 	return &fsMessageStore{
 		root:  filepath.Join(root, escapeFilename.Replace(username)),

@@ -41,6 +41,8 @@ type memoryMessageStore struct {
 	buffers map[ringBufferKey]*messageRingBuffer
 }
 
+var _ messageStore = (*memoryMessageStore)(nil)
+
 func newMemoryMessageStore() *memoryMessageStore {
 	return &memoryMessageStore{
 		buffers: make(map[ringBufferKey]*messageRingBuffer),
