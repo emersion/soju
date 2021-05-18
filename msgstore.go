@@ -21,11 +21,20 @@ type messageStore interface {
 	Append(network *network, entity string, msg *irc.Message) (id string, err error)
 }
 
+type chatHistoryTarget struct {
+	Name          string
+	LatestMessage time.Time
+}
+
 // chatHistoryMessageStore is a message store that supports chat history
 // operations.
 type chatHistoryMessageStore interface {
 	messageStore
 
+	// ListTargets lists channels and nicknames by time of the latest message.
+	// It returns up to limit targets, starting from start and ending on end,
+	// both excluded. end may be before or after start.
+	ListTargets(network *network, start, end time.Time, limit int) ([]chatHistoryTarget, error)
 	// LoadBeforeTime loads up to limit messages before start down to end. The
 	// returned messages must be between and excluding the provided bounds.
 	// end is before start.

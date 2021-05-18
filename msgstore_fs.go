@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -393,11 +394,6 @@ func (ms *fsMessageStore) LoadAfterTime(network *network, entity string, start t
 	return history, nil
 }
 
-func truncateDay(t time.Time) time.Time {
-	year, month, day := t.Date()
-	return time.Date(year, month, day, 0, 0, 0, 0, t.Location())
-}
-
 func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limit int) ([]*irc.Message, error) {
 	var afterTime time.Time
 	var afterOffset int64
@@ -440,4 +436,92 @@ func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limi
 	}
 
 	return history[remaining:], nil
+}
+
+func (ms *fsMessageStore) ListTargets(network *network, start, end time.Time, limit int) ([]chatHistoryTarget, error) {
+	rootPath := filepath.Join(ms.root, escapeFilename.Replace(network.GetName()))
+	root, err := os.Open(rootPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// The returned targets are escaped, and there is no way to un-escape
+	// TODO: switch to ReadDir (Go 1.16+)
+	targetNames, err := root.Readdirnames(0)
+	root.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	var targets []chatHistoryTarget
+	for _, target := range targetNames {
+		// target is already escaped here
+		targetPath := filepath.Join(rootPath, target)
+		targetDir, err := os.Open(targetPath)
+		if err != nil {
+			return nil, err
+		}
+
+		entries, err := targetDir.Readdir(0)
+		targetDir.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		// We use mtime here, which may give imprecise or incorrect results
+		var t time.Time
+		for _, entry := range entries {
+			if entry.ModTime().After(t) {
+				t = entry.ModTime()
+			}
+		}
+
+		// The timestamps we get from logs have second granularity
+		t = truncateSecond(t)
+
+		// Filter out targets that don't fullfil the time bounds
+		if !isTimeBetween(t, start, end) {
+			continue
+		}
+
+		targets = append(targets, chatHistoryTarget{
+			Name:          target,
+			LatestMessage: t,
+		})
+	}
+
+	// Sort targets by latest message time, backwards or forwards depending on
+	// the order of the time bounds
+	sort.Slice(targets, func(i, j int) bool {
+		t1, t2 := targets[i].LatestMessage, targets[j].LatestMessage
+		if start.Before(end) {
+			return t1.Before(t2)
+		} else {
+			return !t1.Before(t2)
+		}
+	})
+
+	// Truncate the result if necessary
+	if len(targets) > limit {
+		targets = targets[:limit]
+	}
+
+	return targets, nil
+}
+
+func truncateDay(t time.Time) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, t.Location())
+}
+
+func truncateSecond(t time.Time) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, t.Hour(), t.Minute(), t.Second(), 0, t.Location())
+}
+
+func isTimeBetween(t, start, end time.Time) bool {
+	if end.Before(start) {
+		end, start = start, end
+	}
+	return start.Before(t) && t.Before(end)
 }

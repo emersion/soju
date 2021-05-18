@@ -2030,6 +2030,10 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			if err := parseMessageParams(msg, nil, &target, &boundsStr[0], &boundsStr[1], &limitStr); err != nil {
 				return err
 			}
+		case "TARGETS":
+			if err := parseMessageParams(msg, nil, &boundsStr[0], &boundsStr[1], &limitStr); err != nil {
+				return err
+			}
 		default:
 			// TODO: support LATEST, AROUND
 			return ircError{&irc.Message{
@@ -2092,6 +2096,40 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			} else {
 				history, err = store.LoadBeforeTime(uc.network, entity, bounds[0], bounds[1], limit)
 			}
+		case "TARGETS":
+			// TODO: support TARGETS in multi-upstream mode
+			targets, err := store.ListTargets(uc.network, bounds[0], bounds[1], limit)
+			if err != nil {
+				dc.logger.Printf("failed fetching targets for chathistory: %v", target, err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"CHATHISTORY", "MESSAGE_ERROR", subcommand, "Failed to retrieve targets"},
+				}}
+			}
+
+			batchRef := "history-targets"
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BATCH",
+				Params:  []string{"+" + batchRef, "draft/chathistory-targets"},
+			})
+
+			for _, target := range targets {
+				dc.SendMessage(&irc.Message{
+					Tags:    irc.Tags{"batch": irc.TagValue(batchRef)},
+					Prefix:  dc.srv.prefix(),
+					Command: "CHATHISTORY",
+					Params:  []string{"TARGETS", target.Name, target.LatestMessage.UTC().Format(serverTimeLayout)},
+				})
+			}
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BATCH",
+				Params:  []string{"-" + batchRef},
+			})
+
+			return nil
 		}
 		if err != nil {
 			dc.logger.Printf("failed fetching %q messages for chathistory: %v", target, err)
