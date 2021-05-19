@@ -194,7 +194,7 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 				break
 			}
 		}
-		if err := c.conn.Close(); err != nil {
+		if err := c.conn.Close(); err != nil && !isErrClosed(err) {
 			c.logger.Printf("failed to close connection: %v", err)
 		} else {
 			c.logger.Printf("connection closed")
@@ -232,7 +232,9 @@ func (c *conn) Close() error {
 
 func (c *conn) ReadMessage() (*irc.Message, error) {
 	msg, err := c.conn.ReadMessage()
-	if err != nil {
+	if isErrClosed(err) {
+		return nil, io.EOF
+	} else if err != nil {
 		return nil, err
 	}
 
