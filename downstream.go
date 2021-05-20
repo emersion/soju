@@ -617,8 +617,10 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		}
 	case "LIST":
 		var caps []string
-		for name := range dc.caps {
-			caps = append(caps, name)
+		for name, enabled := range dc.caps {
+			if enabled {
+				caps = append(caps, name)
+			}
 		}
 
 		// TODO: multi-line replies
