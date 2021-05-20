@@ -1382,6 +1382,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					})
 				})
 			} else {
+				// TODO: only do this in multi-upstream mode
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_UMODEIS,
@@ -1557,7 +1558,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		entity := msg.Params[0]
 		entityCM := casemapASCII(entity)
 
-		if entityCM == dc.nickCM {
+		if dc.network == nil && entityCM == dc.nickCM {
 			// TODO: support AWAY (H/G) in self WHO reply
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -1622,7 +1623,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			mask = mask[:i]
 		}
 
-		if casemapASCII(mask) == dc.nickCM {
+		if dc.network == nil && casemapASCII(mask) == dc.nickCM {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISUSER,
