@@ -317,6 +317,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	var label string
 	if l, ok := msg.GetTag("label"); ok {
 		label = l
+		delete(msg.Tags, "label")
 	}
 
 	var msgBatch *batch
