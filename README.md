@@ -27,7 +27,7 @@ For development, you can use `go run ./cmd/soju` as usual.
 ## Contributing
 
 Send patches on the [mailing list] or on [GitHub], report bugs on the
-[issue tracker]. Discuss in #soju on Freenode.
+[issue tracker]. Discuss in [#soju on Libera Chat][IRC channel].
 
 ## License
 
@@ -41,3 +41,4 @@ Copyright (C) 2020 The soju Contributors
 [mailing list]: https://lists.sr.ht/~emersion/soju-dev
 [GitHub]: https://github.com/emersion/soju
 [issue tracker]: https://todo.sr.ht/~emersion/soju
+[IRC channel]: ircs://irc.libera.chat/#soju
