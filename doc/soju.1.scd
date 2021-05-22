@@ -158,6 +158,21 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		Connect with the specified nickname. By default, the account's username
 		is used.
 
+	*-connect-command* <command>
+		Send the specified command as a raw IRC message right after connecting
+		to the server. This can be used to identify to an account when the
+		server doesn't support SASL.
+
+		For instance, to identify with _NickServ_, the following command can be
+		used:
+
+		```
+		PRIVMSG NickServ :IDENTIFY <password>
+		```
+
+		The flag can be specified multiple times to send multiple IRC messages.
+		To clear all commands, set it to the empty string.
+
 *network update* <name> [options...]
 	Update an existing network. The options are the same as the
 	_network create_ command.
