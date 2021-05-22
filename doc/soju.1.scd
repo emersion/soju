@@ -278,6 +278,9 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *user create* -username <username> -password <password> [-admin]
 	Create a new soju user. Only admin users can create new accounts.
 
+*user delete* <username>
+	Delete a soju user. Only admins can delete accounts.
+
 *change-password* <new password>
 	Change current user password.
 
