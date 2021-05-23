@@ -37,7 +37,7 @@ Copyright (C) 2020 The soju Contributors
 
 [soju]: https://soju.im
 [Getting started]: doc/getting-started.md
-[Man page]: doc/soju.1.scd
+[Man page]: https://soju.im/doc/soju.1.html
 [mailing list]: https://lists.sr.ht/~emersion/soju-dev
 [GitHub]: https://github.com/emersion/soju
 [issue tracker]: https://todo.sr.ht/~emersion/soju
