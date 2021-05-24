@@ -1212,6 +1212,38 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.nick = nick
 			dc.nickCM = casemapASCII(dc.nick)
 		}
+	case "SANICK":
+		var oldNick string
+		var newNick string
+		if err := parseMessageParams(msg, &oldNick, &newNick); err != nil {
+			return err
+		}
+
+		ucOld, upstreamNameOld, err := dc.unmarshalEntity(oldNick)
+		if err != nil {
+			return err
+		}
+
+		// unmarshal the second nick, in case it's suffixed with a network.
+		// also accept plain new nicks without network suffixes
+		var upstreamNameNew string
+		var ucNew *upstreamConn
+		ucNew, upstreamNameNew, err = dc.unmarshalEntity(newNick)
+		if err == nil {
+			if ucOld != ucNew {
+				return ircError{&irc.Message{
+					Command: irc.ERR_USERNOTINCHANNEL,
+					Params:  []string{dc.nick, upstreamNameNew, upstreamNameOld, "They are on another network"},
+				}}
+			}
+		} else {
+			upstreamNameNew = newNick
+		}
+
+		ucOld.SendMessageLabeled(dc.id, &irc.Message{
+			Command: "SANICK",
+			Params:  []string{upstreamNameOld, upstreamNameNew},
+		})
 	case "JOIN":
 		var namesStr string
 		if err := parseMessageParams(msg, &namesStr); err != nil {
@@ -1262,6 +1294,43 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 			}
 		}
+	case "SAJOIN":
+		if len(msg.Params) == 0 {
+			return newNeedMoreParamsError(msg.Command)
+		}
+		var ucNick *upstreamConn
+		var upstreamNick string
+		if len(msg.Params) > 1 {
+			var err error
+			ucNick, upstreamNick, err = dc.unmarshalEntity(msg.Params[0])
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, name := range strings.Split(msg.Params[len(msg.Params)-1], ",") {
+			uc, upstreamName, err := dc.unmarshalEntity(name)
+			if err != nil {
+				return err
+			}
+
+			if uc != ucNick {
+				return ircError{&irc.Message{
+					Command: irc.ERR_USERNOTINCHANNEL,
+					Params:  []string{dc.nick, upstreamNick, upstreamName, "They are on another network"},
+				}}
+			}
+
+			var params []string
+			if upstreamNick != "" {
+				params = append(params, upstreamNick)
+			}
+			params = append(params, upstreamName)
+			uc.SendMessageLabeled(dc.id, &irc.Message{
+				Command: "SAJOIN",
+				Params:  params,
+			})
+		}
 	case "PART":
 		var namesStr string
 		if err := parseMessageParams(msg, &namesStr); err != nil {
@@ -1308,7 +1377,45 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				}
 			}
 		}
-	case "KICK":
+	case "SAPART":
+		var nick string
+		var namesStr string
+		if err := parseMessageParams(msg, &nick, &namesStr); err != nil {
+			return err
+		}
+
+		ucNick, upstreamNick, err := dc.unmarshalEntity(nick)
+		if err != nil {
+			return err
+		}
+
+		var reason string
+		if len(msg.Params) > 2 {
+			reason = msg.Params[2]
+		}
+
+		for _, name := range strings.Split(namesStr, ",") {
+			uc, upstreamName, err := dc.unmarshalEntity(name)
+			if err != nil {
+				return err
+			}
+			if ucNick != uc {
+				return ircError{&irc.Message{
+					Command: irc.ERR_USERNOTINCHANNEL,
+					Params:  []string{dc.nick, upstreamNick, upstreamName, "They are on another network"},
+				}}
+			}
+
+			params := []string{upstreamNick, upstreamName}
+			if reason != "" {
+				params = append(params, reason)
+			}
+			uc.SendMessageLabeled(dc.id, &irc.Message{
+				Command: "SAPART",
+				Params:  params,
+			})
+		}
+	case "KICK", "SAKICK":
 		var channelStr, userStr string
 		if err := parseMessageParams(msg, &channelStr, &userStr); err != nil {
 			return err
@@ -1360,10 +1467,24 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				params = append(params, reason)
 			}
 			uc.SendMessageLabeled(dc.id, &irc.Message{
-				Command: "KICK",
+				Command: msg.Command,
 				Params:  params,
 			})
 		}
+	case "SAQUIT":
+		var nick, reason string
+		if err := parseMessageParams(msg, &nick, &reason); err != nil {
+			return err
+		}
+
+		uc, upstreamName, err := dc.unmarshalEntity(nick)
+		if err != nil {
+			return err
+		}
+		uc.SendMessageLabeled(dc.id, &irc.Message{
+			Command: "SAQUIT",
+			Params:  []string{upstreamName, reason},
+		})
 	case "MODE":
 		var name string
 		if err := parseMessageParams(msg, &name); err != nil {
@@ -1445,7 +1566,35 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				})
 			}
 		}
-	case "TOPIC":
+	case "SAMODE":
+		var name string
+		var modeStr string
+		if err := parseMessageParams(msg, &name, &modeStr); err != nil {
+			return err
+		}
+
+		if casemapASCII(name) == dc.nickCM {
+			dc.forEachUpstream(func(uc *upstreamConn) {
+				uc.SendMessageLabeled(dc.id, &irc.Message{
+					Command: "SAMODE",
+					Params:  []string{uc.nick, modeStr},
+				})
+			})
+			return nil
+		}
+
+		uc, upstreamName, err := dc.unmarshalEntity(name)
+		if err != nil {
+			return err
+		}
+
+		params := []string{upstreamName, modeStr}
+		params = append(params, msg.Params[2:]...)
+		uc.SendMessageLabeled(dc.id, &irc.Message{
+			Command: "SAMODE",
+			Params:  params,
+		})
+	case "TOPIC", "SATOPIC":
 		var channel string
 		if err := parseMessageParams(msg, &channel); err != nil {
 			return err
@@ -1459,10 +1608,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if len(msg.Params) > 1 { // setting topic
 			topic := msg.Params[1]
 			uc.SendMessageLabeled(dc.id, &irc.Message{
-				Command: "TOPIC",
+				Command: msg.Command,
 				Params:  []string{upstreamName, topic},
 			})
 		} else { // getting topic
+			if msg.Command == "SATOPIC" {
+				return newNeedMoreParamsError("SATOPIC")
+			}
 			ch := uc.channels.Value(upstreamName)
 			if ch == nil {
 				return ircError{&irc.Message{
