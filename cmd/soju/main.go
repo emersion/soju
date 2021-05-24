@@ -61,7 +61,7 @@ func main() {
 		cfg.Listen = []string{":6697"}
 	}
 
-	db, err := soju.OpenSQLDB(cfg.SQLDriver, cfg.SQLSource)
+	db, err := soju.OpenSqliteDB(cfg.SQLDriver, cfg.SQLSource)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}

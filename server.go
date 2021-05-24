@@ -56,7 +56,7 @@ type Server struct {
 	AcceptProxyIPs config.IPSet
 	Identd         *Identd // can be nil
 
-	db     *DB
+	db     Database
 	stopWG sync.WaitGroup
 
 	lock      sync.Mutex
@@ -64,7 +64,7 @@ type Server struct {
 	users     map[string]*user
 }
 
-func NewServer(db *DB) *Server {
+func NewServer(db Database) *Server {
 	return &Server{
 		Logger:       log.New(log.Writer(), "", log.LstdFlags),
 		HistoryLimit: 1000,
