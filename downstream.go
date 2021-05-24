@@ -1674,6 +1674,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
+			if dc.network == nil && casemapASCII(name) == dc.nickCM {
+				dc.SendMessage(msg)
+				continue
+			}
+
 			if casemapASCII(name) == serviceNickCM {
 				if dc.caps["echo-message"] {
 					echoTags := tags.Copy()
