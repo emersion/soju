@@ -87,6 +87,7 @@ var needAllDownstreamCaps = map[string]string{
 // This is only effective in single-upstream mode.
 var passthroughIsupport = map[string]bool{
 	"AWAYLEN":    true,
+	"BOT":        true,
 	"CHANLIMIT":  true,
 	"CHANMODES":  true,
 	"CHANNELLEN": true,
