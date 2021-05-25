@@ -529,6 +529,7 @@ func (u *user) run() {
 				}
 
 				dc.updateNick()
+				dc.updateRealname()
 			})
 			uc.network.lastError = nil
 		case eventUpstreamDisconnected:

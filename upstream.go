@@ -29,6 +29,7 @@ var permanentUpstreamCaps = map[string]bool{
 	"message-tags":     true,
 	"multi-prefix":     true,
 	"server-time":      true,
+	"setname":          true,
 }
 
 type registrationError string
@@ -730,6 +731,30 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		} else {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateNick()
+			})
+		}
+	case "SETNAME":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
+		var newRealname string
+		if err := parseMessageParams(msg, &newRealname); err != nil {
+			return err
+		}
+
+		// TODO: consider appending this message to logs
+
+		if uc.isOurNick(msg.Prefix.Name) {
+			uc.logger.Printf("changed realname from %q to %q", uc.realname, newRealname)
+			uc.realname = newRealname
+
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.updateRealname()
+			})
+		} else {
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(dc.marshalMessage(msg, uc.network))
 			})
 		}
 	case "JOIN":

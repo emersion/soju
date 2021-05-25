@@ -122,6 +122,7 @@ var permanentDownstreamCaps = map[string]string{
 	"message-tags":  "",
 	"sasl":          "PLAIN",
 	"server-time":   "",
+	"setname":       "",
 
 	"soju.im/bouncer-networks":        "",
 	"soju.im/bouncer-networks-notify": "",
@@ -154,6 +155,7 @@ var passthroughIsupport = map[string]bool{
 	"MAXLIST":    true,
 	"MAXTARGETS": true,
 	"MODES":      true,
+	"NAMELEN":    true,
 	"NETWORK":    true,
 	"NICKLEN":    true,
 	"PREFIX":     true,
@@ -380,6 +382,9 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	if msg.Command == "JOIN" && !dc.caps["extended-join"] {
 		msg.Params = msg.Params[:1]
 	}
+	if msg.Command == "SETNAME" && !dc.caps["setname"] {
+		return
+	}
 
 	dc.conn.SendMessage(msg)
 }
@@ -459,7 +464,7 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Me
 		msg.Params[1] = dc.marshalEntity(net, msg.Params[1])
 	case "TOPIC":
 		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
-	case "QUIT":
+	case "QUIT", "SETNAME":
 		// This space is intentionally left blank
 	default:
 		panic(fmt.Sprintf("unexpected %q message", msg.Command))
@@ -869,6 +874,17 @@ func (dc *downstreamConn) updateNick() {
 	}
 }
 
+func (dc *downstreamConn) updateRealname() {
+	if uc := dc.upstream(); uc != nil && uc.realname != dc.realname && dc.caps["setname"] {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.prefix(),
+			Command: "SETNAME",
+			Params:  []string{uc.realname},
+		})
+		dc.realname = uc.realname
+	}
+}
+
 func sanityCheckServer(addr string) error {
 	dialer := net.Dialer{Timeout: 30 * time.Second}
 	conn, err := tls.DialWithDialer(&dialer, "tcp", addr, nil)
@@ -1062,6 +1078,7 @@ func (dc *downstreamConn) welcome() error {
 	})
 
 	dc.updateNick()
+	dc.updateRealname()
 	dc.updateSupportedCaps()
 
 	if dc.caps["soju.im/bouncer-networks-notify"] {
@@ -1342,6 +1359,58 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			})
 			dc.nick = nick
 			dc.nickCM = casemapASCII(dc.nick)
+		}
+	case "SETNAME":
+		var realname string
+		if err := parseMessageParams(msg, &realname); err != nil {
+			return err
+		}
+
+		var storeErr error
+		var needUpdate []Network
+		dc.forEachNetwork(func(n *network) {
+			// We only need to call updateNetwork for upstreams that don't
+			// support setname
+			if uc := n.conn; uc != nil && uc.caps["setname"] {
+				uc.SendMessageLabeled(dc.id, &irc.Message{
+					Command: "SETNAME",
+					Params:  []string{realname},
+				})
+
+				n.Realname = realname
+				if err := dc.srv.db.StoreNetwork(dc.user.ID, &n.Network); err != nil {
+					dc.logger.Printf("failed to store network realname: %v", err)
+					storeErr = err
+				}
+				return
+			}
+
+			record := n.Network // copy network record because we'll mutate it
+			record.Realname = realname
+			needUpdate = append(needUpdate, record)
+		})
+
+		// Walk the network list as a second step, because updateNetwork
+		// mutates the original list
+		for _, record := range needUpdate {
+			if _, err := dc.user.updateNetwork(&record); err != nil {
+				dc.logger.Printf("failed to update network realname: %v", err)
+				storeErr = err
+			}
+		}
+		if storeErr != nil {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"SETNAME", "CANNOT_CHANGE_REALNAME", "Failed to update realname"},
+			}}
+		}
+
+		if dc.upstream() == nil && dc.caps["setname"] {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.prefix(),
+				Command: "SETNAME",
+				Params:  []string{realname},
+			})
 		}
 	case "JOIN":
 		var namesStr string
