@@ -1068,7 +1068,7 @@ func (dc *downstreamConn) welcome() error {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "BATCH",
-			Params:  []string{"+networks", "bouncer-networks"},
+			Params:  []string{"+networks", "soju.im/bouncer-networks"},
 		})
 		dc.user.forEachNetwork(func(network *network) {
 			idStr := fmt.Sprintf("%v", network.ID)
@@ -2047,7 +2047,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BATCH",
-				Params:  []string{"+networks", "bouncer-networks"},
+				Params:  []string{"+networks", "soju.im/bouncer-networks"},
 			})
 			dc.user.forEachNetwork(func(network *network) {
 				idStr := fmt.Sprintf("%v", network.ID)

@@ -27,9 +27,9 @@ implementing a compatible work-in-progress version.
 
 ## Description
 
-This document describes the `bouncer-networks` extension. This enables clients
-to discover servers that are bouncers, list and edit upstream networks the
-bouncer is connected to.
+This document describes the `soju.im/bouncer-networks` extension. This enables
+clients to discover servers that are bouncers, list and edit upstream networks
+the bouncer is connected to.
 
 Each network has a unique per-user ID called "netid". It MUST NOT change during
 the lifetime of the network. TODO: character restrictions for network IDs.
@@ -39,14 +39,15 @@ format. Clients MUST ignore unknown attributes.
 
 ## Implementation
 
-The `bouncer-networks` extension defines a new `RPL_ISUPPORT` token and a new
-`BOUNCER` command.
+The `soju.im/bouncer-networks` extension defines a new `RPL_ISUPPORT` token and
+a new `BOUNCER` command.
 
-The `bouncer-networks` capability MUST be negociated. This allows the server and
-client to behave differently when the client is aware of the bouncer networks.
+The `soju.im/bouncer-networks` capability MUST be negociated. This allows the
+server and client to behave differently when the client is aware of the bouncer
+networks.
 
-The `bouncer-networks-notify` capability MAY be negociated. This allows the
-client to signal that it is capable of receiving and correctly processing
+The `soju.im/bouncer-networks-notify` capability MAY be negociated. This allows
+the client to signal that it is capable of receiving and correctly processing
 bouncer network notifications.
 
 ### `RPL_ISUPPORT` token
@@ -54,10 +55,10 @@ bouncer network notifications.
 The server can advertise a `BOUNCER_NETID` token in its `RPL_ISUPPORT` message.
 Its optional value is the network ID bound for the current connection.
 
-### `bouncer-networks` batch
+### `soju.im/bouncer-networks` batch
 
-The `bouncer-networks` batch does not take any parameter and can only contain
-`BOUNCER NETWORK` messages.
+The `soju.im/bouncer-networks` batch does not take any parameter and can only
+contain `BOUNCER NETWORK` messages.
 
 ### `BOUNCER` command
 
@@ -79,8 +80,8 @@ The `LISTNETWORKS` subcommand queries the list of upstream networks.
 
     BOUNCER LISTNETWORKS
 
-The server replies with a `bouncer-networks` batch, containing any number of
-`BOUNCER NETWORK` messages:
+The server replies with a `soju.im/bouncer-networks` batch, containing any
+number of `BOUNCER NETWORK` messages:
 
     BOUNCER NETWORK <netid> <attributes>
 
@@ -134,17 +135,17 @@ On success, the server replies with:
 
 ### Network notifications
 
-If the client has negociated the `bouncer-networks-notify` capability, the
-server MUST send an initial batch of `BOUNCER NETWORK` messages with the current
-list of network, and MUST send notification messages whenever a network is
-added, updated or removed.
+If the client has negociated the `soju.im/bouncer-networks-notify` capability,
+the server MUST send an initial batch of `BOUNCER NETWORK` messages with the
+current list of network, and MUST send notification messages whenever a network
+is added, updated or removed.
 
-If the client has not negociated the `bouncer-networks-notify` capability, the
-server MUST NOT send implicit `BOUNCER NETWORK` messages.
+If the client has not negociated the `soju.im/bouncer-networks-notify`
+capability, the server MUST NOT send implicit `BOUNCER NETWORK` messages.
 
 When network attributes are updated, the bouncer MUST broadcast a
 `BOUNCER NETWORK` message with the updated attributes to all connected clients
-with the `bouncer-networks-notify` capability enabled:
+with the `soju.im/bouncer-networks-notify` capability enabled:
 
     BOUNCER NETWORK <netid> <attributes>
 
@@ -152,7 +153,7 @@ The notification SHOULD NOT contain attributes that haven't been updated.
 
 When a network is removed, the bouncer MUST broadcast a `BOUNCER NETWORK`
 message with the special argument `*` to all connected clients with the
-`bouncer-networks-notify` capability enabled:
+`soju.im/bouncer-networks-notify` capability enabled:
 
     BOUNCER NETWORK <netid> *
 
@@ -250,8 +251,8 @@ Binding to a network:
     C: CAP LS 302
     C: NICK emersion
     C: USER emersion 0 0 :Simon
-    S: CAP * LS :sasl=PLAIN bouncer-networks bouncer-networks-notify
-    C: CAP REQ :sasl bouncer-networks
+    S: CAP * LS :sasl=PLAIN soju.im/bouncer-networks soju.im/bouncer-networks-notify
+    C: CAP REQ :sasl soju.im/bouncer-networks
     [SASL authentication]
     C: BOUNCER BIND 42
     C: CAP END
@@ -259,7 +260,7 @@ Binding to a network:
 Listing networks:
 
     C: BOUNCER LISTNETWORKS
-    S: BATCH +asdf bouncer-networks
+    S: BATCH +asdf soju.im/bouncer-networks
     S: @batch=asdf BOUNCER NETWORK 42 name=Freenode;state=connected
     S: @batch=asdf BOUNCER NETWORK 43 name=My\sAwesome\sNetwork;state=disconnected
     S: BATCH -asdf
