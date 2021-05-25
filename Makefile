@@ -20,7 +20,7 @@ doc/soju.1: doc/soju.1.scd
 
 clean:
 	$(RM) -rf soju sojuctl doc/soju.1
-install: all
+install:
 	mkdir -p $(DESTDIR)$(PREFIX)/$(BINDIR)
 	mkdir -p $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
 	mkdir -p $(DESTDIR)/etc/soju
