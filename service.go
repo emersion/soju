@@ -221,6 +221,11 @@ func init() {
 		},
 		"channel": {
 			children: serviceCommandSet{
+				"status": {
+					usage:  "[-network name]",
+					desc:   "show a list of saved channels and their current status",
+					handle: handleServiceChannelStatus,
+				},
 				"update": {
 					usage:  "<name> [-relay-detached <default|none|highlight|message>] [-reattach-on <default|none|highlight|message>] [-detach-after <duration>] [-detach-on <default|none|highlight|message>]",
 					desc:   "update a channel",
@@ -704,6 +709,64 @@ func handleUserDelete(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("deleted user %q", username))
+	return nil
+}
+
+func handleServiceChannelStatus(dc *downstreamConn, params []string) error {
+	var defaultNetworkName string
+	if dc.network != nil {
+		defaultNetworkName = dc.network.GetName()
+	}
+
+	fs := newFlagSet()
+	networkName := fs.String("network", defaultNetworkName, "")
+
+	if err := fs.Parse(params); err != nil {
+		return err
+	}
+
+	sendNetwork := func(net *network) {
+		for _, entry := range net.channels.innerMap {
+			ch := entry.value.(*Channel)
+
+			var uch *upstreamChannel
+			if net.conn != nil {
+				uch = net.conn.channels.Value(ch.Name)
+			}
+
+			name := ch.Name
+			if *networkName == "" {
+				name += "/" + net.GetName()
+			}
+
+			var status string
+			if uch != nil {
+				status = "joined"
+			} else if net.conn != nil {
+				status = "parted"
+			} else {
+				status = "disconnected"
+			}
+
+			if ch.Detached {
+				status += ", detached"
+			}
+
+			s := fmt.Sprintf("%v [%v]", name, status)
+			sendServicePRIVMSG(dc, s)
+		}
+	}
+
+	if *networkName == "" {
+		dc.user.forEachNetwork(sendNetwork)
+	} else {
+		net := dc.user.getNetwork(*networkName)
+		if net == nil {
+			return fmt.Errorf("unknown network %q", *networkName)
+		}
+		sendNetwork(net)
+	}
+
 	return nil
 }
 

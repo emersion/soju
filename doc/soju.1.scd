@@ -186,6 +186,15 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *network status*
 	Show a list of saved networks and their current status.
 
+*channel status* [options...]
+	Show a list of saved channels and their current status.
+
+	Options:
+
+	*-network* <name>
+		Only show channels for the specified network. By default, only the
+		channels in the current network are displayed.
+
 *channel update* <name> [options...]
 	Update the options of an existing channel.
 
