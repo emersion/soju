@@ -8,6 +8,8 @@ Also see the [IRCv3 support tables] for a more general list of clients.
 
 gamja has been designed together with soju, so should have excellent
 integration. gamja supports many IRCv3 features including chat history.
+gamja also provides UI to manage soju networks via the
+`soju.im/bouncer-networks` extension.
 
 # [senpai]
 
