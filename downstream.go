@@ -1435,6 +1435,15 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				key = keys[i]
 			}
 
+			if !uc.isChannel(upstreamName) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.ERR_NOSUCHCHANNEL,
+					Params:  []string{name, "Not a channel name"},
+				})
+				continue
+			}
+
 			params := []string{upstreamName}
 			if key != "" {
 				params = append(params, key)
