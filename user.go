@@ -534,7 +534,7 @@ func (u *user) run() {
 					dc.SendMessage(&irc.Message{
 						Prefix:  dc.srv.prefix(),
 						Command: "BOUNCER",
-						Params:  []string{"NETWORK", netIDStr, "status=connected"},
+						Params:  []string{"NETWORK", netIDStr, "state=connected"},
 					})
 				}
 			})
@@ -670,7 +670,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
-				Params:  []string{"NETWORK", netIDStr, "status=disconnected"},
+				Params:  []string{"NETWORK", netIDStr, "state=disconnected"},
 			})
 		}
 	})
