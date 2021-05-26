@@ -522,18 +522,21 @@ func (u *user) run() {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateSupportedCaps()
 
+				if !dc.caps["soju.im/bouncer-networks"] {
+					sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
+				}
+
+				dc.updateNick()
+				dc.updateRealname()
+			})
+			u.forEachDownstream(func(dc *downstreamConn) {
 				if dc.caps["soju.im/bouncer-networks-notify"] {
 					dc.SendMessage(&irc.Message{
 						Prefix:  dc.srv.prefix(),
 						Command: "BOUNCER",
 						Params:  []string{"NETWORK", netIDStr, "status=connected"},
 					})
-				} else if !dc.caps["soju.im/bouncer-networks"] {
-					sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
 				}
-
-				dc.updateNick()
-				dc.updateRealname()
 			})
 			uc.network.lastError = nil
 		case eventUpstreamDisconnected:
@@ -661,7 +664,8 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	netIDStr := fmt.Sprintf("%v", uc.network.ID)
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		dc.updateSupportedCaps()
-
+	})
+	u.forEachDownstream(func(dc *downstreamConn) {
 		if dc.caps["soju.im/bouncer-networks-notify"] {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
