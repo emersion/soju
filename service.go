@@ -432,6 +432,7 @@ func handleServiceNetworkCreate(dc *downstreamConn, params []string) error {
 }
 
 func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
+	n := 0
 	dc.user.forEachNetwork(func(net *network) {
 		var statuses []string
 		var details string
@@ -465,7 +466,14 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 			s += ": " + details
 		}
 		sendServicePRIVMSG(dc, s)
+
+		n++
 	})
+
+	if n == 0 {
+		sendServicePRIVMSG(dc, `No network configured, add one with "network create".`)
+	}
+
 	return nil
 }
 
@@ -754,6 +762,8 @@ func handleServiceChannelStatus(dc *downstreamConn, params []string) error {
 		return err
 	}
 
+	n := 0
+
 	sendNetwork := func(net *network) {
 		for _, entry := range net.channels.innerMap {
 			ch := entry.value.(*Channel)
@@ -783,6 +793,8 @@ func handleServiceChannelStatus(dc *downstreamConn, params []string) error {
 
 			s := fmt.Sprintf("%v [%v]", name, status)
 			sendServicePRIVMSG(dc, s)
+
+			n++
 		}
 	}
 
@@ -794,6 +806,10 @@ func handleServiceChannelStatus(dc *downstreamConn, params []string) error {
 			return fmt.Errorf("unknown network %q", *networkName)
 		}
 		sendNetwork(net)
+	}
+
+	if n == 0 {
+		sendServicePRIVMSG(dc, "No channel configured.")
 	}
 
 	return nil
