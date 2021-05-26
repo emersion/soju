@@ -34,6 +34,7 @@ CREATE TABLE Network (
 	sasl_plain_password VARCHAR(255),
 	sasl_external_cert BLOB DEFAULT NULL,
 	sasl_external_key BLOB DEFAULT NULL,
+	enabled INTEGER NOT NULL DEFAULT 1,
 	FOREIGN KEY(user) REFERENCES User(id),
 	UNIQUE(user, addr, nick),
 	UNIQUE(user, name)
@@ -131,6 +132,7 @@ var sqliteMigrations = []string{
 		);
 	`,
 	"ALTER TABLE Channel ADD COLUMN detached_internal_msgid VARCHAR(255)",
+	"ALTER TABLE Network ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
 }
 
 type SqliteDB struct {
@@ -312,7 +314,7 @@ func (db *SqliteDB) ListNetworks(userID int64) ([]Network, error) {
 
 	rows, err := db.db.Query(`SELECT id, name, addr, nick, username, realname, pass,
 			connect_commands, sasl_mechanism, sasl_plain_username, sasl_plain_password,
-			sasl_external_cert, sasl_external_key
+			sasl_external_cert, sasl_external_key, enabled
 		FROM Network
 		WHERE user = ?`,
 		userID)
@@ -328,7 +330,7 @@ func (db *SqliteDB) ListNetworks(userID int64) ([]Network, error) {
 		var saslMechanism, saslPlainUsername, saslPlainPassword sql.NullString
 		err := rows.Scan(&net.ID, &name, &net.Addr, &net.Nick, &username, &realname,
 			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword,
-			&net.SASL.External.CertBlob, &net.SASL.External.PrivKeyBlob)
+			&net.SASL.External.CertBlob, &net.SASL.External.PrivKeyBlob, &net.Enabled)
 		if err != nil {
 			return nil, err
 		}
@@ -382,21 +384,21 @@ func (db *SqliteDB) StoreNetwork(userID int64, network *Network) error {
 		_, err = db.db.Exec(`UPDATE Network
 			SET name = ?, addr = ?, nick = ?, username = ?, realname = ?, pass = ?, connect_commands = ?,
 				sasl_mechanism = ?, sasl_plain_username = ?, sasl_plain_password = ?,
-				sasl_external_cert = ?, sasl_external_key = ?
+				sasl_external_cert = ?, sasl_external_key = ?, enabled = ?
 			WHERE id = ?`,
 			netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword,
-			network.SASL.External.CertBlob, network.SASL.External.PrivKeyBlob,
+			network.SASL.External.CertBlob, network.SASL.External.PrivKeyBlob, network.Enabled,
 			network.ID)
 	} else {
 		var res sql.Result
 		res, err = db.db.Exec(`INSERT INTO Network(user, name, addr, nick, username,
 				realname, pass, connect_commands, sasl_mechanism, sasl_plain_username,
-				sasl_plain_password, sasl_external_cert, sasl_external_key)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				sasl_plain_password, sasl_external_cert, sasl_external_key, enabled)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			userID, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
-			network.SASL.External.PrivKeyBlob)
+			network.SASL.External.PrivKeyBlob, network.Enabled)
 		if err != nil {
 			return err
 		}

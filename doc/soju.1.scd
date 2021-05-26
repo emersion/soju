@@ -158,6 +158,10 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		Connect with the specified nickname. By default, the account's username
 		is used.
 
+	*-enabled* true|false
+		Enable or disable the network. If the network is disabled, the bouncer
+		won't connect to it. By default, the network is enabled.
+
 	*-connect-command* <command>
 		Send the specified command as a raw IRC message right after connecting
 		to the server. This can be used to identify to an account when the

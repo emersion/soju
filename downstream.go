@@ -1001,8 +1001,9 @@ func (dc *downstreamConn) loadNetwork() error {
 		dc.logger.Printf("auto-saving network %q", dc.networkName)
 		var err error
 		network, err = dc.user.createNetwork(&Network{
-			Addr: dc.networkName,
-			Nick: nick,
+			Addr:    dc.networkName,
+			Nick:    nick,
+			Enabled: true,
 		})
 		if err != nil {
 			return err
@@ -2174,6 +2175,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Username: username,
 				Realname: realname,
 				Pass:     pass,
+				Enabled:  true,
 			}
 			network, err := dc.user.createNetwork(record)
 			if err != nil {

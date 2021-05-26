@@ -181,6 +181,7 @@ func main() {
 			n.Username = netIdent
 			n.Realname = netRealname
 			n.Pass = pass
+			n.Enabled = section.Values.Get("IRCConnectEnabled") != "false"
 
 			if err := db.StoreNetwork(userID, n); err != nil {
 				logger.Fatalf("failed to store network: %v", err)

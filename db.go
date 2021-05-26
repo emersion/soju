@@ -60,6 +60,7 @@ type Network struct {
 	Pass            string
 	ConnectCommands []string
 	SASL            SASL
+	Enabled         bool
 }
 
 func (net *Network) GetName() string {

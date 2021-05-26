@@ -18,6 +18,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -149,7 +150,7 @@ func init() {
 		"network": {
 			children: serviceCommandSet{
 				"create": {
-					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-connect-command command]...",
+					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-enabled enabled] [-connect-command command]...",
 					desc:   "add a new network",
 					handle: handleServiceNetworkCreate,
 				},
@@ -158,7 +159,7 @@ func init() {
 					handle: handleServiceNetworkStatus,
 				},
 				"update": {
-					usage:  "<name> [-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-connect-command command]...",
+					usage:  "<name> [-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-enabled enabled] [-connect-command command]...",
 					desc:   "update a network",
 					handle: handleServiceNetworkUpdate,
 				},
@@ -317,9 +318,30 @@ func (f stringPtrFlag) Set(s string) error {
 	return nil
 }
 
+type boolPtrFlag struct {
+	ptr **bool
+}
+
+func (f boolPtrFlag) String() string {
+	if f.ptr == nil || *f.ptr == nil {
+		return "<nil>"
+	}
+	return strconv.FormatBool(**f.ptr)
+}
+
+func (f boolPtrFlag) Set(s string) error {
+	v, err := strconv.ParseBool(s)
+	if err != nil {
+		return err
+	}
+	*f.ptr = &v
+	return nil
+}
+
 type networkFlagSet struct {
 	*flag.FlagSet
 	Addr, Name, Nick, Username, Pass, Realname *string
+	Enabled                                    *bool
 	ConnectCommands                            []string
 }
 
@@ -331,6 +353,7 @@ func newNetworkFlagSet() *networkFlagSet {
 	fs.Var(stringPtrFlag{&fs.Username}, "username", "")
 	fs.Var(stringPtrFlag{&fs.Pass}, "pass", "")
 	fs.Var(stringPtrFlag{&fs.Realname}, "realname", "")
+	fs.Var(boolPtrFlag{&fs.Enabled}, "enabled", "")
 	fs.Var((*stringSliceFlag)(&fs.ConnectCommands), "connect-command", "")
 	return fs
 }
@@ -362,6 +385,9 @@ func (fs *networkFlagSet) update(network *Network) error {
 	if fs.Realname != nil {
 		network.Realname = *fs.Realname
 	}
+	if fs.Enabled != nil {
+		network.Enabled = *fs.Enabled
+	}
 	if fs.ConnectCommands != nil {
 		if len(fs.ConnectCommands) == 1 && fs.ConnectCommands[0] == "" {
 			network.ConnectCommands = nil
@@ -388,8 +414,9 @@ func handleServiceNetworkCreate(dc *downstreamConn, params []string) error {
 	}
 
 	record := &Network{
-		Addr: *fs.Addr,
-		Nick: dc.nick,
+		Addr:    *fs.Addr,
+		Nick:    dc.nick,
+		Enabled: true,
 	}
 	if err := fs.update(record); err != nil {
 		return err
@@ -415,6 +442,8 @@ func handleServiceNetworkStatus(dc *downstreamConn, params []string) error {
 				statuses = append(statuses, "connected")
 			}
 			details = fmt.Sprintf("%v channels", uc.channels.Len())
+		} else if !net.Enabled {
+			statuses = append(statuses, "disabled")
 		} else {
 			statuses = append(statuses, "disconnected")
 			if net.lastError != nil {

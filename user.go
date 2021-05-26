@@ -172,6 +172,10 @@ func userIdent(u *User) string {
 }
 
 func (net *network) run() {
+	if !net.Enabled {
+		return
+	}
+
 	var lastTry time.Time
 	for {
 		if net.isStopped() {
