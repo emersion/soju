@@ -2287,7 +2287,14 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
-		return newUnknownCommandError(msg.Command)
+
+		// Only forward unknown commands in single-upstream mode
+		uc := dc.upstream()
+		if uc == nil {
+			return newUnknownCommandError(msg.Command)
+		}
+
+		uc.SendMessageLabeled(dc.id, msg)
 	}
 	return nil
 }
