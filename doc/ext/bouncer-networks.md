@@ -42,11 +42,11 @@ format. Clients MUST ignore unknown attributes.
 The `soju.im/bouncer-networks` extension defines a new `RPL_ISUPPORT` token and
 a new `BOUNCER` command.
 
-The `soju.im/bouncer-networks` capability MUST be negociated. This allows the
+The `soju.im/bouncer-networks` capability MUST be negotiated. This allows the
 server and client to behave differently when the client is aware of the bouncer
 networks.
 
-The `soju.im/bouncer-networks-notify` capability MAY be negociated. This allows
+The `soju.im/bouncer-networks-notify` capability MAY be negotiated. This allows
 the client to signal that it is capable of receiving and correctly processing
 bouncer network notifications.
 
@@ -135,12 +135,12 @@ On success, the server replies with:
 
 ### Network notifications
 
-If the client has negociated the `soju.im/bouncer-networks-notify` capability,
+If the client has negotiated the `soju.im/bouncer-networks-notify` capability,
 the server MUST send an initial batch of `BOUNCER NETWORK` messages with the
 current list of network, and MUST send notification messages whenever a network
 is added, updated or removed.
 
-If the client has not negociated the `soju.im/bouncer-networks-notify`
+If the client has not negotiated the `soju.im/bouncer-networks-notify`
 capability, the server MUST NOT send implicit `BOUNCER NETWORK` messages.
 
 When network attributes are updated, the bouncer MUST broadcast a
