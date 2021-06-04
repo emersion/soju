@@ -2115,6 +2115,10 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			})
 
 			for _, target := range targets {
+				if ch := uc.network.channels.Value(target.Name); ch != nil && ch.Detached {
+					continue
+				}
+
 				dc.SendMessage(&irc.Message{
 					Tags:    irc.Tags{"batch": irc.TagValue(batchRef)},
 					Prefix:  dc.srv.prefix(),
