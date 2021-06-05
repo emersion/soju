@@ -187,6 +187,8 @@ type downstreamConn struct {
 	supportedCaps   map[string]string
 	caps            map[string]bool
 
+	lastBatchRef uint64
+
 	saslServer sasl.Server
 }
 
@@ -379,6 +381,10 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 			}
 		}
 	}
+	if !dc.caps["batch"] && msg.Tags["batch"] != "" {
+		msg = msg.Copy()
+		delete(msg.Tags, "batch")
+	}
 	if msg.Command == "JOIN" && !dc.caps["extended-join"] {
 		msg.Params = msg.Params[:1]
 	}
@@ -387,6 +393,30 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	}
 
 	dc.conn.SendMessage(msg)
+}
+
+func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, f func(batchRef irc.TagValue)) {
+	dc.lastBatchRef++
+	ref := fmt.Sprintf("%v", dc.lastBatchRef)
+
+	if dc.caps["batch"] {
+		dc.SendMessage(&irc.Message{
+			Tags:    tags,
+			Prefix:  dc.srv.prefix(),
+			Command: "BATCH",
+			Params:  append([]string{"+" + ref, typ}, params...),
+		})
+	}
+
+	f(irc.TagValue(ref))
+
+	if dc.caps["batch"] {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: "BATCH",
+			Params:  []string{"-" + ref},
+		})
+	}
 }
 
 // sendMessageWithID sends an outgoing message with the specified internal ID.
@@ -1083,25 +1113,17 @@ func (dc *downstreamConn) welcome() error {
 	dc.updateSupportedCaps()
 
 	if dc.caps["soju.im/bouncer-networks-notify"] {
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.srv.prefix(),
-			Command: "BATCH",
-			Params:  []string{"+networks", "soju.im/bouncer-networks"},
-		})
-		dc.user.forEachNetwork(func(network *network) {
-			idStr := fmt.Sprintf("%v", network.ID)
-			attrs := getNetworkAttrs(network)
-			dc.SendMessage(&irc.Message{
-				Tags:    irc.Tags{"batch": irc.TagValue("networks")},
-				Prefix:  dc.srv.prefix(),
-				Command: "BOUNCER",
-				Params:  []string{"NETWORK", idStr, attrs.String()},
+		dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef irc.TagValue) {
+			dc.user.forEachNetwork(func(network *network) {
+				idStr := fmt.Sprintf("%v", network.ID)
+				attrs := getNetworkAttrs(network)
+				dc.SendMessage(&irc.Message{
+					Tags:    irc.Tags{"batch": batchRef},
+					Prefix:  dc.srv.prefix(),
+					Command: "BOUNCER",
+					Params:  []string{"NETWORK", idStr, attrs.String()},
+				})
 			})
-		})
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.srv.prefix(),
-			Command: "BATCH",
-			Params:  []string{"-networks"},
 		})
 	}
 
@@ -1192,39 +1214,24 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) 
 		return
 	}
 
-	batchRef := "history"
-	if dc.caps["batch"] {
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.srv.prefix(),
-			Command: "BATCH",
-			Params:  []string{"+" + batchRef, "chathistory", dc.marshalEntity(net, target)},
-		})
-	}
-
-	for _, msg := range history {
-		if !dc.messageSupportsHistory(msg) {
-			continue
-		}
-
-		if ch != nil && ch.Detached {
-			if net.detachedMessageNeedsRelay(ch, msg) {
-				dc.relayDetachedMessage(net, msg)
+	dc.SendBatch("chathistory", []string{dc.marshalEntity(net, target)}, nil, func(batchRef irc.TagValue) {
+		for _, msg := range history {
+			if !dc.messageSupportsHistory(msg) {
+				continue
 			}
-		} else {
-			if dc.caps["batch"] {
-				msg.Tags["batch"] = irc.TagValue(batchRef)
-			}
-			dc.SendMessage(dc.marshalMessage(msg, net))
-		}
-	}
 
-	if dc.caps["batch"] {
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.srv.prefix(),
-			Command: "BATCH",
-			Params:  []string{"-" + batchRef},
-		})
-	}
+			if ch != nil && ch.Detached {
+				if net.detachedMessageNeedsRelay(ch, msg) {
+					dc.relayDetachedMessage(net, msg)
+				}
+			} else {
+				if dc.caps["batch"] {
+					msg.Tags["batch"] = irc.TagValue(batchRef)
+				}
+				dc.SendMessage(dc.marshalMessage(msg, net))
+			}
+		}
+	})
 }
 
 func (dc *downstreamConn) relayDetachedMessage(net *network, msg *irc.Message) {
@@ -2107,30 +2114,19 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				}}
 			}
 
-			batchRef := "history-targets"
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"+" + batchRef, "draft/chathistory-targets"},
-			})
+			dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef irc.TagValue) {
+				for _, target := range targets {
+					if ch := uc.network.channels.Value(target.Name); ch != nil && ch.Detached {
+						continue
+					}
 
-			for _, target := range targets {
-				if ch := uc.network.channels.Value(target.Name); ch != nil && ch.Detached {
-					continue
+					dc.SendMessage(&irc.Message{
+						Tags:    irc.Tags{"batch": batchRef},
+						Prefix:  dc.srv.prefix(),
+						Command: "CHATHISTORY",
+						Params:  []string{"TARGETS", target.Name, target.LatestMessage.UTC().Format(serverTimeLayout)},
+					})
 				}
-
-				dc.SendMessage(&irc.Message{
-					Tags:    irc.Tags{"batch": irc.TagValue(batchRef)},
-					Prefix:  dc.srv.prefix(),
-					Command: "CHATHISTORY",
-					Params:  []string{"TARGETS", target.Name, target.LatestMessage.UTC().Format(serverTimeLayout)},
-				})
-			}
-
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"-" + batchRef},
 			})
 
 			return nil
@@ -2140,22 +2136,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return newChatHistoryError(subcommand, target)
 		}
 
-		batchRef := "history"
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.srv.prefix(),
-			Command: "BATCH",
-			Params:  []string{"+" + batchRef, "chathistory", target},
-		})
-
-		for _, msg := range history {
-			msg.Tags["batch"] = irc.TagValue(batchRef)
-			dc.SendMessage(dc.marshalMessage(msg, uc.network))
-		}
-
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.srv.prefix(),
-			Command: "BATCH",
-			Params:  []string{"-" + batchRef},
+		dc.SendBatch("chathistory", []string{target}, nil, func(batchRef irc.TagValue) {
+			for _, msg := range history {
+				msg.Tags["batch"] = batchRef
+				dc.SendMessage(dc.marshalMessage(msg, uc.network))
+			}
 		})
 	case "BOUNCER":
 		var subcommand string
@@ -2165,25 +2150,17 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 		switch strings.ToUpper(subcommand) {
 		case "LISTNETWORKS":
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"+networks", "soju.im/bouncer-networks"},
-			})
-			dc.user.forEachNetwork(func(network *network) {
-				idStr := fmt.Sprintf("%v", network.ID)
-				attrs := getNetworkAttrs(network)
-				dc.SendMessage(&irc.Message{
-					Tags:    irc.Tags{"batch": irc.TagValue("networks")},
-					Prefix:  dc.srv.prefix(),
-					Command: "BOUNCER",
-					Params:  []string{"NETWORK", idStr, attrs.String()},
+			dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef irc.TagValue) {
+				dc.user.forEachNetwork(func(network *network) {
+					idStr := fmt.Sprintf("%v", network.ID)
+					attrs := getNetworkAttrs(network)
+					dc.SendMessage(&irc.Message{
+						Tags:    irc.Tags{"batch": batchRef},
+						Prefix:  dc.srv.prefix(),
+						Command: "BOUNCER",
+						Params:  []string{"NETWORK", idStr, attrs.String()},
+					})
 				})
-			})
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BATCH",
-				Params:  []string{"-networks"},
 			})
 		case "ADDNETWORK":
 			var attrsStr string
