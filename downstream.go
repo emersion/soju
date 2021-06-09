@@ -1102,6 +1102,13 @@ func (dc *downstreamConn) welcome() error {
 	for _, msg := range generateIsupport(dc.srv.prefix(), dc.nick, isupport) {
 		dc.SendMessage(msg)
 	}
+	if uc := dc.upstream(); uc != nil {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.RPL_UMODEIS,
+			Params:  []string{dc.nick, string(uc.modes)},
+		})
+	}
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
@@ -1601,11 +1608,15 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					})
 				})
 			} else {
-				// TODO: only do this in multi-upstream mode
+				var userMode string
+				if uc := dc.upstream(); uc != nil {
+					userMode = string(uc.modes)
+				}
+
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_UMODEIS,
-					Params:  []string{dc.nick, ""}, // TODO
+					Params:  []string{dc.nick, userMode},
 				})
 			}
 			return nil

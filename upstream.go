@@ -672,11 +672,11 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return nil
 		}
 
-		uc.forEachDownstreamByID(downstreamID, func (dc *downstreamConn) {
-			dc.SendMessage(&irc.Message {
-				Prefix: uc.srv.prefix(),
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+			dc.SendMessage(&irc.Message{
+				Prefix:  uc.srv.prefix(),
 				Command: msg.Command,
-				Params: msg.Params,
+				Params:  msg.Params,
 			})
 		})
 	case "BATCH":
@@ -932,8 +932,18 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			if name != uc.nick {
 				return fmt.Errorf("received MODE message for unknown nick %q", name)
 			}
-			return uc.modes.Apply(modeStr)
-			// TODO: notify downstreams about user mode change?
+
+			if err := uc.modes.Apply(modeStr); err != nil {
+				return err
+			}
+
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				if dc.upstream() == nil {
+					return
+				}
+
+				dc.SendMessage(msg)
+			})
 		} else { // channel mode change
 			ch, err := uc.getChannel(name)
 			if err != nil {
@@ -982,7 +992,14 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		if err := uc.modes.Apply(modeStr); err != nil {
 			return err
 		}
-		// TODO: send RPL_UMODEIS to downstream connections when applicable
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			if dc.upstream() == nil {
+				return
+			}
+
+			dc.SendMessage(msg)
+		})
 	case irc.RPL_CHANNELMODEIS:
 		var channel string
 		if err := parseMessageParams(msg, nil, &channel); err != nil {
@@ -1442,11 +1459,11 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return nil
 		}
 
-		uc.forEachDownstreamByID(downstreamID, func (dc *downstreamConn) {
-			dc.SendMessage(&irc.Message {
-				Prefix: uc.srv.prefix(),
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+			dc.SendMessage(&irc.Message{
+				Prefix:  uc.srv.prefix(),
 				Command: msg.Command,
-				Params: msg.Params,
+				Params:  msg.Params,
 			})
 		})
 	case irc.RPL_LISTSTART:
