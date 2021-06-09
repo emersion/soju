@@ -103,6 +103,8 @@ type upstreamConn struct {
 
 	// set of LIST commands in progress, per downstream
 	pendingLISTDownstreamSet map[uint64]struct{}
+
+	gotMotd bool
 }
 
 func connectToUpstream(network *network) (*upstreamConn, error) {
@@ -662,6 +664,21 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			uc.network.updateCasemapping(casemapRFC1459)
 			uc.nickCM = uc.network.casemap(uc.nick)
 		}
+
+		if !uc.gotMotd {
+			// Ignore the initial MOTD upon connection, but forward
+			// subsequent MOTD messages downstream
+			uc.gotMotd = true
+			return nil
+		}
+
+		uc.forEachDownstreamByID(downstreamID, func (dc *downstreamConn) {
+			dc.SendMessage(&irc.Message {
+				Prefix: uc.srv.prefix(),
+				Command: msg.Command,
+				Params: msg.Params,
+			})
+		})
 	case "BATCH":
 		var tag string
 		if err := parseMessageParams(msg, &tag); err != nil {
@@ -1421,7 +1438,17 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
 		// Ignore
 	case irc.RPL_MOTDSTART, irc.RPL_MOTD:
-		// Ignore
+		if !uc.gotMotd {
+			return nil
+		}
+
+		uc.forEachDownstreamByID(downstreamID, func (dc *downstreamConn) {
+			dc.SendMessage(&irc.Message {
+				Prefix: uc.srv.prefix(),
+				Command: msg.Command,
+				Params: msg.Params,
+			})
+		})
 	case irc.RPL_LISTSTART:
 		// Ignore
 	case rpl_localusers, rpl_globalusers:

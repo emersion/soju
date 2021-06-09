@@ -1105,7 +1105,7 @@ func (dc *downstreamConn) welcome() error {
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
-		Params:  []string{dc.nick, "No MOTD"},
+		Params:  []string{dc.nick, "Use /motd to read the message of the day"},
 	})
 
 	dc.updateNick()
