@@ -1601,12 +1601,18 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 		if casemapASCII(name) == dc.nickCM {
 			if modeStr != "" {
-				dc.forEachUpstream(func(uc *upstreamConn) {
+				if uc := dc.upstream(); uc != nil {
 					uc.SendMessageLabeled(dc.id, &irc.Message{
 						Command: "MODE",
 						Params:  []string{uc.nick, modeStr},
 					})
-				})
+				} else {
+					dc.SendMessage(&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: irc.ERR_UMODEUNKNOWNFLAG,
+						Params:  []string{dc.nick, "Cannot change user mode in multi-upstream mode"},
+					})
+				}
 			} else {
 				var userMode string
 				if uc := dc.upstream(); uc != nil {
