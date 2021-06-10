@@ -1102,7 +1102,9 @@ func (dc *downstreamConn) welcome() error {
 	for _, msg := range generateIsupport(dc.srv.prefix(), dc.nick, isupport) {
 		dc.SendMessage(msg)
 	}
+	motdHint := "No MOTD"
 	if uc := dc.upstream(); uc != nil {
+		motdHint = "Use /motd to read the message of the day"
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_UMODEIS,
@@ -1112,7 +1114,7 @@ func (dc *downstreamConn) welcome() error {
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.ERR_NOMOTD,
-		Params:  []string{dc.nick, "Use /motd to read the message of the day"},
+		Params:  []string{dc.nick, motdHint},
 	})
 
 	dc.updateNick()
