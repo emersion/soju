@@ -112,6 +112,9 @@ The following directives are supported:
 	List of allowed HTTP origins for WebSocket listeners. The parameters are
 	interpreted as shell patterns, see *glob*(7).
 
+	By default, only the request host is authorized. Use this directive to
+	enable cross-origin WebSockets.
+
 *accept-proxy-ip* <cidr...>
 	Allow the specified IPs to act as a proxy. Proxys have the ability to
 	overwrite the remote and local connection addresses (via the X-Forwarded-\*
