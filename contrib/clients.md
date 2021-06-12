@@ -27,7 +27,12 @@ supported capabilities as of WeeChat 3.1:
 
 See `/help cap` for more information.
 
+A [Weechat script] is available to provide better integration with soju.
+The script will automatically connect to all of your networks once a
+single connection to soju is set up in Weechat.
+
 [IRCv3 support tables]: https://ircv3.net/software/clients
 [gamja]: https://sr.ht/~emersion/gamja/
 [senpai]: https://sr.ht/~taiite/senpai/
 [Weechat]: https://weechat.org/
+[Weechat script]: https://github.com/weechat/scripts/blob/master/python/soju.py
