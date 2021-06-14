@@ -21,6 +21,7 @@ import (
 // permanentUpstreamCaps is the static list of upstream capabilities always
 // requested when supported.
 var permanentUpstreamCaps = map[string]bool{
+	"account-tag":      true,
 	"away-notify":      true,
 	"batch":            true,
 	"extended-join":    true,
@@ -94,6 +95,7 @@ type upstreamConn struct {
 	caps          map[string]bool
 	batches       map[string]batch
 	away          bool
+	account       string
 	nextLabelID   uint64
 
 	saslClient  sasl.Client
@@ -534,12 +536,12 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			Params:  []string{respStr},
 		})
 	case irc.RPL_LOGGEDIN:
-		var account string
-		if err := parseMessageParams(msg, nil, nil, &account); err != nil {
+		if err := parseMessageParams(msg, nil, nil, &uc.account); err != nil {
 			return err
 		}
-		uc.logger.Printf("logged in with account %q", account)
+		uc.logger.Printf("logged in with account %q", uc.account)
 	case irc.RPL_LOGGEDOUT:
+		uc.account = ""
 		uc.logger.Printf("logged out")
 	case irc.ERR_NICKLOCKED, irc.RPL_SASLSUCCESS, irc.ERR_SASLFAIL, irc.ERR_SASLTOOLONG, irc.ERR_SASLABORTED:
 		var info string

@@ -131,6 +131,7 @@ var permanentDownstreamCaps = map[string]string{
 // needAllDownstreamCaps is the list of downstream capabilities that
 // require support from all upstreams to be enabled
 var needAllDownstreamCaps = map[string]string{
+	"account-tag":   "",
 	"away-notify":   "",
 	"extended-join": "",
 	"multi-prefix":  "",
@@ -375,6 +376,8 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 			switch name {
 			case "time":
 				supported = dc.caps["server-time"]
+			case "account":
+				supported = dc.caps["account"]
 			}
 			if !supported {
 				delete(msg.Tags, name)
@@ -1950,6 +1953,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 			echoTags := tags.Copy()
 			echoTags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
+			if uc.account != "" {
+				echoTags["account"] = irc.TagValue(uc.account)
+			}
 			echoMsg := &irc.Message{
 				Tags: echoTags,
 				Prefix: &irc.Prefix{
