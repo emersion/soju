@@ -129,12 +129,12 @@ func (ms *fsMessageStore) Append(network *network, entity string, msg *irc.Messa
 		}
 
 		dir := filepath.Dir(path)
-		if err := os.MkdirAll(dir, 0700); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return "", fmt.Errorf("failed to create message logs directory %q: %v", dir, err)
 		}
 
 		var err error
-		f, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
+		f, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
 			return "", fmt.Errorf("failed to open message log file %q: %v", path, err)
 		}
