@@ -164,6 +164,7 @@ var passthroughIsupport = map[string]bool{
 	"TARGMAX":    true,
 	"TOPICLEN":   true,
 	"USERLEN":    true,
+	"UTF8ONLY":   true,
 }
 
 type downstreamConn struct {
