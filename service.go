@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
-	"github.com/google/shlex"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
 )
@@ -63,10 +63,63 @@ func sendServicePRIVMSG(dc *downstreamConn, text string) {
 	})
 }
 
+func splitWords(s string) ([]string, error) {
+	var words []string
+	var lastWord strings.Builder
+	escape := false
+	prev := ' '
+	wordDelim := ' '
+
+	for _, r := range s {
+		if escape {
+			// last char was a backslash, write the byte as-is.
+			lastWord.WriteRune(r)
+			escape = false
+		} else if r == '\\' {
+			escape = true
+		} else if wordDelim == ' ' && unicode.IsSpace(r) {
+			// end of last word
+			if !unicode.IsSpace(prev) {
+				words = append(words, lastWord.String())
+				lastWord.Reset()
+			}
+		} else if r == wordDelim {
+			// wordDelim is either " or ', switch back to
+			// space-delimited words.
+			wordDelim = ' '
+		} else if r == '"' || r == '\'' {
+			if wordDelim == ' ' {
+				// start of (double-)quoted word
+				wordDelim = r
+			} else {
+				// either wordDelim is " and r is ' or vice-versa
+				lastWord.WriteRune(r)
+			}
+		} else {
+			lastWord.WriteRune(r)
+		}
+
+		prev = r
+	}
+
+	if !unicode.IsSpace(prev) {
+		words = append(words, lastWord.String())
+	}
+
+	if wordDelim != ' ' {
+		return nil, fmt.Errorf("unterminated quoted string")
+	}
+	if escape {
+		return nil, fmt.Errorf("unterminated backslash sequence")
+	}
+
+	return words, nil
+}
+
 func handleServicePRIVMSG(dc *downstreamConn, text string) {
-	words, err := shlex.Split(text)
+	words, err := splitWords(text)
 	if err != nil {
-		sendServicePRIVMSG(dc, fmt.Sprintf("error: failed to parse command: %v", err))
+		sendServicePRIVMSG(dc, fmt.Sprintf(`error: failed to parse command: %v`, err))
 		return
 	}
 
