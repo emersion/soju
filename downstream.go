@@ -109,8 +109,8 @@ func getNetworkAttrs(network *network) irc.Tags {
 }
 
 // ' ' and ':' break the IRC message wire format, '@' and '!' break prefixes,
-// '*' and '?' break masks
-const illegalNickChars = " :@!*?"
+// '*' and '?' break masks, '$' breaks server masks in PRIVMSG/NOTICE
+const illegalNickChars = " :@!*?$"
 
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
