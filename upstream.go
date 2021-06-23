@@ -1455,8 +1455,14 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
-		// Ignore
+		fallthrough
+	case irc.RPL_STATSVLINE, rpl_statsping, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
+		fallthrough
+	case rpl_localusers, rpl_globalusers:
+		fallthrough
 	case irc.RPL_MOTDSTART, irc.RPL_MOTD:
+		// Ignore these messages if they're part of the initial registration
+		// message burst. Forward them if the user explicitly asked for them.
 		if !uc.gotMotd {
 			return nil
 		}
@@ -1469,10 +1475,6 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			})
 		})
 	case irc.RPL_LISTSTART:
-		// Ignore
-	case rpl_localusers, rpl_globalusers:
-		// Ignore
-	case irc.RPL_STATSVLINE, rpl_statsping, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
 		// Ignore
 	case "ERROR":
 		var text string
