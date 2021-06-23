@@ -124,6 +124,14 @@ func (s *Server) createUser(user *User) (*user, error) {
 	return s.addUserLocked(user), nil
 }
 
+func (s *Server) forEachUser(f func(*user)) {
+	s.lock.Lock()
+	for _, u := range s.users {
+		f(u)
+	}
+	s.lock.Unlock()
+}
+
 func (s *Server) getUser(name string) *user {
 	s.lock.Lock()
 	u := s.users[name]

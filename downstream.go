@@ -1913,6 +1913,33 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
+			if name == "$"+dc.srv.Hostname || (name == "$*" && dc.network == nil) {
+				// "$" means a server mask follows. If it's the bouncer's
+				// hostname, broadcast the message to all bouncer users.
+				if !dc.user.Admin {
+					return ircError{&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: irc.ERR_BADMASK,
+						Params:  []string{dc.nick, name, "Permission denied to broadcast message to all bouncer users"},
+					}}
+				}
+
+				dc.logger.Printf("broadcasting bouncer-wide %v: %v", msg.Command, text)
+
+				broadcastTags := tags.Copy()
+				broadcastTags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
+				broadcastMsg := &irc.Message{
+					Tags:    broadcastTags,
+					Prefix:  servicePrefix,
+					Command: msg.Command,
+					Params:  []string{name, text},
+				}
+				dc.srv.forEachUser(func(u *user) {
+					u.events <- eventBroadcast{broadcastMsg}
+				})
+				continue
+			}
+
 			if dc.network == nil && casemapASCII(name) == dc.nickCM {
 				dc.SendMessage(msg)
 				continue

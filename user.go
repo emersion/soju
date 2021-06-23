@@ -53,6 +53,10 @@ type eventChannelDetach struct {
 	name string
 }
 
+type eventBroadcast struct {
+	msg *irc.Message
+}
+
 type eventStop struct{}
 
 type deliveredClientMap map[string]string // client name -> msg ID
@@ -633,6 +637,11 @@ func (u *user) run() {
 				dc.logger.Printf("failed to handle message %q: %v", msg, err)
 				dc.Close()
 			}
+		case eventBroadcast:
+			msg := e.msg
+			u.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(msg)
+			})
 		case eventStop:
 			u.forEachDownstream(func(dc *downstreamConn) {
 				dc.Close()

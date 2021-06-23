@@ -1768,6 +1768,11 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		return ""
 	}
 
+	// Don't store messages with a server mask target
+	if strings.HasPrefix(entity, "$") {
+		return ""
+	}
+
 	entityCM := uc.network.casemap(entity)
 	if entityCM == "nickserv" {
 		// The messages sent/received from NickServ may contain
