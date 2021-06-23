@@ -46,6 +46,11 @@ be done by adding a "@<client>" suffix to the username.
 
 soju will reload the TLS certificate and key when it receives the HUP signal.
 
+Administrators can broadcast a message to all bouncer users via _/notice
+$<hostname> <text>_, or via _/notice $\* <text>_ in multi-upstream mode. All
+currently connected bouncer users will receive the message from the special
+_BouncerServ_ service.
+
 # OPTIONS
 
 *-h, -help*
