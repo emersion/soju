@@ -1905,7 +1905,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Command: "WHOIS",
 			Params:  params,
 		})
-	case "PRIVMSG":
+	case "PRIVMSG", "NOTICE":
 		var targetsStr, text string
 		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
 			return err
@@ -1918,14 +1918,14 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				continue
 			}
 
-			if casemapASCII(name) == serviceNickCM {
+			if msg.Command == "PRIVMSG" && casemapASCII(name) == serviceNickCM {
 				if dc.caps["echo-message"] {
 					echoTags := tags.Copy()
 					echoTags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
 					dc.SendMessage(&irc.Message{
 						Tags:    echoTags,
 						Prefix:  dc.prefix(),
-						Command: "PRIVMSG",
+						Command: msg.Command,
 						Params:  []string{name, text},
 					})
 				}
@@ -1938,7 +1938,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return err
 			}
 
-			if uc.network.casemap(upstreamName) == "nickserv" {
+			if msg.Command == "PRIVMSG" && uc.network.casemap(upstreamName) == "nickserv" {
 				dc.handleNickServPRIVMSG(uc, text)
 			}
 
@@ -1948,7 +1948,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 			uc.SendMessageLabeled(dc.id, &irc.Message{
 				Tags:    tags,
-				Command: "PRIVMSG",
+				Command: msg.Command,
 				Params:  []string{upstreamName, unmarshaledText},
 			})
 
@@ -1963,35 +1963,10 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					Name: uc.nick,
 					User: uc.username,
 				},
-				Command: "PRIVMSG",
+				Command: msg.Command,
 				Params:  []string{upstreamName, text},
 			}
 			uc.produce(upstreamName, echoMsg, dc)
-
-			uc.updateChannelAutoDetach(upstreamName)
-		}
-	case "NOTICE":
-		var targetsStr, text string
-		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
-			return err
-		}
-		tags := copyClientTags(msg.Tags)
-
-		for _, name := range strings.Split(targetsStr, ",") {
-			uc, upstreamName, err := dc.unmarshalEntity(name)
-			if err != nil {
-				return err
-			}
-
-			unmarshaledText := text
-			if uc.isChannel(upstreamName) {
-				unmarshaledText = dc.unmarshalText(uc, text)
-			}
-			uc.SendMessageLabeled(dc.id, &irc.Message{
-				Tags:    tags,
-				Command: "NOTICE",
-				Params:  []string{upstreamName, unmarshaledText},
-			})
 
 			uc.updateChannelAutoDetach(upstreamName)
 		}
