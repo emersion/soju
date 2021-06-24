@@ -17,6 +17,11 @@ A user-friendly IRC bouncer.
 
 ## Building and installing
 
+Dependencies:
+
+- Go
+- scdoc (optional, for man pages)
+
 For end users, a `Makefile` is provided:
 
     make
