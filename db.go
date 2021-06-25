@@ -30,6 +30,7 @@ type User struct {
 	ID       int64
 	Username string
 	Password string // hashed
+	Realname string
 	Admin    bool
 }
 
@@ -92,9 +93,12 @@ func (net *Network) GetUsername() string {
 	return net.Nick
 }
 
-func (net *Network) GetRealname() string {
+func GetRealname(user *User, net *Network) string {
 	if net.Realname != "" {
 		return net.Realname
+	}
+	if user.Realname != "" {
+		return user.Realname
 	}
 	return net.Nick
 }

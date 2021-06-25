@@ -254,10 +254,15 @@ func init() {
 		"user": {
 			children: serviceCommandSet{
 				"create": {
-					usage:  "-username <username> -password <password> [-admin]",
+					usage:  "-username <username> -password <password> [-realname <realname>] [-admin]",
 					desc:   "create a new soju user",
 					handle: handleUserCreate,
 					admin:  true,
+				},
+				"update": {
+					usage:  "[-realname <realname>]",
+					desc:   "update the current user",
+					handle: handleUserUpdate,
 				},
 				"delete": {
 					usage:  "<username>",
@@ -266,7 +271,6 @@ func init() {
 					admin:  true,
 				},
 			},
-			admin: true,
 		},
 		"change-password": {
 			usage:  "<new password>",
@@ -751,6 +755,7 @@ func handleUserCreate(dc *downstreamConn, params []string) error {
 	fs := newFlagSet()
 	username := fs.String("username", "", "")
 	password := fs.String("password", "", "")
+	realname := fs.String("realname", "", "")
 	admin := fs.Bool("admin", false, "")
 
 	if err := fs.Parse(params); err != nil {
@@ -771,6 +776,7 @@ func handleUserCreate(dc *downstreamConn, params []string) error {
 	user := &User{
 		Username: *username,
 		Password: string(hashed),
+		Realname: *realname,
 		Admin:    *admin,
 	}
 	if _, err := dc.srv.createUser(user); err != nil {
@@ -778,6 +784,22 @@ func handleUserCreate(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("created user %q", *username))
+	return nil
+}
+
+func handleUserUpdate(dc *downstreamConn, params []string) error {
+	fs := newFlagSet()
+	realname := fs.String("realname", "", "")
+
+	if err := fs.Parse(params); err != nil {
+		return err
+	}
+
+	if err := dc.user.updateRealname(*realname); err != nil {
+		return err
+	}
+
+	sendServicePRIVMSG(dc, fmt.Sprintf("updated user %q", dc.user.Username))
 	return nil
 }
 

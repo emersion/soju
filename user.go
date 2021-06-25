@@ -763,6 +763,12 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 		panic("tried updating a new network")
 	}
 
+	// If the realname is reset to the default, just wipe the per-network
+	// setting
+	if record.Realname == u.Realname {
+		record.Realname = ""
+	}
+
 	if err := u.checkNetwork(record); err != nil {
 		return nil, err
 	}
@@ -853,6 +859,30 @@ func (u *user) deleteNetwork(id int64) error {
 func (u *user) updatePassword(hashed string) error {
 	u.User.Password = hashed
 	return u.srv.db.StoreUser(&u.User)
+}
+
+func (u *user) updateRealname(realname string) error {
+	u.User.Realname = realname
+	if err := u.srv.db.StoreUser(&u.User); err != nil {
+		return fmt.Errorf("failed to update user %q: %v", u.Username, err)
+	}
+
+	// Re-connect to networks which use the default realname
+	var needUpdate []Network
+	u.forEachNetwork(func(net *network) {
+		if net.Realname == "" {
+			needUpdate = append(needUpdate, net.Network)
+		}
+	})
+
+	var netErr error
+	for _, net := range needUpdate {
+		if _, err := u.updateNetwork(&net); err != nil {
+			netErr = err
+		}
+	}
+
+	return netErr
 }
 
 func (u *user) stop() {

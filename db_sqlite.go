@@ -16,7 +16,8 @@ CREATE TABLE User (
 	id INTEGER PRIMARY KEY,
 	username VARCHAR(255) NOT NULL UNIQUE,
 	password VARCHAR(255),
-	admin INTEGER NOT NULL DEFAULT 0
+	admin INTEGER NOT NULL DEFAULT 0,
+	realname VARCHAR(255)
 );
 
 CREATE TABLE Network (
@@ -133,6 +134,7 @@ var sqliteMigrations = []string{
 	`,
 	"ALTER TABLE Channel ADD COLUMN detached_internal_msgid VARCHAR(255)",
 	"ALTER TABLE Network ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
+	"ALTER TABLE User ADD COLUMN realname VARCHAR(255)",
 }
 
 type SqliteDB struct {
@@ -242,12 +244,13 @@ func (db *SqliteDB) GetUser(username string) (*User, error) {
 
 	user := &User{Username: username}
 
-	var password sql.NullString
-	row := db.db.QueryRow("SELECT id, password, admin FROM User WHERE username = ?", username)
-	if err := row.Scan(&user.ID, &password, &user.Admin); err != nil {
+	var password, realname sql.NullString
+	row := db.db.QueryRow("SELECT id, password, admin, realname FROM User WHERE username = ?", username)
+	if err := row.Scan(&user.ID, &password, &user.Admin, &realname); err != nil {
 		return nil, err
 	}
 	user.Password = password.String
+	user.Realname = realname.String
 	return user, nil
 }
 
@@ -256,15 +259,16 @@ func (db *SqliteDB) StoreUser(user *User) error {
 	defer db.lock.Unlock()
 
 	password := toNullString(user.Password)
+	realname := toNullString(user.Realname)
 
 	var err error
 	if user.ID != 0 {
-		_, err = db.db.Exec("UPDATE User SET password = ?, admin = ? WHERE username = ?",
-			password, user.Admin, user.Username)
+		_, err = db.db.Exec("UPDATE User SET password = ?, admin = ?, realname = ? WHERE username = ?",
+			password, user.Admin, realname, user.Username)
 	} else {
 		var res sql.Result
-		res, err = db.db.Exec("INSERT INTO User(username, password, admin) VALUES (?, ?, ?)",
-			user.Username, password, user.Admin)
+		res, err = db.db.Exec("INSERT INTO User(username, password, admin, realname) VALUES (?, ?, ?, ?)",
+			user.Username, password, user.Admin, realname)
 		if err != nil {
 			return err
 		}

@@ -83,8 +83,8 @@ func getNetworkAttrs(network *network) irc.Tags {
 	if network.Username != "" {
 		attrs["username"] = irc.TagValue(network.Username)
 	}
-	if network.Realname != "" {
-		attrs["realname"] = irc.TagValue(network.Realname)
+	if realname := GetRealname(&network.user.User, &network.Network); realname != "" {
+		attrs["realname"] = irc.TagValue(realname)
 	}
 
 	if u, err := network.URL(); err == nil {
@@ -1387,6 +1387,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return err
 		}
 
+		// If the client just resets to the default, just wipe the per-network
+		// preference
+		storeRealname := realname
+		if realname == dc.user.Realname {
+			storeRealname = ""
+		}
+
 		var storeErr error
 		var needUpdate []Network
 		dc.forEachNetwork(func(n *network) {
@@ -1398,7 +1405,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					Params:  []string{realname},
 				})
 
-				n.Realname = realname
+				n.Realname = storeRealname
 				if err := dc.srv.db.StoreNetwork(dc.user.ID, &n.Network); err != nil {
 					dc.logger.Printf("failed to store network realname: %v", err)
 					storeErr = err
@@ -1407,7 +1414,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			record := n.Network // copy network record because we'll mutate it
-			record.Realname = realname
+			record.Realname = storeRealname
 			needUpdate = append(needUpdate, record)
 		})
 
@@ -2222,6 +2229,10 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			username, _ := attrs.GetTag("username")
 			realname, _ := attrs.GetTag("realname")
 			pass, _ := attrs.GetTag("pass")
+
+			if realname == dc.user.Realname {
+				realname = ""
+			}
 
 			// TODO: reject unknown attributes
 

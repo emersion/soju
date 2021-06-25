@@ -1671,7 +1671,7 @@ func (uc *upstreamConn) register() {
 	uc.nick = uc.network.Nick
 	uc.nickCM = uc.network.casemap(uc.nick)
 	uc.username = uc.network.GetUsername()
-	uc.realname = uc.network.GetRealname()
+	uc.realname = GetRealname(&uc.user.User, &uc.network.Network)
 
 	uc.SendMessage(&irc.Message{
 		Command: "CAP",

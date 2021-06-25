@@ -160,7 +160,8 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		Connect with the specified server password.
 
 	*-realname* <realname>
-		Connect with the specified real name. By default, the nickname is used.
+		Connect with the specified real name. By default, the account's realname
+		is used if set, otherwise the network's nickname is used.
 
 	*-nick* <nickname>
 		Connect with the specified nickname. By default, the account's username
@@ -296,8 +297,20 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *sasl reset* <network name>
 	Disable SASL authentication and remove stored credentials.
 
-*user create* -username <username> -password <password> [-admin]
+*user create* -username <username> -password <password> [options...]
 	Create a new soju user. Only admin users can create new accounts.
+
+	Options:
+
+	*-admin*
+		Make the new user an administrator.
+
+	*-realname* <realname>
+		Set the user's realname. This is used as a fallback if there is no
+		realname set for a network.
+
+*user update* [-realname <realname>]
+	Update the current user.
 
 *user delete* <username>
 	Delete a soju user. Only admins can delete accounts.
