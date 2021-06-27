@@ -1,16 +1,34 @@
 # Getting started
 
-## Server side
+For installation instructions see [INSTALL.md](../INSTALL.md)
 
-To create an admin user and start soju, run these commands:
-
-    sojuctl create-user <soju username> -admin
-    soju -listen irc+insecure://127.0.0.1:6667
+## Migrating From ZNC
 
 If you're migrating from ZNC, a tool is available to import users, networks and
 channels from a ZNC config file:
 
     go run ./contrib/znc-import.go <znc config file>
+
+## Add your first user
+
+`sojuctl -config /etc/soju/config create-user <soju username> -admin` will add a new admin user for connecting to soju. You will be prompted for the soju user's password. The command must be run as a user with write access to the soju database.
+
+## Connect to the running soju bouncer
+
+Connect with the username and password you've created in the previous step. Make sure your client knows to connect on port 6697 and that TLS is enabled for the connection. You will be prompted to accept the self-signed certificate you created earlier. This will identify your soju instance to your client.
+
+## Adding an IRC Server
+
+Your soju instance can be managed by messaging the bot named BouncerServ. `/msg bouncerserv help` for a list of available commands.
+
+To add a new server, Libera.chat for example, use the command `/msg bouncerserv newtwork create -addr irc.libera.chat -name libera`
+
+## Set your SASL credentials
+
+`/msg bouncerserv sasl set-plain libera user pass`
+
+Notice when creating the network we named it libera, so we can use the shorter name when setting SASL commands.
+
 
 ## Client side
 
@@ -50,3 +68,21 @@ name:
 
     /join #soju/libera
     /join #somechannel/rizon
+
+### Detaching/Parting Channels
+
+You can detach from a channel by including detach in the /part message e.g. `/part #soju detach`
+
+When detached, Soju will keep your user joined to the channel and log activity, but your clients will no longer display the channel.
+
+To fully leave a channel issue a standard `/part #soju`
+
+## Identifying clients by name
+
+If you use multiple clients you can identify each via the username field. `<soju username>/libera` becomes
+
+1.  `<soju username>/libera@home`
+2.  `<soju username>/libera@work`
+3.  `<soju username>/libera@phone`
+
+Naming your clients helps soju better manage history playback for you.
