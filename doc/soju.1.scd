@@ -299,8 +299,9 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 
 *user create* -username <username> -password <password> [options...]
 	Create a new soju user. Only admin users can create new accounts.
+	The _-username_ and _-password_ flags are mandatory.
 
-	Options:
+	Other options are:
 
 	*-admin*
 		Make the new user an administrator.
@@ -310,7 +311,8 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		realname set for a network.
 
 *user update* [-password <password>] [-realname <realname>]
-	Update the current user.
+	Update the current user. The options are the same as the _user create_
+	command.
 
 *user delete* <username>
 	Delete a soju user. Only admins can delete accounts.
