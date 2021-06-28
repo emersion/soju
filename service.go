@@ -788,15 +788,18 @@ func handleUserCreate(dc *downstreamConn, params []string) error {
 }
 
 func handleUserUpdate(dc *downstreamConn, params []string) error {
+	var realname *string
 	fs := newFlagSet()
-	realname := fs.String("realname", "", "")
+	fs.Var(stringPtrFlag{&realname}, "realname", "")
 
 	if err := fs.Parse(params); err != nil {
 		return err
 	}
 
-	if err := dc.user.updateRealname(*realname); err != nil {
-		return err
+	if realname != nil {
+		if err := dc.user.updateRealname(*realname); err != nil {
+			return err
+		}
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("updated user %q", dc.user.Username))
