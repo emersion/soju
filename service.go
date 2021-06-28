@@ -260,7 +260,7 @@ func init() {
 					admin:  true,
 				},
 				"update": {
-					usage:  "[-realname <realname>]",
+					usage:  "[-password <password>] [-realname <realname>]",
 					desc:   "update the current user",
 					handle: handleUserUpdate,
 				},
@@ -271,11 +271,6 @@ func init() {
 					admin:  true,
 				},
 			},
-		},
-		"change-password": {
-			usage:  "<new password>",
-			desc:   "change your password",
-			handle: handlePasswordChange,
 		},
 		"channel": {
 			children: serviceCommandSet{
@@ -734,23 +729,6 @@ func handleServiceSASLReset(dc *downstreamConn, params []string) error {
 	return nil
 }
 
-func handlePasswordChange(dc *downstreamConn, params []string) error {
-	if len(params) != 1 {
-		return fmt.Errorf("expected exactly one argument")
-	}
-
-	hashed, err := bcrypt.GenerateFromPassword([]byte(params[0]), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("failed to hash password: %v", err)
-	}
-	if err := dc.user.updatePassword(string(hashed)); err != nil {
-		return err
-	}
-
-	sendServicePRIVMSG(dc, "password updated")
-	return nil
-}
-
 func handleUserCreate(dc *downstreamConn, params []string) error {
 	fs := newFlagSet()
 	username := fs.String("username", "", "")
@@ -788,14 +766,24 @@ func handleUserCreate(dc *downstreamConn, params []string) error {
 }
 
 func handleUserUpdate(dc *downstreamConn, params []string) error {
-	var realname *string
+	var password, realname *string
 	fs := newFlagSet()
+	fs.Var(stringPtrFlag{&password}, "password", "")
 	fs.Var(stringPtrFlag{&realname}, "realname", "")
 
 	if err := fs.Parse(params); err != nil {
 		return err
 	}
 
+	if password != nil {
+		hashed, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
+		if err != nil {
+			return fmt.Errorf("failed to hash password: %v", err)
+		}
+		if err := dc.user.updatePassword(string(hashed)); err != nil {
+			return err
+		}
+	}
 	if realname != nil {
 		if err := dc.user.updateRealname(*realname); err != nil {
 			return err

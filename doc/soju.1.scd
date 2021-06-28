@@ -309,14 +309,11 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		Set the user's realname. This is used as a fallback if there is no
 		realname set for a network.
 
-*user update* [-realname <realname>]
+*user update* [-password <password>] [-realname <realname>]
 	Update the current user.
 
 *user delete* <username>
 	Delete a soju user. Only admins can delete accounts.
-
-*change-password* <new password>
-	Change current user password.
 
 # AUTHORS
 
