@@ -775,19 +775,22 @@ func handleUserUpdate(dc *downstreamConn, params []string) error {
 		return err
 	}
 
+	// copy the user record because we'll mutate it
+	record := dc.user.User
+
 	if password != nil {
 		hashed, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
 		if err != nil {
 			return fmt.Errorf("failed to hash password: %v", err)
 		}
-		if err := dc.user.updatePassword(string(hashed)); err != nil {
-			return err
-		}
+		record.Password = string(hashed)
 	}
 	if realname != nil {
-		if err := dc.user.updateRealname(*realname); err != nil {
-			return err
-		}
+		record.Realname = *realname
+	}
+
+	if err := dc.user.updateUser(&record); err != nil {
+		return err
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("updated user %q", dc.user.Username))
