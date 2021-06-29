@@ -9,3 +9,4 @@ tasks:
       cd soju
       go test -v ./...
       scdoc <doc/soju.1.scd >/dev/null
+      test -z $(gofmt -l .)
