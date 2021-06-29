@@ -834,9 +834,17 @@ func handleServiceChannelStatus(dc *downstreamConn, params []string) error {
 	n := 0
 
 	sendNetwork := func(net *network) {
+		var channels []*Channel
 		for _, entry := range net.channels.innerMap {
-			ch := entry.value.(*Channel)
+			channels = append(channels, entry.value.(*Channel))
+		}
 
+		sort.Slice(channels, func(i, j int) bool {
+			return strings.ReplaceAll(channels[i].Name, "#", "") <
+				strings.ReplaceAll(channels[j].Name, "#", "")
+		})
+
+		for _, ch := range channels {
 			var uch *upstreamChannel
 			if net.conn != nil {
 				uch = net.conn.channels.Value(ch.Name)
