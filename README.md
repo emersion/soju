@@ -20,6 +20,7 @@ A user-friendly IRC bouncer.
 Dependencies:
 
 - Go
+- a C89 compiler (for SQLite)
 - scdoc (optional, for man pages)
 
 For end users, a `Makefile` is provided:
