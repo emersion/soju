@@ -222,6 +222,11 @@ func init() {
 					desc:   "delete a network",
 					handle: handleServiceNetworkDelete,
 				},
+				"quote": {
+					usage:  "<name> <command>",
+					desc:   "send a raw line to a network",
+					handle: handleServiceNetworkQuote,
+				},
 			},
 		},
 		"certfp": {
@@ -574,6 +579,31 @@ func handleServiceNetworkDelete(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("deleted network %q", net.GetName()))
+	return nil
+}
+
+func handleServiceNetworkQuote(dc *downstreamConn, params []string) error {
+	if len(params) != 2 {
+		return fmt.Errorf("expected exactly two arguments")
+	}
+
+	net := dc.user.getNetwork(params[0])
+	if net == nil {
+		return fmt.Errorf("unknown network %q", params[0])
+	}
+
+	uc := net.conn
+	if uc == nil {
+		return fmt.Errorf("network %q is not currently connected", params[0])
+	}
+
+	m, err := irc.ParseMessage(params[1])
+	if err != nil {
+		return fmt.Errorf("failed to parse command %q: %v", params[1], err)
+	}
+	uc.SendMessage(m)
+
+	sendServicePRIVMSG(dc, fmt.Sprintf("sent command to %q", net.GetName()))
 	return nil
 }
 

@@ -196,6 +196,9 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *network delete* <name>
 	Disconnect and delete a network.
 
+*network quote* <name> <command>
+	Send a raw IRC line as-is to a network.
+
 *network status*
 	Show a list of saved networks and their current status.
 
