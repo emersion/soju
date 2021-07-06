@@ -9,6 +9,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
@@ -662,6 +663,8 @@ func handleServiceCertfpGenerate(dc *downstreamConn, params []string) error {
 	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
 	sha256Sum := sha256.Sum256(derBytes)
 	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
+	sha512Sum := sha512.Sum512(derBytes)
+	sendServicePRIVMSG(dc, "SHA-512 fingerprint: "+hex.EncodeToString(sha512Sum[:]))
 
 	return nil
 }
@@ -680,6 +683,8 @@ func handleServiceCertfpFingerprints(dc *downstreamConn, params []string) error 
 	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
 	sha256Sum := sha256.Sum256(net.SASL.External.CertBlob)
 	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
+	sha512Sum := sha512.Sum512(net.SASL.External.CertBlob)
+	sendServicePRIVMSG(dc, "SHA-512 fingerprint: "+hex.EncodeToString(sha512Sum[:]))
 	return nil
 }
 
