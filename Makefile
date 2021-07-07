@@ -27,6 +27,6 @@ install:
 	mkdir -p $(DESTDIR)/var/lib/soju
 	cp -f soju sojuctl $(DESTDIR)$(PREFIX)/$(BINDIR)
 	cp -f doc/soju.1 $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
-	cp -f config.in $(DESTDIR)/etc/soju/config
+	cp -n config.in $(DESTDIR)/etc/soju/config
 
 .PHONY: soju sojuctl
