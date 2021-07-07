@@ -11,6 +11,15 @@ integration. gamja supports many IRCv3 features including chat history.
 gamja also provides UI to manage soju networks via the
 `soju.im/bouncer-networks` extension.
 
+# [Hexchat]
+
+Hexchat has support for a small set of IRCv3 capabilities. To prevent
+automatically reconnecting to channels parted from soju, and prevent buffering
+outgoing messages:
+
+    /set irc_reconnect_rejoin off
+    /set net_throttle off
+
 # [senpai]
 
 senpai is being developed with soju in mind, so should have excellent
@@ -30,13 +39,6 @@ See `/help cap` for more information.
 A [Weechat script] is available to provide better integration with soju.
 The script will automatically connect to all of your networks once a
 single connection to soju is set up in Weechat.
-
-# [Hexchat]
-
-Hexchat has support for a small set of IRCv3 capabilities. To prevent automatically reconnecting to channels parted from soju, and prevent buffering outgoing messages:
-
-    /set irc_reconnect_rejoin off
-    /set net_throttle off
 
 [IRCv3 support tables]: https://ircv3.net/software/clients
 [gamja]: https://sr.ht/~emersion/gamja/
