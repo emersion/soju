@@ -65,6 +65,15 @@ CREATE TABLE DeliveryReceipt (
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, target, client)
 );
+
+CREATE TABLE ReadReceipt (
+	id INTEGER PRIMARY KEY,
+	network INTEGER NOT NULL,
+	target VARCHAR(255) NOT NULL,
+	timestamp INTEGER NOT NULL,
+	FOREIGN KEY(network) REFERENCES Network(id),
+	UNIQUE(network, target)
+);
 `
 
 var sqliteMigrations = []string{
@@ -135,6 +144,16 @@ var sqliteMigrations = []string{
 	"ALTER TABLE Channel ADD COLUMN detached_internal_msgid VARCHAR(255)",
 	"ALTER TABLE Network ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
 	"ALTER TABLE User ADD COLUMN realname VARCHAR(255)",
+	`
+		CREATE TABLE ReadReceipt (
+			id INTEGER PRIMARY KEY,
+			network INTEGER NOT NULL,
+			target VARCHAR(255) NOT NULL,
+			timestamp INTEGER NOT NULL,
+			FOREIGN KEY(network) REFERENCES Network(id),
+			UNIQUE(network, target)
+		);
+	`,
 }
 
 type SqliteDB struct {
@@ -562,4 +581,44 @@ func (db *SqliteDB) StoreClientDeliveryReceipts(networkID int64, client string, 
 	}
 
 	return tx.Commit()
+}
+
+func (db *SqliteDB) GetReadReceipt(networkID int64, name string) (*ReadReceipt, error) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+
+	receipt := &ReadReceipt{
+		Target: name,
+	}
+
+	row := db.db.QueryRow("SELECT id, timestamp FROM ReadReceipt WHERE network = ? AND target = ?", networkID, name)
+	var timestamp int64
+	if err := row.Scan(&receipt.ID, &timestamp); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	receipt.Timestamp = time.Unix(0, timestamp)
+	return receipt, nil
+}
+
+func (db *SqliteDB) StoreReadReceipt(networkID int64, receipt *ReadReceipt) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	var err error
+	if receipt.ID != 0 {
+		_, err = db.db.Exec("UPDATE ReadReceipt SET timestamp = ? WHERE id = ?",
+			receipt.Timestamp.UnixNano(), receipt.ID)
+	} else {
+		var res sql.Result
+		res, err = db.db.Exec("INSERT INTO ReadReceipt(network, target, timestamp) VALUES (?, ?, ?)",
+			networkID, receipt.Target, receipt.Timestamp.UnixNano())
+		if err != nil {
+			return err
+		}
+		receipt.ID, err = res.LastInsertId()
+	}
+	return err
 }

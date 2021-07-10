@@ -126,6 +126,7 @@ var permanentDownstreamCaps = map[string]string{
 
 	"soju.im/bouncer-networks":        "",
 	"soju.im/bouncer-networks-notify": "",
+	"soju.im/read":                    "",
 }
 
 // needAllDownstreamCaps is the list of downstream capabilities that
@@ -2178,6 +2179,70 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				dc.SendMessage(dc.marshalMessage(msg, uc.network))
 			}
 		})
+	case "READ":
+		var target, criteria string
+		if err := parseMessageParams(msg, &target, &criteria); err != nil {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"READ", "NEED_MORE_PARAMS", "Missing parameters"},
+			}}
+		}
+
+		uc, entity, err := dc.unmarshalEntity(target)
+		if err != nil {
+			return err
+		}
+
+		// TODO: support msgid criteria
+		criteriaParts := strings.SplitN(criteria, "=", 2)
+		if len(criteriaParts) != 2 || criteriaParts[0] != "timestamp" {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"READ", "INVALID_PARAMS", criteria, "Unknown criteria"},
+			}}
+		}
+
+		timestamp, err := time.Parse(serverTimeLayout, criteriaParts[1])
+		if err != nil {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"READ", "INVALID_PARAMS", criteria, "Invalid criteria"},
+			}}
+		}
+		now := time.Now()
+		if timestamp.After(now) {
+			timestamp = now
+		}
+
+		r, err := dc.srv.db.GetReadReceipt(uc.network.ID, entity)
+		if err != nil {
+			dc.logger.Printf("failed to get the read receipt for %q: %v", entity, err)
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"READ", "MESSAGE_ERROR", target, "Internal error"},
+			}}
+		} else if r == nil {
+			r = &ReadReceipt{
+				Target: entity,
+			}
+		}
+		if r.Timestamp.Before(timestamp) {
+			r.Timestamp = timestamp
+			if err := dc.srv.db.StoreReadReceipt(uc.network.ID, r); err != nil {
+				dc.logger.Printf("failed to store receipt for %q: %v", entity, err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"READ", "MESSAGE_ERROR", target, "Internal error"},
+				}}
+			}
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: "READ",
+					Params:  []string{dc.marshalEntity(uc.network, entity), fmt.Sprintf("timestamp=%s", timestamp.UTC().Format(serverTimeLayout))},
+				})
+			})
+		}
 	case "BOUNCER":
 		var subcommand string
 		if err := parseMessageParams(msg, &subcommand); err != nil {

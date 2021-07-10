@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,19 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 
 	sendTopic(dc, ch)
 	sendNames(dc, ch)
+
+	if dc.caps["soju.im/read"] {
+		r, err := dc.srv.db.GetReadReceipt(ch.conn.network.ID, ch.Name)
+		if err != nil {
+			dc.logger.Printf("failed to get the read receipt for %q: %v", ch.Name, err)
+		} else if r != nil {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "READ",
+				Params:  []string{dc.marshalEntity(ch.conn.network, ch.Name), fmt.Sprintf("timestamp=%s", r.Timestamp.UTC().Format(serverTimeLayout))},
+			})
+		}
+	}
 }
 
 func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
