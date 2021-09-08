@@ -156,6 +156,9 @@ func main() {
 				}
 			}()
 		case "wss":
+			if tlsCfg == nil {
+				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
+			}
 			addr := u.Host
 			if _, _, err := net.SplitHostPort(addr); err != nil {
 				addr = addr + ":https"
