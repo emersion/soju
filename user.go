@@ -674,6 +674,19 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		dc.updateSupportedCaps()
 	})
+
+	// If the network has been removed, don't send a state change notification
+	found := false
+	for _, net := range u.networks {
+		if net == uc.network {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return
+	}
+
 	u.forEachDownstream(func(dc *downstreamConn) {
 		if dc.caps["soju.im/bouncer-networks-notify"] {
 			dc.SendMessage(&irc.Message{
