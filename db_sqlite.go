@@ -289,6 +289,17 @@ func (db *SqliteDB) DeleteUser(id int64) error {
 	}
 	defer tx.Rollback()
 
+	_, err = tx.Exec(`DELETE FROM DeliveryReceipt
+		WHERE id IN (
+			SELECT DeliveryReceipt.id
+			FROM DeliveryReceipt
+			JOIN Network ON DeliveryReceipt.network = Network.id
+			WHERE Network.user = ?
+		)`, id)
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.Exec(`DELETE FROM Channel
 		WHERE id IN (
 			SELECT Channel.id
@@ -421,6 +432,11 @@ func (db *SqliteDB) DeleteNetwork(id int64) error {
 		return err
 	}
 	defer tx.Rollback()
+
+	_, err = tx.Exec("DELETE FROM DeliveryReceipt WHERE network = ?", id)
+	if err != nil {
+		return err
+	}
 
 	_, err = tx.Exec("DELETE FROM Channel WHERE network = ?", id)
 	if err != nil {
