@@ -150,6 +150,7 @@ func OpenSqliteDB(driver, source string) (Database, error) {
 
 	db := &SqliteDB{db: sqlSqliteDB}
 	if err := db.upgrade(); err != nil {
+		sqlSqliteDB.Close()
 		return nil, err
 	}
 
