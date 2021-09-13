@@ -2106,11 +2106,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}}
 		}
 
-		uc, entity, err := dc.unmarshalEntity(target)
+		network, entity, err := dc.unmarshalEntityNetwork(target)
 		if err != nil {
 			return err
 		}
-		entity = uc.network.casemap(entity)
+		entity = network.casemap(entity)
 
 		// TODO: support msgid criteria
 		var bounds [2]time.Time
@@ -2143,18 +2143,18 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		var history []*irc.Message
 		switch subcommand {
 		case "BEFORE":
-			history, err = store.LoadBeforeTime(uc.network, entity, bounds[0], time.Time{}, limit)
+			history, err = store.LoadBeforeTime(network, entity, bounds[0], time.Time{}, limit)
 		case "AFTER":
-			history, err = store.LoadAfterTime(uc.network, entity, bounds[0], time.Now(), limit)
+			history, err = store.LoadAfterTime(network, entity, bounds[0], time.Now(), limit)
 		case "BETWEEN":
 			if bounds[0].Before(bounds[1]) {
-				history, err = store.LoadAfterTime(uc.network, entity, bounds[0], bounds[1], limit)
+				history, err = store.LoadAfterTime(network, entity, bounds[0], bounds[1], limit)
 			} else {
-				history, err = store.LoadBeforeTime(uc.network, entity, bounds[0], bounds[1], limit)
+				history, err = store.LoadBeforeTime(network, entity, bounds[0], bounds[1], limit)
 			}
 		case "TARGETS":
 			// TODO: support TARGETS in multi-upstream mode
-			targets, err := store.ListTargets(uc.network, bounds[0], bounds[1], limit)
+			targets, err := store.ListTargets(network, bounds[0], bounds[1], limit)
 			if err != nil {
 				dc.logger.Printf("failed fetching targets for chathistory: %v", target, err)
 				return ircError{&irc.Message{
@@ -2165,7 +2165,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 			dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef irc.TagValue) {
 				for _, target := range targets {
-					if ch := uc.network.channels.Value(target.Name); ch != nil && ch.Detached {
+					if ch := network.channels.Value(target.Name); ch != nil && ch.Detached {
 						continue
 					}
 
@@ -2188,7 +2188,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		dc.SendBatch("chathistory", []string{target}, nil, func(batchRef irc.TagValue) {
 			for _, msg := range history {
 				msg.Tags["batch"] = batchRef
-				dc.SendMessage(dc.marshalMessage(msg, uc.network))
+				dc.SendMessage(dc.marshalMessage(msg, network))
 			}
 		})
 	case "BOUNCER":
