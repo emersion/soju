@@ -2098,6 +2098,12 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}}
 		}
 
+		// We don't save history for our service
+		if casemapASCII(target) == serviceNickCM {
+			dc.SendBatch("chathistory", []string{target}, nil, func(batchRef irc.TagValue) {})
+			return nil
+		}
+
 		store, ok := dc.user.msgStore.(chatHistoryMessageStore)
 		if !ok {
 			return ircError{&irc.Message{
