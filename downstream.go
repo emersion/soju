@@ -304,41 +304,54 @@ func (dc *downstreamConn) marshalUserPrefix(net *network, prefix *irc.Prefix) *i
 	}
 }
 
-// unmarshalEntity converts a downstream entity name (ie. channel or nick) into
-// an upstream entity name.
+// unmarshalEntityNetwork converts a downstream entity name (ie. channel or
+// nick) into an upstream entity name.
 //
 // This involves removing the "/<network>" suffix.
-func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, error) {
-	if uc := dc.upstream(); uc != nil {
-		return uc, name, nil
-	}
+func (dc *downstreamConn) unmarshalEntityNetwork(name string) (*network, string, error) {
 	if dc.network != nil {
+		return dc.network, name, nil
+	}
+
+	var net *network
+	if i := strings.LastIndexByte(name, '/'); i >= 0 {
+		network := name[i+1:]
+		name = name[:i]
+
+		for _, n := range dc.user.networks {
+			if network == n.GetName() {
+				net = n
+				break
+			}
+		}
+	}
+
+	if net == nil {
+		return nil, "", ircError{&irc.Message{
+			Command: irc.ERR_NOSUCHCHANNEL,
+			Params:  []string{name, "Missing network suffix in name"},
+		}}
+	}
+
+	return net, name, nil
+}
+
+// unmarshalEntity is the same as unmarshalEntityNetwork, but returns the
+// upstream connection and fails if the upstream is disconnected.
+func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, error) {
+	net, name, err := dc.unmarshalEntityNetwork(name)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if net.conn == nil {
 		return nil, "", ircError{&irc.Message{
 			Command: irc.ERR_NOSUCHCHANNEL,
 			Params:  []string{name, "Disconnected from upstream network"},
 		}}
 	}
 
-	var conn *upstreamConn
-	if i := strings.LastIndexByte(name, '/'); i >= 0 {
-		network := name[i+1:]
-		name = name[:i]
-
-		dc.forEachUpstream(func(uc *upstreamConn) {
-			if network != uc.network.GetName() {
-				return
-			}
-			conn = uc
-		})
-	}
-
-	if conn == nil {
-		return nil, "", ircError{&irc.Message{
-			Command: irc.ERR_NOSUCHCHANNEL,
-			Params:  []string{name, "Missing network suffix in channel name"},
-		}}
-	}
-	return conn, name, nil
+	return net.conn, name, nil
 }
 
 func (dc *downstreamConn) unmarshalText(uc *upstreamConn, text string) string {
