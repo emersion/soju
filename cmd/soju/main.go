@@ -253,5 +253,6 @@ func proxyProtoListener(ln net.Listener, srv *soju.Server) net.Listener {
 			}
 			return proxyproto.IGNORE, nil
 		},
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 }
