@@ -542,7 +542,7 @@ func (db *SqliteDB) StoreClientDeliveryReceipts(networkID int64, client string, 
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec("DELETE FROM DeliveryReceipt WHERE network = ? AND client = ?",
+	_, err = tx.Exec("DELETE FROM DeliveryReceipt WHERE network = ? AND client IS ?",
 		networkID, toNullString(client))
 	if err != nil {
 		return err
