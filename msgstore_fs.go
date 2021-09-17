@@ -16,7 +16,15 @@ import (
 
 const fsMessageStoreMaxTries = 100
 
-var escapeFilename = strings.NewReplacer("/", "-", "\\", "-")
+func escapeFilename(unsafe string) (safe string) {
+	if unsafe == "." {
+		return "-"
+	} else if unsafe == ".." {
+		return "--"
+	} else {
+		return strings.NewReplacer("/", "-", "\\", "-").Replace(unsafe)
+	}
+}
 
 type date struct {
 	Year, Month, Day int
@@ -69,7 +77,7 @@ var _ chatHistoryMessageStore = (*fsMessageStore)(nil)
 
 func newFSMessageStore(root, username string) *fsMessageStore {
 	return &fsMessageStore{
-		root:  filepath.Join(root, escapeFilename.Replace(username)),
+		root:  filepath.Join(root, escapeFilename(username)),
 		files: make(map[string]*os.File),
 	}
 }
@@ -77,7 +85,7 @@ func newFSMessageStore(root, username string) *fsMessageStore {
 func (ms *fsMessageStore) logPath(network *network, entity string, t time.Time) string {
 	year, month, day := t.Date()
 	filename := fmt.Sprintf("%04d-%02d-%02d.log", year, month, day)
-	return filepath.Join(ms.root, escapeFilename.Replace(network.GetName()), escapeFilename.Replace(entity), filename)
+	return filepath.Join(ms.root, escapeFilename(network.GetName()), escapeFilename(entity), filename)
 }
 
 // nextMsgID queries the message ID for the next message to be written to f.
@@ -439,7 +447,7 @@ func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limi
 }
 
 func (ms *fsMessageStore) ListTargets(network *network, start, end time.Time, limit int) ([]chatHistoryTarget, error) {
-	rootPath := filepath.Join(ms.root, escapeFilename.Replace(network.GetName()))
+	rootPath := filepath.Join(ms.root, escapeFilename(network.GetName()))
 	root, err := os.Open(rootPath)
 	if err != nil {
 		return nil, err
