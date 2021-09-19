@@ -185,7 +185,7 @@ type downstreamConn struct {
 	password    string   // empty after authentication
 	network     *network // can be nil
 
-	negociatingCaps bool
+	negotiatingCaps bool
 	capVersion      int
 	supportedCaps   map[string]string
 	caps            map[string]bool
@@ -717,7 +717,7 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
-	if dc.rawUsername != "" && dc.nick != "" && !dc.negociatingCaps {
+	if dc.rawUsername != "" && dc.nick != "" && !dc.negotiatingCaps {
 		return dc.register()
 	}
 	return nil
@@ -770,7 +770,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		}
 
 		if !dc.registered {
-			dc.negociatingCaps = true
+			dc.negotiatingCaps = true
 		}
 	case "LIST":
 		var caps []string
@@ -832,8 +832,12 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 			Command: "CAP",
 			Params:  []string{replyTo, reply, args[0]},
 		})
+
+		if !dc.registered {
+			dc.negotiatingCaps = true
+		}
 	case "END":
-		dc.negociatingCaps = false
+		dc.negotiatingCaps = false
 	default:
 		return ircError{&irc.Message{
 			Command: err_invalidcapcmd,
