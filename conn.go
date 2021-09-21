@@ -74,8 +74,18 @@ func (wic *websocketIRCConn) WriteMessage(msg *irc.Message) error {
 	return wic.conn.Write(ctx, websocket.MessageText, b)
 }
 
+func isErrWebSocketClosed(err error) bool {
+	return err != nil && strings.HasSuffix(err.Error(), "failed to close WebSocket: already wrote close")
+}
+
 func (wic *websocketIRCConn) Close() error {
-	return wic.conn.Close(websocket.StatusNormalClosure, "")
+	err := wic.conn.Close(websocket.StatusNormalClosure, "")
+	// TODO: remove once this PR is merged:
+	// https://github.com/nhooyr/websocket/pull/303
+	if isErrWebSocketClosed(err) {
+		return nil
+	}
+	return err
 }
 
 func (wic *websocketIRCConn) SetReadDeadline(t time.Time) error {
