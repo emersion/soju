@@ -30,6 +30,8 @@ For end users, a `Makefile` is provided:
 
 For development, you can use `go run ./cmd/soju` as usual.
 
+To link with the system libsqlite3, use `make GOFLAGS="-tags=libsqlite3"`.
+
 ## Contributing
 
 Send patches on the [mailing list] or on [GitHub], report bugs on the
