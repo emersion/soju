@@ -259,17 +259,19 @@ func (db *SqliteDB) StoreUser(user *User) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	password := toNullString(user.Password)
-	realname := toNullString(user.Realname)
+	args := []interface{}{
+		sql.Named("username", user.Username),
+		sql.Named("password", toNullString(user.Password)),
+		sql.Named("admin", user.Admin),
+		sql.Named("realname", toNullString(user.Realname)),
+	}
 
 	var err error
 	if user.ID != 0 {
-		_, err = db.db.Exec("UPDATE User SET password = ?, admin = ?, realname = ? WHERE username = ?",
-			password, user.Admin, realname, user.Username)
+		_, err = db.db.Exec("UPDATE User SET password = :password, admin = :admin, realname = :realname WHERE username = :username", args...)
 	} else {
 		var res sql.Result
-		res, err = db.db.Exec("INSERT INTO User(username, password, admin, realname) VALUES (?, ?, ?, ?)",
-			user.Username, password, user.Admin, realname)
+		res, err = db.db.Exec("INSERT INTO User(username, password, admin, realname) VALUES (:username, :password, :admin, :realname)", args...)
 		if err != nil {
 			return err
 		}
@@ -373,12 +375,6 @@ func (db *SqliteDB) StoreNetwork(userID int64, network *Network) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	netName := toNullString(network.Name)
-	netUsername := toNullString(network.Username)
-	realname := toNullString(network.Realname)
-	pass := toNullString(network.Pass)
-	connectCommands := toNullString(strings.Join(network.ConnectCommands, "\r\n"))
-
 	var saslMechanism, saslPlainUsername, saslPlainPassword sql.NullString
 	if network.SASL.Mechanism != "" {
 		saslMechanism = toNullString(network.SASL.Mechanism)
@@ -395,26 +391,45 @@ func (db *SqliteDB) StoreNetwork(userID int64, network *Network) error {
 		}
 	}
 
+	args := []interface{}{
+		sql.Named("name", toNullString(network.Name)),
+		sql.Named("addr", network.Addr),
+		sql.Named("nick", network.Nick),
+		sql.Named("username", toNullString(network.Username)),
+		sql.Named("realname", toNullString(network.Realname)),
+		sql.Named("pass", toNullString(network.Pass)),
+		sql.Named("connect_commands", toNullString(strings.Join(network.ConnectCommands, "\r\n"))),
+		sql.Named("sasl_mechanism", saslMechanism),
+		sql.Named("sasl_plain_username", saslPlainUsername),
+		sql.Named("sasl_plain_password", saslPlainPassword),
+		sql.Named("sasl_external_cert", network.SASL.External.CertBlob),
+		sql.Named("sasl_external_key", network.SASL.External.PrivKeyBlob),
+		sql.Named("enabled", network.Enabled),
+
+		sql.Named("id", network.ID), // only for UPDATE
+		sql.Named("user", userID),   // only for INSERT
+	}
+
 	var err error
 	if network.ID != 0 {
-		_, err = db.db.Exec(`UPDATE Network
-			SET name = ?, addr = ?, nick = ?, username = ?, realname = ?, pass = ?, connect_commands = ?,
-				sasl_mechanism = ?, sasl_plain_username = ?, sasl_plain_password = ?,
-				sasl_external_cert = ?, sasl_external_key = ?, enabled = ?
-			WHERE id = ?`,
-			netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
-			saslMechanism, saslPlainUsername, saslPlainPassword,
-			network.SASL.External.CertBlob, network.SASL.External.PrivKeyBlob, network.Enabled,
-			network.ID)
+		_, err = db.db.Exec(`
+			UPDATE Network
+			SET name = :name, addr = :addr, nick = :nick, username = :username,
+				realname = :realname, pass = :pass, connect_commands = :connect_commands,
+				sasl_mechanism = :sasl_mechanism, sasl_plain_username = :sasl_plain_username, sasl_plain_password = :sasl_plain_password,
+				sasl_external_cert = :sasl_external_cert, sasl_external_key = :sasl_external_key,
+				enabled = :enabled
+			WHERE id = :id`, args...)
 	} else {
 		var res sql.Result
-		res, err = db.db.Exec(`INSERT INTO Network(user, name, addr, nick, username,
-				realname, pass, connect_commands, sasl_mechanism, sasl_plain_username,
+		res, err = db.db.Exec(`
+			INSERT INTO Network(user, name, addr, nick, username, realname, pass,
+				connect_commands, sasl_mechanism, sasl_plain_username,
 				sasl_plain_password, sasl_external_cert, sasl_external_key, enabled)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			userID, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
-			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
-			network.SASL.External.PrivKeyBlob, network.Enabled)
+			VALUES (:user, :name, :addr, :nick, :username, :realname, :pass,
+				:connect_commands, :sasl_mechanism, :sasl_plain_username,
+				:sasl_plain_password, :sasl_external_cert, :sasl_external_key, :enabled)`,
+			args...)
 		if err != nil {
 			return err
 		}
@@ -489,20 +504,31 @@ func (db *SqliteDB) StoreChannel(networkID int64, ch *Channel) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	key := toNullString(ch.Key)
-	detachAfter := int64(math.Ceil(ch.DetachAfter.Seconds()))
+	args := []interface{}{
+		sql.Named("network", networkID),
+		sql.Named("name", ch.Name),
+		sql.Named("key", toNullString(ch.Key)),
+		sql.Named("detached", ch.Detached),
+		sql.Named("detached_internal_msgid", toNullString(ch.DetachedInternalMsgID)),
+		sql.Named("relay_detached", ch.RelayDetached),
+		sql.Named("reattach_on", ch.ReattachOn),
+		sql.Named("detach_after", int64(math.Ceil(ch.DetachAfter.Seconds()))),
+		sql.Named("detach_on", ch.DetachOn),
+
+		sql.Named("id", ch.ID), // only for UPDATE
+	}
 
 	var err error
 	if ch.ID != 0 {
 		_, err = db.db.Exec(`UPDATE Channel
-			SET network = ?, name = ?, key = ?, detached = ?, detached_internal_msgid = ?, relay_detached = ?, reattach_on = ?, detach_after = ?, detach_on = ?
-			WHERE id = ?`,
-			networkID, ch.Name, key, ch.Detached, toNullString(ch.DetachedInternalMsgID), ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn, ch.ID)
+			SET network = :network, name = :name, key = :key, detached = :detached,
+				detached_internal_msgid = :detached_internal_msgid, relay_detached = :relay_detached,
+				reattach_on = :reattach_on, detach_after = :detach_after, detach_on = :detach_on
+			WHERE id = :id`, args...)
 	} else {
 		var res sql.Result
 		res, err = db.db.Exec(`INSERT INTO Channel(network, name, key, detached, detached_internal_msgid, relay_detached, reattach_on, detach_after, detach_on)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			networkID, ch.Name, key, ch.Detached, toNullString(ch.DetachedInternalMsgID), ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn)
+			VALUES (:network, :name, :key, :detached, :detached_internal_msgid, :relay_detached, :reattach_on, :detach_after, :detach_on)`, args...)
 		if err != nil {
 			return err
 		}
@@ -567,8 +593,12 @@ func (db *SqliteDB) StoreClientDeliveryReceipts(networkID int64, client string, 
 	for i := range receipts {
 		rcpt := &receipts[i]
 
-		res, err := tx.Exec("INSERT INTO DeliveryReceipt(network, target, client, internal_msgid) VALUES (?, ?, ?, ?)",
-			networkID, rcpt.Target, toNullString(client), rcpt.InternalMsgID)
+		res, err := tx.Exec(`INSERT INTO DeliveryReceipt(network, target, client, internal_msgid)
+			VALUES (:network, :target, :client, :internal_msgid)`,
+			sql.Named("network", networkID),
+			sql.Named("target", rcpt.Target),
+			sql.Named("client", toNullString(client)),
+			sql.Named("internal_msgid", rcpt.InternalMsgID))
 		if err != nil {
 			return err
 		}
