@@ -206,6 +206,7 @@ func (s *Server) Serve(ln net.Listener) error {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	conn, err := websocket.Accept(w, req, &websocket.AcceptOptions{
+		Subprotocols:   []string{"text.ircv3.net"}, // non-compliant, fight me
 		OriginPatterns: s.HTTPOrigins,
 	})
 	if err != nil {
