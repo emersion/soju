@@ -118,6 +118,7 @@ type network struct {
 
 	conn      *upstreamConn
 	channels  channelCasemapMap
+	monitors  casemapMap
 	delivered deliveredStore
 	lastError error
 	casemap   casemapping
@@ -138,6 +139,7 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 		logger:    logger,
 		stopped:   make(chan struct{}),
 		channels:  m,
+		monitors:  newCasemapMap(0),
 		delivered: newDeliveredStore(),
 		casemap:   casemapRFC1459,
 	}
@@ -335,6 +337,7 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 	net.casemap = newCasemap
 	net.channels.SetCasemapping(newCasemap)
 	net.delivered.m.SetCasemapping(newCasemap)
+	net.conn.monitors.SetCasemapping(newCasemap)
 	if net.conn != nil {
 		net.conn.channels.SetCasemapping(newCasemap)
 		for _, entry := range net.conn.channels.innerMap {

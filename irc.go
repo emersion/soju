@@ -355,6 +355,32 @@ func join(channels, keys []string) []*irc.Message {
 	return msgs
 }
 
+func monitors(targets []string) []*irc.Message {
+	maxLength := maxMessageLength - (len("MONITOR +"))
+
+	var msgs []*irc.Message
+	var buf strings.Builder
+	for _, target := range targets {
+		n := buf.Len() + 1 + len(target)
+
+		if buf.Len() > 0 && n > maxLength {
+			// No room for the new monitor in this message
+			msgs = append(msgs, &irc.Message{Command: "MONITOR", Params: []string{"+", buf.String()}})
+			buf.Reset()
+		}
+
+		if buf.Len() > 0 {
+			buf.WriteByte(',')
+		}
+		buf.WriteString(target)
+	}
+	if buf.Len() > 0 {
+		msgs = append(msgs, &irc.Message{Command: "MONITOR", Params: []string{"+", buf.String()}})
+	}
+
+	return msgs
+}
+
 func generateIsupport(prefix *irc.Prefix, nick string, tokens []string) []*irc.Message {
 	maxTokens := maxMessageParams - 2 // 2 reserved params: nick + text
 

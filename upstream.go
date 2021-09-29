@@ -94,6 +94,7 @@ type upstreamConn struct {
 	supportedCaps map[string]string
 	caps          map[string]bool
 	batches       map[string]batch
+	monitors      casemapMap
 	away          bool
 	account       string
 	nextLabelID   uint64
@@ -196,6 +197,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		supportedCaps:            make(map[string]string),
 		caps:                     make(map[string]bool),
 		batches:                  make(map[string]batch),
+		monitors:                 newCasemapMap(0),
 		availableChannelTypes:    stdChannelTypes,
 		availableChannelModes:    stdChannelModes,
 		availableMemberships:     stdMemberships,
@@ -577,6 +579,14 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			}
 
 			for _, msg := range join(channels, keys) {
+				uc.SendMessage(msg)
+			}
+
+			monitorTargets := make([]string, 0, uc.network.monitors.Len())
+			for target := range uc.network.monitors.innerMap {
+				monitorTargets = append(monitorTargets, target)
+			}
+			for _, msg := range monitors(monitorTargets) {
 				uc.SendMessage(msg)
 			}
 		}
@@ -981,6 +991,24 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				})
 			}
 		}
+	case irc.ERR_MONLISTFULL:
+		var targets string
+		if err := parseMessageParams(msg, nil, nil, &targets); err != nil {
+			return err
+		}
+		for _, target := range strings.Split(targets, ",") {
+			uc.network.monitors.Delete(irc.ParsePrefix(target).Name)
+		}
+		fallthrough
+	case irc.RPL_MONONLINE, irc.RPL_MONOFFLINE, irc.RPL_MONLIST, irc.RPL_ENDOFMONLIST:
+		// We only support single-upstream mode for MONITOR for now
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			if dc.upstream() == nil {
+				return
+			}
+
+			dc.SendMessage(msg)
+		})
 	case irc.RPL_UMODEIS:
 		if err := parseMessageParams(msg, nil); err != nil {
 			return err

@@ -157,6 +157,7 @@ var passthroughIsupport = map[string]bool{
 	"MAXLIST":       true,
 	"MAXTARGETS":    true,
 	"MODES":         true,
+	"MONITOR":       true,
 	"NAMELEN":       true,
 	"NETWORK":       true,
 	"NICKLEN":       true,
@@ -2074,6 +2075,41 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Command: "INVITE",
 			Params:  []string{upstreamUser, upstreamChannel},
 		})
+	case "MONITOR":
+		// Only forward MONITOR commands in single-upstream mode, we don't advertise it otherwise
+		uc := dc.upstream()
+		if uc == nil {
+			return newUnknownCommandError(msg.Command)
+		}
+
+		var subcommand string
+		if err := parseMessageParams(msg, &subcommand); err != nil {
+			return err
+		}
+		monitors := dc.upstream().network.monitors
+		switch subcommand {
+		case "+", "-":
+			var targets string
+			if err := parseMessageParams(msg, nil, &targets); err != nil {
+				return err
+			}
+			switch subcommand {
+			case "+":
+				for _, target := range strings.Split(targets, ",") {
+					monitors.SetValue(target, struct{}{})
+				}
+			case "-":
+				for _, target := range strings.Split(targets, ",") {
+					monitors.Delete(target)
+				}
+			}
+		case "C": // [C]lear the monitors: handle here because no response is returned
+			for k := range monitors.innerMap {
+				delete(monitors.innerMap, k)
+			}
+		}
+
+		uc.SendMessageLabeled(dc.id, msg)
 	case "CHATHISTORY":
 		var subcommand string
 		if err := parseMessageParams(msg, &subcommand); err != nil {
