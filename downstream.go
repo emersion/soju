@@ -135,6 +135,8 @@ var needAllDownstreamCaps = map[string]string{
 	"away-notify":   "",
 	"extended-join": "",
 	"multi-prefix":  "",
+
+	"draft/extended-monitor": "",
 }
 
 // passthroughIsupport is the set of ISUPPORT tokens that are directly passed
