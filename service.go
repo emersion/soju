@@ -32,6 +32,10 @@ const serviceNick = "BouncerServ"
 const serviceNickCM = "bouncerserv"
 const serviceRealname = "soju bouncer service"
 
+// maxRSABits is the maximum number of RSA key bits used when generating a new
+// private key.
+const maxRSABits = 8192
+
 var servicePrefix = &irc.Prefix{
 	Name: serviceNick,
 	User: serviceNick,
@@ -641,6 +645,9 @@ func handleServiceCertfpGenerate(dc *downstreamConn, params []string) error {
 	)
 	switch *keyType {
 	case "rsa":
+		if *bits <= 0 || *bits > maxRSABits {
+			return fmt.Errorf("invalid value for -bits")
+		}
 		key, err := rsa.GenerateKey(rand.Reader, *bits)
 		if err != nil {
 			return err
