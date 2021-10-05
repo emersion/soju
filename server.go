@@ -106,6 +106,10 @@ func (s *Server) Shutdown() {
 	s.lock.Unlock()
 
 	s.stopWG.Wait()
+
+	if err := s.db.Close(); err != nil {
+		s.Logger.Printf("failed to close DB: %v", err)
+	}
 }
 
 func (s *Server) createUser(user *User) (*user, error) {
