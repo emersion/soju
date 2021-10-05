@@ -6,7 +6,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -197,8 +196,7 @@ func (s *Server) Serve(ln net.Listener) error {
 
 	for {
 		conn, err := ln.Accept()
-		// TODO: use net.ErrClosed when available
-		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
+		if isErrClosed(err) {
 			return nil
 		} else if err != nil {
 			return fmt.Errorf("failed to accept connection: %v", err)
