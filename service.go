@@ -1026,7 +1026,11 @@ func handleServiceChannelUpdate(dc *downstreamConn, params []string) error {
 }
 
 func handleServiceServerStatus(dc *downstreamConn, params []string) error {
-	stats := dc.user.srv.Stats()
-	sendServicePRIVMSG(dc, fmt.Sprintf("%v users, %v downstreams", stats.Users, stats.Downstreams))
+	dbStats, err := dc.user.srv.db.Stats()
+	if err != nil {
+		return err
+	}
+	serverStats := dc.user.srv.Stats()
+	sendServicePRIVMSG(dc, fmt.Sprintf("%v/%v users, %v downstreams, %v networks, %v channels", serverStats.Users, dbStats.Users, serverStats.Downstreams, dbStats.Networks, dbStats.Channels))
 	return nil
 }

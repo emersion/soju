@@ -9,6 +9,7 @@ import (
 
 type Database interface {
 	Close() error
+	Stats() (*DatabaseStats, error)
 
 	ListUsers() ([]User, error)
 	GetUser(username string) (*User, error)
@@ -24,6 +25,12 @@ type Database interface {
 
 	ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, error)
 	StoreClientDeliveryReceipts(networkID int64, client string, receipts []DeliveryReceipt) error
+}
+
+type DatabaseStats struct {
+	Users    int64
+	Networks int64
+	Channels int64
 }
 
 type User struct {

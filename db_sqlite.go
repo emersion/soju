@@ -205,6 +205,22 @@ func (db *SqliteDB) upgrade() error {
 	return tx.Commit()
 }
 
+func (db *SqliteDB) Stats() (*DatabaseStats, error) {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+
+	var stats DatabaseStats
+	row := db.db.QueryRow(`SELECT
+		(SELECT COUNT(*) FROM User) AS users,
+		(SELECT COUNT(*) FROM Network) AS networks,
+		(SELECT COUNT(*) FROM Channel) AS channels`)
+	if err := row.Scan(&stats.Users, &stats.Networks, &stats.Channels); err != nil {
+		return nil, err
+	}
+
+	return &stats, nil
+}
+
 func toNullString(s string) sql.NullString {
 	return sql.NullString{
 		String: s,
