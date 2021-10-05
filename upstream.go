@@ -120,7 +120,11 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	}
 
 	var netConn net.Conn
+	skipTLSVerify := false
 	switch u.Scheme {
+	case "ircs+noverify":
+		skipTLSVerify = true
+		fallthrough
 	case "ircs":
 		addr := u.Host
 		host, _, err := net.SplitHostPort(u.Host)
@@ -131,7 +135,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 
 		logger.Printf("connecting to TLS server at address %q", addr)
 
-		tlsConfig := &tls.Config{ServerName: host, NextProtos: []string{"irc"}}
+		tlsConfig := &tls.Config{ServerName: host, NextProtos: []string{"irc"}, InsecureSkipVerify: skipTLSVerify}
 		if network.SASL.Mechanism == "EXTERNAL" {
 			if network.SASL.External.CertBlob == nil {
 				return nil, fmt.Errorf("missing certificate for authentication")
