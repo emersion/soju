@@ -15,12 +15,6 @@ const (
 	testPassword = testUsername
 )
 
-func createTestDownstream(t *testing.T, srv *Server) ircConn {
-	c1, c2 := net.Pipe()
-	go srv.handle(newNetIRCConn(c1))
-	return newNetIRCConn(c2)
-}
-
 func createTempDB(t *testing.T) Database {
 	db, err := OpenSqliteDB("sqlite3", ":memory:")
 	if err != nil {
@@ -45,6 +39,12 @@ func createTestUser(t *testing.T, db Database) *User {
 	}
 
 	return record
+}
+
+func createTestDownstream(t *testing.T, srv *Server) ircConn {
+	c1, c2 := net.Pipe()
+	go srv.handle(newNetIRCConn(c1))
+	return newNetIRCConn(c2)
 }
 
 type testUpstream struct {
@@ -175,6 +175,28 @@ func TestServer(t *testing.T) {
 
 	dc := createTestDownstream(t, srv)
 	defer dc.Close()
-
 	registerDownstreamConn(t, dc, network)
+
+	noticeText := "This is a very important server notice."
+	uc.WriteMessage(&irc.Message{
+		Prefix:  testServerPrefix,
+		Command: "NOTICE",
+		Params:  []string{testUsername, noticeText},
+	})
+
+	var msg *irc.Message
+	for {
+		var err error
+		msg, err = dc.ReadMessage()
+		if err != nil {
+			t.Fatalf("failed to read IRC message: %v", err)
+		}
+		if msg.Command == "NOTICE" {
+			break
+		}
+	}
+
+	if msg.Params[1] != noticeText {
+		t.Fatalf("invalid NOTICE text: want %q, got: %v", noticeText, msg)
+	}
 }
