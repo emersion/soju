@@ -216,7 +216,7 @@ func (db *SqliteDB) ListUsers() ([]User, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	rows, err := db.db.Query("SELECT id, username, password, admin FROM User")
+	rows, err := db.db.Query("SELECT id, username, password, admin, realname FROM User")
 	if err != nil {
 		return nil, err
 	}
@@ -225,11 +225,12 @@ func (db *SqliteDB) ListUsers() ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var user User
-		var password sql.NullString
-		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin); err != nil {
+		var password, realname sql.NullString
+		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &realname); err != nil {
 			return nil, err
 		}
 		user.Password = password.String
+		user.Realname = realname.String
 		users = append(users, user)
 	}
 	if err := rows.Err(); err != nil {
