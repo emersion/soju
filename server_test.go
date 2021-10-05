@@ -47,35 +47,11 @@ func createTestDownstream(t *testing.T, srv *Server) ircConn {
 	return newNetIRCConn(c2)
 }
 
-type testUpstream struct {
-	net.Listener
-	Accept chan ircConn
-}
-
-func createTestUpstream(t *testing.T, db Database, user *User) (*Network, *testUpstream) {
+func createTestUpstream(t *testing.T, db Database, user *User) (*Network, net.Listener) {
 	ln, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatalf("failed to create TCP listener: %v", err)
 	}
-
-	tu := &testUpstream{
-		Listener: ln,
-		Accept:   make(chan ircConn),
-	}
-
-	go func() {
-		defer close(tu.Accept)
-
-		for {
-			c, err := ln.Accept()
-			if isErrClosed(err) {
-				break
-			} else if err != nil {
-				t.Fatalf("failed accepting connection: %v", err)
-			}
-			tu.Accept <- newNetIRCConn(c)
-		}
-	}()
 
 	network := &Network{
 		Name:    "testnet",
@@ -87,7 +63,15 @@ func createTestUpstream(t *testing.T, db Database, user *User) (*Network, *testU
 		t.Fatalf("failed to store test network: %v", err)
 	}
 
-	return network, tu
+	return network, ln
+}
+
+func mustAccept(t *testing.T, ln net.Listener) ircConn {
+	c, err := ln.Accept()
+	if err != nil {
+		t.Fatalf("failed accepting connection: %v", err)
+	}
+	return newNetIRCConn(c)
 }
 
 func expectMessage(t *testing.T, c ircConn, cmd string) *irc.Message {
@@ -169,7 +153,7 @@ func TestServer(t *testing.T) {
 	}
 	defer srv.Shutdown()
 
-	uc := <-upstream.Accept
+	uc := mustAccept(t, upstream)
 	defer uc.Close()
 	registerUpstreamConn(t, uc)
 
