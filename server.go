@@ -55,8 +55,9 @@ type Server struct {
 	AcceptProxyIPs config.IPSet
 	Identd         *Identd // can be nil
 
-	db     Database
-	stopWG sync.WaitGroup
+	db        Database
+	stopWG    sync.WaitGroup
+	connCount int64 // atomic
 
 	lock      sync.Mutex
 	listeners map[net.Listener]struct{}
@@ -165,6 +166,7 @@ func (s *Server) addUserLocked(user *User) *user {
 var lastDownstreamID uint64 = 0
 
 func (s *Server) handle(ic ircConn) {
+	atomic.AddInt64(&s.connCount, 1)
 	id := atomic.AddUint64(&lastDownstreamID, 1)
 	dc := newDownstreamConn(s, ic, id)
 	if err := dc.runUntilRegistered(); err != nil {
@@ -177,6 +179,7 @@ func (s *Server) handle(ic ircConn) {
 		dc.user.events <- eventDownstreamDisconnected{dc}
 	}
 	dc.Close()
+	atomic.AddInt64(&s.connCount, -1)
 }
 
 func (s *Server) Serve(ln net.Listener) error {
@@ -248,4 +251,18 @@ func parseForwarded(h http.Header) map[string]string {
 	// Hack to easily parse header parameters
 	_, params, _ := mime.ParseMediaType("hack; " + forwarded)
 	return params
+}
+
+type ServerStats struct {
+	Users       int
+	Downstreams int64
+}
+
+func (s *Server) Stats() *ServerStats {
+	var stats ServerStats
+	s.lock.Lock()
+	stats.Users = len(s.users)
+	s.lock.Unlock()
+	stats.Downstreams = atomic.LoadInt64(&s.connCount)
+	return &stats
 }

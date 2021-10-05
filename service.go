@@ -292,6 +292,16 @@ func init() {
 				},
 			},
 		},
+		"server": {
+			children: serviceCommandSet{
+				"status": {
+					desc:   "show server statistics",
+					handle: handleServiceServerStatus,
+					admin:  true,
+				},
+			},
+			admin: true,
+		},
 	}
 }
 
@@ -1005,5 +1015,11 @@ func handleServiceChannelUpdate(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("updated channel %q", name))
+	return nil
+}
+
+func handleServiceServerStatus(dc *downstreamConn, params []string) error {
+	stats := dc.user.srv.Stats()
+	sendServicePRIVMSG(dc, fmt.Sprintf("%v users, %v downstreams", stats.Users, stats.Downstreams))
 	return nil
 }

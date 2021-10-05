@@ -320,6 +320,9 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *user delete* <username>
 	Delete a soju user. Only admins can delete accounts.
 
+*server status*
+	Show some bouncer statistics. Only admins can query this information.
+
 # AUTHORS
 
 Maintained by Simon Ser <contact@emersion.fr>, who is assisted by other
