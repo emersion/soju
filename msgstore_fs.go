@@ -14,7 +14,10 @@ import (
 	"gopkg.in/irc.v3"
 )
 
-const fsMessageStoreMaxTries = 100
+const (
+	fsMessageStoreMaxFiles = 20
+	fsMessageStoreMaxTries = 100
+)
 
 func escapeFilename(unsafe string) (safe string) {
 	if unsafe == "." {
@@ -65,11 +68,17 @@ func formatFSMsgID(netID int64, entity string, t time.Time, offset int64) string
 	return formatMsgID(netID, entity, &id)
 }
 
+type fsMessageStoreFile struct {
+	*os.File
+	lastUse time.Time
+}
+
 // fsMessageStore is a per-user on-disk store for IRC messages.
 type fsMessageStore struct {
 	root string
 
-	files map[string]*os.File // indexed by entity
+	// Write-only files used by Append
+	files map[string]*fsMessageStoreFile // indexed by entity
 }
 
 var _ messageStore = (*fsMessageStore)(nil)
@@ -78,7 +87,7 @@ var _ chatHistoryMessageStore = (*fsMessageStore)(nil)
 func newFSMessageStore(root, username string) *fsMessageStore {
 	return &fsMessageStore{
 		root:  filepath.Join(root, escapeFilename(username)),
-		files: make(map[string]*os.File),
+		files: make(map[string]*fsMessageStoreFile),
 	}
 }
 
@@ -126,31 +135,47 @@ func (ms *fsMessageStore) Append(network *network, entity string, msg *irc.Messa
 		t = time.Now()
 	}
 
-	// TODO: enforce maximum open file handles (LRU cache of file handles)
 	f := ms.files[entity]
 
 	// TODO: handle non-monotonic clock behaviour
 	path := ms.logPath(network, entity, t)
 	if f == nil || f.Name() != path {
-		if f != nil {
-			f.Close()
-		}
-
 		dir := filepath.Dir(path)
 		if err := os.MkdirAll(dir, 0750); err != nil {
 			return "", fmt.Errorf("failed to create message logs directory %q: %v", dir, err)
 		}
 
-		var err error
-		f, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640)
+		ff, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
 			return "", fmt.Errorf("failed to open message log file %q: %v", path, err)
 		}
 
+		if f != nil {
+			f.Close()
+		}
+		f = &fsMessageStoreFile{File: ff}
 		ms.files[entity] = f
 	}
 
-	msgID, err := nextFSMsgID(network, entity, t, f)
+	f.lastUse = time.Now()
+
+	if len(ms.files) > fsMessageStoreMaxFiles {
+		entities := make([]string, 0, len(ms.files))
+		for name := range ms.files {
+			entities = append(entities, name)
+		}
+		sort.Slice(entities, func(i, j int) bool {
+			a, b := entities[i], entities[j]
+			return ms.files[a].lastUse.Before(ms.files[b].lastUse)
+		})
+		entities = entities[0 : len(entities)-fsMessageStoreMaxFiles]
+		for _, name := range entities {
+			ms.files[name].Close()
+			delete(ms.files, name)
+		}
+	}
+
+	msgID, err := nextFSMsgID(network, entity, t, f.File)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate message ID: %v", err)
 	}
