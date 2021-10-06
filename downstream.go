@@ -1908,6 +1908,24 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			})
 			return nil
 		}
+		if casemapASCII(mask) == serviceNickCM {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISUSER,
+				Params:  []string{dc.nick, serviceNick, servicePrefix.User, servicePrefix.Host, "*", serviceRealname},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISSERVER,
+				Params:  []string{dc.nick, serviceNick, dc.srv.Hostname, "soju"},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFWHOIS,
+				Params:  []string{dc.nick, serviceNick, "End of /WHOIS list"},
+			})
+			return nil
+		}
 
 		// TODO: support WHOIS masks
 		uc, upstreamNick, err := dc.unmarshalEntity(mask)
