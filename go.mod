@@ -5,6 +5,7 @@ go 1.19
 require (
 	git.sr.ht/~emersion/go-scfg v0.0.0-20240128091534-2ae16e782082
 	git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20240124102820-f3a72e8b79b1
+	git.sr.ht/~emersion/gqlclient v0.0.0-20221107153406-1d1d46a724f4
 	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9
 	github.com/SherClockHolmes/webpush-go v1.3.0
 	github.com/emersion/go-sasl v0.0.0-20231106173351-e73c9f7bad43

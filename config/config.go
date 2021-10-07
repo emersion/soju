@@ -193,7 +193,7 @@ func Load(filename string) (*Server, error) {
 			return nil, err
 		}
 		switch driver {
-		case "internal", "pam":
+		case "internal", "pam", "srht":
 			// nothing to do
 		case "oauth2":
 			if source == "" {

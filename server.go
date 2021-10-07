@@ -644,6 +644,11 @@ func (s *Server) Serve(ln net.Listener, handler func(ircConn)) error {
 	}
 }
 
+type srhtCookieIRCConn struct {
+	ircConn
+	cookie *http.Cookie
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	conn, err := websocket.Accept(w, req, &websocket.AcceptOptions{
 		Subprotocols:   []string{"text.ircv3.net"}, // non-compliant, fight me
@@ -671,7 +676,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	s.Handle(newWebsocketIRCConn(conn, remoteAddr))
+	ircConn := newWebsocketIRCConn(conn, remoteAddr)
+	if cookie, _ := req.Cookie("sr.ht.unified-login.v1"); cookie != nil {
+		ircConn = srhtCookieIRCConn{ircConn, cookie}
+	}
+	s.Handle(ircConn)
 }
 
 func parseForwarded(h http.Header) map[string]string {
