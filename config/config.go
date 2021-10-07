@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 
 	"git.sr.ht/~emersion/go-scfg"
 )
@@ -36,14 +37,18 @@ type TLS struct {
 }
 
 type Server struct {
-	Listen         []string
-	Hostname       string
-	TLS            *TLS
-	SQLDriver      string
-	SQLSource      string
-	LogPath        string
+	Listen   []string
+	Hostname string
+	TLS      *TLS
+
+	SQLDriver string
+	SQLSource string
+	LogPath   string
+
 	HTTPOrigins    []string
 	AcceptProxyIPs IPSet
+
+	MaxUserNetworks int
 }
 
 func Defaults() *Server {
@@ -52,9 +57,10 @@ func Defaults() *Server {
 		hostname = "localhost"
 	}
 	return &Server{
-		Hostname:  hostname,
-		SQLDriver: "sqlite3",
-		SQLSource: "soju.db",
+		Hostname:        hostname,
+		SQLDriver:       "sqlite3",
+		SQLSource:       "soju.db",
+		MaxUserNetworks: -1,
 	}
 }
 
@@ -112,6 +118,15 @@ func parse(cfg scfg.Block) (*Server, error) {
 					return nil, fmt.Errorf("directive %q: failed to parse CIDR: %v", d.Name, err)
 				}
 				srv.AcceptProxyIPs = append(srv.AcceptProxyIPs, n)
+			}
+		case "max-user-networks":
+			var max string
+			if err := d.ParseParams(&max); err != nil {
+				return nil, err
+			}
+			var err error
+			if srv.MaxUserNetworks, err = strconv.Atoi(max); err != nil {
+				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
 			}
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)

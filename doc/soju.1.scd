@@ -129,6 +129,9 @@ The following directives are supported:
 
 	By default, all IPs are rejected.
 
+*max-user-networks* <limit>
+	Maximum number of networks per user. By default, there is no limit.
+
 # IRC SERVICE
 
 soju exposes an IRC service called *BouncerServ* to manage the bouncer.

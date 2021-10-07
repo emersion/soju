@@ -46,14 +46,15 @@ func (l *prefixLogger) Printf(format string, v ...interface{}) {
 }
 
 type Server struct {
-	Hostname       string
-	Logger         Logger
-	HistoryLimit   int
-	LogPath        string
-	Debug          bool
-	HTTPOrigins    []string
-	AcceptProxyIPs config.IPSet
-	Identd         *Identd // can be nil
+	Hostname        string
+	Logger          Logger
+	HistoryLimit    int
+	LogPath         string
+	Debug           bool
+	HTTPOrigins     []string
+	AcceptProxyIPs  config.IPSet
+	MaxUserNetworks int
+	Identd          *Identd // can be nil
 
 	db        Database
 	stopWG    sync.WaitGroup
@@ -66,11 +67,12 @@ type Server struct {
 
 func NewServer(db Database) *Server {
 	return &Server{
-		Logger:       log.New(log.Writer(), "", log.LstdFlags),
-		HistoryLimit: 1000,
-		db:           db,
-		listeners:    make(map[net.Listener]struct{}),
-		users:        make(map[string]*user),
+		Logger:          log.New(log.Writer(), "", log.LstdFlags),
+		HistoryLimit:    1000,
+		MaxUserNetworks: -1,
+		db:              db,
+		listeners:       make(map[net.Listener]struct{}),
+		users:           make(map[string]*user),
 	}
 }
 

@@ -88,6 +88,7 @@ func main() {
 	srv.LogPath = cfg.LogPath
 	srv.HTTPOrigins = cfg.HTTPOrigins
 	srv.AcceptProxyIPs = cfg.AcceptProxyIPs
+	srv.MaxUserNetworks = cfg.MaxUserNetworks
 	srv.Debug = debug
 
 	for _, listen := range cfg.Listen {

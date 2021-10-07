@@ -748,6 +748,10 @@ func (u *user) createNetwork(record *Network) (*network, error) {
 		return nil, err
 	}
 
+	if u.srv.MaxUserNetworks >= 0 && len(u.networks) >= u.srv.MaxUserNetworks {
+		return nil, fmt.Errorf("maximum number of networks reached")
+	}
+
 	network := newNetwork(u, record, nil)
 	err := u.srv.db.StoreNetwork(u.ID, &network.Network)
 	if err != nil {
