@@ -358,6 +358,8 @@ func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, re
 }
 
 func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, start time.Time, end time.Time, limit int) ([]*irc.Message, error) {
+	start = start.In(time.Local)
+	end = end.In(time.Local)
 	history := make([]*irc.Message, limit)
 	remaining := limit
 	tries := 0
@@ -381,6 +383,8 @@ func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, start 
 }
 
 func (ms *fsMessageStore) LoadAfterTime(network *network, entity string, start time.Time, end time.Time, limit int) ([]*irc.Message, error) {
+	start = start.In(time.Local)
+	end = end.In(time.Local)
 	var history []*irc.Message
 	remaining := limit
 	tries := 0
@@ -447,6 +451,8 @@ func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limi
 }
 
 func (ms *fsMessageStore) ListTargets(network *network, start, end time.Time, limit int) ([]chatHistoryTarget, error) {
+	start = start.In(time.Local)
+	end = end.In(time.Local)
 	rootPath := filepath.Join(ms.root, escapeFilename(network.GetName()))
 	root, err := os.Open(rootPath)
 	if err != nil {
