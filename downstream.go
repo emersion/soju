@@ -324,6 +324,9 @@ func serverSASLMechanisms(srv *Server) []string {
 	if _, ok := srv.Config().Auth.(auth.OAuthBearerAuthenticator); ok {
 		l = append(l, "OAUTHBEARER")
 	}
+	if auth.IsSrht(srv.Config().Auth) {
+		l = append(l, "EXTERNAL")
+	}
 	return l
 }
 
@@ -689,6 +692,20 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 				err = fmt.Errorf("username mismatch (client provided %q, but server returned %q)", credentials.oauthBearer.Username, username)
 				break
 			}
+		case "EXTERNAL":
+			srhtConn, ok := dc.conn.conn.(srhtCookieIRCConn)
+			if !ok {
+				err = &auth.Error{
+					InternalErr: fmt.Errorf("sr.ht cookie not found"),
+					ExternalMsg: "You are not logged in with your sr.ht account",
+				}
+				break
+			}
+
+			username, err = auth.CheckSrhtCookie(ctx, dc.srv.db, srhtConn.cookie)
+			if err != nil {
+				break
+			}
 		default:
 			err = fmt.Errorf("unsupported SASL mechanism")
 		}
@@ -947,6 +964,10 @@ func (dc *downstreamConn) handleAuthenticate(ctx context.Context, msg *irc.Messa
 			}))
 		case "ANONYMOUS":
 			server = sasl.NewAnonymousServer(func(trace string) error {
+				return nil
+			})
+		case "EXTERNAL":
+			server = sasl.NewExternalServer(func(identity string) error {
 				return nil
 			})
 		default:

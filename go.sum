@@ -2,6 +2,8 @@ git.sr.ht/~emersion/go-scfg v0.0.0-20231004133111-9dce55c8d63b h1:Lf4oYBOJVmbYzr
 git.sr.ht/~emersion/go-scfg v0.0.0-20231004133111-9dce55c8d63b/go.mod h1:ybgvEJTIx5XbaspSviB3KNa6OdPmAZqDoSud7z8fFlw=
 git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20230217131031-f2c8767594fc h1:+y3OijpLl4rgbFsqMBmYUTCsGCkxQUWpWaqfS8j9Ygc=
 git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20230217131031-f2c8767594fc/go.mod h1:PCl1xjl7iC6x35TKKubKRyo/3TT0dGI66jyNI6vmYnU=
+git.sr.ht/~emersion/gqlclient v0.0.0-20221107153406-1d1d46a724f4 h1:h/ANvYjLvyUP4fE38itS3WNHY22DVqW+gv5f3Hu/dJ8=
+git.sr.ht/~emersion/gqlclient v0.0.0-20221107153406-1d1d46a724f4/go.mod h1:ZPMGaySx47yJ36/BzEKJ47UFOeLvANlWxEJ6zkn2GEY=
 git.sr.ht/~sircmpwn/getopt v0.0.0-20191230200459-23622cc906b3/go.mod h1:wMEGFFFNuPos7vHmWXfszqImLppbc0wEhh6JBfJIUgw=
 git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9 h1:Ahny8Ud1LjVMMAlt8utUFKhhxJtwBAualvsbc/Sk7cE=
 git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9/go.mod h1:BVJwbDfVjCjoFiKrhkei6NdGcZYpkDkdyCdg1ukytRA=
