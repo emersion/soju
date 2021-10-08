@@ -1,23 +1,14 @@
 package soju
 
 import (
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"math/big"
 	"sort"
 	"strconv"
 	"strings"
@@ -238,12 +229,12 @@ func init() {
 				"generate": {
 					usage:  "[-key-type rsa|ecdsa|ed25519] [-bits N] <network name>",
 					desc:   "generate a new self-signed certificate, defaults to using RSA-3072 key",
-					handle: handleServiceCertfpGenerate,
+					handle: handleServiceCertFPGenerate,
 				},
 				"fingerprint": {
 					usage:  "<network name>",
 					desc:   "show fingerprints of certificate associated with the network",
-					handle: handleServiceCertfpFingerprints,
+					handle: handleServiceCertFPFingerprints,
 				},
 			},
 		},
@@ -621,7 +612,16 @@ func handleServiceNetworkQuote(dc *downstreamConn, params []string) error {
 	return nil
 }
 
-func handleServiceCertfpGenerate(dc *downstreamConn, params []string) error {
+func sendCertfpFingerprints(dc *downstreamConn, cert []byte) {
+	sha1Sum := sha1.Sum(cert)
+	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
+	sha256Sum := sha256.Sum256(cert)
+	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
+	sha512Sum := sha512.Sum512(cert)
+	sendServicePRIVMSG(dc, "SHA-512 fingerprint: "+hex.EncodeToString(sha512Sum[:]))
+}
+
+func handleServiceCertFPGenerate(dc *downstreamConn, params []string) error {
 	fs := newFlagSet()
 	keyType := fs.String("key-type", "rsa", "key type to generate (rsa, ecdsa, ed25519)")
 	bits := fs.Int("bits", 3072, "size of key to generate, meaningful only for RSA")
@@ -639,65 +639,17 @@ func handleServiceCertfpGenerate(dc *downstreamConn, params []string) error {
 		return fmt.Errorf("unknown network %q", fs.Arg(0))
 	}
 
-	var (
-		privKey crypto.PrivateKey
-		pubKey  crypto.PublicKey
-	)
-	switch *keyType {
-	case "rsa":
-		if *bits <= 0 || *bits > maxRSABits {
-			return fmt.Errorf("invalid value for -bits")
-		}
-		key, err := rsa.GenerateKey(rand.Reader, *bits)
-		if err != nil {
-			return err
-		}
-		privKey = key
-		pubKey = key.Public()
-	case "ecdsa":
-		key, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-		if err != nil {
-			return err
-		}
-		privKey = key
-		pubKey = key.Public()
-	case "ed25519":
-		var err error
-		pubKey, privKey, err = ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			return err
-		}
+	if *bits <= 0 || *bits > maxRSABits {
+		return fmt.Errorf("invalid value for -bits")
 	}
 
-	// Using PKCS#8 allows easier extension for new key types.
-	privKeyBytes, err := x509.MarshalPKCS8PrivateKey(privKey)
+	privKey, cert, err := generateCertFP(*keyType, *bits)
 	if err != nil {
 		return err
 	}
 
-	notBefore := time.Now()
-	// Lets make a fair assumption nobody will use the same cert for more than 20 years...
-	notAfter := notBefore.Add(24 * time.Hour * 365 * 20)
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return err
-	}
-	cert := &x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject:      pkix.Name{CommonName: "soju auto-generated certificate"},
-		NotBefore:    notBefore,
-		NotAfter:     notAfter,
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, cert, cert, pubKey, privKey)
-	if err != nil {
-		return err
-	}
-
-	net.SASL.External.CertBlob = derBytes
-	net.SASL.External.PrivKeyBlob = privKeyBytes
+	net.SASL.External.CertBlob = cert
+	net.SASL.External.PrivKeyBlob = privKey
 	net.SASL.Mechanism = "EXTERNAL"
 
 	if err := dc.srv.db.StoreNetwork(dc.user.ID, &net.Network); err != nil {
@@ -705,18 +657,11 @@ func handleServiceCertfpGenerate(dc *downstreamConn, params []string) error {
 	}
 
 	sendServicePRIVMSG(dc, "certificate generated")
-
-	sha1Sum := sha1.Sum(derBytes)
-	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
-	sha256Sum := sha256.Sum256(derBytes)
-	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
-	sha512Sum := sha512.Sum512(derBytes)
-	sendServicePRIVMSG(dc, "SHA-512 fingerprint: "+hex.EncodeToString(sha512Sum[:]))
-
+	sendCertfpFingerprints(dc, cert)
 	return nil
 }
 
-func handleServiceCertfpFingerprints(dc *downstreamConn, params []string) error {
+func handleServiceCertFPFingerprints(dc *downstreamConn, params []string) error {
 	if len(params) != 1 {
 		return fmt.Errorf("expected exactly one argument")
 	}
@@ -726,12 +671,11 @@ func handleServiceCertfpFingerprints(dc *downstreamConn, params []string) error 
 		return fmt.Errorf("unknown network %q", params[0])
 	}
 
-	sha1Sum := sha1.Sum(net.SASL.External.CertBlob)
-	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
-	sha256Sum := sha256.Sum256(net.SASL.External.CertBlob)
-	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
-	sha512Sum := sha512.Sum512(net.SASL.External.CertBlob)
-	sendServicePRIVMSG(dc, "SHA-512 fingerprint: "+hex.EncodeToString(sha512Sum[:]))
+	if net.SASL.Mechanism != "EXTERNAL" {
+		return fmt.Errorf("CertFP not set up")
+	}
+
+	sendCertfpFingerprints(dc, net.SASL.External.CertBlob)
 	return nil
 }
 
