@@ -294,6 +294,11 @@ func init() {
 					handle: handleServiceServerStatus,
 					admin:  true,
 				},
+				"notice": {
+					desc:   "broadcast a notice to all connected bouncer users",
+					handle: handleServiceServerNotice,
+					admin:  true,
+				},
 			},
 			admin: true,
 		},
@@ -976,5 +981,24 @@ func handleServiceServerStatus(dc *downstreamConn, params []string) error {
 	}
 	serverStats := dc.user.srv.Stats()
 	sendServicePRIVMSG(dc, fmt.Sprintf("%v/%v users, %v downstreams, %v networks, %v channels", serverStats.Users, dbStats.Users, serverStats.Downstreams, dbStats.Networks, dbStats.Channels))
+	return nil
+}
+
+func handleServiceServerNotice(dc *downstreamConn, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+	text := params[0]
+
+	dc.logger.Printf("broadcasting bouncer-wide NOTICE: %v", text)
+
+	broadcastMsg := &irc.Message{
+		Prefix:  servicePrefix,
+		Command: "NOTICE",
+		Params:  []string{"$" + dc.srv.Hostname, text},
+	}
+	dc.srv.forEachUser(func(u *user) {
+		u.events <- eventBroadcast{broadcastMsg}
+	})
 	return nil
 }

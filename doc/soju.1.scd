@@ -329,6 +329,11 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 *server status*
 	Show some bouncer statistics. Only admins can query this information.
 
+*server notice* <message>
+	Broadcast a notice. All currently connected bouncer users will receive the
+	message from the special _BouncerServ_ service. Only admins can broadcast a
+	notice.
+
 # AUTHORS
 
 Maintained by Simon Ser <contact@emersion.fr>, who is assisted by other
