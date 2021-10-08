@@ -7,6 +7,7 @@ require (
 	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/klauspost/compress v1.13.5 // indirect
+	github.com/lib/pq v1.10.3
 	github.com/mattn/go-sqlite3 v1.14.8
 	github.com/pires/go-proxyproto v0.6.1
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5

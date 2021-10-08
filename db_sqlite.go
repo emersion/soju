@@ -142,8 +142,8 @@ type SqliteDB struct {
 	db   *sql.DB
 }
 
-func OpenSqliteDB(driver, source string) (Database, error) {
-	sqlSqliteDB, err := sql.Open(driver, source)
+func OpenSqliteDB(source string) (Database, error) {
+	sqlSqliteDB, err := sql.Open("sqlite3", source)
 	if err != nil {
 		return nil, err
 	}

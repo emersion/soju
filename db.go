@@ -27,6 +27,17 @@ type Database interface {
 	StoreClientDeliveryReceipts(networkID int64, client string, receipts []DeliveryReceipt) error
 }
 
+func OpenDB(driver, source string) (Database, error) {
+	switch driver {
+	case "sqlite3":
+		return OpenSqliteDB(source)
+	case "postgres":
+		return OpenPostgresDB(source)
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %q", driver)
+	}
+}
+
 type DatabaseStats struct {
 	Users    int64
 	Networks int64

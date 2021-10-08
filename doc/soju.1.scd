@@ -106,8 +106,18 @@ The following directives are supported:
 *tls* <cert> <key>
 	Enable TLS support. The certificate and the key files must be PEM-encoded.
 
-*db* sqlite3 <path>
-	Set the SQLite database path (default: "soju.db" in the current directory).
+*db* <driver> <source>
+	Set the database location for user, network and channel storage. By default,
+	a _sqlite3_ database is opened in "./soju.db".
+
+	Supported drivers:
+
+	- _sqlite3_ expects _source_ to be a path to the SQLite file
+	- _postgres_ expects _source_ to be a space-separated list of _key=value_
+	  parameters, e.g. _db postgres "host=/run/postgresql dbname=soju"_. Note
+	  that _sslmode_ defaults to _require_. For more information on connection
+	  strings, see:
+	  <https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters>.
 
 *log* fs <path>
 	Path to the bouncer logs root directory, or empty to disable logging. By

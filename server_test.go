@@ -16,7 +16,7 @@ const (
 )
 
 func createTempDB(t *testing.T) Database {
-	db, err := OpenSqliteDB("sqlite3", ":memory:")
+	db, err := OpenDB("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to create temporary SQLite database: %v", err)
 	}
