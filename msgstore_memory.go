@@ -74,6 +74,12 @@ func (ms *memoryMessageStore) LastMsgID(network *network, entity string, t time.
 }
 
 func (ms *memoryMessageStore) Append(network *network, entity string, msg *irc.Message) (string, error) {
+	switch msg.Command {
+	case "PRIVMSG", "NOTICE":
+	default:
+		return "", nil
+	}
+
 	k := ringBufferKey{networkID: network.ID, entity: entity}
 	rb, ok := ms.buffers[k]
 	if !ok {
