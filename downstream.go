@@ -518,7 +518,7 @@ func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, 
 func (dc *downstreamConn) sendMessageWithID(msg *irc.Message, id string) {
 	dc.SendMessage(msg)
 
-	if id == "" || !dc.messageSupportsHistory(msg) {
+	if id == "" || !dc.messageSupportsBacklog(msg) {
 		return
 	}
 
@@ -529,7 +529,7 @@ func (dc *downstreamConn) sendMessageWithID(msg *irc.Message, id string) {
 // sending a message. This is useful e.g. for self-messages when echo-message
 // isn't enabled.
 func (dc *downstreamConn) advanceMessageWithID(msg *irc.Message, id string) {
-	if id == "" || !dc.messageSupportsHistory(msg) {
+	if id == "" || !dc.messageSupportsBacklog(msg) {
 		return
 	}
 
@@ -571,8 +571,13 @@ func (dc *downstreamConn) handlePong(token string) {
 
 // marshalMessage re-formats a message coming from an upstream connection so
 // that it's suitable for being sent on this downstream connection. Only
-// messages that may appear in logs are supported, except MODE.
+// messages that may appear in logs are supported, except MODE messages which
+// may only appear in single-upstream mode.
 func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Message {
+	if dc.network != nil {
+		return msg
+	}
+
 	msg = msg.Copy()
 	msg.Prefix = dc.marshalUserPrefix(net, msg.Prefix)
 
@@ -983,6 +988,12 @@ func (dc *downstreamConn) updateSupportedCaps() {
 			dc.unsetSupportedCap(cap)
 		}
 	}
+
+	if dc.srv.LogPath != "" && dc.network != nil {
+		dc.setSupportedCap("draft/event-playback", "")
+	} else {
+		dc.unsetSupportedCap("draft/event-playback")
+	}
 }
 
 func (dc *downstreamConn) updateNick() {
@@ -1297,13 +1308,12 @@ func (dc *downstreamConn) welcome() error {
 	return nil
 }
 
-// messageSupportsHistory checks whether the provided message can be sent as
+// messageSupportsBacklog checks whether the provided message can be sent as
 // part of an history batch.
-func (dc *downstreamConn) messageSupportsHistory(msg *irc.Message) bool {
+func (dc *downstreamConn) messageSupportsBacklog(msg *irc.Message) bool {
 	// Don't replay all messages, because that would mess up client
 	// state. For instance we just sent the list of users, sending
 	// PART messages for one of these users would be incorrect.
-	// TODO: add support for draft/event-playback
 	switch msg.Command {
 	case "PRIVMSG", "NOTICE":
 		return true
@@ -1328,10 +1338,6 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) 
 
 	dc.SendBatch("chathistory", []string{dc.marshalEntity(net, target)}, nil, func(batchRef irc.TagValue) {
 		for _, msg := range history {
-			if !dc.messageSupportsHistory(msg) {
-				continue
-			}
-
 			if ch != nil && ch.Detached {
 				if net.detachedMessageNeedsRelay(ch, msg) {
 					dc.relayDetachedMessage(net, msg)
@@ -2326,21 +2332,23 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}}
 		}
 
+		eventPlayback := dc.caps["draft/event-playback"]
+
 		var history []*irc.Message
 		switch subcommand {
 		case "BEFORE":
-			history, err = store.LoadBeforeTime(network, entity, bounds[0], time.Time{}, limit)
+			history, err = store.LoadBeforeTime(network, entity, bounds[0], time.Time{}, limit, eventPlayback)
 		case "AFTER":
-			history, err = store.LoadAfterTime(network, entity, bounds[0], time.Now(), limit)
+			history, err = store.LoadAfterTime(network, entity, bounds[0], time.Now(), limit, eventPlayback)
 		case "BETWEEN":
 			if bounds[0].Before(bounds[1]) {
-				history, err = store.LoadAfterTime(network, entity, bounds[0], bounds[1], limit)
+				history, err = store.LoadAfterTime(network, entity, bounds[0], bounds[1], limit, eventPlayback)
 			} else {
-				history, err = store.LoadBeforeTime(network, entity, bounds[0], bounds[1], limit)
+				history, err = store.LoadBeforeTime(network, entity, bounds[0], bounds[1], limit, eventPlayback)
 			}
 		case "TARGETS":
 			// TODO: support TARGETS in multi-upstream mode
-			targets, err := store.ListTargets(network, bounds[0], bounds[1], limit)
+			targets, err := store.ListTargets(network, bounds[0], bounds[1], limit, eventPlayback)
 			if err != nil {
 				dc.logger.Printf("failed fetching targets for chathistory: %v", err)
 				return ircError{&irc.Message{

@@ -249,7 +249,7 @@ func formatMessage(msg *irc.Message) string {
 	}
 }
 
-func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, error) {
+func parseMessage(line, entity string, ref time.Time, events bool) (*irc.Message, time.Time, error) {
 	var hour, minute, second int
 	_, err := fmt.Sscanf(line, "[%02d:%02d:%02d] ", &hour, &minute, &second)
 	if err != nil {
@@ -257,30 +257,121 @@ func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, 
 	}
 	line = line[11:]
 
-	var cmd, sender, text string
-	if strings.HasPrefix(line, "<") {
-		cmd = "PRIVMSG"
-		parts := strings.SplitN(line[1:], "> ", 2)
+	var cmd string
+	var prefix *irc.Prefix
+	var params []string
+	if events && strings.HasPrefix(line, "*** ") {
+		parts := strings.SplitN(line[4:], " ", 2)
 		if len(parts) != 2 {
 			return nil, time.Time{}, nil
 		}
-		sender, text = parts[0], parts[1]
-	} else if strings.HasPrefix(line, "-") {
-		cmd = "NOTICE"
-		parts := strings.SplitN(line[1:], "- ", 2)
-		if len(parts) != 2 {
-			return nil, time.Time{}, nil
+		switch parts[0] {
+		case "Joins:", "Parts:", "Quits:":
+			args := strings.SplitN(parts[1], " ", 3)
+			if len(args) < 2 {
+				return nil, time.Time{}, nil
+			}
+			nick := args[0]
+			mask := strings.TrimSuffix(strings.TrimPrefix(args[1], "("), ")")
+			maskParts := strings.SplitN(mask, "@", 2)
+			if len(maskParts) != 2 {
+				return nil, time.Time{}, nil
+			}
+			prefix = &irc.Prefix{
+				Name: nick,
+				User: maskParts[0],
+				Host: maskParts[1],
+			}
+			var reason string
+			if len(args) > 2 {
+				reason = strings.TrimSuffix(strings.TrimPrefix(args[2], "("), ")")
+			}
+			switch parts[0] {
+			case "Joins:":
+				cmd = "JOIN"
+				params = []string{entity}
+			case "Parts:":
+				cmd = "PART"
+				if reason != "" {
+					params = []string{entity, reason}
+				} else {
+					params = []string{entity}
+				}
+			case "Quits:":
+				cmd = "QUIT"
+				if reason != "" {
+					params = []string{reason}
+				}
+			}
+		default:
+			nick := parts[0]
+			rem := parts[1]
+			if r := strings.TrimPrefix(rem, "is now known as "); r != rem {
+				cmd = "NICK"
+				prefix = &irc.Prefix{
+					Name: nick,
+				}
+				params = []string{r}
+			} else if r := strings.TrimPrefix(rem, "was kicked by "); r != rem {
+				args := strings.SplitN(r, " ", 2)
+				if len(args) != 2 {
+					return nil, time.Time{}, nil
+				}
+				cmd = "KICK"
+				prefix = &irc.Prefix{
+					Name: args[0],
+				}
+				reason := strings.TrimSuffix(strings.TrimPrefix(args[1], "("), ")")
+				params = []string{entity, nick}
+				if reason != "" {
+					params = append(params, reason)
+				}
+			} else if r := strings.TrimPrefix(rem, "changes topic to "); r != rem {
+				cmd = "TOPIC"
+				prefix = &irc.Prefix{
+					Name: nick,
+				}
+				topic := strings.TrimSuffix(strings.TrimPrefix(r, "'"), "'")
+				params = []string{entity, topic}
+			} else if r := strings.TrimPrefix(rem, "sets mode: "); r != rem {
+				cmd = "MODE"
+				prefix = &irc.Prefix{
+					Name: nick,
+				}
+				params = append([]string{entity}, strings.Split(r, " ")...)
+			} else {
+				return nil, time.Time{}, nil
+			}
 		}
-		sender, text = parts[0], parts[1]
-	} else if strings.HasPrefix(line, "* ") {
-		cmd = "PRIVMSG"
-		parts := strings.SplitN(line[2:], " ", 2)
-		if len(parts) != 2 {
-			return nil, time.Time{}, nil
-		}
-		sender, text = parts[0], "\x01ACTION "+parts[1]+"\x01"
 	} else {
-		return nil, time.Time{}, nil
+		var sender, text string
+		if strings.HasPrefix(line, "<") {
+			cmd = "PRIVMSG"
+			parts := strings.SplitN(line[1:], "> ", 2)
+			if len(parts) != 2 {
+				return nil, time.Time{}, nil
+			}
+			sender, text = parts[0], parts[1]
+		} else if strings.HasPrefix(line, "-") {
+			cmd = "NOTICE"
+			parts := strings.SplitN(line[1:], "- ", 2)
+			if len(parts) != 2 {
+				return nil, time.Time{}, nil
+			}
+			sender, text = parts[0], parts[1]
+		} else if strings.HasPrefix(line, "* ") {
+			cmd = "PRIVMSG"
+			parts := strings.SplitN(line[2:], " ", 2)
+			if len(parts) != 2 {
+				return nil, time.Time{}, nil
+			}
+			sender, text = parts[0], "\x01ACTION "+parts[1]+"\x01"
+		} else {
+			return nil, time.Time{}, nil
+		}
+
+		prefix = &irc.Prefix{Name: sender}
+		params = []string{entity, text}
 	}
 
 	year, month, day := ref.Date()
@@ -290,14 +381,14 @@ func parseMessage(line, entity string, ref time.Time) (*irc.Message, time.Time, 
 		Tags: map[string]irc.TagValue{
 			"time": irc.TagValue(t.UTC().Format(serverTimeLayout)),
 		},
-		Prefix:  &irc.Prefix{Name: sender},
+		Prefix:  prefix,
 		Command: cmd,
-		Params:  []string{entity, text},
+		Params:  params,
 	}
 	return msg, t, nil
 }
 
-func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, ref time.Time, end time.Time, limit int, afterOffset int64) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, ref time.Time, end time.Time, events bool, limit int, afterOffset int64) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -321,7 +412,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, r
 	}
 
 	for sc.Scan() {
-		msg, t, err := parseMessage(sc.Text(), entity, ref)
+		msg, t, err := parseMessage(sc.Text(), entity, ref, events)
 		if err != nil {
 			return nil, err
 		} else if msg == nil || !t.After(end) {
@@ -353,7 +444,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, r
 	}
 }
 
-func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, ref time.Time, end time.Time, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, ref time.Time, end time.Time, events bool, limit int) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -367,7 +458,7 @@ func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, re
 	var history []*irc.Message
 	sc := bufio.NewScanner(f)
 	for sc.Scan() && len(history) < limit {
-		msg, t, err := parseMessage(sc.Text(), entity, ref)
+		msg, t, err := parseMessage(sc.Text(), entity, ref, events)
 		if err != nil {
 			return nil, err
 		} else if msg == nil || !t.After(ref) {
@@ -385,14 +476,14 @@ func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, re
 	return history, nil
 }
 
-func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, start time.Time, end time.Time, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	history := make([]*irc.Message, limit)
 	remaining := limit
 	tries := 0
 	for remaining > 0 && tries < fsMessageStoreMaxTries && end.Before(start) {
-		buf, err := ms.parseMessagesBefore(network, entity, start, end, remaining, -1)
+		buf, err := ms.parseMessagesBefore(network, entity, start, end, events, remaining, -1)
 		if err != nil {
 			return nil, err
 		}
@@ -410,14 +501,14 @@ func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, start 
 	return history[remaining:], nil
 }
 
-func (ms *fsMessageStore) LoadAfterTime(network *network, entity string, start time.Time, end time.Time, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadAfterTime(network *network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	var history []*irc.Message
 	remaining := limit
 	tries := 0
 	for remaining > 0 && tries < fsMessageStoreMaxTries && start.Before(end) {
-		buf, err := ms.parseMessagesAfter(network, entity, start, end, remaining)
+		buf, err := ms.parseMessagesAfter(network, entity, start, end, events, remaining)
 		if err != nil {
 			return nil, err
 		}
@@ -460,7 +551,7 @@ func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limi
 			offset = afterOffset
 		}
 
-		buf, err := ms.parseMessagesBefore(network, entity, t, time.Time{}, remaining, offset)
+		buf, err := ms.parseMessagesBefore(network, entity, t, time.Time{}, false, remaining, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -478,7 +569,7 @@ func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limi
 	return history[remaining:], nil
 }
 
-func (ms *fsMessageStore) ListTargets(network *network, start, end time.Time, limit int) ([]chatHistoryTarget, error) {
+func (ms *fsMessageStore) ListTargets(network *network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	rootPath := filepath.Join(ms.root, escapeFilename(network.GetName()))

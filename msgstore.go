@@ -17,6 +17,8 @@ type messageStore interface {
 	// date. The message ID returned may not refer to a valid message, but can be
 	// used in history queries.
 	LastMsgID(network *network, entity string, t time.Time) (string, error)
+	// LoadLatestID queries the latest non-event messages for the given network,
+	// entity and date, up to a count of limit messages, sorted from oldest to newest.
 	LoadLatestID(network *network, entity, id string, limit int) ([]*irc.Message, error)
 	Append(network *network, entity string, msg *irc.Message) (id string, err error)
 }
@@ -34,15 +36,18 @@ type chatHistoryMessageStore interface {
 	// ListTargets lists channels and nicknames by time of the latest message.
 	// It returns up to limit targets, starting from start and ending on end,
 	// both excluded. end may be before or after start.
-	ListTargets(network *network, start, end time.Time, limit int) ([]chatHistoryTarget, error)
+	// If events is false, only PRIVMSG/NOTICE messages are considered.
+	ListTargets(network *network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error)
 	// LoadBeforeTime loads up to limit messages before start down to end. The
 	// returned messages must be between and excluding the provided bounds.
 	// end is before start.
-	LoadBeforeTime(network *network, entity string, start, end time.Time, limit int) ([]*irc.Message, error)
+	// If events is false, only PRIVMSG/NOTICE messages are considered.
+	LoadBeforeTime(network *network, entity string, start, end time.Time, limit int, events bool) ([]*irc.Message, error)
 	// LoadBeforeTime loads up to limit messages after start up to end. The
 	// returned messages must be between and excluding the provided bounds.
 	// end is after start.
-	LoadAfterTime(network *network, entity string, start, end time.Time, limit int) ([]*irc.Message, error)
+	// If events is false, only PRIVMSG/NOTICE messages are considered.
+	LoadAfterTime(network *network, entity string, start, end time.Time, limit int, events bool) ([]*irc.Message, error)
 }
 
 type msgIDType uint
