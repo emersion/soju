@@ -2,6 +2,7 @@ package soju
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -649,7 +650,31 @@ type srhtCookieIRCConn struct {
 	cookie *http.Cookie
 }
 
+type GamjaServerConfig struct {
+	URL         string `json:"url"`
+	Auth        string `json:"auth"`
+	AutoConnect bool   `json:"autoconnect"`
+	Ping        int    `json:"ping"`
+}
+
+type GamjaConfig struct {
+	Server GamjaServerConfig `json:"server"`
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.URL.Path == "/config.json" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(GamjaConfig{
+			Server: GamjaServerConfig{
+				URL:         "/socket",
+				Auth:        "external",
+				AutoConnect: true,
+				Ping:        500,
+			},
+		})
+		return
+	}
+
 	conn, err := websocket.Accept(w, req, &websocket.AcceptOptions{
 		Subprotocols:   []string{"text.ircv3.net"}, // non-compliant, fight me
 		OriginPatterns: s.Config().HTTPOrigins,
