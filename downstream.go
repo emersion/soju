@@ -1984,7 +1984,12 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			if dc.network == nil && casemapASCII(name) == dc.nickCM {
-				dc.SendMessage(msg)
+				dc.SendMessage(&irc.Message{
+					Tags:    msg.Tags.Copy(),
+					Prefix:  dc.prefix(),
+					Command: msg.Command,
+					Params:  []string{name, text},
+				})
 				continue
 			}
 
