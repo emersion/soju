@@ -2048,6 +2048,16 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
+			if dc.network == nil && casemapASCII(name) == dc.nickCM {
+				dc.SendMessage(&irc.Message{
+					Tags:    msg.Tags.Copy(),
+					Prefix:  dc.prefix(),
+					Command: "TAGMSG",
+					Params:  []string{name},
+				})
+				continue
+			}
+
 			if casemapASCII(name) == serviceNickCM {
 				continue
 			}
