@@ -2048,6 +2048,10 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
+			if casemapASCII(name) == serviceNickCM {
+				continue
+			}
+
 			uc, upstreamName, err := dc.unmarshalEntity(name)
 			if err != nil {
 				return err
