@@ -2,11 +2,22 @@ image: alpine/edge
 packages:
   - go
   - scdoc
+  - postgresql
 sources:
   - https://git.sr.ht/~emersion/soju
 tasks:
   - build: |
       cd soju
-      go test -v ./...
+      go build -v ./...
       scdoc <doc/soju.1.scd >/dev/null
+  - setup-postgresql: |
+      sudo /etc/init.d/postgresql start
+      sudo -u postgres -- createuser "$USER"
+      sudo -u postgres -- createdb soju
+  - test: |
+      cd soju
+      export SOJU_TEST_POSTGRES="host=/run/postgresql dbname=soju"
+      go test -v ./...
+  - gofmt: |
+      cd soju
       test -z $(gofmt -l .)
