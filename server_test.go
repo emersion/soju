@@ -1,9 +1,7 @@
 package soju
 
 import (
-	"database/sql"
 	"net"
-	"os"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
