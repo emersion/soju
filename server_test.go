@@ -1,7 +1,9 @@
 package soju
 
 import (
+	"database/sql"
 	"net"
+	"os"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
@@ -15,7 +17,7 @@ const (
 	testPassword = testUsername
 )
 
-func createTempDB(t *testing.T) Database {
+func createTempSqliteDB(t *testing.T) Database {
 	db, err := OpenDB("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to create temporary SQLite database: %v", err)
@@ -24,6 +26,15 @@ func createTempDB(t *testing.T) Database {
 	// sure the sql package only uses a single connection. An alternative
 	// solution is to use "file::memory:?cache=shared".
 	db.(*SqliteDB).db.SetMaxOpenConns(1)
+	return db
+}
+
+func createTempPostgresDB(t *testing.T) Database {
+	db := &PostgresDB{db: openTempPostgresDB(t)}
+	if err := db.upgrade(); err != nil {
+		t.Fatalf("failed to upgrade PostgreSQL database: %v", err)
+	}
+
 	return db
 }
 
@@ -141,8 +152,7 @@ func registerUpstreamConn(t *testing.T, c ircConn) {
 	})
 }
 
-func TestServer(t *testing.T) {
-	db := createTempDB(t)
+func testServer(t *testing.T, db Database) {
 	user := createTestUser(t, db)
 	network, upstream := createTestUpstream(t, db, user)
 	defer upstream.Close()
@@ -183,4 +193,16 @@ func TestServer(t *testing.T) {
 	if msg.Params[1] != noticeText {
 		t.Fatalf("invalid NOTICE text: want %q, got: %v", noticeText, msg)
 	}
+}
+
+func TestServer(t *testing.T) {
+	t.Run("sqlite", func(t *testing.T) {
+		db := createTempSqliteDB(t)
+		testServer(t, db)
+	})
+
+	t.Run("postgres", func(t *testing.T) {
+		db := createTempPostgresDB(t)
+		testServer(t, db)
+	})
 }
