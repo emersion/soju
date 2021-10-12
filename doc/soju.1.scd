@@ -295,13 +295,13 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	Generate self-signed certificate and use it for authentication (via SASL
 	EXTERNAL).
 
-	Generates a RSA-3072 private key by default.
+	Generates a 3072-bit RSA private key by default.
 
 	Options are:
 
 	*-key-type* <type>
-		Private key algoritm to use. Valid values are: rsa, ecdsa, ed25519.
-		ecdsa uses NIST P-521 curve.
+		Private key algorithm to use. Valid values are: _rsa_, _ecdsa_ and
+		_ed25519_. _ecdsa_ uses the NIST P-521 curve.
 
 	*-bits* <bits>
 		Size of RSA key to generate. Ignored for other key types.
