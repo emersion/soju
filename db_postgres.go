@@ -284,7 +284,7 @@ func (db *PostgresDB) StoreNetwork(userID int64, network *Network) error {
 			sasl_mechanism, sasl_plain_username, sasl_plain_password, sasl_external_cert,
 			sasl_external_key, enabled)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-		ON CONFLICT ("user", name)
+		ON CONFLICT
 		DO UPDATE SET name = $2, addr = $3, nick = $4, username = $5, realname = $6, pass = $7,
 			connect_commands = $8, sasl_mechanism = $9, sasl_plain_username = $10,
 			sasl_plain_password = $11, sasl_external_cert = $12, sasl_external_key = $13,
