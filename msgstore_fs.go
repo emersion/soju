@@ -480,7 +480,9 @@ func (ms *fsMessageStore) ListTargets(network *network, start, end time.Time, li
 	end = end.In(time.Local)
 	rootPath := filepath.Join(ms.root, escapeFilename(network.GetName()))
 	root, err := os.Open(rootPath)
-	if err != nil {
+	if os.IsNotExist(err) {
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 
