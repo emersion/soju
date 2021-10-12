@@ -2203,7 +2203,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			// TODO: support TARGETS in multi-upstream mode
 			targets, err := store.ListTargets(network, bounds[0], bounds[1], limit)
 			if err != nil {
-				dc.logger.Printf("failed fetching targets for chathistory: %v", target, err)
+				dc.logger.Printf("failed fetching targets for chathistory: %v", err)
 				return ircError{&irc.Message{
 					Command: "FAIL",
 					Params:  []string{"CHATHISTORY", "MESSAGE_ERROR", subcommand, "Failed to retrieve targets"},
