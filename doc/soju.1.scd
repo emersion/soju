@@ -322,16 +322,24 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 
 	Other options are:
 
-	*-admin*
+	*-admin* true|false
 		Make the new user an administrator.
 
 	*-realname* <realname>
 		Set the user's realname. This is used as a fallback if there is no
 		realname set for a network.
 
-*user update* [-password <password>] [-realname <realname>]
-	Update the current user. The options are the same as the _user create_
-	command.
+*user update* [username] [options...]
+	Update a user. The options are the same as the _user create_ command.
+
+	If _username_ is omitted, the current user is updated. Only admins can
+	update other users.
+
+	Not all flags are valid in all contexts:
+
+	- The _-username_ flag is never valid, usernames are immutable.
+	- The _-realname_ flag is only valid when updating the current user.
+	- The _-admin_ flag is only valid when updating another user.
 
 *user delete* <username>
 	Delete a soju user. Only admins can delete accounts.

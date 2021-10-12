@@ -125,7 +125,7 @@ func handleServicePRIVMSG(dc *downstreamConn, text string) {
 		return
 	}
 	if cmd.admin && !dc.user.Admin {
-		sendServicePRIVMSG(dc, fmt.Sprintf(`error: you must be an admin to use this command`))
+		sendServicePRIVMSG(dc, "error: you must be an admin to use this command")
 		return
 	}
 
@@ -766,35 +766,84 @@ func handleUserCreate(dc *downstreamConn, params []string) error {
 	return nil
 }
 
+func popArg(params []string) (string, []string) {
+	if len(params) > 0 && !strings.HasPrefix(params[0], "-") {
+		return params[0], params[1:]
+	}
+	return "", params
+}
+
 func handleUserUpdate(dc *downstreamConn, params []string) error {
 	var password, realname *string
+	var admin *bool
 	fs := newFlagSet()
 	fs.Var(stringPtrFlag{&password}, "password", "")
 	fs.Var(stringPtrFlag{&realname}, "realname", "")
+	fs.Var(boolPtrFlag{&admin}, "admin", "")
 
+	username, params := popArg(params)
 	if err := fs.Parse(params); err != nil {
 		return err
 	}
+	if len(fs.Args()) > 0 {
+		return fmt.Errorf("unexpected argument")
+	}
 
-	// copy the user record because we'll mutate it
-	record := dc.user.User
-
+	var hashed *string
 	if password != nil {
-		hashed, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
+		hashedBytes, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
 		if err != nil {
 			return fmt.Errorf("failed to hash password: %v", err)
 		}
-		record.Password = string(hashed)
-	}
-	if realname != nil {
-		record.Realname = *realname
+		hashedStr := string(hashedBytes)
+		hashed = &hashedStr
 	}
 
-	if err := dc.user.updateUser(&record); err != nil {
-		return err
+	if username != "" && username != dc.user.Username {
+		if !dc.user.Admin {
+			return fmt.Errorf("you must be an admin to update other users")
+		}
+		if realname != nil {
+			return fmt.Errorf("cannot update -realname of other user")
+		}
+
+		u := dc.srv.getUser(username)
+		if u == nil {
+			return fmt.Errorf("unknown username %q", username)
+		}
+
+		done := make(chan error, 1)
+		u.events <- eventUserUpdate{
+			password: hashed,
+			admin:    admin,
+			done:     done,
+		}
+		if err := <-done; err != nil {
+			return err
+		}
+
+		sendServicePRIVMSG(dc, fmt.Sprintf("updated user %q", username))
+	} else {
+		// copy the user record because we'll mutate it
+		record := dc.user.User
+
+		if hashed != nil {
+			record.Password = *hashed
+		}
+		if realname != nil {
+			record.Realname = *realname
+		}
+		if admin != nil {
+			return fmt.Errorf("cannot update -admin of own user")
+		}
+
+		if err := dc.user.updateUser(&record); err != nil {
+			return err
+		}
+
+		sendServicePRIVMSG(dc, fmt.Sprintf("updated user %q", dc.user.Username))
 	}
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("updated user %q", dc.user.Username))
 	return nil
 }
 

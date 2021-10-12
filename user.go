@@ -59,6 +59,12 @@ type eventBroadcast struct {
 
 type eventStop struct{}
 
+type eventUserUpdate struct {
+	password *string
+	admin    *bool
+	done     chan error
+}
+
 type deliveredClientMap map[string]string // client name -> msg ID
 
 type deliveredStore struct {
@@ -642,6 +648,26 @@ func (u *user) run() {
 			u.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(msg)
 			})
+		case eventUserUpdate:
+			// copy the user record because we'll mutate it
+			record := u.User
+
+			if e.password != nil {
+				record.Password = *e.password
+			}
+			if e.admin != nil {
+				record.Admin = *e.admin
+			}
+
+			e.done <- u.updateUser(&record)
+
+			// If the password was updated, kill all downstream connections to
+			// force them to re-authenticate with the new credentials.
+			if e.password != nil {
+				u.forEachDownstream(func(dc *downstreamConn) {
+					dc.Close()
+				})
+			}
 		case eventStop:
 			u.forEachDownstream(func(dc *downstreamConn) {
 				dc.Close()
