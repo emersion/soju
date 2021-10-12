@@ -1113,11 +1113,6 @@ func (dc *downstreamConn) welcome() error {
 	})
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
-		Command: irc.RPL_CREATED,
-		Params:  []string{dc.nick, "Who cares when the server was created?"},
-	})
-	dc.SendMessage(&irc.Message{
-		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_MYINFO,
 		Params:  []string{dc.nick, dc.srv.Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
