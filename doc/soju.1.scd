@@ -320,7 +320,14 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	Create a new soju user. Only admin users can create new accounts.
 	The _-username_ and _-password_ flags are mandatory.
 
-	Other options are:
+	Options are:
+
+	*-username* <username>
+		The bouncer username. This cannot be changed after the user has been
+		created.
+
+	*-password* <password>
+		The bouncer password.
 
 	*-admin* true|false
 		Make the new user an administrator.
