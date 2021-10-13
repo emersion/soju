@@ -200,13 +200,21 @@ func (db *PostgresDB) GetUser(username string) (*User, error) {
 func (db *PostgresDB) StoreUser(user *User) error {
 	password := toNullString(user.Password)
 	realname := toNullString(user.Realname)
-	err := db.db.QueryRow(`
-		INSERT INTO "User" (username, password, admin, realname)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (username)
-		DO UPDATE SET password = $2, admin = $3, realname = $4
-		RETURNING id`,
-		user.Username, password, user.Admin, realname).Scan(&user.ID)
+
+	var err error
+	if user.ID == 0 {
+		err = db.db.QueryRow(`
+			INSERT INTO "User" (username, password, admin, realname)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id`,
+			user.Username, password, user.Admin, realname).Scan(&user.ID)
+	} else {
+		_, err = db.db.Exec(`
+			UPDATE "User"
+			SET password = $1, admin = $2, realname = $3
+			WHERE id = $4`,
+			password, user.Admin, realname, user.ID)
+	}
 	return err
 }
 
@@ -279,20 +287,29 @@ func (db *PostgresDB) StoreNetwork(userID int64, network *Network) error {
 		}
 	}
 
-	err := db.db.QueryRow(`
-		INSERT INTO "Network" ("user", name, addr, nick, username, realname, pass, connect_commands,
-			sasl_mechanism, sasl_plain_username, sasl_plain_password, sasl_external_cert,
-			sasl_external_key, enabled)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-		ON CONFLICT
-		DO UPDATE SET name = $2, addr = $3, nick = $4, username = $5, realname = $6, pass = $7,
-			connect_commands = $8, sasl_mechanism = $9, sasl_plain_username = $10,
-			sasl_plain_password = $11, sasl_external_cert = $12, sasl_external_key = $13,
-			enabled = $14
-		RETURNING id`,
-		userID, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
-		saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
-		network.SASL.External.PrivKeyBlob, network.Enabled).Scan(&network.ID)
+	var err error
+	if network.ID == 0 {
+		err = db.db.QueryRow(`
+			INSERT INTO "Network" ("user", name, addr, nick, username, realname, pass, connect_commands,
+				sasl_mechanism, sasl_plain_username, sasl_plain_password, sasl_external_cert,
+				sasl_external_key, enabled)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			RETURNING id`,
+			userID, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
+			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
+			network.SASL.External.PrivKeyBlob, network.Enabled).Scan(&network.ID)
+	} else {
+		_, err = db.db.Exec(`
+			UPDATE "Network"
+			SET name = $2, addr = $3, nick = $4, username = $5, realname = $6, pass = $7,
+				connect_commands = $8, sasl_mechanism = $9, sasl_plain_username = $10,
+				sasl_plain_password = $11, sasl_external_cert = $12, sasl_external_key = $13,
+				enabled = $14
+			WHERE id = $1`,
+			network.ID, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
+			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
+			network.SASL.External.PrivKeyBlob, network.Enabled)
+	}
 	return err
 }
 
@@ -335,16 +352,25 @@ func (db *PostgresDB) ListChannels(networkID int64) ([]Channel, error) {
 func (db *PostgresDB) StoreChannel(networkID int64, ch *Channel) error {
 	key := toNullString(ch.Key)
 	detachAfter := int64(math.Ceil(ch.DetachAfter.Seconds()))
-	err := db.db.QueryRow(`
-		INSERT INTO "Channel" (network, name, key, detached, detached_internal_msgid, relay_detached, reattach_on,
-			detach_after, detach_on)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (network, name)
-		DO UPDATE SET network = $1, name = $2, key = $3, detached = $4, detached_internal_msgid = $5,
-			relay_detached = $6, reattach_on = $7, detach_after = $8, detach_on = $9
-		RETURNING id`,
-		networkID, ch.Name, key, ch.Detached, toNullString(ch.DetachedInternalMsgID),
-		ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn).Scan(&ch.ID)
+
+	var err error
+	if ch.ID == 0 {
+		err = db.db.QueryRow(`
+			INSERT INTO "Channel" (network, name, key, detached, detached_internal_msgid, relay_detached, reattach_on,
+				detach_after, detach_on)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			RETURNING id`,
+			networkID, ch.Name, key, ch.Detached, toNullString(ch.DetachedInternalMsgID),
+			ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn).Scan(&ch.ID)
+	} else {
+		_, err = db.db.Exec(`
+			UPDATE "Channel"
+			SET name = $2, key = $3, detached = $4, detached_internal_msgid = $5,
+				relay_detached = $6, reattach_on = $7, detach_after = $8, detach_on = $9
+			WHERE id = $1`,
+			ch.ID, ch.Name, key, ch.Detached, toNullString(ch.DetachedInternalMsgID),
+			ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn)
+	}
 	return err
 }
 
@@ -379,18 +405,27 @@ func (db *PostgresDB) ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, 
 }
 
 func (db *PostgresDB) StoreClientDeliveryReceipts(networkID int64, client string, receipts []DeliveryReceipt) error {
+	tx, err := db.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("DELETE FROM DeliveryReceipt WHERE network = $1 AND client = $2",
+		networkID, client)
+	if err != nil {
+		return err
+	}
+
 	stmt, err := db.db.Prepare(`
 		INSERT INTO "DeliveryReceipt" (network, target, client, internal_msgid)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (network, target, client)
-		DO UPDATE SET internal_msgid = $4
 		RETURNING id`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	// No need for a transaction since all changes are atomic and don't break data coherence.
 	for i := range receipts {
 		rcpt := &receipts[i]
 		err := stmt.QueryRow(networkID, rcpt.Target, client, rcpt.InternalMsgID).Scan(&rcpt.ID)
@@ -398,5 +433,6 @@ func (db *PostgresDB) StoreClientDeliveryReceipts(networkID int64, client string
 			return err
 		}
 	}
-	return nil
+
+	return tx.Commit()
 }
