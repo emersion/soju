@@ -46,7 +46,7 @@ func loadMOTD(srv *soju.Server, filename string) error {
 	if err != nil {
 		return err
 	}
-	srv.SetMOTD(strings.TrimSpace(string(b)))
+	srv.SetMOTD(strings.TrimSuffix(string(b), "\n"))
 	return nil
 }
 
