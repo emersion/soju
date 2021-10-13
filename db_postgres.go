@@ -417,7 +417,7 @@ func (db *PostgresDB) StoreClientDeliveryReceipts(networkID int64, client string
 		return err
 	}
 
-	stmt, err := db.db.Prepare(`
+	stmt, err := tx.Prepare(`
 		INSERT INTO "DeliveryReceipt" (network, target, client, internal_msgid)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id`)
