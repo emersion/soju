@@ -411,7 +411,7 @@ func (db *PostgresDB) StoreClientDeliveryReceipts(networkID int64, client string
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec("DELETE FROM DeliveryReceipt WHERE network = $1 AND client = $2",
+	_, err = tx.Exec(`DELETE FROM "DeliveryReceipt" WHERE network = $1 AND client = $2`,
 		networkID, client)
 	if err != nil {
 		return err
