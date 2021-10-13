@@ -44,7 +44,8 @@ soju supports two connection modes:
 For per-client history to work, clients need to indicate their name. This can
 be done by adding a "@<client>" suffix to the username.
 
-soju will reload the TLS certificate and key when it receives the HUP signal.
+soju will reload the TLS certificate/key and the MOTD file when it receives the
+HUP signal.
 
 Administrators can broadcast a message to all bouncer users via _/notice
 $<hostname> <text>_, or via _/notice $\* <text>_ in multi-upstream mode. All
@@ -141,6 +142,10 @@ The following directives are supported:
 
 *max-user-networks* <limit>
 	Maximum number of networks per user. By default, there is no limit.
+
+*motd* <path>
+	Path to the MOTD file. The bouncer MOTD is sent to clients which aren't
+	bound to a specific network. By default, no MOTD is sent.
 
 # IRC SERVICE
 

@@ -40,6 +40,7 @@ type Server struct {
 	Listen   []string
 	Hostname string
 	TLS      *TLS
+	MOTDPath string
 
 	SQLDriver string
 	SQLSource string
@@ -127,6 +128,10 @@ func parse(cfg scfg.Block) (*Server, error) {
 			var err error
 			if srv.MaxUserNetworks, err = strconv.Atoi(max); err != nil {
 				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
+			}
+		case "motd":
+			if err := d.ParseParams(&srv.MOTDPath); err != nil {
+				return nil, err
 			}
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)

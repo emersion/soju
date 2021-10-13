@@ -379,6 +379,31 @@ func generateIsupport(prefix *irc.Prefix, nick string, tokens []string) []*irc.M
 	return msgs
 }
 
+func generateMOTD(prefix *irc.Prefix, nick string, motd string) []*irc.Message {
+	var msgs []*irc.Message
+	msgs = append(msgs, &irc.Message{
+		Prefix:  prefix,
+		Command: irc.RPL_MOTDSTART,
+		Params:  []string{nick, fmt.Sprintf("- Message of the Day -")},
+	})
+
+	for _, l := range strings.Split(motd, "\n") {
+		msgs = append(msgs, &irc.Message{
+			Prefix:  prefix,
+			Command: irc.RPL_MOTD,
+			Params:  []string{nick, l},
+		})
+	}
+
+	msgs = append(msgs, &irc.Message{
+		Prefix:  prefix,
+		Command: irc.RPL_ENDOFMOTD,
+		Params:  []string{nick, "End of /MOTD command."},
+	})
+
+	return msgs
+}
+
 type joinSorter struct {
 	channels []string
 	keys     []string

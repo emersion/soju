@@ -1119,20 +1119,29 @@ func (dc *downstreamConn) welcome() error {
 	for _, msg := range generateIsupport(dc.srv.prefix(), dc.nick, isupport) {
 		dc.SendMessage(msg)
 	}
-	motdHint := "No MOTD"
 	if uc := dc.upstream(); uc != nil {
-		motdHint = "Use /motd to read the message of the day"
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_UMODEIS,
 			Params:  []string{dc.nick, string(uc.modes)},
 		})
 	}
-	dc.SendMessage(&irc.Message{
-		Prefix:  dc.srv.prefix(),
-		Command: irc.ERR_NOMOTD,
-		Params:  []string{dc.nick, motdHint},
-	})
+
+	if motd := dc.user.srv.MOTD(); motd != "" && dc.network == nil {
+		for _, msg := range generateMOTD(dc.srv.prefix(), dc.nick, motd) {
+			dc.SendMessage(msg)
+		}
+	} else {
+		motdHint := "No MOTD"
+		if dc.network != nil {
+			motdHint = "Use /motd to read the message of the day"
+		}
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.ERR_NOMOTD,
+			Params:  []string{dc.nick, motdHint},
+		})
+	}
 
 	dc.updateNick()
 	dc.updateRealname()

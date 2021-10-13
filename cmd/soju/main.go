@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -33,6 +34,19 @@ func (v *stringSliceFlag) String() string {
 
 func (v *stringSliceFlag) Set(s string) error {
 	*v = append(*v, s)
+	return nil
+}
+
+func loadMOTD(srv *soju.Server, filename string) error {
+	if filename == "" {
+		return nil
+	}
+
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	srv.SetMOTD(strings.TrimSpace(string(b)))
 	return nil
 }
 
@@ -90,6 +104,10 @@ func main() {
 	srv.AcceptProxyIPs = cfg.AcceptProxyIPs
 	srv.MaxUserNetworks = cfg.MaxUserNetworks
 	srv.Debug = debug
+
+	if err := loadMOTD(srv, cfg.MOTDPath); err != nil {
+		log.Fatalf("failed to load MOTD: %v", err)
+	}
 
 	for _, listen := range cfg.Listen {
 		listenURI := listen
@@ -224,14 +242,17 @@ func main() {
 	for sig := range sigCh {
 		switch sig {
 		case syscall.SIGHUP:
+			log.Print("reloading TLS certificate and MOTD")
 			if cfg.TLS != nil {
-				log.Print("reloading TLS certificate")
 				cert, err := tls.LoadX509KeyPair(cfg.TLS.CertPath, cfg.TLS.KeyPath)
 				if err != nil {
 					log.Printf("failed to reload TLS certificate and key: %v", err)
 					break
 				}
 				tlsCert.Store(&cert)
+			}
+			if err := loadMOTD(srv, cfg.MOTDPath); err != nil {
+				log.Printf("failed to reload MOTD: %v", err)
 			}
 		case syscall.SIGINT, syscall.SIGTERM:
 			log.Print("shutting down server")

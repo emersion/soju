@@ -63,10 +63,12 @@ type Server struct {
 	lock      sync.Mutex
 	listeners map[net.Listener]struct{}
 	users     map[string]*user
+
+	motd atomic.Value // string
 }
 
 func NewServer(db Database) *Server {
-	return &Server{
+	srv := &Server{
 		Logger:          log.New(log.Writer(), "", log.LstdFlags),
 		HistoryLimit:    1000,
 		MaxUserNetworks: -1,
@@ -74,6 +76,8 @@ func NewServer(db Database) *Server {
 		listeners:       make(map[net.Listener]struct{}),
 		users:           make(map[string]*user),
 	}
+	srv.motd.Store("")
+	return srv
 }
 
 func (s *Server) prefix() *irc.Prefix {
@@ -267,4 +271,12 @@ func (s *Server) Stats() *ServerStats {
 	s.lock.Unlock()
 	stats.Downstreams = atomic.LoadInt64(&s.connCount)
 	return &stats
+}
+
+func (s *Server) SetMOTD(motd string) {
+	s.motd.Store(motd)
+}
+
+func (s *Server) MOTD() string {
+	return s.motd.Load().(string)
 }
