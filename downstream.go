@@ -2346,6 +2346,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				s := string(v)
 				switch k {
 				// TODO: host, port, tls
+				case "name":
+					record.Name = s
 				case "nickname":
 					record.Nick = s
 				case "username":
