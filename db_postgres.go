@@ -41,8 +41,8 @@ CREATE TABLE "Network" (
 	sasl_mechanism VARCHAR(255),
 	sasl_plain_username VARCHAR(255),
 	sasl_plain_password VARCHAR(255),
-	sasl_external_cert BYTEA DEFAULT NULL,
-	sasl_external_key BYTEA DEFAULT NULL,
+	sasl_external_cert BYTEA,
+	sasl_external_key BYTEA,
 	enabled BOOLEAN NOT NULL DEFAULT TRUE,
 	UNIQUE("user", addr, nick),
 	UNIQUE("user", name)
