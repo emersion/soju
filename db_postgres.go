@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 
 	_ "github.com/lib/pq"
 )
+
+const postgresQueryTimeout = 5 * time.Second
 
 const postgresConfigSchema = `
 CREATE TABLE IF NOT EXISTS "Config" (
@@ -145,8 +148,11 @@ func (db *PostgresDB) Close() error {
 }
 
 func (db *PostgresDB) Stats() (*DatabaseStats, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
 	var stats DatabaseStats
-	row := db.db.QueryRow(`SELECT
+	row := db.db.QueryRowContext(ctx, `SELECT
 		(SELECT COUNT(*) FROM "User") AS users,
 		(SELECT COUNT(*) FROM "Network") AS networks,
 		(SELECT COUNT(*) FROM "Channel") AS channels`)
@@ -158,7 +164,11 @@ func (db *PostgresDB) Stats() (*DatabaseStats, error) {
 }
 
 func (db *PostgresDB) ListUsers() ([]User, error) {
-	rows, err := db.db.Query(`SELECT id, username, password, admin, realname FROM "User"`)
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx,
+		`SELECT id, username, password, admin, realname FROM "User"`)
 	if err != nil {
 		return nil, err
 	}
@@ -183,10 +193,13 @@ func (db *PostgresDB) ListUsers() ([]User, error) {
 }
 
 func (db *PostgresDB) GetUser(username string) (*User, error) {
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
 	user := &User{Username: username}
 
 	var password, realname sql.NullString
-	row := db.db.QueryRow(
+	row := db.db.QueryRowContext(ctx,
 		`SELECT id, password, admin, realname FROM "User" WHERE username = $1`,
 		username)
 	if err := row.Scan(&user.ID, &password, &user.Admin, &realname); err != nil {
@@ -198,18 +211,21 @@ func (db *PostgresDB) GetUser(username string) (*User, error) {
 }
 
 func (db *PostgresDB) StoreUser(user *User) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
 	password := toNullString(user.Password)
 	realname := toNullString(user.Realname)
 
 	var err error
 	if user.ID == 0 {
-		err = db.db.QueryRow(`
+		err = db.db.QueryRowContext(ctx, `
 			INSERT INTO "User" (username, password, admin, realname)
 			VALUES ($1, $2, $3, $4)
 			RETURNING id`,
 			user.Username, password, user.Admin, realname).Scan(&user.ID)
 	} else {
-		_, err = db.db.Exec(`
+		_, err = db.db.ExecContext(ctx, `
 			UPDATE "User"
 			SET password = $1, admin = $2, realname = $3
 			WHERE id = $4`,
@@ -219,12 +235,18 @@ func (db *PostgresDB) StoreUser(user *User) error {
 }
 
 func (db *PostgresDB) DeleteUser(id int64) error {
-	_, err := db.db.Exec(`DELETE FROM "User" WHERE id = $1`, id)
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
+	_, err := db.db.ExecContext(ctx, `DELETE FROM "User" WHERE id = $1`, id)
 	return err
 }
 
 func (db *PostgresDB) ListNetworks(userID int64) ([]Network, error) {
-	rows, err := db.db.Query(`
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx, `
 		SELECT id, name, addr, nick, username, realname, pass, connect_commands, sasl_mechanism,
 			sasl_plain_username, sasl_plain_password, sasl_external_cert, sasl_external_key, enabled
 		FROM "Network"
@@ -265,6 +287,9 @@ func (db *PostgresDB) ListNetworks(userID int64) ([]Network, error) {
 }
 
 func (db *PostgresDB) StoreNetwork(userID int64, network *Network) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
 	netName := toNullString(network.Name)
 	netUsername := toNullString(network.Username)
 	realname := toNullString(network.Realname)
@@ -289,7 +314,7 @@ func (db *PostgresDB) StoreNetwork(userID int64, network *Network) error {
 
 	var err error
 	if network.ID == 0 {
-		err = db.db.QueryRow(`
+		err = db.db.QueryRowContext(ctx, `
 			INSERT INTO "Network" ("user", name, addr, nick, username, realname, pass, connect_commands,
 				sasl_mechanism, sasl_plain_username, sasl_plain_password, sasl_external_cert,
 				sasl_external_key, enabled)
@@ -299,7 +324,7 @@ func (db *PostgresDB) StoreNetwork(userID int64, network *Network) error {
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
 			network.SASL.External.PrivKeyBlob, network.Enabled).Scan(&network.ID)
 	} else {
-		_, err = db.db.Exec(`
+		_, err = db.db.ExecContext(ctx, `
 			UPDATE "Network"
 			SET name = $2, addr = $3, nick = $4, username = $5, realname = $6, pass = $7,
 				connect_commands = $8, sasl_mechanism = $9, sasl_plain_username = $10,
@@ -314,12 +339,18 @@ func (db *PostgresDB) StoreNetwork(userID int64, network *Network) error {
 }
 
 func (db *PostgresDB) DeleteNetwork(id int64) error {
-	_, err := db.db.Exec(`DELETE FROM "Network" WHERE id = $1`, id)
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
+	_, err := db.db.ExecContext(ctx, `DELETE FROM "Network" WHERE id = $1`, id)
 	return err
 }
 
 func (db *PostgresDB) ListChannels(networkID int64) ([]Channel, error) {
-	rows, err := db.db.Query(`
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx, `
 		SELECT id, name, key, detached, detached_internal_msgid, relay_detached, reattach_on, detach_after,
 			detach_on
 		FROM "Channel"
@@ -350,12 +381,15 @@ func (db *PostgresDB) ListChannels(networkID int64) ([]Channel, error) {
 }
 
 func (db *PostgresDB) StoreChannel(networkID int64, ch *Channel) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
 	key := toNullString(ch.Key)
 	detachAfter := int64(math.Ceil(ch.DetachAfter.Seconds()))
 
 	var err error
 	if ch.ID == 0 {
-		err = db.db.QueryRow(`
+		err = db.db.QueryRowContext(ctx, `
 			INSERT INTO "Channel" (network, name, key, detached, detached_internal_msgid, relay_detached, reattach_on,
 				detach_after, detach_on)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -363,7 +397,7 @@ func (db *PostgresDB) StoreChannel(networkID int64, ch *Channel) error {
 			networkID, ch.Name, key, ch.Detached, toNullString(ch.DetachedInternalMsgID),
 			ch.RelayDetached, ch.ReattachOn, detachAfter, ch.DetachOn).Scan(&ch.ID)
 	} else {
-		_, err = db.db.Exec(`
+		_, err = db.db.ExecContext(ctx, `
 			UPDATE "Channel"
 			SET name = $2, key = $3, detached = $4, detached_internal_msgid = $5,
 				relay_detached = $6, reattach_on = $7, detach_after = $8, detach_on = $9
@@ -375,12 +409,18 @@ func (db *PostgresDB) StoreChannel(networkID int64, ch *Channel) error {
 }
 
 func (db *PostgresDB) DeleteChannel(id int64) error {
-	_, err := db.db.Exec(`DELETE FROM "Channel" WHERE id = $1`, id)
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
+	_, err := db.db.ExecContext(ctx, `DELETE FROM "Channel" WHERE id = $1`, id)
 	return err
 }
 
 func (db *PostgresDB) ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, error) {
-	rows, err := db.db.Query(`
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx, `
 		SELECT id, target, client, internal_msgid
 		FROM "DeliveryReceipt"
 		WHERE network = $1`, networkID)
@@ -405,19 +445,23 @@ func (db *PostgresDB) ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, 
 }
 
 func (db *PostgresDB) StoreClientDeliveryReceipts(networkID int64, client string, receipts []DeliveryReceipt) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+	defer cancel()
+
 	tx, err := db.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec(`DELETE FROM "DeliveryReceipt" WHERE network = $1 AND client = $2`,
+	_, err = tx.ExecContext(ctx,
+		`DELETE FROM "DeliveryReceipt" WHERE network = $1 AND client = $2`,
 		networkID, client)
 	if err != nil {
 		return err
 	}
 
-	stmt, err := tx.Prepare(`
+	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO "DeliveryReceipt" (network, target, client, internal_msgid)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id`)
@@ -428,7 +472,9 @@ func (db *PostgresDB) StoreClientDeliveryReceipts(networkID int64, client string
 
 	for i := range receipts {
 		rcpt := &receipts[i]
-		err := stmt.QueryRow(networkID, rcpt.Target, client, rcpt.InternalMsgID).Scan(&rcpt.ID)
+		err := stmt.
+			QueryRowContext(ctx, networkID, rcpt.Target, client, rcpt.InternalMsgID).
+			Scan(&rcpt.ID)
 		if err != nil {
 			return err
 		}
