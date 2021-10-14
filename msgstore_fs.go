@@ -74,6 +74,9 @@ type fsMessageStoreFile struct {
 }
 
 // fsMessageStore is a per-user on-disk store for IRC messages.
+//
+// It mimicks the ZNC log layout and format. See the ZNC source:
+// https://github.com/znc/znc/blob/master/modules/log.cpp
 type fsMessageStore struct {
 	root string
 
