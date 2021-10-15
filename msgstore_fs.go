@@ -553,6 +553,16 @@ func (ms *fsMessageStore) ListTargets(network *network, start, end time.Time, li
 	return targets, nil
 }
 
+func (ms *fsMessageStore) RenameNetwork(oldNet, newNet *network) error {
+	oldDir := filepath.Join(ms.root, escapeFilename(oldNet.GetName()))
+	newDir := filepath.Join(ms.root, escapeFilename(newNet.GetName()))
+	// Avoid loosing data by overwriting an existing directory
+	if _, err := os.Stat(newDir); err == nil {
+		return fmt.Errorf("destination %q already exists", newDir)
+	}
+	return os.Rename(oldDir, newDir)
+}
+
 func truncateDay(t time.Time) time.Time {
 	year, month, day := t.Date()
 	return time.Date(year, month, day, 0, 0, 0, 0, t.Location())

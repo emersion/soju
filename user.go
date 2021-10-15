@@ -854,6 +854,15 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 	// otherwise they'll get closed
 	u.removeNetwork(network)
 
+	// The filesystem message store needs to be notified whenever the network
+	// is renamed
+	fsMsgStore, isFS := u.msgStore.(*fsMessageStore)
+	if isFS && updatedNetwork.GetName() != network.GetName() {
+		if err := fsMsgStore.RenameNetwork(network, updatedNetwork); err != nil {
+			network.logger.Printf("failed to update FS message store network name to %q: %v", updatedNetwork.GetName(), err)
+		}
+	}
+
 	// This will re-connect to the upstream server
 	u.addNetwork(updatedNetwork)
 
