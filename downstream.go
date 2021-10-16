@@ -680,12 +680,6 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 				return err
 			}
 
-			if dc.registered {
-				return ircError{&irc.Message{
-					Command: "FAIL",
-					Params:  []string{"BOUNCER", "REGISTRATION_IS_COMPLETED", "BIND", "Cannot bind bouncer network after registration"},
-				}}
-			}
 			if dc.user == nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",
