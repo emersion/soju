@@ -2249,6 +2249,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 
 		switch strings.ToUpper(subcommand) {
+		case "BIND":
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"BOUNCER", "REGISTRATION_IS_COMPLETED", "BIND", "Cannot bind to a network after registration"},
+			}}
 		case "LISTNETWORKS":
 			dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef irc.TagValue) {
 				dc.user.forEachNetwork(func(network *network) {
