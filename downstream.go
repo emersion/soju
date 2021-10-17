@@ -131,10 +131,11 @@ var permanentDownstreamCaps = map[string]string{
 // needAllDownstreamCaps is the list of downstream capabilities that
 // require support from all upstreams to be enabled
 var needAllDownstreamCaps = map[string]string{
-	"account-tag":   "",
-	"away-notify":   "",
-	"extended-join": "",
-	"multi-prefix":  "",
+	"account-notify": "",
+	"account-tag":    "",
+	"away-notify":    "",
+	"extended-join":  "",
+	"multi-prefix":   "",
 }
 
 // passthroughIsupport is the set of ISUPPORT tokens that are directly passed
@@ -407,6 +408,9 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 		msg.Params = msg.Params[:1]
 	}
 	if msg.Command == "SETNAME" && !dc.caps["setname"] {
+		return
+	}
+	if msg.Command == "ACCOUNT" && !dc.caps["account-notify"] {
 		return
 	}
 

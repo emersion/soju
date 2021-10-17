@@ -1386,6 +1386,18 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  msg.Params,
 			})
 		})
+	case "ACCOUNT":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
+				Command: msg.Command,
+				Params:  msg.Params,
+			})
+		})
 	case irc.RPL_BANLIST, irc.RPL_INVITELIST, irc.RPL_EXCEPTLIST:
 		var channel, mask string
 		if err := parseMessageParams(msg, nil, &channel, &mask); err != nil {
