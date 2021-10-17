@@ -1371,22 +1371,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  []string{dc.nick, dc.marshalEntity(uc.network, nick), reason},
 			})
 		})
-	case "AWAY":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			if !dc.caps["away-notify"] {
-				return
-			}
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
-				Command: "AWAY",
-				Params:  msg.Params,
-			})
-		})
-	case "ACCOUNT":
+	case "AWAY", "ACCOUNT":
 		if msg.Prefix == nil {
 			return fmt.Errorf("expected a prefix")
 		}
