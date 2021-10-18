@@ -208,11 +208,11 @@ func (db *SqliteDB) upgrade() error {
 	return tx.Commit()
 }
 
-func (db *SqliteDB) Stats() (*DatabaseStats, error) {
+func (db *SqliteDB) Stats(ctx context.Context) (*DatabaseStats, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	var stats DatabaseStats
@@ -234,11 +234,11 @@ func toNullString(s string) sql.NullString {
 	}
 }
 
-func (db *SqliteDB) ListUsers() ([]User, error) {
+func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx,
@@ -266,11 +266,11 @@ func (db *SqliteDB) ListUsers() ([]User, error) {
 	return users, nil
 }
 
-func (db *SqliteDB) GetUser(username string) (*User, error) {
+func (db *SqliteDB) GetUser(ctx context.Context, username string) (*User, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	user := &User{Username: username}
@@ -287,11 +287,11 @@ func (db *SqliteDB) GetUser(username string) (*User, error) {
 	return user, nil
 }
 
-func (db *SqliteDB) StoreUser(user *User) error {
+func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	args := []interface{}{
@@ -323,11 +323,11 @@ func (db *SqliteDB) StoreUser(user *User) error {
 	return err
 }
 
-func (db *SqliteDB) DeleteUser(id int64) error {
+func (db *SqliteDB) DeleteUser(ctx context.Context, id int64) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	tx, err := db.db.Begin()
@@ -371,11 +371,11 @@ func (db *SqliteDB) DeleteUser(id int64) error {
 	return tx.Commit()
 }
 
-func (db *SqliteDB) ListNetworks(userID int64) ([]Network, error) {
+func (db *SqliteDB) ListNetworks(ctx context.Context, userID int64) ([]Network, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
@@ -420,11 +420,11 @@ func (db *SqliteDB) ListNetworks(userID int64) ([]Network, error) {
 	return networks, nil
 }
 
-func (db *SqliteDB) StoreNetwork(userID int64, network *Network) error {
+func (db *SqliteDB) StoreNetwork(ctx context.Context, userID int64, network *Network) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	var saslMechanism, saslPlainUsername, saslPlainPassword sql.NullString
@@ -490,11 +490,11 @@ func (db *SqliteDB) StoreNetwork(userID int64, network *Network) error {
 	return err
 }
 
-func (db *SqliteDB) DeleteNetwork(id int64) error {
+func (db *SqliteDB) DeleteNetwork(ctx context.Context, id int64) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	tx, err := db.db.Begin()
@@ -521,11 +521,11 @@ func (db *SqliteDB) DeleteNetwork(id int64) error {
 	return tx.Commit()
 }
 
-func (db *SqliteDB) ListChannels(networkID int64) ([]Channel, error) {
+func (db *SqliteDB) ListChannels(ctx context.Context, networkID int64) ([]Channel, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `SELECT
@@ -558,11 +558,11 @@ func (db *SqliteDB) ListChannels(networkID int64) ([]Channel, error) {
 	return channels, nil
 }
 
-func (db *SqliteDB) StoreChannel(networkID int64, ch *Channel) error {
+func (db *SqliteDB) StoreChannel(ctx context.Context, networkID int64, ch *Channel) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	args := []interface{}{
@@ -598,22 +598,22 @@ func (db *SqliteDB) StoreChannel(networkID int64, ch *Channel) error {
 	return err
 }
 
-func (db *SqliteDB) DeleteChannel(id int64) error {
+func (db *SqliteDB) DeleteChannel(ctx context.Context, id int64) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	_, err := db.db.ExecContext(ctx, "DELETE FROM Channel WHERE id = ?", id)
 	return err
 }
 
-func (db *SqliteDB) ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, error) {
+func (db *SqliteDB) ListDeliveryReceipts(ctx context.Context, networkID int64) ([]DeliveryReceipt, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
@@ -642,11 +642,11 @@ func (db *SqliteDB) ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, er
 	return receipts, nil
 }
 
-func (db *SqliteDB) StoreClientDeliveryReceipts(networkID int64, client string, receipts []DeliveryReceipt) error {
+func (db *SqliteDB) StoreClientDeliveryReceipts(ctx context.Context, networkID int64, client string, receipts []DeliveryReceipt) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	tx, err := db.db.Begin()

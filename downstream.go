@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
@@ -976,7 +977,7 @@ func unmarshalUsername(rawUsername string) (username, client, network string) {
 func (dc *downstreamConn) authenticate(username, password string) error {
 	username, clientName, networkName := unmarshalUsername(username)
 
-	u, err := dc.srv.db.GetUser(username)
+	u, err := dc.srv.db.GetUser(context.TODO(), username)
 	if err != nil {
 		dc.logger.Printf("failed authentication for %q: user not found: %v", username, err)
 		return errAuthFailed
@@ -1377,7 +1378,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return
 			}
 			n.Nick = nick
-			err = dc.srv.db.StoreNetwork(dc.user.ID, &n.Network)
+			err = dc.srv.db.StoreNetwork(context.TODO(), dc.user.ID, &n.Network)
 		})
 		if err != nil {
 			return err
@@ -1427,7 +1428,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				})
 
 				n.Realname = storeRealname
-				if err := dc.srv.db.StoreNetwork(dc.user.ID, &n.Network); err != nil {
+				if err := dc.srv.db.StoreNetwork(context.TODO(), dc.user.ID, &n.Network); err != nil {
 					dc.logger.Printf("failed to store network realname: %v", err)
 					storeErr = err
 				}
@@ -1516,7 +1517,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				}
 				uc.network.channels.SetValue(upstreamName, ch)
 			}
-			if err := dc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
+			if err := dc.srv.db.StoreChannel(context.TODO(), uc.network.ID, ch); err != nil {
 				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 			}
 		}
@@ -1548,7 +1549,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					}
 					uc.network.channels.SetValue(upstreamName, ch)
 				}
-				if err := dc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
+				if err := dc.srv.db.StoreChannel(context.TODO(), uc.network.ID, ch); err != nil {
 					dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 				}
 			} else {
@@ -2445,7 +2446,7 @@ func (dc *downstreamConn) handleNickServPRIVMSG(uc *upstreamConn, text string) {
 	n.SASL.Mechanism = "PLAIN"
 	n.SASL.Plain.Username = username
 	n.SASL.Plain.Password = password
-	if err := dc.srv.db.StoreNetwork(dc.user.ID, &n.Network); err != nil {
+	if err := dc.srv.db.StoreNetwork(context.TODO(), dc.user.ID, &n.Network); err != nil {
 		dc.logger.Printf("failed to save NickServ credentials: %v", err)
 	}
 }

@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -330,7 +331,7 @@ func (net *network) deleteChannel(name string) error {
 		}
 	}
 
-	if err := net.user.srv.db.DeleteChannel(ch.ID); err != nil {
+	if err := net.user.srv.db.DeleteChannel(context.TODO(), ch.ID); err != nil {
 		return err
 	}
 	net.channels.Delete(name)
@@ -367,7 +368,7 @@ func (net *network) storeClientDeliveryReceipts(clientName string) {
 		})
 	})
 
-	if err := net.user.srv.db.StoreClientDeliveryReceipts(net.ID, clientName, receipts); err != nil {
+	if err := net.user.srv.db.StoreClientDeliveryReceipts(context.TODO(), net.ID, clientName, receipts); err != nil {
 		net.logger.Printf("failed to store delivery receipts for client %q: %v", clientName, err)
 	}
 }
@@ -487,7 +488,7 @@ func (u *user) run() {
 		close(u.done)
 	}()
 
-	networks, err := u.srv.db.ListNetworks(u.ID)
+	networks, err := u.srv.db.ListNetworks(context.TODO(), u.ID)
 	if err != nil {
 		u.logger.Printf("failed to list networks for user %q: %v", u.Username, err)
 		return
@@ -495,7 +496,7 @@ func (u *user) run() {
 
 	for _, record := range networks {
 		record := record
-		channels, err := u.srv.db.ListChannels(record.ID)
+		channels, err := u.srv.db.ListChannels(context.TODO(), record.ID)
 		if err != nil {
 			u.logger.Printf("failed to list channels for user %q, network %q: %v", u.Username, record.GetName(), err)
 			continue
@@ -505,7 +506,7 @@ func (u *user) run() {
 		u.networks = append(u.networks, network)
 
 		if u.hasPersistentMsgStore() {
-			receipts, err := u.srv.db.ListDeliveryReceipts(record.ID)
+			receipts, err := u.srv.db.ListDeliveryReceipts(context.TODO(), record.ID)
 			if err != nil {
 				u.logger.Printf("failed to load delivery receipts for user %q, network %q: %v", u.Username, network.GetName(), err)
 				return
@@ -590,7 +591,7 @@ func (u *user) run() {
 				continue
 			}
 			uc.network.detach(c)
-			if err := uc.srv.db.StoreChannel(uc.network.ID, c); err != nil {
+			if err := uc.srv.db.StoreChannel(context.TODO(), uc.network.ID, c); err != nil {
 				u.logger.Printf("failed to store updated detached channel %q: %v", c.Name, err)
 			}
 		case eventDownstreamConnected:
@@ -779,7 +780,7 @@ func (u *user) createNetwork(record *Network) (*network, error) {
 	}
 
 	network := newNetwork(u, record, nil)
-	err := u.srv.db.StoreNetwork(u.ID, &network.Network)
+	err := u.srv.db.StoreNetwork(context.TODO(), u.ID, &network.Network)
 	if err != nil {
 		return nil, err
 	}
@@ -821,7 +822,7 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 		panic("tried updating a non-existing network")
 	}
 
-	if err := u.srv.db.StoreNetwork(u.ID, record); err != nil {
+	if err := u.srv.db.StoreNetwork(context.TODO(), u.ID, record); err != nil {
 		return nil, err
 	}
 
@@ -888,7 +889,7 @@ func (u *user) deleteNetwork(id int64) error {
 		panic("tried deleting a non-existing network")
 	}
 
-	if err := u.srv.db.DeleteNetwork(network.ID); err != nil {
+	if err := u.srv.db.DeleteNetwork(context.TODO(), network.ID); err != nil {
 		return err
 	}
 
@@ -914,7 +915,7 @@ func (u *user) updateUser(record *User) error {
 	}
 
 	realnameUpdated := u.Realname != record.Realname
-	if err := u.srv.db.StoreUser(record); err != nil {
+	if err := u.srv.db.StoreUser(context.TODO(), record); err != nil {
 		return fmt.Errorf("failed to update user %q: %v", u.Username, err)
 	}
 	u.User = *record

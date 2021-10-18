@@ -147,8 +147,8 @@ func (db *PostgresDB) Close() error {
 	return db.db.Close()
 }
 
-func (db *PostgresDB) Stats() (*DatabaseStats, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) Stats(ctx context.Context) (*DatabaseStats, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	var stats DatabaseStats
@@ -163,8 +163,8 @@ func (db *PostgresDB) Stats() (*DatabaseStats, error) {
 	return &stats, nil
 }
 
-func (db *PostgresDB) ListUsers() ([]User, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) ListUsers(ctx context.Context) ([]User, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx,
@@ -192,8 +192,8 @@ func (db *PostgresDB) ListUsers() ([]User, error) {
 	return users, nil
 }
 
-func (db *PostgresDB) GetUser(username string) (*User, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) GetUser(ctx context.Context, username string) (*User, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	user := &User{Username: username}
@@ -210,8 +210,8 @@ func (db *PostgresDB) GetUser(username string) (*User, error) {
 	return user, nil
 }
 
-func (db *PostgresDB) StoreUser(user *User) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) StoreUser(ctx context.Context, user *User) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	password := toNullString(user.Password)
@@ -234,16 +234,16 @@ func (db *PostgresDB) StoreUser(user *User) error {
 	return err
 }
 
-func (db *PostgresDB) DeleteUser(id int64) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) DeleteUser(ctx context.Context, id int64) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	_, err := db.db.ExecContext(ctx, `DELETE FROM "User" WHERE id = $1`, id)
 	return err
 }
 
-func (db *PostgresDB) ListNetworks(userID int64) ([]Network, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) ListNetworks(ctx context.Context, userID int64) ([]Network, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
@@ -286,8 +286,8 @@ func (db *PostgresDB) ListNetworks(userID int64) ([]Network, error) {
 	return networks, nil
 }
 
-func (db *PostgresDB) StoreNetwork(userID int64, network *Network) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) StoreNetwork(ctx context.Context, userID int64, network *Network) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	netName := toNullString(network.Name)
@@ -338,16 +338,16 @@ func (db *PostgresDB) StoreNetwork(userID int64, network *Network) error {
 	return err
 }
 
-func (db *PostgresDB) DeleteNetwork(id int64) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) DeleteNetwork(ctx context.Context, id int64) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	_, err := db.db.ExecContext(ctx, `DELETE FROM "Network" WHERE id = $1`, id)
 	return err
 }
 
-func (db *PostgresDB) ListChannels(networkID int64) ([]Channel, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) ListChannels(ctx context.Context, networkID int64) ([]Channel, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
@@ -380,8 +380,8 @@ func (db *PostgresDB) ListChannels(networkID int64) ([]Channel, error) {
 	return channels, nil
 }
 
-func (db *PostgresDB) StoreChannel(networkID int64, ch *Channel) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) StoreChannel(ctx context.Context, networkID int64, ch *Channel) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	key := toNullString(ch.Key)
@@ -408,16 +408,16 @@ func (db *PostgresDB) StoreChannel(networkID int64, ch *Channel) error {
 	return err
 }
 
-func (db *PostgresDB) DeleteChannel(id int64) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) DeleteChannel(ctx context.Context, id int64) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	_, err := db.db.ExecContext(ctx, `DELETE FROM "Channel" WHERE id = $1`, id)
 	return err
 }
 
-func (db *PostgresDB) ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) ListDeliveryReceipts(ctx context.Context, networkID int64) ([]DeliveryReceipt, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
@@ -444,8 +444,8 @@ func (db *PostgresDB) ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, 
 	return receipts, nil
 }
 
-func (db *PostgresDB) StoreClientDeliveryReceipts(networkID int64, client string, receipts []DeliveryReceipt) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), postgresQueryTimeout)
+func (db *PostgresDB) StoreClientDeliveryReceipts(ctx context.Context, networkID int64, client string, receipts []DeliveryReceipt) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
 	tx, err := db.db.Begin()

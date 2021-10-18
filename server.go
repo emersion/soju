@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"mime"
@@ -85,7 +86,7 @@ func (s *Server) prefix() *irc.Prefix {
 }
 
 func (s *Server) Start() error {
-	users, err := s.db.ListUsers()
+	users, err := s.db.ListUsers(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -126,7 +127,7 @@ func (s *Server) createUser(user *User) (*user, error) {
 		return nil, fmt.Errorf("user %q already exists", user.Username)
 	}
 
-	err := s.db.StoreUser(user)
+	err := s.db.StoreUser(context.TODO(), user)
 	if err != nil {
 		return nil, fmt.Errorf("could not create user in db: %v", err)
 	}

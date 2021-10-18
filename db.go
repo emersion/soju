@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -9,22 +10,22 @@ import (
 
 type Database interface {
 	Close() error
-	Stats() (*DatabaseStats, error)
+	Stats(ctx context.Context) (*DatabaseStats, error)
 
-	ListUsers() ([]User, error)
-	GetUser(username string) (*User, error)
-	StoreUser(user *User) error
-	DeleteUser(id int64) error
+	ListUsers(ctx context.Context) ([]User, error)
+	GetUser(ctx context.Context, username string) (*User, error)
+	StoreUser(ctx context.Context, user *User) error
+	DeleteUser(ctx context.Context, id int64) error
 
-	ListNetworks(userID int64) ([]Network, error)
-	StoreNetwork(userID int64, network *Network) error
-	DeleteNetwork(id int64) error
-	ListChannels(networkID int64) ([]Channel, error)
-	StoreChannel(networKID int64, ch *Channel) error
-	DeleteChannel(id int64) error
+	ListNetworks(ctx context.Context, userID int64) ([]Network, error)
+	StoreNetwork(ctx context.Context, userID int64, network *Network) error
+	DeleteNetwork(ctx context.Context, id int64) error
+	ListChannels(ctx context.Context, networkID int64) ([]Channel, error)
+	StoreChannel(ctx context.Context, networKID int64, ch *Channel) error
+	DeleteChannel(ctx context.Context, id int64) error
 
-	ListDeliveryReceipts(networkID int64) ([]DeliveryReceipt, error)
-	StoreClientDeliveryReceipts(networkID int64, client string, receipts []DeliveryReceipt) error
+	ListDeliveryReceipts(ctx context.Context, networkID int64) ([]DeliveryReceipt, error)
+	StoreClientDeliveryReceipts(ctx context.Context, networkID int64, client string, receipts []DeliveryReceipt) error
 }
 
 func OpenDB(driver, source string) (Database, error) {

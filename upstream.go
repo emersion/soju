@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"context"
 	"crypto"
 	"crypto/sha256"
 	"crypto/tls"
@@ -1516,7 +1517,7 @@ func (uc *upstreamConn) handleDetachedMessage(ch *Channel, msg *irc.Message) {
 	}
 	if ch.ReattachOn == FilterMessage || (ch.ReattachOn == FilterHighlight && uc.network.isHighlight(msg)) {
 		uc.network.attach(ch)
-		if err := uc.srv.db.StoreChannel(uc.network.ID, ch); err != nil {
+		if err := uc.srv.db.StoreChannel(context.TODO(), uc.network.ID, ch); err != nil {
 			uc.logger.Printf("failed to update channel %q: %v", ch.Name, err)
 		}
 	}
