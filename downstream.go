@@ -1261,9 +1261,7 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) 
 					dc.relayDetachedMessage(net, msg)
 				}
 			} else {
-				if dc.caps["batch"] {
-					msg.Tags["batch"] = irc.TagValue(batchRef)
-				}
+				msg.Tags["batch"] = batchRef
 				dc.SendMessage(dc.marshalMessage(msg, net))
 			}
 		}
@@ -1456,7 +1454,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}}
 		}
 
-		if dc.upstream() == nil && dc.caps["setname"] {
+		if dc.upstream() == nil {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),
 				Command: "SETNAME",
