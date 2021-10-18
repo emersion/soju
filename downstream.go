@@ -411,7 +411,6 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 		return
 	}
 	if msg.Command == "AWAY" && !dc.caps["away-notify"] {
-		// TODO: we can send AWAY if we just sent a PRIVMSG/NOTICE to this user
 		return
 	}
 	if msg.Command == "ACCOUNT" && !dc.caps["account-notify"] {
