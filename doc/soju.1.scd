@@ -156,6 +156,15 @@ The following directives are supported:
 	Globally enable or disable multi-upstream mode. By default, multi-upstream
 	mode is enabled.
 
+*upstream-user-ip* <cidr...>
+	Enable per-user IP addresses. One IPv4 range and/or one IPv6 range can be
+	specified in CIDR notation. One IP address per range will be assigned to
+	each user and will be used as the source address when connecting to an
+	upstream network.
+
+	This can be useful to avoid having the whole bouncer banned from an upstream
+	network because of one malicious user.
+
 # IRC SERVICE
 
 soju exposes an IRC service called *BouncerServ* to manage the bouncer.

@@ -6,6 +6,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/big"
+	"net"
 	"time"
 
 	"gopkg.in/irc.v3"
@@ -955,4 +957,47 @@ func (u *user) hasPersistentMsgStore() bool {
 	}
 	_, isMem := u.msgStore.(*memoryMessageStore)
 	return !isMem
+}
+
+// localAddrForHost returns the local address to use when connecting to host.
+// A nil address is returned when the OS should automatically pick one.
+func (u *user) localTCPAddrForHost(host string) (*net.TCPAddr, error) {
+	upstreamUserIPs := u.srv.Config().UpstreamUserIPs
+	if len(upstreamUserIPs) == 0 {
+		return nil, nil
+	}
+
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return nil, err
+	}
+
+	wantIPv6 := false
+	for _, ip := range ips {
+		if ip.To4() == nil {
+			wantIPv6 = true
+			break
+		}
+	}
+
+	var ipNet *net.IPNet
+	for _, in := range upstreamUserIPs {
+		if wantIPv6 == (in.IP.To4() == nil) {
+			ipNet = in
+			break
+		}
+	}
+	if ipNet == nil {
+		return nil, nil
+	}
+
+	var ipInt big.Int
+	ipInt.SetBytes(ipNet.IP)
+	ipInt.Add(&ipInt, big.NewInt(u.ID+1))
+	ip := net.IP(ipInt.Bytes())
+	if !ipNet.Contains(ip) {
+		return nil, fmt.Errorf("IP network %v too small", ipNet)
+	}
+
+	return &net.TCPAddr{IP: ip}, nil
 }

@@ -64,6 +64,7 @@ type Config struct {
 	MaxUserNetworks int
 	MultiUpstream   bool
 	MOTD            string
+	UpstreamUserIPs []*net.IPNet
 }
 
 type Server struct {

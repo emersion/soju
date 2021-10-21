@@ -140,6 +140,11 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 			addr = u.Host + ":6697"
 		}
 
+		dialer.LocalAddr, err = network.user.localTCPAddrForHost(host)
+		if err != nil {
+			return nil, fmt.Errorf("failed to pick local IP for remote host %q: %v", host, err)
+		}
+
 		logger.Printf("connecting to TLS server at address %q", addr)
 
 		tlsConfig := &tls.Config{ServerName: host, NextProtos: []string{"irc"}}
@@ -174,8 +179,15 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		netConn = tls.Client(netConn, tlsConfig)
 	case "irc+insecure":
 		addr := u.Host
-		if _, _, err := net.SplitHostPort(addr); err != nil {
-			addr = addr + ":6667"
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			host = u.Host
+			addr = u.Host + ":6667"
+		}
+
+		dialer.LocalAddr, err = network.user.localTCPAddrForHost(host)
+		if err != nil {
+			return nil, fmt.Errorf("failed to pick local IP for remote host %q: %v", host, err)
 		}
 
 		logger.Printf("connecting to plain-text server at address %q", addr)

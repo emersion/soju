@@ -52,6 +52,7 @@ type Server struct {
 
 	MaxUserNetworks int
 	MultiUpstream   bool
+	UpstreamUserIPs []*net.IPNet
 }
 
 func Defaults() *Server {
@@ -150,6 +151,29 @@ func parse(cfg scfg.Block) (*Server, error) {
 				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
 			}
 			srv.MultiUpstream = v
+		case "upstream-user-ip":
+			if len(srv.UpstreamUserIPs) > 0 {
+				return nil, fmt.Errorf("directive %q: can only be specified once", d.Name)
+			}
+			var hasIPv4, hasIPv6 bool
+			for _, s := range d.Params {
+				_, n, err := net.ParseCIDR(s)
+				if err != nil {
+					return nil, fmt.Errorf("directive %q: failed to parse CIDR: %v", d.Name, err)
+				}
+				if n.IP.To4() == nil {
+					if hasIPv6 {
+						return nil, fmt.Errorf("directive %q: found two IPv6 CIDRs", d.Name)
+					}
+					hasIPv6 = true
+				} else {
+					if hasIPv4 {
+						return nil, fmt.Errorf("directive %q: found two IPv4 CIDRs", d.Name)
+					}
+					hasIPv4 = true
+				}
+				srv.UpstreamUserIPs = append(srv.UpstreamUserIPs, n)
+			}
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)
 		}
