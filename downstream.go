@@ -601,7 +601,13 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 		}
 
 		var resp []byte
-		if dc.saslServer == nil {
+		if msg.Params[0] == "*" {
+			dc.saslServer = nil
+			return ircError{&irc.Message{
+				Command: irc.ERR_SASLABORTED,
+				Params:  []string{"*", "SASL authentication aborted"},
+			}}
+		} else if dc.saslServer == nil {
 			mech := strings.ToUpper(msg.Params[0])
 			switch mech {
 			case "PLAIN":
@@ -614,12 +620,6 @@ func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
 					Params:  []string{"*", fmt.Sprintf("Unsupported SASL mechanism %q", mech)},
 				}}
 			}
-		} else if msg.Params[0] == "*" {
-			dc.saslServer = nil
-			return ircError{&irc.Message{
-				Command: irc.ERR_SASLABORTED,
-				Params:  []string{"*", "SASL authentication aborted"},
-			}}
 		} else if msg.Params[0] == "+" {
 			resp = nil
 		} else {
