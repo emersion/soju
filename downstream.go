@@ -69,6 +69,29 @@ func parseBouncerNetID(subcommand, s string) (int64, error) {
 	return id, nil
 }
 
+func fillNetworkAddrAttrs(attrs irc.Tags, network *Network) {
+	u, err := network.URL()
+	if err != nil {
+		return
+	}
+
+	hasHostPort := true
+	switch u.Scheme {
+	case "ircs":
+		attrs["tls"] = irc.TagValue("1")
+	case "irc+insecure":
+		attrs["tls"] = irc.TagValue("0")
+	default: // e.g. unix://
+		hasHostPort = false
+	}
+	if host, port, err := net.SplitHostPort(u.Host); err == nil && hasHostPort {
+		attrs["host"] = irc.TagValue(host)
+		attrs["port"] = irc.TagValue(port)
+	} else if hasHostPort {
+		attrs["host"] = irc.TagValue(u.Host)
+	}
+}
+
 func getNetworkAttrs(network *network) irc.Tags {
 	state := "disconnected"
 	if uc := network.conn; uc != nil {
@@ -88,25 +111,69 @@ func getNetworkAttrs(network *network) irc.Tags {
 		attrs["realname"] = irc.TagValue(realname)
 	}
 
-	if u, err := network.URL(); err == nil {
-		hasHostPort := true
-		switch u.Scheme {
-		case "ircs":
-			attrs["tls"] = irc.TagValue("1")
-		case "irc+insecure":
-			attrs["tls"] = irc.TagValue("0")
+	fillNetworkAddrAttrs(attrs, &network.Network)
+
+	return attrs
+}
+
+func networkAddrFromAttrs(attrs irc.Tags) string {
+	host, ok := attrs.GetTag("host")
+	if !ok {
+		return ""
+	}
+
+	addr := host
+	if port, ok := attrs.GetTag("port"); ok {
+		addr += ":" + port
+	}
+
+	if tlsStr, ok := attrs.GetTag("tls"); ok && tlsStr == "0" {
+		addr = "irc+insecure://" + tlsStr
+	}
+
+	return addr
+}
+
+func updateNetworkAttrs(record *Network, attrs irc.Tags, subcommand string) error {
+	addrAttrs := irc.Tags{}
+	fillNetworkAddrAttrs(addrAttrs, record)
+
+	updateAddr := false
+	for k, v := range attrs {
+		s := string(v)
+		switch k {
+		case "host", "port", "tls":
+			updateAddr = true
+			addrAttrs[k] = v
+		case "name":
+			record.Name = s
+		case "nickname":
+			record.Nick = s
+		case "username":
+			record.Username = s
+		case "realname":
+			record.Realname = s
+		case "pass":
+			record.Pass = s
 		default:
-			hasHostPort = false
-		}
-		if host, port, err := net.SplitHostPort(u.Host); err == nil && hasHostPort {
-			attrs["host"] = irc.TagValue(host)
-			attrs["port"] = irc.TagValue(port)
-		} else if hasHostPort {
-			attrs["host"] = irc.TagValue(u.Host)
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"BOUNCER", "UNKNOWN_ATTRIBUTE", subcommand, k, "Unknown attribute"},
+			}}
 		}
 	}
 
-	return attrs
+	if updateAddr {
+		record.Addr = networkAddrFromAttrs(addrAttrs)
+		if record.Addr == "" {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"BOUNCER", "NEED_ATTRIBUTE", subcommand, "host", "Missing required host attribute"},
+			}}
+		}
+	}
+
+	return nil
 }
 
 // ' ' and ':' break the IRC message wire format, '@' and '!' break prefixes,
@@ -2274,46 +2341,15 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 			attrs := irc.ParseTags(attrsStr)
 
-			host, ok := attrs.GetTag("host")
-			if !ok {
-				return ircError{&irc.Message{
-					Command: "FAIL",
-					Params:  []string{"BOUNCER", "NEED_ATTRIBUTE", subcommand, "host", "Missing required host attribute"},
-				}}
+			record := &Network{Nick: dc.nick, Enabled: true}
+			if err := updateNetworkAttrs(record, attrs, subcommand); err != nil {
+				return err
 			}
 
-			addr := host
-			if port, ok := attrs.GetTag("port"); ok {
-				addr += ":" + port
+			if record.Realname == dc.user.Realname {
+				record.Realname = ""
 			}
 
-			if tlsStr, ok := attrs.GetTag("tls"); ok && tlsStr == "0" {
-				addr = "irc+insecure://" + tlsStr
-			}
-
-			nick, ok := attrs.GetTag("nickname")
-			if !ok {
-				nick = dc.nick
-			}
-
-			username, _ := attrs.GetTag("username")
-			realname, _ := attrs.GetTag("realname")
-			pass, _ := attrs.GetTag("pass")
-
-			if realname == dc.user.Realname {
-				realname = ""
-			}
-
-			// TODO: reject unknown attributes
-
-			record := &Network{
-				Addr:     addr,
-				Nick:     nick,
-				Username: username,
-				Realname: realname,
-				Pass:     pass,
-				Enabled:  true,
-			}
 			network, err := dc.user.createNetwork(record)
 			if err != nil {
 				return ircError{&irc.Message{
@@ -2347,26 +2383,12 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			record := net.Network // copy network record because we'll mutate it
-			for k, v := range attrs {
-				s := string(v)
-				switch k {
-				// TODO: host, port, tls
-				case "name":
-					record.Name = s
-				case "nickname":
-					record.Nick = s
-				case "username":
-					record.Username = s
-				case "realname":
-					record.Realname = s
-				case "pass":
-					record.Pass = s
-				default:
-					return ircError{&irc.Message{
-						Command: "FAIL",
-						Params:  []string{"BOUNCER", "UNKNOWN_ATTRIBUTE", subcommand, k, "Unknown attribute"},
-					}}
-				}
+			if err := updateNetworkAttrs(&record, attrs, subcommand); err != nil {
+				return err
+			}
+
+			if record.Realname == dc.user.Realname {
+				record.Realname = ""
 			}
 
 			_, err = dc.user.updateNetwork(&record)
