@@ -1725,7 +1725,7 @@ func (uc *upstreamConn) runUntilRegistered() error {
 func (uc *upstreamConn) readMessages(ch chan<- event) error {
 	for {
 		msg, err := uc.ReadMessage()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)

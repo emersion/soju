@@ -177,7 +177,9 @@ func (s *Server) handle(ic ircConn) {
 	id := atomic.AddUint64(&lastDownstreamID, 1)
 	dc := newDownstreamConn(s, ic, id)
 	if err := dc.runUntilRegistered(); err != nil {
-		dc.logger.Print(err)
+		if !errors.Is(err, io.EOF) {
+			dc.logger.Print(err)
+		}
 	} else {
 		dc.user.events <- eventDownstreamConnected{dc}
 		if err := dc.readMessages(dc.user.events); err != nil {

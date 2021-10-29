@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -434,7 +435,7 @@ func (dc *downstreamConn) unmarshalText(uc *upstreamConn, text string) string {
 func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	for {
 		msg, err := dc.ReadMessage()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return fmt.Errorf("failed to read IRC command: %v", err)
@@ -1354,7 +1355,7 @@ func (dc *downstreamConn) runUntilRegistered() error {
 	for !dc.registered {
 		msg, err := dc.ReadMessage()
 		if err != nil {
-			return fmt.Errorf("failed to read IRC command: %v", err)
+			return fmt.Errorf("failed to read IRC command: %w", err)
 		}
 
 		err = dc.handleMessage(msg)
