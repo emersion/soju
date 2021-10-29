@@ -2,7 +2,9 @@ package soju
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"mime"
 	"net"
