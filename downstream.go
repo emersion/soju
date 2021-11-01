@@ -1899,10 +1899,14 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 
 		if dc.network == nil && entityCM == dc.nickCM {
 			// TODO: support AWAY (H/G) in self WHO reply
+			flags := "H"
+			if dc.user.Admin {
+				flags += "@"
+			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOREPLY,
-				Params:  []string{dc.nick, "*", dc.user.Username, dc.hostname, dc.srv.Hostname, dc.nick, "H", "0 " + dc.realname},
+				Params:  []string{dc.nick, "*", dc.user.Username, dc.hostname, dc.srv.Hostname, dc.nick, flags, "0 " + dc.realname},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -1973,6 +1977,13 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Command: irc.RPL_WHOISSERVER,
 				Params:  []string{dc.nick, dc.nick, dc.srv.Hostname, "soju"},
 			})
+			if dc.user.Admin {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.RPL_WHOISOPERATOR,
+					Params:  []string{dc.nick, dc.nick, "is a bouncer administrator"},
+				})
+			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHOIS,
