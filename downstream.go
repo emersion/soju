@@ -1915,7 +1915,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOREPLY,
-				Params:  []string{serviceNick, "*", servicePrefix.User, servicePrefix.Host, dc.srv.Hostname, serviceNick, "H", "0 " + serviceRealname},
+				Params:  []string{serviceNick, "*", servicePrefix.User, servicePrefix.Host, dc.srv.Hostname, serviceNick, "H@", "0 " + serviceRealname},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -1990,6 +1990,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISSERVER,
 				Params:  []string{dc.nick, serviceNick, dc.srv.Hostname, "soju"},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_WHOISOPERATOR,
+				Params:  []string{dc.nick, serviceNick, "is the bouncer service"},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
