@@ -1901,7 +1901,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			// TODO: support AWAY (H/G) in self WHO reply
 			flags := "H"
 			if dc.user.Admin {
-				flags += "@"
+				flags += "*"
 			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -1919,7 +1919,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOREPLY,
-				Params:  []string{serviceNick, "*", servicePrefix.User, servicePrefix.Host, dc.srv.Hostname, serviceNick, "H@", "0 " + serviceRealname},
+				Params:  []string{serviceNick, "*", servicePrefix.User, servicePrefix.Host, dc.srv.Hostname, serviceNick, "H*", "0 " + serviceRealname},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
