@@ -36,7 +36,7 @@ CREATE TABLE "Network" (
 	name VARCHAR(255),
 	"user" INTEGER NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
 	addr VARCHAR(255) NOT NULL,
-	nick VARCHAR(255) NOT NULL,
+	nick VARCHAR(255),
 	username VARCHAR(255),
 	realname VARCHAR(255),
 	pass VARCHAR(255),
@@ -77,6 +77,7 @@ CREATE TABLE "DeliveryReceipt" (
 
 var postgresMigrations = []string{
 	"", // migration #0 is reserved for schema initialization
+	`ALTER TABLE "Network" ALTER COLUMN nick DROP NOT NULL`,
 }
 
 type PostgresDB struct {
@@ -259,15 +260,16 @@ func (db *PostgresDB) ListNetworks(ctx context.Context, userID int64) ([]Network
 	var networks []Network
 	for rows.Next() {
 		var net Network
-		var name, username, realname, pass, connectCommands sql.NullString
+		var name, nick, username, realname, pass, connectCommands sql.NullString
 		var saslMechanism, saslPlainUsername, saslPlainPassword sql.NullString
-		err := rows.Scan(&net.ID, &name, &net.Addr, &net.Nick, &username, &realname,
+		err := rows.Scan(&net.ID, &name, &net.Addr, &nick, &username, &realname,
 			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword,
 			&net.SASL.External.CertBlob, &net.SASL.External.PrivKeyBlob, &net.Enabled)
 		if err != nil {
 			return nil, err
 		}
 		net.Name = name.String
+		net.Nick = nick.String
 		net.Username = username.String
 		net.Realname = realname.String
 		net.Pass = pass.String
@@ -291,6 +293,7 @@ func (db *PostgresDB) StoreNetwork(ctx context.Context, userID int64, network *N
 	defer cancel()
 
 	netName := toNullString(network.Name)
+	nick := toNullString(network.Nick)
 	netUsername := toNullString(network.Username)
 	realname := toNullString(network.Realname)
 	pass := toNullString(network.Pass)
@@ -320,7 +323,7 @@ func (db *PostgresDB) StoreNetwork(ctx context.Context, userID int64, network *N
 				sasl_external_key, enabled)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			RETURNING id`,
-			userID, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
+			userID, netName, network.Addr, nick, netUsername, realname, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
 			network.SASL.External.PrivKeyBlob, network.Enabled).Scan(&network.ID)
 	} else {
@@ -331,7 +334,7 @@ func (db *PostgresDB) StoreNetwork(ctx context.Context, userID int64, network *N
 				sasl_plain_password = $11, sasl_external_cert = $12, sasl_external_key = $13,
 				enabled = $14
 			WHERE id = $1`,
-			network.ID, netName, network.Addr, network.Nick, netUsername, realname, pass, connectCommands,
+			network.ID, netName, network.Addr, nick, netUsername, realname, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
 			network.SASL.External.PrivKeyBlob, network.Enabled)
 	}

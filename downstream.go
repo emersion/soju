@@ -102,7 +102,7 @@ func getNetworkAttrs(network *network) irc.Tags {
 	attrs := irc.Tags{
 		"name":     irc.TagValue(network.GetName()),
 		"state":    irc.TagValue(state),
-		"nickname": irc.TagValue(network.Nick),
+		"nickname": irc.TagValue(GetNick(&network.user.User, &network.Network)),
 	}
 
 	if network.Username != "" {
@@ -335,7 +335,7 @@ func isOurNick(net *network, nick string) bool {
 	// know whether this name is our nickname. Best-effort: use the network's
 	// configured nickname and hope it was the one being used when we were
 	// connected.
-	return net.casemap(nick) == net.casemap(net.Nick)
+	return net.casemap(nick) == net.casemap(GetNick(&net.user.User, &net.Network))
 }
 
 // marshalEntity converts an upstream entity name (ie. channel or nick) into a
@@ -2414,6 +2414,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return err
 			}
 
+			if record.Nick == dc.user.Username {
+				record.Nick = ""
+			}
 			if record.Realname == dc.user.Realname {
 				record.Realname = ""
 			}
@@ -2455,6 +2458,9 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return err
 			}
 
+			if record.Nick == dc.user.Username {
+				record.Nick = ""
+			}
 			if record.Realname == dc.user.Realname {
 				record.Realname = ""
 			}

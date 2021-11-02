@@ -1671,7 +1671,7 @@ func splitSpace(s string) []string {
 }
 
 func (uc *upstreamConn) register() {
-	uc.nick = uc.network.Nick
+	uc.nick = GetNick(&uc.user.User, &uc.network.Network)
 	uc.nickCM = uc.network.casemap(uc.nick)
 	uc.username = uc.network.GetUsername()
 	uc.realname = GetRealname(&uc.user.User, &uc.network.Network)

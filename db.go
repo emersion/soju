@@ -112,6 +112,13 @@ func (net *Network) GetUsername() string {
 	return net.Nick
 }
 
+func GetNick(user *User, net *Network) string {
+	if net.Nick != "" {
+		return net.Nick
+	}
+	return user.Username
+}
+
 func GetRealname(user *User, net *Network) string {
 	if net.Realname != "" {
 		return net.Realname
@@ -119,7 +126,7 @@ func GetRealname(user *User, net *Network) string {
 	if user.Realname != "" {
 		return user.Realname
 	}
-	return net.Nick
+	return GetNick(user, net)
 }
 
 type MessageFilter int

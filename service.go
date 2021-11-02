@@ -484,7 +484,6 @@ func handleServiceNetworkCreate(dc *downstreamConn, params []string) error {
 
 	record := &Network{
 		Addr:    *fs.Addr,
-		Nick:    dc.nick,
 		Enabled: true,
 	}
 	if err := fs.update(record); err != nil {

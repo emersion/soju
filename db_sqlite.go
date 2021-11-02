@@ -28,7 +28,7 @@ CREATE TABLE Network (
 	name TEXT,
 	user INTEGER NOT NULL,
 	addr TEXT NOT NULL,
-	nick TEXT NOT NULL,
+	nick TEXT,
 	username TEXT,
 	realname TEXT,
 	pass TEXT,
@@ -138,6 +138,36 @@ var sqliteMigrations = []string{
 	"ALTER TABLE Channel ADD COLUMN detached_internal_msgid VARCHAR(255)",
 	"ALTER TABLE Network ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
 	"ALTER TABLE User ADD COLUMN realname VARCHAR(255)",
+	`
+		CREATE TABLE NetworkNew (
+			id INTEGER PRIMARY KEY,
+			name TEXT,
+			user INTEGER NOT NULL,
+			addr TEXT NOT NULL,
+			nick TEXT,
+			username TEXT,
+			realname TEXT,
+			pass TEXT,
+			connect_commands TEXT,
+			sasl_mechanism TEXT,
+			sasl_plain_username TEXT,
+			sasl_plain_password TEXT,
+			sasl_external_cert BLOB,
+			sasl_external_key BLOB,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			FOREIGN KEY(user) REFERENCES User(id),
+			UNIQUE(user, addr, nick),
+			UNIQUE(user, name)
+		);
+		INSERT INTO NetworkNew
+			SELECT id, name, user, addr, nick, username, realname, pass,
+				connect_commands, sasl_mechanism, sasl_plain_username,
+				sasl_plain_password, sasl_external_cert, sasl_external_key,
+				enabled
+			FROM Network;
+		DROP TABLE Network;
+		ALTER TABLE NetworkNew RENAME TO Network;
+	`,
 }
 
 type SqliteDB struct {
@@ -393,15 +423,16 @@ func (db *SqliteDB) ListNetworks(ctx context.Context, userID int64) ([]Network, 
 	var networks []Network
 	for rows.Next() {
 		var net Network
-		var name, username, realname, pass, connectCommands sql.NullString
+		var name, nick, username, realname, pass, connectCommands sql.NullString
 		var saslMechanism, saslPlainUsername, saslPlainPassword sql.NullString
-		err := rows.Scan(&net.ID, &name, &net.Addr, &net.Nick, &username, &realname,
+		err := rows.Scan(&net.ID, &name, &net.Addr, &nick, &username, &realname,
 			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword,
 			&net.SASL.External.CertBlob, &net.SASL.External.PrivKeyBlob, &net.Enabled)
 		if err != nil {
 			return nil, err
 		}
 		net.Name = name.String
+		net.Nick = nick.String
 		net.Username = username.String
 		net.Realname = realname.String
 		net.Pass = pass.String
@@ -446,7 +477,7 @@ func (db *SqliteDB) StoreNetwork(ctx context.Context, userID int64, network *Net
 	args := []interface{}{
 		sql.Named("name", toNullString(network.Name)),
 		sql.Named("addr", network.Addr),
-		sql.Named("nick", network.Nick),
+		sql.Named("nick", toNullString(network.Nick)),
 		sql.Named("username", toNullString(network.Username)),
 		sql.Named("realname", toNullString(network.Realname)),
 		sql.Named("pass", toNullString(network.Pass)),
