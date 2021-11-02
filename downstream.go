@@ -1938,6 +1938,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Server:   dc.srv.Hostname,
 				Nickname: dc.nick,
 				Flags:    flags,
+				Account:  dc.user.Username,
 				Realname: dc.realname,
 			}
 			dc.SendMessage(generateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
@@ -1956,6 +1957,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Server:   dc.srv.Hostname,
 				Nickname: serviceNick,
 				Flags:    "H*",
+				Account:  serviceNick,
 				Realname: serviceRealname,
 			}
 			dc.SendMessage(generateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
@@ -2023,6 +2025,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
+				Command: rpl_whoisaccount,
+				Params:  []string{dc.nick, dc.nick, dc.user.Username, "is logged in as"},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHOIS,
 				Params:  []string{dc.nick, dc.nick, "End of /WHOIS list"},
 			})
@@ -2043,6 +2050,11 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISOPERATOR,
 				Params:  []string{dc.nick, serviceNick, "is the bouncer service"},
+			})
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: rpl_whoisaccount,
+				Params:  []string{dc.nick, serviceNick, serviceNick, "is logged in as"},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),

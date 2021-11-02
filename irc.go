@@ -18,6 +18,7 @@ const (
 	rpl_creationtime  = "329"
 	rpl_topicwhotime  = "333"
 	rpl_whospcrpl     = "354"
+	rpl_whoisaccount  = "330"
 	err_invalidcapcmd = "410"
 )
 
