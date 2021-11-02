@@ -50,6 +50,7 @@ func (l *prefixLogger) Printf(format string, v ...interface{}) {
 
 type Server struct {
 	Hostname        string
+	Title           string
 	Logger          Logger
 	HistoryLimit    int
 	LogPath         string

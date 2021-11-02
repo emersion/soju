@@ -97,8 +97,8 @@ func main() {
 	}
 
 	srv := soju.NewServer(db)
-	// TODO: load from config/DB
 	srv.Hostname = cfg.Hostname
+	srv.Title = cfg.Title
 	srv.LogPath = cfg.LogPath
 	srv.HTTPOrigins = cfg.HTTPOrigins
 	srv.AcceptProxyIPs = cfg.AcceptProxyIPs

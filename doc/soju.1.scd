@@ -104,6 +104,10 @@ The following directives are supported:
 *hostname* <name>
 	Server hostname (default: system hostname).
 
+*title* <title>
+	Server title. This will be sent as the _ISUPPORT NETWORK_ value when clients
+	don't select a specific network.
+
 *tls* <cert> <key>
 	Enable TLS support. The certificate and the key files must be PEM-encoded.
 

@@ -1157,7 +1157,9 @@ func (dc *downstreamConn) welcome() error {
 	if dc.network != nil {
 		isupport = append(isupport, fmt.Sprintf("BOUNCER_NETID=%v", dc.network.ID))
 	}
-
+	if dc.network == nil && dc.srv.Title != "" {
+		isupport = append(isupport, "NETWORK="+encodeISUPPORT(dc.srv.Title))
+	}
 	if dc.network == nil && dc.caps["soju.im/bouncer-networks"] {
 		isupport = append(isupport, "WHOX")
 	}

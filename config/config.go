@@ -38,8 +38,9 @@ type TLS struct {
 
 type Server struct {
 	Listen   []string
-	Hostname string
 	TLS      *TLS
+	Hostname string
+	Title    string
 	MOTDPath string
 
 	SQLDriver string
@@ -87,6 +88,14 @@ func parse(cfg scfg.Block) (*Server, error) {
 			if err := d.ParseParams(&srv.Hostname); err != nil {
 				return nil, err
 			}
+		case "title":
+			if err := d.ParseParams(&srv.Title); err != nil {
+				return nil, err
+			}
+		case "motd":
+			if err := d.ParseParams(&srv.MOTDPath); err != nil {
+				return nil, err
+			}
 		case "tls":
 			tls := &TLS{}
 			if err := d.ParseParams(&tls.CertPath, &tls.KeyPath); err != nil {
@@ -128,10 +137,6 @@ func parse(cfg scfg.Block) (*Server, error) {
 			var err error
 			if srv.MaxUserNetworks, err = strconv.Atoi(max); err != nil {
 				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
-			}
-		case "motd":
-			if err := d.ParseParams(&srv.MOTDPath); err != nil {
-				return nil, err
 			}
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)

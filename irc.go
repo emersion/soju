@@ -761,3 +761,9 @@ func generateWHOXReply(prefix *irc.Prefix, nick, fields string, info *whoxInfo) 
 		Params:  append([]string{nick}, params...),
 	}
 }
+
+var isupportEncoder = strings.NewReplacer(" ", "\\x20", "\\", "\\x5C")
+
+func encodeISUPPORT(s string) string {
+	return isupportEncoder.Replace(s)
+}
