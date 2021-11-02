@@ -1452,6 +1452,11 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		// Ignore
 	case irc.RPL_YOURHOST, irc.RPL_CREATED:
 		// Ignore
+	case rpl_whospcrpl:
+		// Not supported in multi-upstream mode, forward as-is
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			dc.SendMessage(msg)
+		})
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
 		fallthrough
 	case irc.RPL_STATSVLINE, rpl_statsping, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:

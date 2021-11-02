@@ -17,6 +17,7 @@ const (
 	rpl_globalusers   = "266"
 	rpl_creationtime  = "329"
 	rpl_topicwhotime  = "333"
+	rpl_whospcrpl     = "354"
 	err_invalidcapcmd = "410"
 )
 
@@ -680,5 +681,82 @@ func parseChatHistoryBound(param string) time.Time {
 		return timestamp
 	default:
 		return time.Time{}
+	}
+}
+
+type whoxInfo struct {
+	Token    string
+	Username string
+	Hostname string
+	Server   string
+	Nickname string
+	Flags    string
+	Account  string
+	Realname string
+}
+
+func generateWHOXReply(prefix *irc.Prefix, nick, fields string, info *whoxInfo) *irc.Message {
+	if fields == "" {
+		return &irc.Message{
+			Prefix:  prefix,
+			Command: irc.RPL_WHOREPLY,
+			Params:  []string{nick, "*", info.Username, info.Hostname, info.Server, info.Nickname, info.Flags, "0 " + info.Realname},
+		}
+	}
+
+	fieldSet := make(map[byte]bool)
+	for i := 0; i < len(fields); i++ {
+		fieldSet[fields[i]] = true
+	}
+
+	var params []string
+	if fieldSet['t'] {
+		params = append(params, info.Token)
+	}
+	if fieldSet['c'] {
+		params = append(params, "*")
+	}
+	if fieldSet['u'] {
+		params = append(params, info.Username)
+	}
+	if fieldSet['i'] {
+		params = append(params, "255.255.255.255")
+	}
+	if fieldSet['h'] {
+		params = append(params, info.Hostname)
+	}
+	if fieldSet['s'] {
+		params = append(params, info.Server)
+	}
+	if fieldSet['n'] {
+		params = append(params, info.Nickname)
+	}
+	if fieldSet['f'] {
+		params = append(params, info.Flags)
+	}
+	if fieldSet['d'] {
+		params = append(params, "0")
+	}
+	if fieldSet['l'] { // idle time
+		params = append(params, "0")
+	}
+	if fieldSet['a'] {
+		account := "0" // WHOX uses "0" to mean "no account"
+		if info.Account != "" && info.Account != "*" {
+			account = info.Account
+		}
+		params = append(params, account)
+	}
+	if fieldSet['o'] {
+		params = append(params, "0")
+	}
+	if fieldSet['r'] {
+		params = append(params, info.Realname)
+	}
+
+	return &irc.Message{
+		Prefix:  prefix,
+		Command: rpl_whospcrpl,
+		Params:  append([]string{nick}, params...),
 	}
 }

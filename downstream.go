@@ -236,6 +236,7 @@ var passthroughIsupport = map[string]bool{
 	"TOPICLEN":      true,
 	"USERLEN":       true,
 	"UTF8ONLY":      true,
+	"WHOX":          true,
 }
 
 type downstreamConn struct {
@@ -1157,6 +1158,10 @@ func (dc *downstreamConn) welcome() error {
 		isupport = append(isupport, fmt.Sprintf("BOUNCER_NETID=%v", dc.network.ID))
 	}
 
+	if dc.network == nil && dc.caps["soju.im/bouncer-networks"] {
+		isupport = append(isupport, "WHOX")
+	}
+
 	if uc := dc.upstream(); uc != nil {
 		for k := range passthroughIsupport {
 			v, ok := uc.isupport[k]
@@ -1882,6 +1887,10 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				})
 			}
 		}
+	// For WHOX docs, see:
+	// - http://faerion.sourceforge.net/doc/irc/whox.var
+	// - https://github.com/quakenet/snircd/blob/master/doc/readme.who
+	// Note, many features aren't widely implemented, such as flags and mask2
 	case "WHO":
 		if len(msg.Params) == 0 {
 			// TODO: support WHO without parameters
@@ -1893,52 +1902,80 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return nil
 		}
 
-		// TODO: support WHO masks
-		entity := msg.Params[0]
-		entityCM := casemapASCII(entity)
+		// Clients will use the first mask to match RPL_ENDOFWHO
+		endOfWhoToken := msg.Params[0]
 
-		if dc.network == nil && entityCM == dc.nickCM {
+		// TODO: add support for WHOX mask2
+		mask := msg.Params[0]
+		var options string
+		if len(msg.Params) > 1 {
+			options = msg.Params[1]
+		}
+
+		optionsParts := strings.SplitN(options, "%", 2)
+		// TODO: add support for WHOX flags in optionsParts[0]
+		var fields, whoxToken string
+		if len(optionsParts) == 2 {
+			optionsParts := strings.SplitN(optionsParts[1], ",", 2)
+			fields = strings.ToLower(optionsParts[0])
+			if len(optionsParts) == 2 && strings.Contains(fields, "t") {
+				whoxToken = optionsParts[1]
+			}
+		}
+
+		// TODO: support mixed bouncer/upstream WHO queries
+		maskCM := casemapASCII(mask)
+		if dc.network == nil && maskCM == dc.nickCM {
 			// TODO: support AWAY (H/G) in self WHO reply
 			flags := "H"
 			if dc.user.Admin {
 				flags += "*"
 			}
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_WHOREPLY,
-				Params:  []string{dc.nick, "*", dc.user.Username, dc.hostname, dc.srv.Hostname, dc.nick, flags, "0 " + dc.realname},
-			})
+			info := whoxInfo{
+				Token:    whoxToken,
+				Username: dc.user.Username,
+				Hostname: dc.hostname,
+				Server:   dc.srv.Hostname,
+				Nickname: dc.nick,
+				Flags:    flags,
+				Realname: dc.realname,
+			}
+			dc.SendMessage(generateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, dc.nick, "End of /WHO list"},
+				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
 			})
 			return nil
 		}
-		if entityCM == serviceNickCM {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_WHOREPLY,
-				Params:  []string{serviceNick, "*", servicePrefix.User, servicePrefix.Host, dc.srv.Hostname, serviceNick, "H*", "0 " + serviceRealname},
-			})
+		if maskCM == serviceNickCM {
+			info := whoxInfo{
+				Token:    whoxToken,
+				Username: servicePrefix.User,
+				Hostname: servicePrefix.Host,
+				Server:   dc.srv.Hostname,
+				Nickname: serviceNick,
+				Flags:    "H*",
+				Realname: serviceRealname,
+			}
+			dc.SendMessage(generateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, serviceNick, "End of /WHO list"},
+				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
 			})
 			return nil
 		}
 
-		uc, upstreamName, err := dc.unmarshalEntity(entity)
+		// TODO: properly support WHO masks
+		uc, upstreamMask, err := dc.unmarshalEntity(mask)
 		if err != nil {
 			return err
 		}
 
-		var params []string
-		if len(msg.Params) == 2 {
-			params = []string{upstreamName, msg.Params[1]}
-		} else {
-			params = []string{upstreamName}
+		params := []string{upstreamMask}
+		if options != "" {
+			params = append(params, options)
 		}
 
 		uc.SendMessageLabeled(dc.id, &irc.Message{
