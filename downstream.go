@@ -1211,7 +1211,7 @@ func (dc *downstreamConn) welcome() error {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_UMODEIS,
-			Params:  []string{dc.nick, string(uc.modes)},
+			Params:  []string{dc.nick, "+" + string(uc.modes)},
 		})
 	}
 	if dc.network == nil && dc.caps["soju.im/bouncer-networks"] && dc.user.Admin {
@@ -1747,7 +1747,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_UMODEIS,
-					Params:  []string{dc.nick, userMode},
+					Params:  []string{dc.nick, "+" + userMode},
 				})
 			}
 			return nil
