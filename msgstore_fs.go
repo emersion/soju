@@ -497,6 +497,10 @@ func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, network *Network, 
 		remaining -= len(buf)
 		year, month, day := start.Date()
 		start = time.Date(year, month, day, 0, 0, 0, 0, start.Location()).Add(-1)
+
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 	}
 
 	return history[remaining:], nil
@@ -522,6 +526,10 @@ func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, network *Network, e
 		remaining -= len(buf)
 		year, month, day := start.Date()
 		start = time.Date(year, month, day+1, 0, 0, 0, 0, start.Location())
+
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 	}
 	return history, nil
 }
@@ -565,6 +573,10 @@ func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *Network, en
 		remaining -= len(buf)
 		year, month, day := t.Date()
 		t = time.Date(year, month, day, 0, 0, 0, 0, t.Location()).Add(-1)
+
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 	}
 
 	return history[remaining:], nil
@@ -624,6 +636,10 @@ func (ms *fsMessageStore) ListTargets(ctx context.Context, network *Network, sta
 			Name:          target,
 			LatestMessage: t,
 		})
+
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 	}
 
 	// Sort targets by latest message time, backwards or forwards depending on
