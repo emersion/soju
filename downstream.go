@@ -1295,7 +1295,7 @@ func (dc *downstreamConn) welcome() error {
 
 				// Fast-forward history to last message
 				targetCM := net.casemap(target)
-				lastID, err := dc.user.msgStore.LastMsgID(net, targetCM, time.Now())
+				lastID, err := dc.user.msgStore.LastMsgID(&net.Network, targetCM, time.Now())
 				if err != nil {
 					dc.logger.Printf("failed to get last message ID: %v", err)
 					return
@@ -1330,7 +1330,7 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) 
 
 	limit := 4000
 	targetCM := net.casemap(target)
-	history, err := dc.user.msgStore.LoadLatestID(net, targetCM, msgID, limit)
+	history, err := dc.user.msgStore.LoadLatestID(&net.Network, targetCM, msgID, limit)
 	if err != nil {
 		dc.logger.Printf("failed to send backlog for %q: %v", target, err)
 		return
@@ -2337,18 +2337,18 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		var history []*irc.Message
 		switch subcommand {
 		case "BEFORE":
-			history, err = store.LoadBeforeTime(network, entity, bounds[0], time.Time{}, limit, eventPlayback)
+			history, err = store.LoadBeforeTime(&network.Network, entity, bounds[0], time.Time{}, limit, eventPlayback)
 		case "AFTER":
-			history, err = store.LoadAfterTime(network, entity, bounds[0], time.Now(), limit, eventPlayback)
+			history, err = store.LoadAfterTime(&network.Network, entity, bounds[0], time.Now(), limit, eventPlayback)
 		case "BETWEEN":
 			if bounds[0].Before(bounds[1]) {
-				history, err = store.LoadAfterTime(network, entity, bounds[0], bounds[1], limit, eventPlayback)
+				history, err = store.LoadAfterTime(&network.Network, entity, bounds[0], bounds[1], limit, eventPlayback)
 			} else {
-				history, err = store.LoadBeforeTime(network, entity, bounds[0], bounds[1], limit, eventPlayback)
+				history, err = store.LoadBeforeTime(&network.Network, entity, bounds[0], bounds[1], limit, eventPlayback)
 			}
 		case "TARGETS":
 			// TODO: support TARGETS in multi-upstream mode
-			targets, err := store.ListTargets(network, bounds[0], bounds[1], limit, eventPlayback)
+			targets, err := store.ListTargets(&network.Network, bounds[0], bounds[1], limit, eventPlayback)
 			if err != nil {
 				dc.logger.Printf("failed fetching targets for chathistory: %v", err)
 				return ircError{&irc.Message{

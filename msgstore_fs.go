@@ -94,14 +94,14 @@ func newFSMessageStore(root, username string) *fsMessageStore {
 	}
 }
 
-func (ms *fsMessageStore) logPath(network *network, entity string, t time.Time) string {
+func (ms *fsMessageStore) logPath(network *Network, entity string, t time.Time) string {
 	year, month, day := t.Date()
 	filename := fmt.Sprintf("%04d-%02d-%02d.log", year, month, day)
 	return filepath.Join(ms.root, escapeFilename(network.GetName()), escapeFilename(entity), filename)
 }
 
 // nextMsgID queries the message ID for the next message to be written to f.
-func nextFSMsgID(network *network, entity string, t time.Time, f *os.File) (string, error) {
+func nextFSMsgID(network *Network, entity string, t time.Time, f *os.File) (string, error) {
 	offset, err := f.Seek(0, io.SeekEnd)
 	if err != nil {
 		return "", fmt.Errorf("failed to query next FS message ID: %v", err)
@@ -109,7 +109,7 @@ func nextFSMsgID(network *network, entity string, t time.Time, f *os.File) (stri
 	return formatFSMsgID(network.ID, entity, t, offset), nil
 }
 
-func (ms *fsMessageStore) LastMsgID(network *network, entity string, t time.Time) (string, error) {
+func (ms *fsMessageStore) LastMsgID(network *Network, entity string, t time.Time) (string, error) {
 	p := ms.logPath(network, entity, t)
 	fi, err := os.Stat(p)
 	if os.IsNotExist(err) {
@@ -120,7 +120,7 @@ func (ms *fsMessageStore) LastMsgID(network *network, entity string, t time.Time
 	return formatFSMsgID(network.ID, entity, t, fi.Size()-1), nil
 }
 
-func (ms *fsMessageStore) Append(network *network, entity string, msg *irc.Message) (string, error) {
+func (ms *fsMessageStore) Append(network *Network, entity string, msg *irc.Message) (string, error) {
 	s := formatMessage(msg)
 	if s == "" {
 		return "", nil
@@ -388,7 +388,7 @@ func parseMessage(line, entity string, ref time.Time, events bool) (*irc.Message
 	return msg, t, nil
 }
 
-func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, ref time.Time, end time.Time, events bool, limit int, afterOffset int64) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesBefore(network *Network, entity string, ref time.Time, end time.Time, events bool, limit int, afterOffset int64) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -444,7 +444,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *network, entity string, r
 	}
 }
 
-func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, ref time.Time, end time.Time, events bool, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesAfter(network *Network, entity string, ref time.Time, end time.Time, events bool, limit int) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -476,7 +476,7 @@ func (ms *fsMessageStore) parseMessagesAfter(network *network, entity string, re
 	return history, nil
 }
 
-func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadBeforeTime(network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	history := make([]*irc.Message, limit)
@@ -501,7 +501,7 @@ func (ms *fsMessageStore) LoadBeforeTime(network *network, entity string, start 
 	return history[remaining:], nil
 }
 
-func (ms *fsMessageStore) LoadAfterTime(network *network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadAfterTime(network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	var history []*irc.Message
@@ -525,7 +525,7 @@ func (ms *fsMessageStore) LoadAfterTime(network *network, entity string, start t
 	return history, nil
 }
 
-func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadLatestID(network *Network, entity, id string, limit int) ([]*irc.Message, error) {
 	var afterTime time.Time
 	var afterOffset int64
 	if id != "" {
@@ -569,7 +569,7 @@ func (ms *fsMessageStore) LoadLatestID(network *network, entity, id string, limi
 	return history[remaining:], nil
 }
 
-func (ms *fsMessageStore) ListTargets(network *network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error) {
+func (ms *fsMessageStore) ListTargets(network *Network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	rootPath := filepath.Join(ms.root, escapeFilename(network.GetName()))
@@ -644,7 +644,7 @@ func (ms *fsMessageStore) ListTargets(network *network, start, end time.Time, li
 	return targets, nil
 }
 
-func (ms *fsMessageStore) RenameNetwork(oldNet, newNet *network) error {
+func (ms *fsMessageStore) RenameNetwork(oldNet, newNet *Network) error {
 	oldDir := filepath.Join(ms.root, escapeFilename(oldNet.GetName()))
 	newDir := filepath.Join(ms.root, escapeFilename(newNet.GetName()))
 	// Avoid loosing data by overwriting an existing directory

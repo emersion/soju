@@ -1787,7 +1787,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		// This is the first message we receive from this target. Save the last
 		// message ID in delivery receipts, so that we can send the new message
 		// in the backlog if an offline client reconnects.
-		lastID, err := uc.user.msgStore.LastMsgID(uc.network, entityCM, time.Now())
+		lastID, err := uc.user.msgStore.LastMsgID(&uc.network.Network, entityCM, time.Now())
 		if err != nil {
 			uc.logger.Printf("failed to log message: failed to get last message ID: %v", err)
 			return ""
@@ -1798,7 +1798,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		})
 	}
 
-	msgID, err := uc.user.msgStore.Append(uc.network, entityCM, msg)
+	msgID, err := uc.user.msgStore.Append(&uc.network.Network, entityCM, msg)
 	if err != nil {
 		uc.logger.Printf("failed to log message: %v", err)
 		return ""

@@ -261,7 +261,7 @@ func (net *network) detach(ch *Channel) {
 
 	if net.user.msgStore != nil {
 		nameCM := net.casemap(ch.Name)
-		lastID, err := net.user.msgStore.LastMsgID(net, nameCM, time.Now())
+		lastID, err := net.user.msgStore.LastMsgID(&net.Network, nameCM, time.Now())
 		if err != nil {
 			net.logger.Printf("failed to get last message ID for channel %q: %v", ch.Name, err)
 		}
@@ -859,7 +859,7 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 	// is renamed
 	fsMsgStore, isFS := u.msgStore.(*fsMessageStore)
 	if isFS && updatedNetwork.GetName() != network.GetName() {
-		if err := fsMsgStore.RenameNetwork(network, updatedNetwork); err != nil {
+		if err := fsMsgStore.RenameNetwork(&network.Network, &updatedNetwork.Network); err != nil {
 			network.logger.Printf("failed to update FS message store network name to %q: %v", updatedNetwork.GetName(), err)
 		}
 	}
