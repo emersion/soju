@@ -77,6 +77,8 @@ func (ms *memoryMessageStore) LastMsgID(network *Network, entity string, t time.
 func (ms *memoryMessageStore) Append(network *Network, entity string, msg *irc.Message) (string, error) {
 	switch msg.Command {
 	case "PRIVMSG", "NOTICE":
+		// Only append these messages, because LoadLatestID shouldn't return
+		// other kinds of message.
 	default:
 		return "", nil
 	}
