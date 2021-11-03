@@ -26,6 +26,8 @@ var writeTimeout = 10 * time.Second
 var upstreamMessageDelay = 2 * time.Second
 var upstreamMessageBurst = 10
 var messageStoreTimeout = 10 * time.Second
+var chatHistoryLimit = 1000
+var backlogLimit = 4000
 
 type Logger interface {
 	Print(v ...interface{})
@@ -53,7 +55,6 @@ type Server struct {
 	Hostname        string
 	Title           string
 	Logger          Logger
-	HistoryLimit    int
 	LogPath         string
 	Debug           bool
 	HTTPOrigins     []string
@@ -75,7 +76,6 @@ type Server struct {
 func NewServer(db Database) *Server {
 	srv := &Server{
 		Logger:          log.New(log.Writer(), "", log.LstdFlags),
-		HistoryLimit:    1000,
 		MaxUserNetworks: -1,
 		db:              db,
 		listeners:       make(map[net.Listener]struct{}),

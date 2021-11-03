@@ -1161,7 +1161,7 @@ func (dc *downstreamConn) welcome() error {
 	}
 
 	isupport := []string{
-		fmt.Sprintf("CHATHISTORY=%v", dc.srv.HistoryLimit),
+		fmt.Sprintf("CHATHISTORY=%v", chatHistoryLimit),
 		"CASEMAPPING=ascii",
 	}
 
@@ -1331,9 +1331,8 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) 
 	ctx, cancel := context.WithTimeout(context.TODO(), messageStoreTimeout)
 	defer cancel()
 
-	limit := 4000
 	targetCM := net.casemap(target)
-	history, err := dc.user.msgStore.LoadLatestID(ctx, &net.Network, targetCM, msgID, limit)
+	history, err := dc.user.msgStore.LoadLatestID(ctx, &net.Network, targetCM, msgID, backlogLimit)
 	if err != nil {
 		dc.logger.Printf("failed to send backlog for %q: %v", target, err)
 		return
@@ -2328,7 +2327,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 
 		limit, err := strconv.Atoi(limitStr)
-		if err != nil || limit < 0 || limit > dc.srv.HistoryLimit {
+		if err != nil || limit < 0 || limit > chatHistoryLimit {
 			return ircError{&irc.Message{
 				Command: "FAIL",
 				Params:  []string{"CHATHISTORY", "INVALID_PARAMS", subcommand, limitStr, "Invalid limit"},
