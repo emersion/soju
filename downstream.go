@@ -1214,6 +1214,13 @@ func (dc *downstreamConn) welcome() error {
 			Params:  []string{dc.nick, string(uc.modes)},
 		})
 	}
+	if dc.network == nil && dc.caps["soju.im/bouncer-networks"] && dc.user.Admin {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.RPL_UMODEIS,
+			Params:  []string{dc.nick, "+o"},
+		})
+	}
 
 	if motd := dc.user.srv.MOTD(); motd != "" && dc.network == nil {
 		for _, msg := range generateMOTD(dc.srv.prefix(), dc.nick, motd) {
