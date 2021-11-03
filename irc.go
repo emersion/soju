@@ -145,7 +145,9 @@ outer:
 		if !ok {
 			continue
 		}
-		if mt == modeTypeB || (mt == modeTypeC && plusMinus == '+') {
+		if mt == modeTypeA {
+			nextArgument++
+		} else if mt == modeTypeB || (mt == modeTypeC && plusMinus == '+') {
 			if plusMinus == '+' {
 				var argument string
 				// some sentitive arguments (such as channel keys) can be omitted for privacy
