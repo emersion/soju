@@ -25,6 +25,7 @@ var connectTimeout = 15 * time.Second
 var writeTimeout = 10 * time.Second
 var upstreamMessageDelay = 2 * time.Second
 var upstreamMessageBurst = 10
+var messageStoreTimeout = 10 * time.Second
 
 type Logger interface {
 	Print(v ...interface{})

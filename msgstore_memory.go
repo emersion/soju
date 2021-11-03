@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -91,7 +92,7 @@ func (ms *memoryMessageStore) Append(network *Network, entity string, msg *irc.M
 	return formatMemoryMsgID(network.ID, entity, seq), nil
 }
 
-func (ms *memoryMessageStore) LoadLatestID(network *Network, entity, id string, limit int) ([]*irc.Message, error) {
+func (ms *memoryMessageStore) LoadLatestID(ctx context.Context, network *Network, entity, id string, limit int) ([]*irc.Message, error) {
 	_, _, seq, err := parseMemoryMsgID(id)
 	if err != nil {
 		return nil, err

@@ -2,6 +2,7 @@ package soju
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -476,7 +477,7 @@ func (ms *fsMessageStore) parseMessagesAfter(network *Network, entity string, re
 	return history, nil
 }
 
-func (ms *fsMessageStore) LoadBeforeTime(network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	history := make([]*irc.Message, limit)
@@ -501,7 +502,7 @@ func (ms *fsMessageStore) LoadBeforeTime(network *Network, entity string, start 
 	return history[remaining:], nil
 }
 
-func (ms *fsMessageStore) LoadAfterTime(network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	var history []*irc.Message
@@ -525,7 +526,7 @@ func (ms *fsMessageStore) LoadAfterTime(network *Network, entity string, start t
 	return history, nil
 }
 
-func (ms *fsMessageStore) LoadLatestID(network *Network, entity, id string, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *Network, entity, id string, limit int) ([]*irc.Message, error) {
 	var afterTime time.Time
 	var afterOffset int64
 	if id != "" {
@@ -569,7 +570,7 @@ func (ms *fsMessageStore) LoadLatestID(network *Network, entity, id string, limi
 	return history[remaining:], nil
 }
 
-func (ms *fsMessageStore) ListTargets(network *Network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error) {
+func (ms *fsMessageStore) ListTargets(ctx context.Context, network *Network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	rootPath := filepath.Join(ms.root, escapeFilename(network.GetName()))
