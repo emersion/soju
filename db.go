@@ -105,18 +105,18 @@ func (net *Network) URL() (*url.URL, error) {
 	return u, nil
 }
 
-func (net *Network) GetUsername() string {
-	if net.Username != "" {
-		return net.Username
-	}
-	return net.Nick
-}
-
 func GetNick(user *User, net *Network) string {
 	if net.Nick != "" {
 		return net.Nick
 	}
 	return user.Username
+}
+
+func GetUsername(user *User, net *Network) string {
+	if net.Username != "" {
+		return net.Username
+	}
+	return GetNick(user, net)
 }
 
 func GetRealname(user *User, net *Network) string {
