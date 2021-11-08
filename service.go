@@ -1046,8 +1046,13 @@ func handleServiceServerNotice(ctx context.Context, dc *downstreamConn, params [
 		Command: "NOTICE",
 		Params:  []string{"$" + dc.srv.Hostname, text},
 	}
+	var err error
 	dc.srv.forEachUser(func(u *user) {
-		u.events <- eventBroadcast{broadcastMsg}
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		case u.events <- eventBroadcast{broadcastMsg}:
+		}
 	})
-	return nil
+	return err
 }
