@@ -813,11 +813,17 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 		}
 
 		done := make(chan error, 1)
-		u.events <- eventUserUpdate{
+		event := eventUserUpdate{
 			password: hashed,
 			admin:    admin,
 			done:     done,
 		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case u.events <- event:
+		}
+		// TODO: send context to the other side
 		if err := <-done; err != nil {
 			return err
 		}
