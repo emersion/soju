@@ -319,7 +319,7 @@ func (net *network) attach(ch *Channel) {
 	})
 }
 
-func (net *network) deleteChannel(name string) error {
+func (net *network) deleteChannel(ctx context.Context, name string) error {
 	ch := net.channels.Value(name)
 	if ch == nil {
 		return fmt.Errorf("unknown channel %q", name)
@@ -331,7 +331,7 @@ func (net *network) deleteChannel(name string) error {
 		}
 	}
 
-	if err := net.user.srv.db.DeleteChannel(context.TODO(), ch.ID); err != nil {
+	if err := net.user.srv.db.DeleteChannel(ctx, ch.ID); err != nil {
 		return err
 	}
 	net.channels.Delete(name)
@@ -660,7 +660,7 @@ func (u *user) run() {
 				record.Admin = *e.admin
 			}
 
-			e.done <- u.updateUser(&record)
+			e.done <- u.updateUser(context.TODO(), &record)
 
 			// If the password was updated, kill all downstream connections to
 			// force them to re-authenticate with the new credentials.
@@ -766,7 +766,7 @@ func (u *user) checkNetwork(record *Network) error {
 	return nil
 }
 
-func (u *user) createNetwork(record *Network) (*network, error) {
+func (u *user) createNetwork(ctx context.Context, record *Network) (*network, error) {
 	if record.ID != 0 {
 		panic("tried creating an already-existing network")
 	}
@@ -780,7 +780,7 @@ func (u *user) createNetwork(record *Network) (*network, error) {
 	}
 
 	network := newNetwork(u, record, nil)
-	err := u.srv.db.StoreNetwork(context.TODO(), u.ID, &network.Network)
+	err := u.srv.db.StoreNetwork(ctx, u.ID, &network.Network)
 	if err != nil {
 		return nil, err
 	}
@@ -802,7 +802,7 @@ func (u *user) createNetwork(record *Network) (*network, error) {
 	return network, nil
 }
 
-func (u *user) updateNetwork(record *Network) (*network, error) {
+func (u *user) updateNetwork(ctx context.Context, record *Network) (*network, error) {
 	if record.ID == 0 {
 		panic("tried updating a new network")
 	}
@@ -822,7 +822,7 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 		panic("tried updating a non-existing network")
 	}
 
-	if err := u.srv.db.StoreNetwork(context.TODO(), u.ID, record); err != nil {
+	if err := u.srv.db.StoreNetwork(ctx, u.ID, record); err != nil {
 		return nil, err
 	}
 
@@ -883,13 +883,13 @@ func (u *user) updateNetwork(record *Network) (*network, error) {
 	return updatedNetwork, nil
 }
 
-func (u *user) deleteNetwork(id int64) error {
+func (u *user) deleteNetwork(ctx context.Context, id int64) error {
 	network := u.getNetworkByID(id)
 	if network == nil {
 		panic("tried deleting a non-existing network")
 	}
 
-	if err := u.srv.db.DeleteNetwork(context.TODO(), network.ID); err != nil {
+	if err := u.srv.db.DeleteNetwork(ctx, network.ID); err != nil {
 		return err
 	}
 
@@ -909,13 +909,13 @@ func (u *user) deleteNetwork(id int64) error {
 	return nil
 }
 
-func (u *user) updateUser(record *User) error {
+func (u *user) updateUser(ctx context.Context, record *User) error {
 	if u.ID != record.ID {
 		panic("ID mismatch when updating user")
 	}
 
 	realnameUpdated := u.Realname != record.Realname
-	if err := u.srv.db.StoreUser(context.TODO(), record); err != nil {
+	if err := u.srv.db.StoreUser(ctx, record); err != nil {
 		return fmt.Errorf("failed to update user %q: %v", u.Username, err)
 	}
 	u.User = *record
@@ -931,7 +931,7 @@ func (u *user) updateUser(record *User) error {
 
 		var netErr error
 		for _, net := range needUpdate {
-			if _, err := u.updateNetwork(&net); err != nil {
+			if _, err := u.updateNetwork(ctx, &net); err != nil {
 				netErr = err
 			}
 		}

@@ -1134,7 +1134,7 @@ func (dc *downstreamConn) loadNetwork() error {
 
 		dc.logger.Printf("auto-saving network %q", dc.networkName)
 		var err error
-		network, err = dc.user.createNetwork(&Network{
+		network, err = dc.user.createNetwork(context.TODO(), &Network{
 			Addr:    dc.networkName,
 			Nick:    nick,
 			Enabled: true,
@@ -1536,7 +1536,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		// Walk the network list as a second step, because updateNetwork
 		// mutates the original list
 		for _, record := range needUpdate {
-			if _, err := dc.user.updateNetwork(&record); err != nil {
+			if _, err := dc.user.updateNetwork(ctx, &record); err != nil {
 				dc.logger.Printf("failed to update network realname: %v", err)
 				storeErr = err
 			}
@@ -1655,7 +1655,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					Params:  params,
 				})
 
-				if err := uc.network.deleteChannel(upstreamName); err != nil {
+				if err := uc.network.deleteChannel(ctx, upstreamName); err != nil {
 					dc.logger.Printf("failed to delete channel %q: %v", upstreamName, err)
 				}
 			}
@@ -2441,7 +2441,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				record.Realname = ""
 			}
 
-			network, err := dc.user.createNetwork(record)
+			network, err := dc.user.createNetwork(ctx, record)
 			if err != nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",
@@ -2485,7 +2485,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				record.Realname = ""
 			}
 
-			_, err = dc.user.updateNetwork(&record)
+			_, err = dc.user.updateNetwork(ctx, &record)
 			if err != nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",
@@ -2516,7 +2516,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				}}
 			}
 
-			if err := dc.user.deleteNetwork(net.ID); err != nil {
+			if err := dc.user.deleteNetwork(ctx, net.ID); err != nil {
 				return err
 			}
 

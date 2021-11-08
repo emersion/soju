@@ -490,7 +490,7 @@ func handleServiceNetworkCreate(dc *downstreamConn, params []string) error {
 		return err
 	}
 
-	network, err := dc.user.createNetwork(record)
+	network, err := dc.user.createNetwork(context.TODO(), record)
 	if err != nil {
 		return fmt.Errorf("could not create network: %v", err)
 	}
@@ -565,7 +565,7 @@ func handleServiceNetworkUpdate(dc *downstreamConn, params []string) error {
 		return err
 	}
 
-	network, err := dc.user.updateNetwork(&record)
+	network, err := dc.user.updateNetwork(context.TODO(), &record)
 	if err != nil {
 		return fmt.Errorf("could not update network: %v", err)
 	}
@@ -584,7 +584,7 @@ func handleServiceNetworkDelete(dc *downstreamConn, params []string) error {
 		return fmt.Errorf("unknown network %q", params[0])
 	}
 
-	if err := dc.user.deleteNetwork(net.ID); err != nil {
+	if err := dc.user.deleteNetwork(context.TODO(), net.ID); err != nil {
 		return err
 	}
 
@@ -837,7 +837,7 @@ func handleUserUpdate(dc *downstreamConn, params []string) error {
 			return fmt.Errorf("cannot update -admin of own user")
 		}
 
-		if err := dc.user.updateUser(&record); err != nil {
+		if err := dc.user.updateUser(context.TODO(), &record); err != nil {
 			return err
 		}
 
