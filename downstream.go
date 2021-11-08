@@ -1335,7 +1335,7 @@ func (dc *downstreamConn) sendTargetBacklog(net *network, target, msgID string) 
 
 	ch := net.channels.Value(target)
 
-	ctx, cancel := context.WithTimeout(context.TODO(), messageStoreTimeout)
+	ctx, cancel := context.WithTimeout(context.TODO(), backlogTimeout)
 	defer cancel()
 
 	targetCM := net.casemap(target)
@@ -1393,6 +1393,9 @@ func (dc *downstreamConn) runUntilRegistered() error {
 }
 
 func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), handleDownstreamMessageTimeout)
+	defer cancel()
+
 	switch msg.Command {
 	case "CAP":
 		var subCmd string
@@ -1468,7 +1471,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return
 			}
 			n.Nick = nick
-			err = dc.srv.db.StoreNetwork(context.TODO(), dc.user.ID, &n.Network)
+			err = dc.srv.db.StoreNetwork(ctx, dc.user.ID, &n.Network)
 		})
 		if err != nil {
 			return err
@@ -1518,7 +1521,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				})
 
 				n.Realname = storeRealname
-				if err := dc.srv.db.StoreNetwork(context.TODO(), dc.user.ID, &n.Network); err != nil {
+				if err := dc.srv.db.StoreNetwork(ctx, dc.user.ID, &n.Network); err != nil {
 					dc.logger.Printf("failed to store network realname: %v", err)
 					storeErr = err
 				}
@@ -1607,7 +1610,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				}
 				uc.network.channels.SetValue(upstreamName, ch)
 			}
-			if err := dc.srv.db.StoreChannel(context.TODO(), uc.network.ID, ch); err != nil {
+			if err := dc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 			}
 		}
@@ -1639,7 +1642,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 					}
 					uc.network.channels.SetValue(upstreamName, ch)
 				}
-				if err := dc.srv.db.StoreChannel(context.TODO(), uc.network.ID, ch); err != nil {
+				if err := dc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 					dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
 				}
 			} else {
@@ -2168,7 +2171,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			}
 
 			if msg.Command == "PRIVMSG" && uc.network.casemap(upstreamName) == "nickserv" {
-				dc.handleNickServPRIVMSG(uc, text)
+				dc.handleNickServPRIVMSG(ctx, uc, text)
 			}
 
 			unmarshaledText := text
@@ -2342,9 +2345,6 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		}
 
 		eventPlayback := dc.caps["draft/event-playback"]
-
-		ctx, cancel := context.WithTimeout(context.TODO(), messageStoreTimeout)
-		defer cancel()
 
 		var history []*irc.Message
 		switch subcommand {
@@ -2545,7 +2545,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 	return nil
 }
 
-func (dc *downstreamConn) handleNickServPRIVMSG(uc *upstreamConn, text string) {
+func (dc *downstreamConn) handleNickServPRIVMSG(ctx context.Context, uc *upstreamConn, text string) {
 	username, password, ok := parseNickServCredentials(text, uc.nick)
 	if !ok {
 		return
@@ -2562,7 +2562,7 @@ func (dc *downstreamConn) handleNickServPRIVMSG(uc *upstreamConn, text string) {
 	n.SASL.Mechanism = "PLAIN"
 	n.SASL.Plain.Username = username
 	n.SASL.Plain.Password = password
-	if err := dc.srv.db.StoreNetwork(context.TODO(), dc.user.ID, &n.Network); err != nil {
+	if err := dc.srv.db.StoreNetwork(ctx, dc.user.ID, &n.Network); err != nil {
 		dc.logger.Printf("failed to save NickServ credentials: %v", err)
 	}
 }

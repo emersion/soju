@@ -25,7 +25,8 @@ var connectTimeout = 15 * time.Second
 var writeTimeout = 10 * time.Second
 var upstreamMessageDelay = 2 * time.Second
 var upstreamMessageBurst = 10
-var messageStoreTimeout = 10 * time.Second
+var backlogTimeout = 10 * time.Second
+var handleDownstreamMessageTimeout = 10 * time.Second
 var chatHistoryLimit = 1000
 var backlogLimit = 4000
 
