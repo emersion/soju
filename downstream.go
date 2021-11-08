@@ -2161,7 +2161,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 						Params:  []string{name, text},
 					})
 				}
-				handleServicePRIVMSG(dc, text)
+				handleServicePRIVMSG(ctx, dc, text)
 				continue
 			}
 
