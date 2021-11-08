@@ -124,7 +124,7 @@ func (s *Server) Shutdown() {
 	}
 }
 
-func (s *Server) createUser(user *User) (*user, error) {
+func (s *Server) createUser(ctx context.Context, user *User) (*user, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -132,7 +132,7 @@ func (s *Server) createUser(user *User) (*user, error) {
 		return nil, fmt.Errorf("user %q already exists", user.Username)
 	}
 
-	err := s.db.StoreUser(context.TODO(), user)
+	err := s.db.StoreUser(ctx, user)
 	if err != nil {
 		return nil, fmt.Errorf("could not create user in db: %v", err)
 	}

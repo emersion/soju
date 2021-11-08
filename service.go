@@ -758,7 +758,7 @@ func handleUserCreate(ctx context.Context, dc *downstreamConn, params []string) 
 		Realname: *realname,
 		Admin:    *admin,
 	}
-	if _, err := dc.srv.createUser(user); err != nil {
+	if _, err := dc.srv.createUser(ctx, user); err != nil {
 		return fmt.Errorf("could not create user: %v", err)
 	}
 
