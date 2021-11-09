@@ -103,6 +103,7 @@ type upstreamConn struct {
 	away          bool
 	account       string
 	nextLabelID   uint64
+	monitored     monitorCasemapMap
 
 	saslClient  sasl.Client
 	saslStarted bool
@@ -209,6 +210,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 		availableMemberships:  stdMemberships,
 		isupport:              make(map[string]*string),
 		pendingCmds:           make(map[string][]pendingUpstreamCommand),
+		monitored:             monitorCasemapMap{newCasemapMap(0)},
 	}
 	return uc, nil
 }
@@ -1413,6 +1415,49 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Params:  []string{dc.nick, dc.marshalEntity(uc.network, nick), dc.marshalEntity(uc.network, channel)},
 			})
 		})
+	case irc.RPL_MONONLINE, irc.RPL_MONOFFLINE:
+		var targetsStr string
+		if err := parseMessageParams(msg, nil, &targetsStr); err != nil {
+			return err
+		}
+		targets := strings.Split(targetsStr, ",")
+
+		online := msg.Command == irc.RPL_MONONLINE
+		for _, target := range targets {
+			prefix := irc.ParsePrefix(target)
+			uc.monitored.SetValue(prefix.Name, online)
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			for _, target := range targets {
+				prefix := irc.ParsePrefix(target)
+				if dc.monitored.Has(prefix.Name) {
+					dc.SendMessage(&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: msg.Command,
+						Params:  []string{dc.nick, target},
+					})
+				}
+			}
+		})
+	case irc.ERR_MONLISTFULL:
+		var limit, targetsStr string
+		if err := parseMessageParams(msg, nil, &limit, &targetsStr); err != nil {
+			return err
+		}
+
+		targets := strings.Split(targetsStr, ",")
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			for _, target := range targets {
+				if dc.monitored.Has(target) {
+					dc.SendMessage(&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: msg.Command,
+						Params:  []string{dc.nick, limit, target},
+					})
+				}
+			}
+		})
 	case irc.RPL_AWAY:
 		var nick, reason string
 		if err := parseMessageParams(msg, nil, &nick, &reason); err != nil {
@@ -1911,4 +1956,53 @@ func (uc *upstreamConn) updateChannelAutoDetach(name string) {
 		return
 	}
 	uch.updateAutoDetach(ch.DetachAfter)
+}
+
+func (uc *upstreamConn) updateMonitor() {
+	add := make(map[string]struct{})
+	var addList []string
+	seen := make(map[string]struct{})
+	uc.forEachDownstream(func(dc *downstreamConn) {
+		for targetCM := range dc.monitored.innerMap {
+			if !uc.monitored.Has(targetCM) {
+				if _, ok := add[targetCM]; !ok {
+					addList = append(addList, targetCM)
+				}
+				add[targetCM] = struct{}{}
+			} else {
+				seen[targetCM] = struct{}{}
+			}
+		}
+	})
+
+	removeAll := true
+	var removeList []string
+	for targetCM, entry := range uc.monitored.innerMap {
+		if _, ok := seen[targetCM]; ok {
+			removeAll = false
+		} else {
+			removeList = append(removeList, entry.originalKey)
+		}
+	}
+
+	// TODO: better handle the case where len(uc.monitored) + len(addList)
+	// exceeds the limit, probably by immediately sending ERR_MONLISTFULL?
+
+	if removeAll && len(addList) == 0 && len(removeList) > 0 {
+		// Optimization when the last MONITOR-aware downstream disconnects
+		uc.SendMessage(&irc.Message{
+			Command: "MONITOR",
+			Params:  []string{"C"},
+		})
+	} else {
+		msgs := generateMonitor("-", removeList)
+		msgs = append(msgs, generateMonitor("+", addList)...)
+		for _, msg := range msgs {
+			uc.SendMessage(msg)
+		}
+	}
+
+	for _, target := range removeList {
+		uc.monitored.Delete(target)
+	}
 }

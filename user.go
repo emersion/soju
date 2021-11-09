@@ -342,13 +342,17 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 	net.casemap = newCasemap
 	net.channels.SetCasemapping(newCasemap)
 	net.delivered.m.SetCasemapping(newCasemap)
-	if net.conn != nil {
-		net.conn.channels.SetCasemapping(newCasemap)
-		for _, entry := range net.conn.channels.innerMap {
+	if uc := net.conn; uc != nil {
+		uc.channels.SetCasemapping(newCasemap)
+		for _, entry := range uc.channels.innerMap {
 			uch := entry.value.(*upstreamChannel)
 			uch.Members.SetCasemapping(newCasemap)
 		}
+		uc.monitored.SetCasemapping(newCasemap)
 	}
+	net.forEachDownstream(func(dc *downstreamConn) {
+		dc.monitored.SetCasemapping(newCasemap)
+	})
 }
 
 func (net *network) storeClientDeliveryReceipts(clientName string) {
@@ -519,6 +523,7 @@ func (u *user) run() {
 			uc.network.conn = uc
 
 			uc.updateAway()
+			uc.updateMonitor()
 
 			netIDStr := fmt.Sprintf("%v", uc.network.ID)
 			uc.forEachDownstream(func(dc *downstreamConn) {
@@ -588,6 +593,10 @@ func (u *user) run() {
 		case eventDownstreamConnected:
 			dc := e.dc
 
+			if dc.network != nil {
+				dc.monitored.SetCasemapping(dc.network.casemap)
+			}
+
 			if err := dc.welcome(); err != nil {
 				dc.logger.Printf("failed to handle new registered connection: %v", err)
 				break
@@ -620,6 +629,7 @@ func (u *user) run() {
 
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
+				uc.updateMonitor()
 			})
 		case eventDownstreamMessage:
 			msg, dc := e.msg, e.dc

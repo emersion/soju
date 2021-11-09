@@ -408,6 +408,36 @@ func generateMOTD(prefix *irc.Prefix, nick string, motd string) []*irc.Message {
 	return msgs
 }
 
+func generateMonitor(subcmd string, targets []string) []*irc.Message {
+	maxLength := maxMessageLength - len("MONITOR "+subcmd+" ")
+
+	var msgs []*irc.Message
+	var buf []string
+	n := 0
+	for _, target := range targets {
+		if n+len(target)+1 > maxLength {
+			msgs = append(msgs, &irc.Message{
+				Command: "MONITOR",
+				Params:  []string{subcmd, strings.Join(buf, ",")},
+			})
+			buf = buf[:0]
+			n = 0
+		}
+
+		buf = append(buf, target)
+		n += len(target) + 1
+	}
+
+	if len(buf) > 0 {
+		msgs = append(msgs, &irc.Message{
+			Command: "MONITOR",
+			Params:  []string{subcmd, strings.Join(buf, ",")},
+		})
+	}
+
+	return msgs
+}
+
 type joinSorter struct {
 	channels []string
 	keys     []string
@@ -632,6 +662,16 @@ func (cm *deliveredCasemapMap) Value(name string) deliveredClientMap {
 		return nil
 	}
 	return entry.value.(deliveredClientMap)
+}
+
+type monitorCasemapMap struct{ casemapMap }
+
+func (cm *monitorCasemapMap) Value(name string) (online bool) {
+	entry, ok := cm.innerMap[cm.casemap(name)]
+	if !ok {
+		return false
+	}
+	return entry.value.(bool)
 }
 
 func isWordBoundary(r rune) bool {

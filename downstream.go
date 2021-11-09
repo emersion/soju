@@ -228,6 +228,7 @@ var passthroughIsupport = map[string]bool{
 	"MAXLIST":       true,
 	"MAXTARGETS":    true,
 	"MODES":         true,
+	"MONITOR":       true,
 	"NAMELEN":       true,
 	"NETWORK":       true,
 	"NICKLEN":       true,
@@ -264,6 +265,8 @@ type downstreamConn struct {
 
 	lastBatchRef uint64
 
+	monitored casemapMap
+
 	saslServer sasl.Server
 }
 
@@ -276,6 +279,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		id:            id,
 		supportedCaps: make(map[string]string),
 		caps:          make(map[string]bool),
+		monitored:     newCasemapMap(0),
 	}
 	dc.hostname = remoteAddr
 	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
@@ -2253,6 +2257,89 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			Command: "INVITE",
 			Params:  []string{upstreamUser, upstreamChannel},
 		})
+	case "MONITOR":
+		// MONITOR is unsupported in multi-upstream mode
+		uc := dc.upstream()
+		if uc == nil {
+			return newUnknownCommandError(msg.Command)
+		}
+
+		var subcommand string
+		if err := parseMessageParams(msg, &subcommand); err != nil {
+			return err
+		}
+
+		switch strings.ToUpper(subcommand) {
+		case "+", "-":
+			var targets string
+			if err := parseMessageParams(msg, nil, &targets); err != nil {
+				return err
+			}
+			for _, target := range strings.Split(targets, ",") {
+				if subcommand == "+" {
+					// Hard limit, just to avoid having downstreams fill our map
+					if len(dc.monitored.innerMap) >= 1000 {
+						dc.SendMessage(&irc.Message{
+							Prefix:  dc.srv.prefix(),
+							Command: irc.ERR_MONLISTFULL,
+							Params:  []string{dc.nick, "1000", target, "Bouncer monitor list is full"},
+						})
+						continue
+					}
+
+					dc.monitored.SetValue(target, nil)
+
+					if uc.monitored.Has(target) {
+						cmd := irc.RPL_MONOFFLINE
+						if online := uc.monitored.Value(target); online {
+							cmd = irc.RPL_MONONLINE
+						}
+
+						dc.SendMessage(&irc.Message{
+							Prefix:  dc.srv.prefix(),
+							Command: cmd,
+							Params:  []string{dc.nick, target},
+						})
+					}
+				} else {
+					dc.monitored.Delete(target)
+				}
+			}
+			uc.updateMonitor()
+		case "C": // clear
+			dc.monitored = newCasemapMap(0)
+			uc.updateMonitor()
+		case "L": // list
+			// TODO: be less lazy and pack the list
+			for _, entry := range dc.monitored.innerMap {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.RPL_MONLIST,
+					Params:  []string{dc.nick, entry.originalKey},
+				})
+			}
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFMONLIST,
+				Params:  []string{dc.nick, "End of MONITOR list"},
+			})
+		case "S": // status
+			// TODO: be less lazy and pack the lists
+			for _, entry := range dc.monitored.innerMap {
+				target := entry.originalKey
+
+				cmd := irc.RPL_MONOFFLINE
+				if online := uc.monitored.Value(target); online {
+					cmd = irc.RPL_MONONLINE
+				}
+
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: cmd,
+					Params:  []string{dc.nick, target},
+				})
+			}
+		}
 	case "CHATHISTORY":
 		var subcommand string
 		if err := parseMessageParams(msg, &subcommand); err != nil {
