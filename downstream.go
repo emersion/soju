@@ -219,6 +219,7 @@ var passthroughIsupport = map[string]bool{
 	"CHANNELLEN":    true,
 	"CHANTYPES":     true,
 	"CLIENTTAGDENY": true,
+	"ELIST":         true,
 	"EXCEPTS":       true,
 	"EXTBAN":        true,
 	"HOSTLEN":       true,
@@ -1835,8 +1836,6 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			sendTopic(dc, ch)
 		}
 	case "LIST":
-		// TODO: support ELIST when supported by all upstreams
-
 		network := dc.network
 		if network == nil && len(msg.Params) > 0 {
 			var err error
