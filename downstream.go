@@ -1837,48 +1837,34 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 	case "LIST":
 		// TODO: support ELIST when supported by all upstreams
 
-		pl := pendingLIST{
-			downstreamID:    dc.id,
-			pendingCommands: make(map[int64]*irc.Message),
-		}
-		var upstream *upstreamConn
-		var upstreamChannels map[int64][]string
-		if len(msg.Params) > 0 {
-			uc, upstreamMask, err := dc.unmarshalEntity(msg.Params[0])
-			if err == nil && upstreamMask == "*" { // LIST */network: send LIST only to one network
-				upstream = uc
-			} else {
-				upstreamChannels = make(map[int64][]string)
-				channels := strings.Split(msg.Params[0], ",")
-				for _, channel := range channels {
-					uc, upstreamChannel, err := dc.unmarshalEntity(channel)
-					if err != nil {
-						return err
-					}
-					upstreamChannels[uc.network.ID] = append(upstreamChannels[uc.network.ID], upstreamChannel)
-				}
+		network := dc.network
+		if network == nil && len(msg.Params) > 0 {
+			var err error
+			network, msg.Params[0], err = dc.unmarshalEntityNetwork(msg.Params[0])
+			if err != nil {
+				return err
 			}
+		}
+		if network == nil {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_LISTEND,
+				Params:  []string{dc.nick, "LIST without a network suffix is not supported in multi-upstream mode"},
+			})
+			return nil
 		}
 
-		dc.user.pendingLISTs = append(dc.user.pendingLISTs, pl)
-		dc.forEachUpstream(func(uc *upstreamConn) {
-			if upstream != nil && upstream != uc {
-				return
-			}
-			var params []string
-			if upstreamChannels != nil {
-				if channels, ok := upstreamChannels[uc.network.ID]; ok {
-					params = []string{strings.Join(channels, ",")}
-				} else {
-					return
-				}
-			}
-			pl.pendingCommands[uc.network.ID] = &irc.Message{
-				Command: "LIST",
-				Params:  params,
-			}
-			uc.trySendLIST(dc.id)
-		})
+		uc := network.conn
+		if uc == nil {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_LISTEND,
+				Params:  []string{dc.nick, "Disconnected from upstream server"},
+			})
+			return nil
+		}
+
+		uc.enqueueLIST(dc, msg)
 	case "NAMES":
 		if len(msg.Params) == 0 {
 			dc.SendMessage(&irc.Message{

@@ -72,6 +72,11 @@ func (uc *upstreamChannel) updateAutoDetach(dur time.Duration) {
 	})
 }
 
+type pendingUpstreamCommand struct {
+	downstreamID uint64
+	cmd          *irc.Message
+}
+
 type upstreamConn struct {
 	conn
 
@@ -104,8 +109,10 @@ type upstreamConn struct {
 
 	casemapIsSet bool
 
-	// set of LIST commands in progress, per downstream
-	pendingLISTDownstreamSet map[uint64]struct{}
+	// Queue of LIST commands in progress. The first entry has been sent to the
+	// server and is awaiting reply. The following entries have not been sent
+	// yet.
+	pendingLIST []pendingUpstreamCommand
 
 	gotMotd bool
 }
@@ -190,18 +197,17 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 	}
 
 	uc := &upstreamConn{
-		conn:                     *newConn(network.user.srv, newNetIRCConn(netConn), &options),
-		network:                  network,
-		user:                     network.user,
-		channels:                 upstreamChannelCasemapMap{newCasemapMap(0)},
-		supportedCaps:            make(map[string]string),
-		caps:                     make(map[string]bool),
-		batches:                  make(map[string]batch),
-		availableChannelTypes:    stdChannelTypes,
-		availableChannelModes:    stdChannelModes,
-		availableMemberships:     stdMemberships,
-		isupport:                 make(map[string]*string),
-		pendingLISTDownstreamSet: make(map[uint64]struct{}),
+		conn:                  *newConn(network.user.srv, newNetIRCConn(netConn), &options),
+		network:               network,
+		user:                  network.user,
+		channels:              upstreamChannelCasemapMap{newCasemapMap(0)},
+		supportedCaps:         make(map[string]string),
+		caps:                  make(map[string]bool),
+		batches:               make(map[string]batch),
+		availableChannelTypes: stdChannelTypes,
+		availableChannelModes: stdChannelModes,
+		availableMemberships:  stdMemberships,
+		isupport:              make(map[string]*string),
 	}
 	return uc, nil
 }
@@ -235,73 +241,63 @@ func (uc *upstreamConn) isOurNick(nick string) bool {
 	return uc.nickCM == uc.network.casemap(nick)
 }
 
-func (uc *upstreamConn) getPendingLIST() *pendingLIST {
-	for _, pl := range uc.user.pendingLISTs {
-		if _, ok := pl.pendingCommands[uc.network.ID]; !ok {
-			continue
-		}
-		return &pl
+func (uc *upstreamConn) endPendingLISTs() {
+	for _, pendingCmd := range uc.pendingLIST {
+		uc.forEachDownstreamByID(pendingCmd.downstreamID, func(dc *downstreamConn) {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_LISTEND,
+				Params:  []string{dc.nick, "End of /LIST"},
+			})
+		})
 	}
-	return nil
+	uc.pendingLIST = nil
 }
 
-func (uc *upstreamConn) endPendingLISTs(all bool) (found bool) {
-	found = false
-	for i := 0; i < len(uc.user.pendingLISTs); i++ {
-		pl := uc.user.pendingLISTs[i]
-		if _, ok := pl.pendingCommands[uc.network.ID]; !ok {
-			continue
-		}
-		delete(pl.pendingCommands, uc.network.ID)
-		if len(pl.pendingCommands) == 0 {
-			uc.user.pendingLISTs = append(uc.user.pendingLISTs[:i], uc.user.pendingLISTs[i+1:]...)
-			i--
-			uc.forEachDownstreamByID(pl.downstreamID, func(dc *downstreamConn) {
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.srv.prefix(),
-					Command: irc.RPL_LISTEND,
-					Params:  []string{dc.nick, "End of /LIST"},
-				})
-			})
-		}
-		found = true
-		if !all {
-			delete(uc.pendingLISTDownstreamSet, pl.downstreamID)
-			uc.user.forEachUpstream(func(uc *upstreamConn) {
-				uc.trySendLIST(pl.downstreamID)
-			})
-			return
-		}
+func (uc *upstreamConn) sendNextPendingLIST() {
+	if len(uc.pendingLIST) == 0 {
+		return
 	}
-	return
+	uc.SendMessage(uc.pendingLIST[0].cmd)
 }
 
-func (uc *upstreamConn) trySendLIST(downstreamID uint64) {
-	if _, ok := uc.pendingLISTDownstreamSet[downstreamID]; ok {
-		// a LIST command is already pending
-		// we will try again when that command is completed
-		return
+func (uc *upstreamConn) enqueueLIST(dc *downstreamConn, cmd *irc.Message) {
+	uc.pendingLIST = append(uc.pendingLIST, pendingUpstreamCommand{
+		downstreamID: dc.id,
+		cmd:          cmd,
+	})
+
+	if len(uc.pendingLIST) == 1 {
+		uc.sendNextPendingLIST()
+	}
+}
+
+func (uc *upstreamConn) currentPendingLIST() (*downstreamConn, *irc.Message) {
+	if len(uc.pendingLIST) == 0 {
+		return nil, nil
 	}
 
-	for _, pl := range uc.user.pendingLISTs {
-		if pl.downstreamID != downstreamID {
-			continue
+	pendingCmd := uc.pendingLIST[0]
+	for _, dc := range uc.user.downstreamConns {
+		if dc.id == pendingCmd.downstreamID {
+			return dc, pendingCmd.cmd
 		}
-		// this is the first pending LIST command list of the downstream
-		listCommand, ok := pl.pendingCommands[uc.network.ID]
-		if !ok {
-			// there is no command for this upstream in these LIST commands
-			// do not send anything
-			continue
-		}
-		// there is a command for this upstream in these LIST commands
-		// send it now
-
-		uc.SendMessageLabeled(downstreamID, listCommand)
-
-		uc.pendingLISTDownstreamSet[downstreamID] = struct{}{}
-		return
 	}
+
+	return nil, pendingCmd.cmd
+}
+
+func (uc *upstreamConn) dequeueLIST() (*downstreamConn, *irc.Message) {
+	dc, cmd := uc.currentPendingLIST()
+
+	if len(uc.pendingLIST) > 0 {
+		copy(uc.pendingLIST, uc.pendingLIST[1:])
+		uc.pendingLIST = uc.pendingLIST[:len(uc.pendingLIST)-1]
+	}
+
+	uc.sendNextPendingLIST()
+
+	return dc, cmd
 }
 
 func (uc *upstreamConn) parseMembershipPrefix(s string) (ms *memberships, nick string) {
@@ -1099,23 +1095,31 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		pl := uc.getPendingLIST()
-		if pl == nil {
+		dc, cmd := uc.currentPendingLIST()
+		if cmd == nil {
 			return fmt.Errorf("unexpected RPL_LIST: no matching pending LIST")
+		} else if dc == nil {
+			return nil
 		}
 
-		uc.forEachDownstreamByID(pl.downstreamID, func(dc *downstreamConn) {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_LIST,
-				Params:  []string{dc.nick, dc.marshalEntity(uc.network, channel), clients, topic},
-			})
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.RPL_LIST,
+			Params:  []string{dc.nick, dc.marshalEntity(uc.network, channel), clients, topic},
 		})
 	case irc.RPL_LISTEND:
-		ok := uc.endPendingLISTs(false)
-		if !ok {
+		dc, cmd := uc.dequeueLIST()
+		if cmd == nil {
 			return fmt.Errorf("unexpected RPL_LISTEND: no matching pending LIST")
+		} else if dc == nil {
+			return nil
 		}
+
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.RPL_LISTEND,
+			Params:  []string{dc.nick, "End of /LIST"},
+		})
 	case irc.RPL_NAMREPLY:
 		var name, statusStr, members string
 		if err := parseMessageParams(msg, nil, &statusStr, &name, &members); err != nil {
@@ -1433,10 +1437,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		}
 
 		if command == "LIST" {
-			ok := uc.endPendingLISTs(false)
-			if !ok {
-				return fmt.Errorf("unexpected response for LIST: %q: no matching pending LIST", msg.Command)
-			}
+			uc.endPendingLISTs()
 		}
 
 		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {

@@ -405,15 +405,6 @@ type user struct {
 	networks        []*network
 	downstreamConns []*downstreamConn
 	msgStore        messageStore
-
-	// LIST commands in progress
-	pendingLISTs []pendingLIST
-}
-
-type pendingLIST struct {
-	downstreamID uint64
-	// list of per-upstream LIST commands not yet sent or completed
-	pendingCommands map[int64]*irc.Message
 }
 
 func newUser(srv *Server, record *User) *user {
@@ -690,7 +681,7 @@ func (u *user) run() {
 func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	uc.network.conn = nil
 
-	uc.endPendingLISTs(true)
+	uc.endPendingLISTs()
 
 	for _, entry := range uc.channels.innerMap {
 		uch := entry.value.(*upstreamChannel)
