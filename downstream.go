@@ -1864,7 +1864,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			return nil
 		}
 
-		uc.enqueueLIST(dc, msg)
+		uc.enqueueCommand(dc, msg)
 	case "NAMES":
 		if len(msg.Params) == 0 {
 			dc.SendMessage(&irc.Message{
@@ -1986,7 +1986,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			params = append(params, options)
 		}
 
-		uc.SendMessageLabeled(dc.id, &irc.Message{
+		uc.enqueueCommand(dc, &irc.Message{
 			Command: "WHO",
 			Params:  params,
 		})

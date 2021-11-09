@@ -681,7 +681,7 @@ func (u *user) run() {
 func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	uc.network.conn = nil
 
-	uc.endPendingLISTs()
+	uc.endPendingCommands()
 
 	for _, entry := range uc.channels.innerMap {
 		uch := entry.value.(*upstreamChannel)
