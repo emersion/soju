@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -163,6 +164,12 @@ func (s *Server) addUserLocked(user *User) *user {
 	s.stopWG.Add(1)
 
 	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				s.Logger.Printf("panic serving user %q: %v\n%v", user.Username, err, debug.Stack())
+			}
+		}()
+
 		u.run()
 
 		s.lock.Lock()
@@ -178,6 +185,12 @@ func (s *Server) addUserLocked(user *User) *user {
 var lastDownstreamID uint64 = 0
 
 func (s *Server) handle(ic ircConn) {
+	defer func() {
+		if err := recover(); err != nil {
+			s.Logger.Printf("panic serving downstream %q: %v\n%v", ic.RemoteAddr(), err, debug.Stack())
+		}
+	}()
+
 	atomic.AddInt64(&s.connCount, 1)
 	id := atomic.AddUint64(&lastDownstreamID, 1)
 	dc := newDownstreamConn(s, ic, id)
