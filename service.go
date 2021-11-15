@@ -1035,7 +1035,7 @@ func handleServiceServerStatus(ctx context.Context, dc *downstreamConn, params [
 		return err
 	}
 	serverStats := dc.user.srv.Stats()
-	sendServicePRIVMSG(dc, fmt.Sprintf("%v/%v users, %v downstreams, %v networks, %v channels", serverStats.Users, dbStats.Users, serverStats.Downstreams, dbStats.Networks, dbStats.Channels))
+	sendServicePRIVMSG(dc, fmt.Sprintf("%v/%v users, %v downstreams, %v upstreams, %v networks, %v channels", serverStats.Users, dbStats.Users, serverStats.Downstreams, serverStats.Upstreams, dbStats.Networks, dbStats.Channels))
 	return nil
 }
 

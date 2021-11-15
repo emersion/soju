@@ -213,6 +213,8 @@ func (net *network) run() {
 			net.user.srv.Identd.Store(uc.RemoteAddr().String(), uc.LocalAddr().String(), userIdent(&net.user.User))
 		}
 
+		net.user.srv.metrics.upstreams.Add(1)
+
 		uc.register()
 		if err := uc.runUntilRegistered(); err != nil {
 			text := err.Error()
@@ -239,6 +241,8 @@ func (net *network) run() {
 		if net.user.srv.Identd != nil {
 			net.user.srv.Identd.Delete(uc.RemoteAddr().String(), uc.LocalAddr().String())
 		}
+
+		net.user.srv.metrics.upstreams.Add(-1)
 	}
 }
 

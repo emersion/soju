@@ -100,6 +100,7 @@ type Server struct {
 
 	metrics struct {
 		downstreams int64Gauge
+		upstreams   int64Gauge
 	}
 }
 
@@ -164,6 +165,11 @@ func (s *Server) registerMetrics() {
 		Name: "soju_downstreams_active",
 		Help: "Current number of downstream connections",
 	}, s.metrics.downstreams.Float64)
+
+	factory.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "soju_upstreams_active",
+		Help: "Current number of upstream connections",
+	}, s.metrics.upstreams.Float64)
 }
 
 func (s *Server) Shutdown() {
@@ -343,6 +349,7 @@ func parseForwarded(h http.Header) map[string]string {
 type ServerStats struct {
 	Users       int
 	Downstreams int64
+	Upstreams   int64
 }
 
 func (s *Server) Stats() *ServerStats {
@@ -351,5 +358,6 @@ func (s *Server) Stats() *ServerStats {
 	stats.Users = len(s.users)
 	s.lock.Unlock()
 	stats.Downstreams = s.metrics.downstreams.Value()
+	stats.Upstreams = s.metrics.upstreams.Value()
 	return &stats
 }
