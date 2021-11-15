@@ -53,17 +53,22 @@ func (l *prefixLogger) Printf(format string, v ...interface{}) {
 	l.logger.Printf("%v"+format, v...)
 }
 
-type Server struct {
+type Config struct {
 	Hostname        string
 	Title           string
-	Logger          Logger
 	LogPath         string
 	Debug           bool
 	HTTPOrigins     []string
 	AcceptProxyIPs  config.IPSet
 	MaxUserNetworks int
-	Identd          *Identd // can be nil
+	MOTD            string
+}
 
+type Server struct {
+	Logger Logger
+	Identd *Identd // can be nil
+
+	config    atomic.Value // *Config
 	db        Database
 	stopWG    sync.WaitGroup
 	connCount int64 // atomic
@@ -71,24 +76,29 @@ type Server struct {
 	lock      sync.Mutex
 	listeners map[net.Listener]struct{}
 	users     map[string]*user
-
-	motd atomic.Value // string
 }
 
 func NewServer(db Database) *Server {
 	srv := &Server{
-		Logger:          log.New(log.Writer(), "", log.LstdFlags),
-		MaxUserNetworks: -1,
-		db:              db,
-		listeners:       make(map[net.Listener]struct{}),
-		users:           make(map[string]*user),
+		Logger:    log.New(log.Writer(), "", log.LstdFlags),
+		db:        db,
+		listeners: make(map[net.Listener]struct{}),
+		users:     make(map[string]*user),
 	}
-	srv.motd.Store("")
+	srv.config.Store(&Config{Hostname: "localhost", MaxUserNetworks: -1})
 	return srv
 }
 
 func (s *Server) prefix() *irc.Prefix {
-	return &irc.Prefix{Name: s.Hostname}
+	return &irc.Prefix{Name: s.Config().Hostname}
+}
+
+func (s *Server) Config() *Config {
+	return s.config.Load().(*Config)
+}
+
+func (s *Server) SetConfig(cfg *Config) {
+	s.config.Store(cfg)
 }
 
 func (s *Server) Start() error {
@@ -239,7 +249,7 @@ func (s *Server) Serve(ln net.Listener) error {
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	conn, err := websocket.Accept(w, req, &websocket.AcceptOptions{
 		Subprotocols:   []string{"text.ircv3.net"}, // non-compliant, fight me
-		OriginPatterns: s.HTTPOrigins,
+		OriginPatterns: s.Config().HTTPOrigins,
 	})
 	if err != nil {
 		s.Logger.Printf("failed to serve HTTP connection: %v", err)
@@ -249,7 +259,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	isProxy := false
 	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		if ip := net.ParseIP(host); ip != nil {
-			isProxy = s.AcceptProxyIPs.Contains(ip)
+			isProxy = s.Config().AcceptProxyIPs.Contains(ip)
 		}
 	}
 
@@ -292,12 +302,4 @@ func (s *Server) Stats() *ServerStats {
 	s.lock.Unlock()
 	stats.Downstreams = atomic.LoadInt64(&s.connCount)
 	return &stats
-}
-
-func (s *Server) SetMOTD(motd string) {
-	s.motd.Store(motd)
-}
-
-func (s *Server) MOTD() string {
-	return s.motd.Load().(string)
 }

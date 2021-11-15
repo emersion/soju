@@ -1050,7 +1050,7 @@ func handleServiceServerNotice(ctx context.Context, dc *downstreamConn, params [
 	broadcastMsg := &irc.Message{
 		Prefix:  servicePrefix,
 		Command: "NOTICE",
-		Params:  []string{"$" + dc.srv.Hostname, text},
+		Params:  []string{"$" + dc.srv.Config().Hostname, text},
 	}
 	var err error
 	dc.srv.forEachUser(func(u *user) {

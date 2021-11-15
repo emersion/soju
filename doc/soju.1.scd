@@ -44,8 +44,9 @@ soju supports two connection modes:
 For per-client history to work, clients need to indicate their name. This can
 be done by adding a "@<client>" suffix to the username.
 
-soju will reload the TLS certificate/key and the MOTD file when it receives the
-HUP signal.
+soju will reload the configuration file, the TLS certificate/key and the MOTD
+file when it receives the HUP signal. The configuration options _listen_, _db_
+and _log_ cannot be reloaded.
 
 Administrators can broadcast a message to all bouncer users via _/notice
 $<hostname> <text>_, or via _/notice $\* <text>_ in multi-upstream mode. All

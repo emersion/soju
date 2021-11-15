@@ -37,19 +37,6 @@ func (v *stringSliceFlag) Set(s string) error {
 	return nil
 }
 
-func loadMOTD(srv *soju.Server, filename string) error {
-	if filename == "" {
-		return nil
-	}
-
-	b, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-	srv.SetMOTD(strings.TrimSuffix(string(b), "\n"))
-	return nil
-}
-
 func bumpOpenedFileLimit() error {
 	var rlimit syscall.Rlimit
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit); err != nil {
@@ -62,24 +49,65 @@ func bumpOpenedFileLimit() error {
 	return nil
 }
 
+var (
+	configPath string
+	debug      bool
+
+	tlsCert atomic.Value // *tls.Certificate
+)
+
+func loadConfig() (*config.Server, *soju.Config, error) {
+	var raw *config.Server
+	if configPath != "" {
+		var err error
+		raw, err = config.Load(configPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to load config file: %v", err)
+		}
+	} else {
+		raw = config.Defaults()
+	}
+
+	var motd string
+	if raw.MOTDPath != "" {
+		b, err := ioutil.ReadFile(raw.MOTDPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to load MOTD: %v", err)
+		}
+		motd = strings.TrimSuffix(string(b), "\n")
+	}
+
+	if raw.TLS != nil {
+		cert, err := tls.LoadX509KeyPair(raw.TLS.CertPath, raw.TLS.KeyPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to load TLS certificate and key: %v", err)
+		}
+		tlsCert.Store(&cert)
+	}
+
+	cfg := &soju.Config{
+		Hostname:        raw.Hostname,
+		Title:           raw.Title,
+		LogPath:         raw.LogPath,
+		HTTPOrigins:     raw.HTTPOrigins,
+		AcceptProxyIPs:  raw.AcceptProxyIPs,
+		MaxUserNetworks: raw.MaxUserNetworks,
+		Debug:           debug,
+		MOTD:            motd,
+	}
+	return raw, cfg, nil
+}
+
 func main() {
 	var listen []string
-	var configPath string
-	var debug bool
 	flag.Var((*stringSliceFlag)(&listen), "listen", "listening address")
 	flag.StringVar(&configPath, "config", "", "path to configuration file")
 	flag.BoolVar(&debug, "debug", false, "enable debug logging")
 	flag.Parse()
 
-	var cfg *config.Server
-	if configPath != "" {
-		var err error
-		cfg, err = config.Load(configPath)
-		if err != nil {
-			log.Fatalf("failed to load config file: %v", err)
-		}
-	} else {
-		cfg = config.Defaults()
+	cfg, serverCfg, err := loadConfig()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	cfg.Listen = append(cfg.Listen, listen...)
@@ -97,14 +125,7 @@ func main() {
 	}
 
 	var tlsCfg *tls.Config
-	var tlsCert atomic.Value
 	if cfg.TLS != nil {
-		cert, err := tls.LoadX509KeyPair(cfg.TLS.CertPath, cfg.TLS.KeyPath)
-		if err != nil {
-			log.Fatalf("failed to load TLS certificate and key: %v", err)
-		}
-		tlsCert.Store(&cert)
-
 		tlsCfg = &tls.Config{
 			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 				return tlsCert.Load().(*tls.Certificate), nil
@@ -113,17 +134,7 @@ func main() {
 	}
 
 	srv := soju.NewServer(db)
-	srv.Hostname = cfg.Hostname
-	srv.Title = cfg.Title
-	srv.LogPath = cfg.LogPath
-	srv.HTTPOrigins = cfg.HTTPOrigins
-	srv.AcceptProxyIPs = cfg.AcceptProxyIPs
-	srv.MaxUserNetworks = cfg.MaxUserNetworks
-	srv.Debug = debug
-
-	if err := loadMOTD(srv, cfg.MOTDPath); err != nil {
-		log.Fatalf("failed to load MOTD: %v", err)
-	}
+	srv.SetConfig(serverCfg)
 
 	for _, listen := range cfg.Listen {
 		listenURI := listen
@@ -258,17 +269,12 @@ func main() {
 	for sig := range sigCh {
 		switch sig {
 		case syscall.SIGHUP:
-			log.Print("reloading TLS certificate and MOTD")
-			if cfg.TLS != nil {
-				cert, err := tls.LoadX509KeyPair(cfg.TLS.CertPath, cfg.TLS.KeyPath)
-				if err != nil {
-					log.Printf("failed to reload TLS certificate and key: %v", err)
-					break
-				}
-				tlsCert.Store(&cert)
-			}
-			if err := loadMOTD(srv, cfg.MOTDPath); err != nil {
-				log.Printf("failed to reload MOTD: %v", err)
+			log.Print("reloading configuration")
+			_, serverCfg, err := loadConfig()
+			if err != nil {
+				log.Printf("failed to reloading configuration: %v", err)
+			} else {
+				srv.SetConfig(serverCfg)
 			}
 		case syscall.SIGINT, syscall.SIGTERM:
 			log.Print("shutting down server")
@@ -286,7 +292,7 @@ func proxyProtoListener(ln net.Listener, srv *soju.Server) net.Listener {
 			if !ok {
 				return proxyproto.IGNORE, nil
 			}
-			if srv.AcceptProxyIPs.Contains(tcpAddr.IP) {
+			if srv.Config().AcceptProxyIPs.Contains(tcpAddr.IP) {
 				return proxyproto.USE, nil
 			}
 			return proxyproto.IGNORE, nil

@@ -290,7 +290,10 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	for k, v := range permanentDownstreamCaps {
 		dc.supportedCaps[k] = v
 	}
-	if srv.LogPath != "" {
+	// TODO: this is racy, we should only enable chathistory after
+	// authentication and then check that user.msgStore implements
+	// chatHistoryMessageStore
+	if srv.Config().LogPath != "" {
 		dc.supportedCaps["draft/chathistory"] = ""
 	}
 	return dc
@@ -996,7 +999,7 @@ func (dc *downstreamConn) updateSupportedCaps() {
 		}
 	}
 
-	if dc.srv.LogPath != "" && dc.network != nil {
+	if _, ok := dc.user.msgStore.(chatHistoryMessageStore); ok && dc.network != nil {
 		dc.setSupportedCap("draft/event-playback", "")
 	} else {
 		dc.unsetSupportedCap("draft/event-playback")
@@ -1175,8 +1178,8 @@ func (dc *downstreamConn) welcome() error {
 	if dc.network != nil {
 		isupport = append(isupport, fmt.Sprintf("BOUNCER_NETID=%v", dc.network.ID))
 	}
-	if dc.network == nil && dc.srv.Title != "" {
-		isupport = append(isupport, "NETWORK="+encodeISUPPORT(dc.srv.Title))
+	if title := dc.srv.Config().Title; dc.network == nil && title != "" {
+		isupport = append(isupport, "NETWORK="+encodeISUPPORT(title))
 	}
 	if dc.network == nil && dc.caps["soju.im/bouncer-networks"] {
 		isupport = append(isupport, "WHOX")
@@ -1204,12 +1207,12 @@ func (dc *downstreamConn) welcome() error {
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_YOURHOST,
-		Params:  []string{dc.nick, "Your host is " + dc.srv.Hostname},
+		Params:  []string{dc.nick, "Your host is " + dc.srv.Config().Hostname},
 	})
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_MYINFO,
-		Params:  []string{dc.nick, dc.srv.Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
+		Params:  []string{dc.nick, dc.srv.Config().Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
 	for _, msg := range generateIsupport(dc.srv.prefix(), dc.nick, isupport) {
 		dc.SendMessage(msg)
@@ -1229,7 +1232,7 @@ func (dc *downstreamConn) welcome() error {
 		})
 	}
 
-	if motd := dc.user.srv.MOTD(); motd != "" && dc.network == nil {
+	if motd := dc.user.srv.Config().MOTD; motd != "" && dc.network == nil {
 		for _, msg := range generateMOTD(dc.srv.prefix(), dc.nick, motd) {
 			dc.SendMessage(msg)
 		}
@@ -1420,7 +1423,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		if len(msg.Params) > 1 {
 			destination = msg.Params[1]
 		}
-		if destination != "" && destination != dc.srv.Hostname {
+		hostname := dc.srv.Config().Hostname
+		if destination != "" && destination != hostname {
 			return ircError{&irc.Message{
 				Command: irc.ERR_NOSUCHSERVER,
 				Params:  []string{dc.nick, destination, "No such server"},
@@ -1429,7 +1433,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "PONG",
-			Params:  []string{dc.srv.Hostname, source},
+			Params:  []string{hostname, source},
 		})
 		return nil
 	case "PONG":
@@ -1946,7 +1950,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Token:    whoxToken,
 				Username: dc.user.Username,
 				Hostname: dc.hostname,
-				Server:   dc.srv.Hostname,
+				Server:   dc.srv.Config().Hostname,
 				Nickname: dc.nick,
 				Flags:    flags,
 				Account:  dc.user.Username,
@@ -1965,7 +1969,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				Token:    whoxToken,
 				Username: servicePrefix.User,
 				Hostname: servicePrefix.Host,
-				Server:   dc.srv.Hostname,
+				Server:   dc.srv.Config().Hostname,
 				Nickname: serviceNick,
 				Flags:    "H*",
 				Account:  serviceNick,
@@ -2025,7 +2029,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISSERVER,
-				Params:  []string{dc.nick, dc.nick, dc.srv.Hostname, "soju"},
+				Params:  []string{dc.nick, dc.nick, dc.srv.Config().Hostname, "soju"},
 			})
 			if dc.user.Admin {
 				dc.SendMessage(&irc.Message{
@@ -2055,7 +2059,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISSERVER,
-				Params:  []string{dc.nick, serviceNick, dc.srv.Hostname, "soju"},
+				Params:  []string{dc.nick, serviceNick, dc.srv.Config().Hostname, "soju"},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -2104,7 +2108,7 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
-			if name == "$"+dc.srv.Hostname || (name == "$*" && dc.network == nil) {
+			if name == "$"+dc.srv.Config().Hostname || (name == "$*" && dc.network == nil) {
 				// "$" means a server mask follows. If it's the bouncer's
 				// hostname, broadcast the message to all bouncer users.
 				if !dc.user.Admin {

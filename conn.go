@@ -195,7 +195,7 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 				<-rl.C
 			}
 
-			if c.srv.Debug {
+			if c.srv.Config().Debug {
 				c.logger.Printf("sent: %v", msg)
 			}
 			c.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
@@ -248,7 +248,7 @@ func (c *conn) ReadMessage() (*irc.Message, error) {
 		return nil, err
 	}
 
-	if c.srv.Debug {
+	if c.srv.Config().Debug {
 		c.logger.Printf("received: %v", msg)
 	}
 

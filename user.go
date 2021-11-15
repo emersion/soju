@@ -415,8 +415,8 @@ func newUser(srv *Server, record *User) *user {
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("user %q: ", record.Username)}
 
 	var msgStore messageStore
-	if srv.LogPath != "" {
-		msgStore = newFSMessageStore(srv.LogPath, record.Username)
+	if logPath := srv.Config().LogPath; logPath != "" {
+		msgStore = newFSMessageStore(logPath, record.Username)
 	} else {
 		msgStore = newMemoryMessageStore()
 	}
@@ -776,7 +776,7 @@ func (u *user) createNetwork(ctx context.Context, record *Network) (*network, er
 		return nil, err
 	}
 
-	if u.srv.MaxUserNetworks >= 0 && len(u.networks) >= u.srv.MaxUserNetworks {
+	if max := u.srv.Config().MaxUserNetworks; max >= 0 && len(u.networks) >= max {
 		return nil, fmt.Errorf("maximum number of networks reached")
 	}
 
