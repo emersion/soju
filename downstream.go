@@ -2359,6 +2359,12 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				return err
 			}
 		case "TARGETS":
+			if dc.network == nil {
+				// Either an unbound bouncer network, in which case we should return no targets,
+				// or a multi-upstream downstream, but we don't support CHATHISTORY TARGETS for those yet.
+				dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef irc.TagValue) {})
+				return nil
+			}
 			if err := parseMessageParams(msg, nil, &boundsStr[0], &boundsStr[1], &limitStr); err != nil {
 				return err
 			}
