@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"gopkg.in/irc.v3"
 	"nhooyr.io/websocket"
 
@@ -111,6 +112,8 @@ func (s *Server) SetConfig(cfg *Config) {
 }
 
 func (s *Server) Start() error {
+	s.registerMetrics()
+
 	users, err := s.db.ListUsers(context.TODO())
 	if err != nil {
 		return err
@@ -123,6 +126,27 @@ func (s *Server) Start() error {
 	s.lock.Unlock()
 
 	return nil
+}
+
+func (s *Server) registerMetrics() {
+	factory := promauto.With(s.MetricsRegistry)
+
+	factory.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "soju_users_active",
+		Help: "Current number of active users",
+	}, func() float64 {
+		s.lock.Lock()
+		n := len(s.users)
+		s.lock.Unlock()
+		return float64(n)
+	})
+
+	factory.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: "soju_downstreams_active",
+		Help: "Current number of downstream connections",
+	}, func() float64 {
+		return float64(atomic.LoadInt64(&s.connCount))
+	})
 }
 
 func (s *Server) Shutdown() {
