@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"git.sr.ht/~emersion/soju"
 	"git.sr.ht/~emersion/soju/config"
@@ -252,6 +254,36 @@ func main() {
 			go func() {
 				if err := srv.Identd.Serve(ln); err != nil {
 					log.Printf("serving %q: %v", listen, err)
+				}
+			}()
+		case "http+prometheus":
+			if srv.MetricsRegistry == nil {
+				srv.MetricsRegistry = prometheus.DefaultRegisterer
+			}
+
+			// Only allow localhost as listening host for security reasons.
+			// Users can always explicitly setup reverse proxies if desirable.
+			hostname, _, err := net.SplitHostPort(u.Host)
+			if err != nil {
+				log.Fatalf("invalid host in URI %q: %v", listen, err)
+			} else if hostname != "localhost" {
+				log.Fatalf("Prometheus listening host must be localhost")
+			}
+
+			metricsHandler := promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+				MaxRequestsInFlight: 10,
+				Timeout:             10 * time.Second,
+				EnableOpenMetrics:   true,
+			})
+			metricsHandler = promhttp.InstrumentMetricHandler(prometheus.DefaultRegisterer, metricsHandler)
+
+			httpSrv := http.Server{
+				Addr:    u.Host,
+				Handler: metricsHandler,
+			}
+			go func() {
+				if err := httpSrv.ListenAndServe(); err != nil {
+					log.Fatalf("serving %q: %v", listen, err)
 				}
 			}()
 		default:

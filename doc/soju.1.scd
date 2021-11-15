@@ -98,6 +98,8 @@ The following directives are supported:
 	  connections (default port: 80)
 	- _ident://[host][:port]_ listens for plain-text ident connections (default
 	  port: 113)
+	- _http+prometheus://localhost:<port>_ listens for plain-text HTTP
+	  connections and serves Prometheus metrics (host must be "localhost")
 
 	If the scheme is omitted, "ircs" is assumed. If multiple *listen*
 	directives are specified, soju will listen on each of them.

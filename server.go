@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"gopkg.in/irc.v3"
 	"nhooyr.io/websocket"
 
@@ -68,8 +69,9 @@ type Config struct {
 }
 
 type Server struct {
-	Logger Logger
-	Identd *Identd // can be nil
+	Logger          Logger
+	Identd          *Identd               // can be nil
+	MetricsRegistry prometheus.Registerer // can be nil
 
 	config    atomic.Value // *Config
 	db        Database
