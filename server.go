@@ -101,6 +101,11 @@ type Server struct {
 	metrics struct {
 		downstreams int64Gauge
 		upstreams   int64Gauge
+
+		upstreamOutMessagesTotal   prometheus.Counter
+		upstreamInMessagesTotal    prometheus.Counter
+		downstreamOutMessagesTotal prometheus.Counter
+		downstreamInMessagesTotal  prometheus.Counter
 	}
 }
 
@@ -170,6 +175,26 @@ func (s *Server) registerMetrics() {
 		Name: "soju_upstreams_active",
 		Help: "Current number of upstream connections",
 	}, s.metrics.upstreams.Float64)
+
+	s.metrics.upstreamOutMessagesTotal = factory.NewCounter(prometheus.CounterOpts{
+		Name: "soju_upstream_out_messages_total",
+		Help: "Total number of outgoing messages sent to upstream servers",
+	})
+
+	s.metrics.upstreamInMessagesTotal = factory.NewCounter(prometheus.CounterOpts{
+		Name: "soju_upstream_in_messages_total",
+		Help: "Total number of incoming messages received from upstream servers",
+	})
+
+	s.metrics.downstreamOutMessagesTotal = factory.NewCounter(prometheus.CounterOpts{
+		Name: "soju_downstream_out_messages_total",
+		Help: "Total number of outgoing messages sent to downstream clients",
+	})
+
+	s.metrics.downstreamInMessagesTotal = factory.NewCounter(prometheus.CounterOpts{
+		Name: "soju_downstream_in_messages_total",
+		Help: "Total number of incoming messages received from downstream clients",
+	})
 }
 
 func (s *Server) Shutdown() {

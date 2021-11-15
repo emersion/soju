@@ -444,6 +444,15 @@ func (dc *downstreamConn) unmarshalText(uc *upstreamConn, text string) string {
 	return strings.ReplaceAll(text, "/"+uc.network.GetName(), "")
 }
 
+func (dc *downstreamConn) ReadMessage() (*irc.Message, error) {
+	msg, err := dc.conn.ReadMessage()
+	if err != nil {
+		return nil, err
+	}
+	dc.srv.metrics.downstreamInMessagesTotal.Inc()
+	return msg, nil
+}
+
 func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	for {
 		msg, err := dc.ReadMessage()
@@ -498,6 +507,7 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 		return
 	}
 
+	dc.srv.metrics.downstreamOutMessagesTotal.Inc()
 	dc.conn.SendMessage(msg)
 }
 

@@ -1806,6 +1806,15 @@ func (uc *upstreamConn) register() {
 	})
 }
 
+func (uc *upstreamConn) ReadMessage() (*irc.Message, error) {
+	msg, err := uc.conn.ReadMessage()
+	if err != nil {
+		return nil, err
+	}
+	uc.srv.metrics.upstreamInMessagesTotal.Inc()
+	return msg, nil
+}
+
 func (uc *upstreamConn) runUntilRegistered() error {
 	for !uc.registered {
 		msg, err := uc.ReadMessage()
@@ -1856,6 +1865,7 @@ func (uc *upstreamConn) SendMessage(msg *irc.Message) {
 		msg.Tags = nil
 	}
 
+	uc.srv.metrics.upstreamOutMessagesTotal.Inc()
 	uc.conn.SendMessage(msg)
 }
 
