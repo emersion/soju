@@ -2181,11 +2181,8 @@ func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
 				echoTags["account"] = irc.TagValue(uc.account)
 			}
 			echoMsg := &irc.Message{
-				Tags: echoTags,
-				Prefix: &irc.Prefix{
-					Name: uc.nick,
-					User: uc.username,
-				},
+				Tags:    echoTags,
+				Prefix:  &irc.Prefix{Name: uc.nick},
 				Command: msg.Command,
 				Params:  []string{upstreamName, text},
 			}
