@@ -581,12 +581,12 @@ func (dc *downstreamConn) handlePong(token string) {
 // messages that may appear in logs are supported, except MODE messages which
 // may only appear in single-upstream mode.
 func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Message {
+	msg = msg.Copy()
+	msg.Prefix = dc.marshalUserPrefix(net, msg.Prefix)
+
 	if dc.network != nil {
 		return msg
 	}
-
-	msg = msg.Copy()
-	msg.Prefix = dc.marshalUserPrefix(net, msg.Prefix)
 
 	switch msg.Command {
 	case "PRIVMSG", "NOTICE", "TAGMSG":
