@@ -56,6 +56,22 @@ func (l *prefixLogger) Printf(format string, v ...interface{}) {
 	l.logger.Printf("%v"+format, v...)
 }
 
+type int64Gauge struct {
+	v int64 // atomic
+}
+
+func (g *int64Gauge) Add(delta int64) {
+	atomic.AddInt64(&g.v, delta)
+}
+
+func (g *int64Gauge) Value() int64 {
+	return atomic.LoadInt64(&g.v)
+}
+
+func (g *int64Gauge) Float64() float64 {
+	return float64(g.Value())
+}
+
 type Config struct {
 	Hostname        string
 	Title           string
@@ -74,14 +90,17 @@ type Server struct {
 	Identd          *Identd               // can be nil
 	MetricsRegistry prometheus.Registerer // can be nil
 
-	config    atomic.Value // *Config
-	db        Database
-	stopWG    sync.WaitGroup
-	connCount int64 // atomic
+	config atomic.Value // *Config
+	db     Database
+	stopWG sync.WaitGroup
 
 	lock      sync.Mutex
 	listeners map[net.Listener]struct{}
 	users     map[string]*user
+
+	metrics struct {
+		downstreams int64Gauge
+	}
 }
 
 func NewServer(db Database) *Server {
@@ -144,9 +163,7 @@ func (s *Server) registerMetrics() {
 	factory.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "soju_downstreams_active",
 		Help: "Current number of downstream connections",
-	}, func() float64 {
-		return float64(atomic.LoadInt64(&s.connCount))
-	})
+	}, s.metrics.downstreams.Float64)
 }
 
 func (s *Server) Shutdown() {
@@ -234,7 +251,7 @@ func (s *Server) handle(ic ircConn) {
 		}
 	}()
 
-	atomic.AddInt64(&s.connCount, 1)
+	s.metrics.downstreams.Add(1)
 	id := atomic.AddUint64(&lastDownstreamID, 1)
 	dc := newDownstreamConn(s, ic, id)
 	if err := dc.runUntilRegistered(); err != nil {
@@ -249,7 +266,7 @@ func (s *Server) handle(ic ircConn) {
 		dc.user.events <- eventDownstreamDisconnected{dc}
 	}
 	dc.Close()
-	atomic.AddInt64(&s.connCount, -1)
+	s.metrics.downstreams.Add(-1)
 }
 
 func (s *Server) Serve(ln net.Listener) error {
@@ -333,6 +350,6 @@ func (s *Server) Stats() *ServerStats {
 	s.lock.Lock()
 	stats.Users = len(s.users)
 	s.lock.Unlock()
-	stats.Downstreams = atomic.LoadInt64(&s.connCount)
+	stats.Downstreams = s.metrics.downstreams.Value()
 	return &stats
 }
