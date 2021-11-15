@@ -50,6 +50,18 @@ func loadMOTD(srv *soju.Server, filename string) error {
 	return nil
 }
 
+func bumpOpenedFileLimit() error {
+	var rlimit syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit); err != nil {
+		return fmt.Errorf("failed to get RLIMIT_NOFILE: %v", err)
+	}
+	rlimit.Cur = rlimit.Max
+	if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit); err != nil {
+		return fmt.Errorf("failed to set RLIMIT_NOFILE: %v", err)
+	}
+	return nil
+}
+
 func main() {
 	var listen []string
 	var configPath string
@@ -73,6 +85,10 @@ func main() {
 	cfg.Listen = append(cfg.Listen, listen...)
 	if len(cfg.Listen) == 0 {
 		cfg.Listen = []string{":6697"}
+	}
+
+	if err := bumpOpenedFileLimit(); err != nil {
+		log.Printf("failed to bump max number of opened files: %v", err)
 	}
 
 	db, err := soju.OpenDB(cfg.SQLDriver, cfg.SQLSource)
