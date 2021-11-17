@@ -44,7 +44,7 @@ func createTestUser(t *testing.T, db Database) *User {
 	}
 
 	record := &User{Username: testUsername, Password: string(hashed)}
-	if err := db.StoreUser(context.TODO(), record); err != nil {
+	if err := db.StoreUser(context.Background(), record); err != nil {
 		t.Fatalf("failed to store test user: %v", err)
 	}
 
@@ -69,7 +69,7 @@ func createTestUpstream(t *testing.T, db Database, user *User) (*Network, net.Li
 		Nick:    user.Username,
 		Enabled: true,
 	}
-	if err := db.StoreNetwork(context.TODO(), user.ID, network); err != nil {
+	if err := db.StoreNetwork(context.Background(), user.ID, network); err != nil {
 		t.Fatalf("failed to store test network: %v", err)
 	}
 
