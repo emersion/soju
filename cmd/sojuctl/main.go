@@ -49,6 +49,8 @@ func main() {
 		log.Fatalf("failed to open database: %v", err)
 	}
 
+	ctx := context.Background()
+
 	switch cmd := flag.Arg(0); cmd {
 	case "create-user":
 		username := flag.Arg(1)
@@ -76,7 +78,7 @@ func main() {
 			Password: string(hashed),
 			Admin:    *admin,
 		}
-		if err := db.StoreUser(context.TODO(), &user); err != nil {
+		if err := db.StoreUser(ctx, &user); err != nil {
 			log.Fatalf("failed to create user: %v", err)
 		}
 	case "change-password":
@@ -86,7 +88,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		user, err := db.GetUser(context.TODO(), username)
+		user, err := db.GetUser(ctx, username)
 		if err != nil {
 			log.Fatalf("failed to get user: %v", err)
 		}
@@ -102,7 +104,7 @@ func main() {
 		}
 
 		user.Password = string(hashed)
-		if err := db.StoreUser(context.TODO(), user); err != nil {
+		if err := db.StoreUser(ctx, user); err != nil {
 			log.Fatalf("failed to update password: %v", err)
 		}
 	default:
