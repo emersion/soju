@@ -10,6 +10,8 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/client_golang/prometheus"
+	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 )
 
 const sqliteQueryTimeout = 5 * time.Second
@@ -236,6 +238,10 @@ func (db *SqliteDB) upgrade() error {
 	}
 
 	return tx.Commit()
+}
+
+func (db *SqliteDB) MetricsCollector() prometheus.Collector {
+	return promcollectors.NewDBStatsCollector(db.db, "main")
 }
 
 func (db *SqliteDB) Stats(ctx context.Context) (*DatabaseStats, error) {

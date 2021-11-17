@@ -10,6 +10,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus"
+	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 )
 
 const postgresQueryTimeout = 5 * time.Second
@@ -146,6 +148,10 @@ func (db *PostgresDB) upgrade() error {
 
 func (db *PostgresDB) Close() error {
 	return db.db.Close()
+}
+
+func (db *PostgresDB) MetricsCollector() prometheus.Collector {
+	return promcollectors.NewDBStatsCollector(db.db, "main")
 }
 
 func (db *PostgresDB) Stats(ctx context.Context) (*DatabaseStats, error) {

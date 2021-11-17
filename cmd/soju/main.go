@@ -293,6 +293,10 @@ func main() {
 		log.Printf("server listening on %q", listen)
 	}
 
+	if db, ok := db.(soju.MetricsCollectorDatabase); ok && srv.MetricsRegistry != nil {
+		srv.MetricsRegistry.MustRegister(db.MetricsCollector())
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 

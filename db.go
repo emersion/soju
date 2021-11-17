@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Database interface {
@@ -26,6 +28,11 @@ type Database interface {
 
 	ListDeliveryReceipts(ctx context.Context, networkID int64) ([]DeliveryReceipt, error)
 	StoreClientDeliveryReceipts(ctx context.Context, networkID int64, client string, receipts []DeliveryReceipt) error
+}
+
+type MetricsCollectorDatabase interface {
+	Database
+	MetricsCollector() prometheus.Collector
 }
 
 func OpenDB(driver, source string) (Database, error) {
