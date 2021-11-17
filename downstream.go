@@ -1030,12 +1030,15 @@ func (dc *downstreamConn) updateRealname() {
 	}
 }
 
-func sanityCheckServer(addr string) error {
-	dialer := net.Dialer{Timeout: 30 * time.Second}
-	conn, err := tls.DialWithDialer(&dialer, "tcp", addr, nil)
+func sanityCheckServer(ctx context.Context, addr string) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	conn, err := new(tls.Dialer).DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return err
 	}
+
 	return conn.Close()
 }
 
@@ -1130,7 +1133,7 @@ func (dc *downstreamConn) loadNetwork() error {
 		}
 
 		dc.logger.Printf("trying to connect to new network %q", addr)
-		if err := sanityCheckServer(addr); err != nil {
+		if err := sanityCheckServer(context.TODO(), addr); err != nil {
 			dc.logger.Printf("failed to connect to %q: %v", addr, err)
 			return ircError{&irc.Message{
 				Command: irc.ERR_PASSWDMISMATCH,
