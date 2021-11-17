@@ -100,6 +100,9 @@ The following directives are supported:
 	  port: 113)
 	- _http+prometheus://localhost:<port>_ listens for plain-text HTTP
 	  connections and serves Prometheus metrics (host must be "localhost")
+	- _http+pprof://localhost:<port>_ listens for plain-text HTTP connections
+	  and serves pprof runtime profiling data (host must be "localhost"). For
+	  more information, see: <https://pkg.go.dev/net/http/pprof>.
 
 	If the scheme is omitted, "ircs" is assumed. If multiple *listen*
 	directives are specified, soju will listen on each of them.

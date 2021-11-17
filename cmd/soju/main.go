@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"net/url"
 	"os"
 	"os/signal"
@@ -280,6 +281,26 @@ func main() {
 			httpSrv := http.Server{
 				Addr:    u.Host,
 				Handler: metricsHandler,
+			}
+			go func() {
+				if err := httpSrv.ListenAndServe(); err != nil {
+					log.Fatalf("serving %q: %v", listen, err)
+				}
+			}()
+		case "http+pprof":
+			// Only allow localhost as listening host for security reasons.
+			// Users can always explicitly setup reverse proxies if desirable.
+			hostname, _, err := net.SplitHostPort(u.Host)
+			if err != nil {
+				log.Fatalf("invalid host in URI %q: %v", listen, err)
+			} else if hostname != "localhost" {
+				log.Fatalf("pprof listening host must be localhost")
+			}
+
+			// net/http/pprof registers its handlers in http.DefaultServeMux
+			httpSrv := http.Server{
+				Addr:    u.Host,
+				Handler: http.DefaultServeMux,
 			}
 			go func() {
 				if err := httpSrv.ListenAndServe(); err != nil {
