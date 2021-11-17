@@ -614,8 +614,8 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Me
 	return msg
 }
 
-func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
-	ctx, cancel := dc.conn.NewContext(context.TODO())
+func (dc *downstreamConn) handleMessage(ctx context.Context, msg *irc.Message) error {
+	ctx, cancel := dc.conn.NewContext(ctx)
 	defer cancel()
 
 	ctx, cancel = context.WithTimeout(ctx, handleDownstreamMessageTimeout)
@@ -1401,13 +1401,29 @@ func (dc *downstreamConn) relayDetachedMessage(net *network, msg *irc.Message) {
 }
 
 func (dc *downstreamConn) runUntilRegistered() error {
+	ctx, cancel := context.WithTimeout(context.TODO(), downstreamRegisterTimeout)
+	defer cancel()
+
+	// Close the connection with an error if the deadline is exceeded
+	go func() {
+		<-ctx.Done()
+		if err := ctx.Err(); err == context.DeadlineExceeded {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "ERROR",
+				Params:  []string{"Connection registration timed out"},
+			})
+			dc.Close()
+		}
+	}()
+
 	for !dc.registered {
 		msg, err := dc.ReadMessage()
 		if err != nil {
 			return fmt.Errorf("failed to read IRC command: %w", err)
 		}
 
-		err = dc.handleMessage(msg)
+		err = dc.handleMessage(ctx, msg)
 		if ircErr, ok := err.(ircError); ok {
 			ircErr.Message.Prefix = dc.srv.prefix()
 			dc.SendMessage(ircErr.Message)

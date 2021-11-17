@@ -28,6 +28,7 @@ var upstreamMessageDelay = 2 * time.Second
 var upstreamMessageBurst = 10
 var backlogTimeout = 10 * time.Second
 var handleDownstreamMessageTimeout = 10 * time.Second
+var downstreamRegisterTimeout = 30 * time.Second
 var chatHistoryLimit = 1000
 var backlogLimit = 4000
 
