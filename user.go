@@ -314,7 +314,7 @@ func (net *network) attach(ch *Channel) {
 		}
 
 		if detachedMsgID != "" {
-			dc.sendTargetBacklog(net, ch.Name, detachedMsgID)
+			dc.sendTargetBacklog(context.TODO(), net, ch.Name, detachedMsgID)
 		}
 	})
 }
@@ -597,7 +597,7 @@ func (u *user) run() {
 				dc.monitored.SetCasemapping(dc.network.casemap)
 			}
 
-			if err := dc.welcome(); err != nil {
+			if err := dc.welcome(context.TODO()); err != nil {
 				dc.logger.Printf("failed to handle new registered connection: %v", err)
 				break
 			}
