@@ -62,6 +62,8 @@ func main() {
 		cfg = config.Defaults()
 	}
 
+	ctx := context.Background()
+
 	db, err := soju.OpenDB(cfg.SQLDriver, cfg.SQLSource)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
@@ -80,7 +82,7 @@ func main() {
 		log.Fatalf("failed to parse %q: line %v: %v", zncPath, zp.line, err)
 	}
 
-	l, err := db.ListUsers(context.TODO())
+	l, err := db.ListUsers(ctx)
 	if err != nil {
 		log.Fatalf("failed to list users in DB: %v", err)
 	}
@@ -112,12 +114,12 @@ func main() {
 
 		u.Admin = section.Values.Get("Admin") == "true"
 
-		if err := db.StoreUser(context.TODO(), u); err != nil {
+		if err := db.StoreUser(ctx, u); err != nil {
 			log.Fatalf("failed to store user %q: %v", username, err)
 		}
 		userID := u.ID
 
-		l, err := db.ListNetworks(context.TODO(), userID)
+		l, err := db.ListNetworks(ctx, userID)
 		if err != nil {
 			log.Fatalf("failed to list networks for user %q: %v", username, err)
 		}
@@ -184,11 +186,11 @@ func main() {
 			n.Pass = pass
 			n.Enabled = section.Values.Get("IRCConnectEnabled") != "false"
 
-			if err := db.StoreNetwork(context.TODO(), userID, n); err != nil {
+			if err := db.StoreNetwork(ctx, userID, n); err != nil {
 				logger.Fatalf("failed to store network: %v", err)
 			}
 
-			l, err := db.ListChannels(context.TODO(), n.ID)
+			l, err := db.ListChannels(ctx, n.ID)
 			if err != nil {
 				logger.Fatalf("failed to list channels: %v", err)
 			}
@@ -218,7 +220,7 @@ func main() {
 				ch.Key = section.Values.Get("Key")
 				ch.Detached = section.Values.Get("Detached") == "true"
 
-				if err := db.StoreChannel(context.TODO(), n.ID, ch); err != nil {
+				if err := db.StoreChannel(ctx, n.ID, ch); err != nil {
 					logger.Printf("channel %q: failed to store channel: %v", chName, err)
 				}
 			})
