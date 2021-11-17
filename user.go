@@ -152,7 +152,7 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 
 func (net *network) forEachDownstream(f func(*downstreamConn)) {
 	net.user.forEachDownstream(func(dc *downstreamConn) {
-		if dc.network == nil && dc.caps["soju.im/bouncer-networks"] {
+		if dc.network == nil && !dc.isMultiUpstream() {
 			return
 		}
 		if dc.network != nil && dc.network != net {
