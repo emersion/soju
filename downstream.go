@@ -1187,6 +1187,8 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 		dc.isMultiUpstream = true
 	}
 
+	dc.updateSupportedCaps()
+
 	isupport := []string{
 		fmt.Sprintf("CHATHISTORY=%v", chatHistoryLimit),
 		"CASEMAPPING=ascii",
@@ -1249,6 +1251,9 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 		})
 	}
 
+	dc.updateNick()
+	dc.updateRealname()
+
 	if motd := dc.user.srv.Config().MOTD; motd != "" && dc.network == nil {
 		for _, msg := range generateMOTD(dc.srv.prefix(), dc.nick, motd) {
 			dc.SendMessage(msg)
@@ -1264,10 +1269,6 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 			Params:  []string{dc.nick, motdHint},
 		})
 	}
-
-	dc.updateNick()
-	dc.updateRealname()
-	dc.updateSupportedCaps()
 
 	if dc.caps["soju.im/bouncer-networks-notify"] {
 		dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef irc.TagValue) {
