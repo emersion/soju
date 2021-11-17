@@ -51,6 +51,7 @@ type Server struct {
 	AcceptProxyIPs IPSet
 
 	MaxUserNetworks int
+	MultiUpstream   bool
 }
 
 func Defaults() *Server {
@@ -63,6 +64,7 @@ func Defaults() *Server {
 		SQLDriver:       "sqlite3",
 		SQLSource:       "soju.db",
 		MaxUserNetworks: -1,
+		MultiUpstream:   true,
 	}
 }
 
@@ -138,6 +140,16 @@ func parse(cfg scfg.Block) (*Server, error) {
 			if srv.MaxUserNetworks, err = strconv.Atoi(max); err != nil {
 				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
 			}
+		case "multi-upstream-mode":
+			var str string
+			if err := d.ParseParams(&str); err != nil {
+				return nil, err
+			}
+			v, err := strconv.ParseBool(str)
+			if err != nil {
+				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
+			}
+			srv.MultiUpstream = v
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)
 		}

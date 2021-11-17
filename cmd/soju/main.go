@@ -92,6 +92,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		HTTPOrigins:     raw.HTTPOrigins,
 		AcceptProxyIPs:  raw.AcceptProxyIPs,
 		MaxUserNetworks: raw.MaxUserNetworks,
+		MultiUpstream:   raw.MultiUpstream,
 		Debug:           debug,
 		MOTD:            motd,
 	}

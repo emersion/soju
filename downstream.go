@@ -1171,7 +1171,7 @@ func (dc *downstreamConn) welcome() error {
 		return err
 	}
 
-	if dc.network == nil && !dc.caps["soju.im/bouncer-networks"] {
+	if dc.network == nil && !dc.caps["soju.im/bouncer-networks"] && dc.srv.Config().MultiUpstream {
 		dc.isMultiUpstream = true
 	}
 

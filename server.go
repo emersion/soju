@@ -61,6 +61,7 @@ type Config struct {
 	HTTPOrigins     []string
 	AcceptProxyIPs  config.IPSet
 	MaxUserNetworks int
+	MultiUpstream   bool
 	MOTD            string
 }
 
@@ -85,7 +86,11 @@ func NewServer(db Database) *Server {
 		listeners: make(map[net.Listener]struct{}),
 		users:     make(map[string]*user),
 	}
-	srv.config.Store(&Config{Hostname: "localhost", MaxUserNetworks: -1})
+	srv.config.Store(&Config{
+		Hostname:        "localhost",
+		MaxUserNetworks: -1,
+		MultiUpstream:   true,
+	})
 	return srv
 }
 
