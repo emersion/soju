@@ -248,17 +248,18 @@ type downstreamConn struct {
 
 	id uint64
 
-	registered  bool
-	user        *user
-	nick        string
-	nickCM      string
-	rawUsername string
-	networkName string
-	clientName  string
-	realname    string
-	hostname    string
-	password    string   // empty after authentication
-	network     *network // can be nil
+	registered      bool
+	user            *user
+	nick            string
+	nickCM          string
+	rawUsername     string
+	networkName     string
+	clientName      string
+	realname        string
+	hostname        string
+	password        string   // empty after authentication
+	network         *network // can be nil
+	isMultiUpstream bool
 
 	negotiatingCaps bool
 	capVersion      int
@@ -307,20 +308,16 @@ func (dc *downstreamConn) prefix() *irc.Prefix {
 	}
 }
 
-func (dc *downstreamConn) isMultiUpstream() bool {
-	return dc.network == nil && !dc.caps["soju.im/bouncer-networks"]
-}
-
 func (dc *downstreamConn) forEachNetwork(f func(*network)) {
 	if dc.network != nil {
 		f(dc.network)
-	} else if dc.isMultiUpstream() {
+	} else if dc.isMultiUpstream {
 		dc.user.forEachNetwork(f)
 	}
 }
 
 func (dc *downstreamConn) forEachUpstream(f func(*upstreamConn)) {
-	if dc.network == nil && !dc.isMultiUpstream() {
+	if dc.network == nil && !dc.isMultiUpstream {
 		return
 	}
 	dc.user.forEachUpstream(func(uc *upstreamConn) {
@@ -1174,6 +1171,10 @@ func (dc *downstreamConn) welcome() error {
 		return err
 	}
 
+	if dc.network == nil && !dc.caps["soju.im/bouncer-networks"] {
+		dc.isMultiUpstream = true
+	}
+
 	isupport := []string{
 		fmt.Sprintf("CHATHISTORY=%v", chatHistoryLimit),
 		"CASEMAPPING=ascii",
@@ -1185,7 +1186,7 @@ func (dc *downstreamConn) welcome() error {
 	if title := dc.srv.Config().Title; dc.network == nil && title != "" {
 		isupport = append(isupport, "NETWORK="+encodeISUPPORT(title))
 	}
-	if dc.network == nil && !dc.isMultiUpstream() {
+	if dc.network == nil && !dc.isMultiUpstream {
 		isupport = append(isupport, "WHOX")
 	}
 
@@ -1228,7 +1229,7 @@ func (dc *downstreamConn) welcome() error {
 			Params:  []string{dc.nick, "+" + string(uc.modes)},
 		})
 	}
-	if dc.network == nil && !dc.isMultiUpstream() && dc.user.Admin {
+	if dc.network == nil && !dc.isMultiUpstream && dc.user.Admin {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_UMODEIS,
