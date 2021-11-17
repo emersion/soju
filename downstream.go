@@ -1031,7 +1031,7 @@ func (dc *downstreamConn) updateRealname() {
 }
 
 func sanityCheckServer(ctx context.Context, addr string) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	conn, err := new(tls.Dialer).DialContext(ctx, "tcp", addr)
