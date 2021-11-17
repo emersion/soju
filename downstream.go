@@ -615,22 +615,22 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Me
 }
 
 func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), handleDownstreamMessageTimeout)
+	defer cancel()
+
 	switch msg.Command {
 	case "QUIT":
 		return dc.Close()
 	default:
 		if dc.registered {
-			return dc.handleMessageRegistered(msg)
+			return dc.handleMessageRegistered(ctx, msg)
 		} else {
-			return dc.handleMessageUnregistered(msg)
+			return dc.handleMessageUnregistered(ctx, msg)
 		}
 	}
 }
 
-func (dc *downstreamConn) handleMessageUnregistered(msg *irc.Message) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), handleDownstreamMessageTimeout)
-	defer cancel()
-
+func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *irc.Message) error {
 	switch msg.Command {
 	case "NICK":
 		var nick string
@@ -1416,10 +1416,7 @@ func (dc *downstreamConn) runUntilRegistered() error {
 	return nil
 }
 
-func (dc *downstreamConn) handleMessageRegistered(msg *irc.Message) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), handleDownstreamMessageTimeout)
-	defer cancel()
-
+func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.Message) error {
 	switch msg.Command {
 	case "CAP":
 		var subCmd string
