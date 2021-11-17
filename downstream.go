@@ -615,7 +615,10 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Me
 }
 
 func (dc *downstreamConn) handleMessage(msg *irc.Message) error {
-	ctx, cancel := context.WithTimeout(context.TODO(), handleDownstreamMessageTimeout)
+	ctx, cancel := dc.conn.NewContext(context.TODO())
+	defer cancel()
+
+	ctx, cancel = context.WithTimeout(ctx, handleDownstreamMessageTimeout)
 	defer cancel()
 
 	switch msg.Command {
