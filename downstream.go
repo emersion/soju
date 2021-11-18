@@ -178,7 +178,8 @@ func updateNetworkAttrs(record *Network, attrs irc.Tags, subcommand string) erro
 }
 
 // ' ' and ':' break the IRC message wire format, '@' and '!' break prefixes,
-// '*' and '?' break masks, '$' breaks server masks in PRIVMSG/NOTICE
+// '*' and '?' break masks, '$' breaks server masks in PRIVMSG/NOTICE,
+// "*" is the reserved nickname for registration
 const illegalNickChars = " :@!*?$"
 
 // permanentDownstreamCaps is the list of always-supported downstream
@@ -280,6 +281,8 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	dc := &downstreamConn{
 		conn:          *newConn(srv, ic, &options),
 		id:            id,
+		nick:          "*",
+		nickCM:        "*",
 		supportedCaps: make(map[string]string),
 		caps:          make(map[string]bool),
 		monitored:     newCasemapMap(0),
@@ -684,20 +687,16 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 	case "AUTHENTICATE":
 		if !dc.caps["sasl"] {
 			return ircError{&irc.Message{
+				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
 				Params:  []string{"*", "AUTHENTICATE requires the \"sasl\" capability to be enabled"},
 			}}
 		}
 		if len(msg.Params) == 0 {
 			return ircError{&irc.Message{
+				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
 				Params:  []string{"*", "Missing AUTHENTICATE argument"},
-			}}
-		}
-		if dc.nick == "" {
-			return ircError{&irc.Message{
-				Command: irc.ERR_SASLFAIL,
-				Params:  []string{"*", "Expected NICK command before AUTHENTICATE"},
 			}}
 		}
 
@@ -705,6 +704,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		if msg.Params[0] == "*" {
 			dc.saslServer = nil
 			return ircError{&irc.Message{
+				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLABORTED,
 				Params:  []string{"*", "SASL authentication aborted"},
 			}}
@@ -720,6 +720,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 				}))
 			default:
 				return ircError{&irc.Message{
+					Prefix:  dc.srv.prefix(),
 					Command: irc.ERR_SASLFAIL,
 					Params:  []string{"*", fmt.Sprintf("Unsupported SASL mechanism %q", mech)},
 				}}
@@ -733,6 +734,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			if err != nil {
 				dc.saslServer = nil
 				return ircError{&irc.Message{
+					Prefix:  dc.srv.prefix(),
 					Command: irc.ERR_SASLFAIL,
 					Params:  []string{"*", "Invalid base64-encoded response"},
 				}}
@@ -744,6 +746,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			dc.saslServer = nil
 			if ircErr, ok := err.(ircError); ok && ircErr.Message.Command == irc.ERR_PASSWDMISMATCH {
 				return ircError{&irc.Message{
+					Prefix:  dc.srv.prefix(),
 					Command: irc.ERR_SASLFAIL,
 					Params:  []string{"*", ircErr.Message.Params[1]},
 				}}
@@ -823,7 +826,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
-	if dc.rawUsername != "" && dc.nick != "" && !dc.negotiatingCaps {
+	if dc.rawUsername != "" && dc.nick != "*" && !dc.negotiatingCaps {
 		return dc.register(ctx)
 	}
 	return nil
@@ -831,11 +834,6 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 
 func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 	cmd = strings.ToUpper(cmd)
-
-	replyTo := dc.nick
-	if !dc.registered {
-		replyTo = "*"
-	}
 
 	switch cmd {
 	case "LS":
@@ -867,7 +865,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
-			Params:  []string{replyTo, "LS", strings.Join(caps, " ")},
+			Params:  []string{dc.nick, "LS", strings.Join(caps, " ")},
 		})
 
 		if dc.capVersion >= 302 {
@@ -890,13 +888,13 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
-			Params:  []string{replyTo, "LIST", strings.Join(caps, " ")},
+			Params:  []string{dc.nick, "LIST", strings.Join(caps, " ")},
 		})
 	case "REQ":
 		if len(args) == 0 {
 			return ircError{&irc.Message{
 				Command: err_invalidcapcmd,
-				Params:  []string{replyTo, cmd, "Missing argument in CAP REQ command"},
+				Params:  []string{dc.nick, cmd, "Missing argument in CAP REQ command"},
 			}}
 		}
 
@@ -936,7 +934,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
-			Params:  []string{replyTo, reply, args[0]},
+			Params:  []string{dc.nick, reply, args[0]},
 		})
 
 		if !dc.registered {
@@ -947,7 +945,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 	default:
 		return ircError{&irc.Message{
 			Command: err_invalidcapcmd,
-			Params:  []string{replyTo, cmd, "Unknown CAP command"},
+			Params:  []string{dc.nick, cmd, "Unknown CAP command"},
 		}}
 	}
 	return nil
@@ -962,11 +960,6 @@ func (dc *downstreamConn) setSupportedCap(name, value string) {
 		return
 	}
 
-	replyTo := dc.nick
-	if !dc.registered {
-		replyTo = "*"
-	}
-
 	cap := name
 	if value != "" && dc.capVersion >= 302 {
 		cap = name + "=" + value
@@ -975,7 +968,7 @@ func (dc *downstreamConn) setSupportedCap(name, value string) {
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: "CAP",
-		Params:  []string{replyTo, "NEW", cap},
+		Params:  []string{dc.nick, "NEW", cap},
 	})
 }
 
@@ -988,15 +981,10 @@ func (dc *downstreamConn) unsetSupportedCap(name string) {
 		return
 	}
 
-	replyTo := dc.nick
-	if !dc.registered {
-		replyTo = "*"
-	}
-
 	dc.SendMessage(&irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: "CAP",
-		Params:  []string{replyTo, "DEL", name},
+		Params:  []string{dc.nick, "DEL", name},
 	})
 }
 
