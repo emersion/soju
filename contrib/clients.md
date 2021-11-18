@@ -27,18 +27,17 @@ integration. senpai supports many IRCv3 features including chat history.
 
 # [Weechat]
 
-By default, WeeChat doesn't request any IRCv3 capability. To enable all
-supported capabilities as of WeeChat 3.3:
+A [Weechat script] is available to provide better integration with soju.
+The script will automatically connect to all of your networks once a
+single connection to soju is set up in Weechat.
 
-    /set irc.server_default.capabilities account-notify,away-notify,cap-notify,chghost,extended-join,invite-notify,message-tags,multi-prefix,server-time,setname,userhost-in-names
+On WeeChat 3.2-, no IRCv3 capabilities are enabled by default. To enable them:
+
+    /set irc.server_default.capabilities account-notify,away-notify,cap-notify,chghost,extended-join,invite-notify,multi-prefix,server-time,userhost-in-names
     /save
     /reconnect -all
 
 See `/help cap` for more information.
-
-A [Weechat script] is available to provide better integration with soju.
-The script will automatically connect to all of your networks once a
-single connection to soju is set up in Weechat.
 
 [IRCv3 support tables]: https://ircv3.net/software/clients
 [gamja]: https://sr.ht/~emersion/gamja/
