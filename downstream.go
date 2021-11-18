@@ -653,7 +653,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		if err := parseMessageParams(msg, &nick); err != nil {
 			return err
 		}
-		if strings.ContainsAny(nick, illegalNickChars) {
+		if nick == "" || strings.ContainsAny(nick, illegalNickChars) {
 			return ircError{&irc.Message{
 				Command: irc.ERR_ERRONEUSNICKNAME,
 				Params:  []string{dc.nick, nick, "contains illegal characters"},
@@ -1492,7 +1492,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 		}
 
-		if strings.ContainsAny(nick, illegalNickChars) {
+		if nick == "" || strings.ContainsAny(nick, illegalNickChars) {
 			return ircError{&irc.Message{
 				Command: irc.ERR_ERRONEUSNICKNAME,
 				Params:  []string{dc.nick, rawNick, "contains illegal characters"},
