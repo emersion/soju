@@ -22,6 +22,7 @@ import (
 // permanentUpstreamCaps is the static list of upstream capabilities always
 // requested when supported.
 var permanentUpstreamCaps = map[string]bool{
+	"account-notify":   true,
 	"account-tag":      true,
 	"away-notify":      true,
 	"batch":            true,
