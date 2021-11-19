@@ -1110,6 +1110,15 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 		return fmt.Errorf("tried to register twice")
 	}
 
+	if dc.saslServer != nil {
+		dc.saslServer = nil
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.ERR_SASLABORTED,
+			Params:  []string{"*", "SASL authentication aborted"},
+		})
+	}
+
 	password := dc.password
 	dc.password = ""
 	if dc.user == nil {
