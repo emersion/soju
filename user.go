@@ -541,6 +541,7 @@ func (u *user) run() {
 
 				dc.updateNick()
 				dc.updateRealname()
+				dc.updateAccount()
 			})
 			u.forEachDownstream(func(dc *downstreamConn) {
 				if dc.caps["soju.im/bouncer-networks-notify"] {

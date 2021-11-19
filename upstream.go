@@ -586,9 +586,15 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 		uc.logger.Printf("logged in with account %q", uc.account)
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			dc.updateAccount()
+		})
 	case irc.RPL_LOGGEDOUT:
 		uc.account = ""
 		uc.logger.Printf("logged out")
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			dc.updateAccount()
+		})
 	case irc.ERR_NICKLOCKED, irc.RPL_SASLSUCCESS, irc.ERR_SASLFAIL, irc.ERR_SASLTOOLONG, irc.ERR_SASLABORTED:
 		var info string
 		if err := parseMessageParams(msg, nil, &info); err != nil {

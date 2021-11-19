@@ -258,6 +258,7 @@ type downstreamConn struct {
 	clientName      string
 	realname        string
 	hostname        string
+	account         string   // RPL_LOGGEDIN/OUT state
 	password        string   // empty after authentication
 	network         *network // can be nil
 	isMultiUpstream bool
@@ -759,11 +760,10 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			return fmt.Errorf("SASL authentication failed: %v", err)
 		} else if done {
 			dc.saslServer = nil
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_LOGGEDIN,
-				Params:  []string{dc.nick, dc.prefix().String(), dc.user.Username, "You are now logged in"},
-			})
+			// Technically we should send RPL_LOGGEDIN here. However we use
+			// RPL_LOGGEDIN to mirror the upstream connection status. Let's see
+			// how many clients that breaks. See:
+			// https://github.com/ircv3/ircv3-specifications/pull/476
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_SASLSUCCESS,
@@ -1037,6 +1037,29 @@ func (dc *downstreamConn) updateRealname() {
 	}
 }
 
+func (dc *downstreamConn) updateAccount() {
+	uc := dc.upstream()
+	if uc == nil || uc.account == dc.account || !dc.caps["sasl"] {
+		return
+	}
+
+	if uc.account != "" {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.RPL_LOGGEDIN,
+			Params:  []string{dc.nick, dc.prefix().String(), uc.account, "You are logged in as " + uc.account},
+		})
+	} else {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.RPL_LOGGEDOUT,
+			Params:  []string{dc.nick, dc.prefix().String(), "You are logged out"},
+		})
+	}
+
+	dc.account = uc.account
+}
+
 func sanityCheckServer(ctx context.Context, addr string) error {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -1260,6 +1283,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 
 	dc.updateNick()
 	dc.updateRealname()
+	dc.updateAccount()
 
 	if motd := dc.user.srv.Config().MOTD; motd != "" && dc.network == nil {
 		for _, msg := range generateMOTD(dc.srv.prefix(), dc.nick, motd) {
