@@ -190,7 +190,6 @@ var permanentDownstreamCaps = map[string]string{
 	"echo-message":  "",
 	"invite-notify": "",
 	"message-tags":  "",
-	"sasl":          "PLAIN",
 	"server-time":   "",
 	"setname":       "",
 
@@ -299,6 +298,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	for k, v := range permanentDownstreamCaps {
 		dc.supportedCaps[k] = v
 	}
+	dc.supportedCaps["sasl"] = "PLAIN"
 	// TODO: this is racy, we should only enable chathistory after
 	// authentication and then check that user.msgStore implements
 	// chatHistoryMessageStore
@@ -1036,6 +1036,12 @@ func (dc *downstreamConn) updateSupportedCaps() {
 		} else {
 			dc.unsetSupportedCap(cap)
 		}
+	}
+
+	if uc := dc.upstream(); uc != nil && uc.supportsSASL("PLAIN") {
+		dc.setSupportedCap("sasl", "PLAIN")
+	} else if dc.network != nil {
+		dc.unsetSupportedCap("sasl")
 	}
 
 	if _, ok := dc.user.msgStore.(chatHistoryMessageStore); ok && dc.network != nil {

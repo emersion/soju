@@ -1731,30 +1731,30 @@ func (uc *upstreamConn) requestCaps() {
 	})
 }
 
-func (uc *upstreamConn) requestSASL() bool {
-	if uc.network.SASL.Mechanism == "" {
-		return false
-	}
-
+func (uc *upstreamConn) supportsSASL(mech string) bool {
 	v, ok := uc.supportedCaps["sasl"]
 	if !ok {
 		return false
 	}
-	if v != "" {
-		mechanisms := strings.Split(v, ",")
-		found := false
-		for _, mech := range mechanisms {
-			if strings.EqualFold(mech, uc.network.SASL.Mechanism) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
+
+	if v == "" {
+		return true
 	}
 
-	return true
+	mechanisms := strings.Split(v, ",")
+	for _, mech := range mechanisms {
+		if strings.EqualFold(mech, mech) {
+			return true
+		}
+	}
+	return false
+}
+
+func (uc *upstreamConn) requestSASL() bool {
+	if uc.network.SASL.Mechanism == "" {
+		return false
+	}
+	return uc.supportsSASL(uc.network.SASL.Mechanism)
 }
 
 func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
