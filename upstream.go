@@ -31,6 +31,7 @@ var permanentUpstreamCaps = map[string]bool{
 	"labeled-response": true,
 	"message-tags":     true,
 	"multi-prefix":     true,
+	"sasl":             true,
 	"server-time":      true,
 	"setname":          true,
 
@@ -293,6 +294,12 @@ func (uc *upstreamConn) endPendingCommands() {
 					Command: irc.RPL_ENDOFWHO,
 					Params:  []string{dc.nick, mask, "End of /WHO"},
 				})
+			case "AUTHENTICATE":
+				dc.endSASL(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.ERR_SASLABORTED,
+					Params:  []string{dc.nick, "SASL authentication aborted"},
+				})
 			default:
 				panic(fmt.Errorf("Unsupported pending command %q", pendingCmd.msg.Command))
 			}
@@ -311,7 +318,7 @@ func (uc *upstreamConn) sendNextPendingCommand(cmd string) {
 
 func (uc *upstreamConn) enqueueCommand(dc *downstreamConn, msg *irc.Message) {
 	switch msg.Command {
-	case "LIST", "WHO":
+	case "LIST", "WHO", "AUTHENTICATE":
 		// Supported
 	default:
 		panic(fmt.Errorf("Unsupported pending command %q", msg.Command))
@@ -612,10 +619,20 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		uc.saslClient = nil
 		uc.saslStarted = false
 
-		uc.SendMessage(&irc.Message{
-			Command: "CAP",
-			Params:  []string{"END"},
-		})
+		if dc, _ := uc.dequeueCommand("AUTHENTICATE"); dc != nil && dc.sasl != nil {
+			if msg.Command == irc.RPL_SASLSUCCESS {
+				uc.network.autoSaveSASLPlain(context.TODO(), dc.sasl.plainUsername, dc.sasl.plainPassword)
+			}
+
+			dc.endSASL(msg)
+		}
+
+		if !uc.registered {
+			uc.SendMessage(&irc.Message{
+				Command: "CAP",
+				Params:  []string{"END"},
+			})
+		}
 	case irc.RPL_WELCOME:
 		uc.registered = true
 		uc.logger.Printf("connection registered")
@@ -1704,10 +1721,6 @@ func (uc *upstreamConn) requestCaps() {
 		}
 	}
 
-	if uc.requestSASL() && !uc.caps["sasl"] {
-		requestCaps = append(requestCaps, "sasl")
-	}
-
 	if len(requestCaps) == 0 {
 		return
 	}
@@ -1749,6 +1762,9 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 
 	switch name {
 	case "sasl":
+		if !uc.requestSASL() {
+			return nil
+		}
 		if !ok {
 			uc.logger.Printf("server refused to acknowledge the SASL capability")
 			return nil

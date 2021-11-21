@@ -404,6 +404,22 @@ func (net *network) detachedMessageNeedsRelay(ch *Channel, msg *irc.Message) boo
 	return ch.RelayDetached == FilterMessage || ((ch.RelayDetached == FilterHighlight || ch.RelayDetached == FilterDefault) && highlight)
 }
 
+func (net *network) autoSaveSASLPlain(ctx context.Context, username, password string) {
+	// User may have e.g. EXTERNAL mechanism configured. We do not want to
+	// automatically erase the key pair or any other credentials.
+	if net.SASL.Mechanism != "" && net.SASL.Mechanism != "PLAIN" {
+		return
+	}
+
+	net.logger.Printf("auto-saving SASL PLAIN credentials with username %q", username)
+	net.SASL.Mechanism = "PLAIN"
+	net.SASL.Plain.Username = username
+	net.SASL.Plain.Password = password
+	if err := net.user.srv.db.StoreNetwork(ctx, net.user.ID, &net.Network); err != nil {
+		net.logger.Printf("failed to save SASL PLAIN credentials: %v", err)
+	}
+}
+
 type user struct {
 	User
 	srv    *Server
