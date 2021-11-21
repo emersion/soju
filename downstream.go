@@ -1038,16 +1038,24 @@ func (dc *downstreamConn) updateRealname() {
 }
 
 func (dc *downstreamConn) updateAccount() {
-	uc := dc.upstream()
-	if uc == nil || uc.account == dc.account || !dc.caps["sasl"] {
+	var account string
+	if dc.network == nil {
+		account = dc.user.Username
+	} else if uc := dc.upstream(); uc != nil {
+		account = uc.account
+	} else {
 		return
 	}
 
-	if uc.account != "" {
+	if dc.account == account || !dc.caps["sasl"] {
+		return
+	}
+
+	if account != "" {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_LOGGEDIN,
-			Params:  []string{dc.nick, dc.prefix().String(), uc.account, "You are logged in as " + uc.account},
+			Params:  []string{dc.nick, dc.prefix().String(), account, "You are logged in as " + account},
 		})
 	} else {
 		dc.SendMessage(&irc.Message{
@@ -1057,7 +1065,7 @@ func (dc *downstreamConn) updateAccount() {
 		})
 	}
 
-	dc.account = uc.account
+	dc.account = account
 }
 
 func sanityCheckServer(ctx context.Context, addr string) error {
