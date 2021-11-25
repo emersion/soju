@@ -658,8 +658,13 @@ type GamjaConfig struct {
 	Server GamjaServerConfig `json:"server"`
 }
 
+type SrhtAPIMetadata struct {
+	Scopes []string `json:"scopes"`
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path == "/config.json" {
+	switch req.URL.Path {
+	case "/config.json":
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(GamjaConfig{
 			Server: GamjaServerConfig{
@@ -668,6 +673,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				AutoConnect: true,
 				Ping:        500,
 			},
+		})
+		return
+	case "/query/api-meta.json":
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(SrhtAPIMetadata{
+			Scopes: []string{"IRC"},
 		})
 		return
 	}
