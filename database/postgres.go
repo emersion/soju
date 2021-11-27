@@ -85,6 +85,26 @@ CREATE TABLE "ReadReceipt" (
 	timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
 	UNIQUE(network, target)
 );
+
+CREATE TABLE "WebPushConfig" (
+	id SERIAL PRIMARY KEY,
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	vapid_key_public TEXT NOT NULL,
+	vapid_key_private TEXT NOT NULL,
+	UNIQUE(vapid_key_public)
+);
+
+CREATE TABLE "WebPushSubscription" (
+	id SERIAL PRIMARY KEY,
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	network INTEGER REFERENCES "Network"(id) ON DELETE CASCADE,
+	endpoint TEXT NOT NULL,
+	key_vapid TEXT,
+	key_auth TEXT,
+	key_p256dh TEXT,
+	UNIQUE(network, endpoint)
+);
 `
 
 var postgresMigrations = []string{
@@ -104,6 +124,27 @@ var postgresMigrations = []string{
 			target VARCHAR(255) NOT NULL,
 			timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
 			UNIQUE(network, target)
+		);
+	`,
+	`
+		CREATE TABLE "WebPushConfig" (
+			id SERIAL PRIMARY KEY,
+			created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+			vapid_key_public TEXT NOT NULL,
+			vapid_key_private TEXT NOT NULL,
+			UNIQUE(vapid_key_public)
+		);
+
+		CREATE TABLE "WebPushSubscription" (
+			id SERIAL PRIMARY KEY,
+			created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+			updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+			network INTEGER REFERENCES "Network"(id) ON DELETE CASCADE,
+			endpoint TEXT NOT NULL,
+			key_vapid TEXT,
+			key_auth TEXT,
+			key_p256dh TEXT,
+			UNIQUE(network, endpoint)
 		);
 	`,
 }
@@ -621,6 +662,114 @@ func (db *PostgresDB) listTopNetworkAddrs(ctx context.Context) (map[string]int, 
 	}
 
 	return addrs, rows.Err()
+}
+
+func (db *PostgresDB) ListWebPushConfigs(ctx context.Context) ([]WebPushConfig, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx, `
+		SELECT id, vapid_key_public, vapid_key_private
+		FROM "WebPushConfig"`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var configs []WebPushConfig
+	for rows.Next() {
+		var config WebPushConfig
+		if err := rows.Scan(&config.ID, &config.VAPIDKeys.Public, &config.VAPIDKeys.Private); err != nil {
+			return nil, err
+		}
+		configs = append(configs, config)
+	}
+
+	return configs, rows.Err()
+}
+
+func (db *PostgresDB) StoreWebPushConfig(ctx context.Context, config *WebPushConfig) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	if config.ID != 0 {
+		return fmt.Errorf("cannot update a WebPushConfig")
+	}
+
+	err := db.db.QueryRowContext(ctx, `
+		INSERT INTO "WebPushConfig" (created_at, vapid_key_public, vapid_key_private)
+		VALUES (NOW(), $1, $2)
+		RETURNING id`,
+		config.VAPIDKeys.Public, config.VAPIDKeys.Private).Scan(&config.ID)
+	return err
+}
+
+func (db *PostgresDB) ListWebPushSubscriptions(ctx context.Context, networkID int64) ([]WebPushSubscription, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	nullNetworkID := sql.NullInt64{
+		Int64: networkID,
+		Valid: networkID == 0,
+	}
+
+	rows, err := db.db.QueryContext(ctx, `
+		SELECT id, endpoint, key_auth, key_p256dh, key_vapid
+		FROM "WebPushSubscription"
+		WHERE network IS NOT DISTINCT FROM $1`, nullNetworkID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []WebPushSubscription
+	for rows.Next() {
+		var sub WebPushSubscription
+		if err := rows.Scan(&sub.ID, &sub.Endpoint, &sub.Keys.Auth, &sub.Keys.P256DH, &sub.Keys.VAPID); err != nil {
+			return nil, err
+		}
+		subs = append(subs, sub)
+	}
+
+	return subs, rows.Err()
+}
+
+func (db *PostgresDB) StoreWebPushSubscription(ctx context.Context, networkID int64, sub *WebPushSubscription) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	nullNetworkID := sql.NullInt64{
+		Int64: networkID,
+		Valid: networkID == 0,
+	}
+
+	var err error
+	if sub.ID != 0 {
+		_, err = db.db.ExecContext(ctx, `
+			UPDATE "WebPushSubscription"
+			SET updated_at = NOW(), key_auth = $1, key_p256dh = $2,
+				key_vapid = $3
+			WHERE id = $4`,
+			sub.Keys.Auth, sub.Keys.P256DH, sub.Keys.VAPID, sub.ID)
+	} else {
+		err = db.db.QueryRowContext(ctx, `
+			INSERT INTO "WebPushSubscription" (created_at, updated_at, network,
+				endpoint, key_auth, key_p256dh, key_vapid)
+			VALUES (NOW(), NOW(), $1, $2, $3, $4, $5)
+			RETURNING id`,
+			nullNetworkID, sub.Endpoint, sub.Keys.Auth, sub.Keys.P256DH,
+			sub.Keys.VAPID).Scan(&sub.ID)
+	}
+
+	return err
+}
+
+func (db *PostgresDB) DeleteWebPushSubscription(ctx context.Context, id int64) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	_, err := db.db.ExecContext(ctx, `DELETE FROM "WebPushSubscription" WHERE id = $1`, id)
+	return err
 }
 
 var postgresNetworksTotalDesc = prometheus.NewDesc("soju_networks_total", "Number of networks", []string{"hostname"}, nil)

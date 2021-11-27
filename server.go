@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"gopkg.in/irc.v3"
@@ -37,6 +38,8 @@ var handleDownstreamMessageTimeout = 10 * time.Second
 var downstreamRegisterTimeout = 30 * time.Second
 var chatHistoryLimit = 1000
 var backlogLimit = 4000
+
+var errWebPushSubscriptionExpired = fmt.Errorf("Web Push subscription expired")
 
 type Logger interface {
 	Printf(format string, v ...interface{})
@@ -165,6 +168,8 @@ type Server struct {
 
 		upstreamConnectErrorsTotal prometheus.Counter
 	}
+
+	webPush *database.WebPushConfig
 }
 
 func NewServer(db database.Database) *Server {
@@ -196,6 +201,10 @@ func (s *Server) SetConfig(cfg *Config) {
 
 func (s *Server) Start() error {
 	s.registerMetrics()
+
+	if err := s.loadWebPushConfig(context.TODO()); err != nil {
+		return err
+	}
 
 	users, err := s.db.ListUsers(context.TODO())
 	if err != nil {
@@ -258,6 +267,70 @@ func (s *Server) registerMetrics() {
 		Name: "soju_upstream_connect_errors_total",
 		Help: "Total number of upstream connection errors",
 	})
+}
+
+func (s *Server) loadWebPushConfig(ctx context.Context) error {
+	configs, err := s.db.ListWebPushConfigs(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list Web push configs: %v", err)
+	}
+
+	if len(configs) > 1 {
+		return fmt.Errorf("expected zero or one Web push config, got %v", len(configs))
+	} else if len(configs) == 1 {
+		s.webPush = &configs[0]
+		return nil
+	}
+
+	s.Logger.Printf("generating Web push VAPID key pair")
+	priv, pub, err := webpush.GenerateVAPIDKeys()
+	if err != nil {
+		return fmt.Errorf("failed to generate Web push VAPID key pair: %v", err)
+	}
+
+	config := new(database.WebPushConfig)
+	config.VAPIDKeys.Public = pub
+	config.VAPIDKeys.Private = priv
+	if err := s.db.StoreWebPushConfig(ctx, config); err != nil {
+		return fmt.Errorf("failed to store Web push config: %v", err)
+	}
+
+	s.webPush = config
+	return nil
+}
+
+func (s *Server) sendWebPush(ctx context.Context, sub *webpush.Subscription, vapidPubKey string, msg *irc.Message) error {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	options := webpush.Options{
+		VAPIDPublicKey:  s.webPush.VAPIDKeys.Public,
+		VAPIDPrivateKey: s.webPush.VAPIDKeys.Private,
+		Subscriber:      "https://soju.im",
+		TTL:             7 * 24 * 60 * 60, // seconds
+		Urgency:         webpush.UrgencyHigh,
+		RecordSize:      2048,
+	}
+
+	if vapidPubKey != options.VAPIDPublicKey {
+		return fmt.Errorf("unknown VAPID public key %q", vapidPubKey)
+	}
+
+	payload := []byte(msg.String())
+	resp, err := webpush.SendNotificationWithContext(ctx, payload, sub, &options)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+
+	// 404 means the subscription has expired as per RFC 8030 section 7.3
+	if resp.StatusCode == http.StatusNotFound {
+		return errWebPushSubscriptionExpired
+	} else if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("HTTP error: %v", resp.Status)
+	}
+
+	return nil
 }
 
 func (s *Server) Shutdown() {

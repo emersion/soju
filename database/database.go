@@ -32,6 +32,13 @@ type Database interface {
 
 	GetReadReceipt(ctx context.Context, networkID int64, name string) (*ReadReceipt, error)
 	StoreReadReceipt(ctx context.Context, networkID int64, receipt *ReadReceipt) error
+
+	ListWebPushConfigs(ctx context.Context) ([]WebPushConfig, error)
+	StoreWebPushConfig(ctx context.Context, config *WebPushConfig) error
+
+	ListWebPushSubscriptions(ctx context.Context, networkID int64) ([]WebPushSubscription, error)
+	StoreWebPushSubscription(ctx context.Context, networkID int64, sub *WebPushSubscription) error
+	DeleteWebPushSubscription(ctx context.Context, id int64) error
 }
 
 type MetricsCollectorDatabase interface {
@@ -198,4 +205,21 @@ type ReadReceipt struct {
 	ID        int64
 	Target    string // channel or nick
 	Timestamp time.Time
+}
+
+type WebPushConfig struct {
+	ID        int64
+	VAPIDKeys struct {
+		Public, Private string
+	}
+}
+
+type WebPushSubscription struct {
+	ID       int64
+	Endpoint string
+	Keys     struct {
+		Auth   string
+		P256DH string
+		VAPID  string
+	}
 }

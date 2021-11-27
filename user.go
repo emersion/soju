@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
@@ -440,6 +441,32 @@ func (net *network) autoSaveSASLPlain(ctx context.Context, username, password st
 	net.SASL.Plain.Password = password
 	if err := net.user.srv.db.StoreNetwork(ctx, net.user.ID, &net.Network); err != nil {
 		net.logger.Printf("failed to save SASL PLAIN credentials: %v", err)
+	}
+}
+
+func (net *network) broadcastWebPush(ctx context.Context, msg *irc.Message) {
+	subs, err := net.user.srv.db.ListWebPushSubscriptions(ctx, net.ID)
+	if err != nil {
+		net.logger.Printf("failed to list Web push subscriptions: %v", err)
+		return
+	}
+
+	for _, sub := range subs {
+		err := net.user.srv.sendWebPush(ctx, &webpush.Subscription{
+			Endpoint: sub.Endpoint,
+			Keys: webpush.Keys{
+				Auth:   sub.Keys.Auth,
+				P256dh: sub.Keys.P256DH,
+			},
+		}, sub.Keys.VAPID, msg)
+		if err != nil {
+			net.logger.Printf("failed to send Web push notification to endpoint %q: %v", sub.Endpoint, err)
+		}
+		if err == errWebPushSubscriptionExpired {
+			if err := net.user.srv.db.DeleteWebPushSubscription(ctx, sub.ID); err != nil {
+				net.logger.Printf("failed to delete expired Web Push subscription: %v", err)
+			}
+		}
 	}
 }
 

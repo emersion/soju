@@ -5,6 +5,7 @@ go 1.15
 require (
 	git.sr.ht/~emersion/go-scfg v0.0.0-20211215104734-c2c7a15d6c99
 	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9
+	github.com/SherClockHolmes/webpush-go v1.2.0
 	github.com/emersion/go-sasl v0.0.0-20211008083017-0b9dcfb154ac
 	github.com/klauspost/compress v1.15.6 // indirect
 	github.com/lib/pq v1.10.6

@@ -84,6 +84,27 @@ CREATE TABLE ReadReceipt (
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, target)
 );
+
+CREATE TABLE WebPushConfig (
+	id INTEGER PRIMARY KEY,
+	created_at TEXT NOT NULL,
+	vapid_key_public TEXT NOT NULL,
+	vapid_key_private TEXT NOT NULL,
+	UNIQUE(vapid_key_public)
+);
+
+CREATE TABLE WebPushSubscription (
+	id INTEGER PRIMARY KEY,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	network INTEGER,
+	endpoint TEXT NOT NULL,
+	key_vapid TEXT,
+	key_auth TEXT,
+	key_p256dh TEXT,
+	FOREIGN KEY(network) REFERENCES Network(id),
+	UNIQUE(network, endpoint)
+);
 `
 
 var sqliteMigrations = []string{
@@ -192,6 +213,28 @@ var sqliteMigrations = []string{
 			timestamp TEXT NOT NULL,
 			FOREIGN KEY(network) REFERENCES Network(id),
 			UNIQUE(network, target)
+		);
+	`,
+	`
+		CREATE TABLE WebPushConfig (
+			id INTEGER PRIMARY KEY,
+			created_at TEXT NOT NULL,
+			vapid_key_public TEXT NOT NULL,
+			vapid_key_private TEXT NOT NULL,
+			UNIQUE(vapid_key_public)
+		);
+
+		CREATE TABLE WebPushSubscription (
+			id INTEGER PRIMARY KEY,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			network INTEGER,
+			endpoint TEXT NOT NULL,
+			key_vapid TEXT,
+			key_auth TEXT,
+			key_p256dh TEXT,
+			FOREIGN KEY(network) REFERENCES Network(id),
+			UNIQUE(network, endpoint)
 		);
 	`,
 }
@@ -555,6 +598,11 @@ func (db *SqliteDB) DeleteNetwork(ctx context.Context, id int64) error {
 	}
 	defer tx.Rollback()
 
+	_, err = tx.ExecContext(ctx, "DELETE FROM WebPushSubscription WHERE network = ?", id)
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.ExecContext(ctx, "DELETE FROM DeliveryReceipt WHERE network = ?", id)
 	if err != nil {
 		return err
@@ -782,5 +830,131 @@ func (db *SqliteDB) StoreReadReceipt(ctx context.Context, networkID int64, recei
 		receipt.ID, err = res.LastInsertId()
 	}
 
+	return err
+}
+
+func (db *SqliteDB) ListWebPushConfigs(ctx context.Context) ([]WebPushConfig, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx, `
+		SELECT id, vapid_key_public, vapid_key_private
+		FROM WebPushConfig`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var configs []WebPushConfig
+	for rows.Next() {
+		var config WebPushConfig
+		if err := rows.Scan(&config.ID, &config.VAPIDKeys.Public, &config.VAPIDKeys.Private); err != nil {
+			return nil, err
+		}
+		configs = append(configs, config)
+	}
+
+	return configs, rows.Err()
+}
+
+func (db *SqliteDB) StoreWebPushConfig(ctx context.Context, config *WebPushConfig) error {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	if config.ID != 0 {
+		return fmt.Errorf("cannot update a WebPushConfig")
+	}
+
+	res, err := db.db.ExecContext(ctx, `
+		INSERT INTO WebPushConfig(created_at, vapid_key_public, vapid_key_private)
+		VALUES (:now, :vapid_key_public, :vapid_key_private)`,
+		sql.Named("vapid_key_public", config.VAPIDKeys.Public),
+		sql.Named("vapid_key_private", config.VAPIDKeys.Private),
+		sql.Named("now", formatSqliteTime(time.Now())))
+	if err != nil {
+		return err
+	}
+	config.ID, err = res.LastInsertId()
+	return err
+}
+
+func (db *SqliteDB) ListWebPushSubscriptions(ctx context.Context, networkID int64) ([]WebPushSubscription, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	nullNetworkID := sql.NullInt64{
+		Int64: networkID,
+		Valid: networkID != 0,
+	}
+
+	rows, err := db.db.QueryContext(ctx, `
+		SELECT id, endpoint, key_auth, key_p256dh, key_vapid
+		FROM WebPushSubscription
+		WHERE network IS ?`, nullNetworkID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []WebPushSubscription
+	for rows.Next() {
+		var sub WebPushSubscription
+		if err := rows.Scan(&sub.ID, &sub.Endpoint, &sub.Keys.Auth, &sub.Keys.P256DH, &sub.Keys.VAPID); err != nil {
+			return nil, err
+		}
+		subs = append(subs, sub)
+	}
+
+	return subs, rows.Err()
+}
+
+func (db *SqliteDB) StoreWebPushSubscription(ctx context.Context, networkID int64, sub *WebPushSubscription) error {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	args := []interface{}{
+		sql.Named("id", sub.ID),
+		sql.Named("network", sql.NullInt64{
+			Int64: networkID,
+			Valid: networkID != 0,
+		}),
+		sql.Named("now", formatSqliteTime(time.Now())),
+		sql.Named("endpoint", sub.Endpoint),
+		sql.Named("key_auth", sub.Keys.Auth),
+		sql.Named("key_p256dh", sub.Keys.P256DH),
+		sql.Named("key_vapid", sub.Keys.VAPID),
+	}
+
+	var err error
+	if sub.ID != 0 {
+		_, err = db.db.ExecContext(ctx, `
+			UPDATE WebPushSubscription
+			SET updated_at = :now, key_auth = :key_auth, key_p256dh = :key_p256dh,
+				key_vapid = :key_vapid
+			WHERE id = :id`,
+			args...)
+	} else {
+		var res sql.Result
+		res, err = db.db.ExecContext(ctx, `
+			INSERT INTO
+			WebPushSubscription(created_at, updated_at, network, endpoint,
+				key_auth, key_p256dh, key_vapid)
+			VALUES (:now, :now, :network, :endpoint, :key_auth, :key_p256dh,
+				:key_vapid)`,
+			args...)
+		if err != nil {
+			return err
+		}
+		sub.ID, err = res.LastInsertId()
+	}
+
+	return err
+}
+
+func (db *SqliteDB) DeleteWebPushSubscription(ctx context.Context, id int64) error {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	_, err := db.db.ExecContext(ctx, "DELETE FROM WebPushSubscription WHERE id = ?", id)
 	return err
 }

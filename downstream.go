@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/emersion/go-sasl"
 	"gopkg.in/irc.v3"
 
@@ -240,6 +242,7 @@ var permanentDownstreamCaps = map[string]string{
 	"soju.im/no-implicit-names":       "",
 	"soju.im/read":                    "",
 	"soju.im/account-required":        "",
+	"soju.im/webpush":                 "",
 }
 
 // needAllDownstreamCaps is the list of downstream capabilities that
@@ -1500,6 +1503,9 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	}
 	if dc.network == nil && !dc.isMultiUpstream {
 		isupport = append(isupport, "WHOX")
+	}
+	if dc.caps.IsEnabled("soju.im/webpush") {
+		isupport = append(isupport, "VAPID="+dc.srv.webPush.VAPIDKeys.Public)
 	}
 
 	if uc := dc.upstream(); uc != nil {
@@ -3199,6 +3205,149 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{"BOUNCER", "UNKNOWN_COMMAND", subcommand, "Unknown subcommand"},
 			}}
 		}
+	case "WEBPUSH":
+		if !dc.caps.IsEnabled("soju.im/webpush") {
+			return newUnknownCommandError(msg.Command)
+		}
+
+		var subcommand string
+		if err := parseMessageParams(msg, &subcommand); err != nil {
+			return err
+		}
+
+		switch subcommand {
+		case "REGISTER":
+			var endpoint, keysStr string
+			if err := parseMessageParams(msg, nil, &endpoint, &keysStr); err != nil {
+				return err
+			}
+
+			if err := checkWebPushEndpoint(ctx, endpoint); err != nil {
+				dc.logger.Printf("failed to check Web push endpoint %q: %v", endpoint, err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"WEBPUSH", "INVALID_PARAMS", subcommand, "Invalid endpoint"},
+				}}
+			}
+
+			rawKeys := irc.ParseTags(keysStr)
+			authKey, hasAuthKey := rawKeys["auth"]
+			p256dhKey, hasP256dh := rawKeys["p256dh"]
+			if !hasAuthKey || !hasP256dh {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"WEBPUSH", "INVALID_PARAMS", subcommand, "Missing auth or p256dh key"},
+				}}
+			}
+
+			newSub := database.WebPushSubscription{
+				Endpoint: endpoint,
+			}
+			newSub.Keys.VAPID = dc.srv.webPush.VAPIDKeys.Public
+			newSub.Keys.Auth = string(authKey)
+			newSub.Keys.P256DH = string(p256dhKey)
+
+			oldSub, err := dc.findWebPushSubscription(ctx, endpoint)
+			if err != nil {
+				dc.logger.Printf("failed to fetch Web push subscription: %v", err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"WEBPUSH", "INTERNAL_ERROR", subcommand, "Internal error"},
+				}}
+			}
+
+			if oldSub != nil {
+				if oldSub.Keys.VAPID == newSub.Keys.VAPID && oldSub.Keys.Auth == newSub.Keys.Auth && oldSub.Keys.P256DH == newSub.Keys.P256DH {
+					// Nothing has changed, this is a no-op
+					dc.SendMessage(&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: "WEBPUSH",
+						Params:  []string{"REGISTER", endpoint},
+					})
+					return nil
+				}
+
+				// Update the old subscription instead of creating a new one
+				newSub.ID = oldSub.ID
+			}
+
+			var networkID int64
+			if dc.network != nil {
+				networkID = dc.network.ID
+			}
+
+			// TODO: limit max number of subscriptions, prune old ones
+
+			if err := dc.user.srv.db.StoreWebPushSubscription(ctx, networkID, &newSub); err != nil {
+				dc.logger.Printf("failed to store Web push subscription: %v", err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"WEBPUSH", "INTERNAL_ERROR", subcommand, "Internal error"},
+				}}
+			}
+
+			err = dc.srv.sendWebPush(ctx, &webpush.Subscription{
+				Endpoint: newSub.Endpoint,
+				Keys: webpush.Keys{
+					Auth:   newSub.Keys.Auth,
+					P256dh: newSub.Keys.P256DH,
+				},
+			}, newSub.Keys.VAPID, &irc.Message{
+				Command: "NOTE",
+				Params:  []string{"WEBPUSH", "REGISTERED", "Push notifications enabled"},
+			})
+			if err != nil {
+				dc.logger.Printf("failed to send Web push notification to endpoint %q: %v", newSub.Endpoint, err)
+			}
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "WEBPUSH",
+				Params:  []string{"REGISTER", endpoint},
+			})
+		case "UNREGISTER":
+			var endpoint string
+			if err := parseMessageParams(msg, nil, &endpoint); err != nil {
+				return err
+			}
+
+			oldSub, err := dc.findWebPushSubscription(ctx, endpoint)
+			if err != nil {
+				dc.logger.Printf("failed to fetch Web push subscription: %v", err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"WEBPUSH", "INTERNAL_ERROR", subcommand, "Internal error"},
+				}}
+			}
+
+			if oldSub == nil {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: "WEBPUSH",
+					Params:  []string{"UNREGISTER", endpoint},
+				})
+				return nil
+			}
+
+			if err := dc.srv.db.DeleteWebPushSubscription(ctx, oldSub.ID); err != nil {
+				dc.logger.Printf("failed to delete Web push subscription: %v", err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"WEBPUSH", "INTERNAL_ERROR", subcommand, "Internal error"},
+				}}
+			}
+
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "WEBPUSH",
+				Params:  []string{"UNREGISTER", endpoint},
+			})
+		default:
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"WEBPUSH", "INVALID_PARAMS", subcommand, "Unknown command"},
+			}}
+		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 
@@ -3225,6 +3374,20 @@ func (dc *downstreamConn) handleNickServPRIVMSG(ctx context.Context, uc *upstrea
 	if ok {
 		uc.network.autoSaveSASLPlain(ctx, username, password)
 	}
+}
+
+func (dc *downstreamConn) findWebPushSubscription(ctx context.Context, endpoint string) (*database.WebPushSubscription, error) {
+	subs, err := dc.user.srv.db.ListWebPushSubscriptions(ctx, dc.network.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, sub := range subs {
+		if sub.Endpoint == endpoint {
+			return &subs[i], nil
+		}
+	}
+	return nil, nil
 }
 
 func parseNickServCredentials(text, nick string) (username, password string, ok bool) {
@@ -3330,4 +3493,36 @@ func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 	for _, msg := range msgs {
 		dc.SendMessage(msg)
 	}
+}
+
+func checkWebPushEndpoint(ctx context.Context, endpoint string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodOptions, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTP request failed: %v", err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("HTTP request failed: %v", resp.Status)
+	}
+
+	allow := strings.Split(resp.Header.Get("Allow"), ",")
+	found := false
+	for _, method := range allow {
+		if strings.EqualFold(strings.TrimSpace(method), http.MethodPost) {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("POST missing from Allow header in OPTIONS response")
+	}
+
+	return nil
 }

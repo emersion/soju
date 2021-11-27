@@ -523,6 +523,12 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				if ch.DetachOn == database.FilterMessage || ch.DetachOn == database.FilterDefault || (ch.DetachOn == database.FilterHighlight && highlight) {
 					uc.updateChannelAutoDetach(target)
 				}
+				if highlight {
+					uc.network.broadcastWebPush(ctx, msg)
+				}
+			}
+			if ch == nil && uc.isOurNick(entity) {
+				uc.network.broadcastWebPush(ctx, msg)
 			}
 
 			uc.produce(target, msg, downstreamID)
@@ -1514,6 +1520,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				Params:  []string{dc.marshalEntity(uc.network, nick), dc.marshalEntity(uc.network, channel)},
 			})
 		})
+
+		if weAreInvited {
+			uc.network.broadcastWebPush(ctx, msg)
+		}
 	case irc.RPL_INVITING:
 		var nick, channel string
 		if err := parseMessageParams(msg, nil, &nick, &channel); err != nil {
