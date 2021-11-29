@@ -431,6 +431,12 @@ func (dc *downstreamConn) unmarshalEntityNetwork(name string) (*network, string,
 	if dc.network != nil {
 		return dc.network, name, nil
 	}
+	if !dc.isMultiUpstream {
+		return nil, "", ircError{&irc.Message{
+			Command: irc.ERR_NOSUCHCHANNEL,
+			Params:  []string{dc.nick, name, "Cannot interact with channels and users on the bouncer connection. Did you mean to use a specific network?"},
+		}}
+	}
 
 	var net *network
 	if i := strings.LastIndexByte(name, '/'); i >= 0 {
@@ -448,7 +454,7 @@ func (dc *downstreamConn) unmarshalEntityNetwork(name string) (*network, string,
 	if net == nil {
 		return nil, "", ircError{&irc.Message{
 			Command: irc.ERR_NOSUCHCHANNEL,
-			Params:  []string{name, "Missing network suffix in name"},
+			Params:  []string{dc.nick, name, "Missing network suffix in name"},
 		}}
 	}
 
@@ -466,7 +472,7 @@ func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, e
 	if net.conn == nil {
 		return nil, "", ircError{&irc.Message{
 			Command: irc.ERR_NOSUCHCHANNEL,
-			Params:  []string{name, "Disconnected from upstream network"},
+			Params:  []string{dc.nick, name, "Disconnected from upstream network"},
 		}}
 	}
 
