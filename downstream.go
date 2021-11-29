@@ -54,10 +54,39 @@ func newChatHistoryError(subcommand string, target string) ircError {
 	}}
 }
 
-var errAuthFailed = ircError{&irc.Message{
-	Command: irc.ERR_PASSWDMISMATCH,
-	Params:  []string{"*", "Invalid username or password"},
-}}
+// authError is an authentication error.
+type authError struct {
+	// Internal error cause. This will not be revealed to the user.
+	err error
+	// Error cause which can safely be sent to the user without compromising
+	// security.
+	reason string
+}
+
+func (err *authError) Error() string {
+	return err.err.Error()
+}
+
+func (err *authError) Unwrap() error {
+	return err.err
+}
+
+// authErrorReason returns the user-friendly reason of an authentication
+// failure.
+func authErrorReason(err error) string {
+	if authErr, ok := err.(*authError); ok {
+		return authErr.reason
+	} else {
+		return "Authentication failed"
+	}
+}
+
+func newInvalidUsernameOrPasswordError(err error) error {
+	return &authError{
+		err:    err,
+		reason: "Invalid username or password",
+	}
+}
 
 func parseBouncerNetID(subcommand, s string) (int64, error) {
 	id, err := strconv.ParseInt(s, 10, 64)
@@ -698,11 +727,11 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		}
 
 		if err := dc.authenticate(ctx, credentials.plainUsername, credentials.plainPassword); err != nil {
-			dc.logger.Printf("SASL authentication error: %v", err)
+			dc.logger.Printf("SASL authentication error for user %q: %v", credentials.plainUsername, err)
 			dc.endSASL(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
-				Params:  []string{"Authentication failed"},
+				Params:  []string{dc.nick, authErrorReason(err)},
 			})
 			break
 		}
@@ -1148,25 +1177,22 @@ func (dc *downstreamConn) authenticate(ctx context.Context, username, password s
 
 	u, err := dc.srv.db.GetUser(ctx, username)
 	if err != nil {
-		dc.logger.Printf("failed authentication for %q: user not found: %v", username, err)
-		return errAuthFailed
+		return newInvalidUsernameOrPasswordError(fmt.Errorf("user not found: %w", err))
 	}
 
 	// Password auth disabled
 	if u.Password == "" {
-		return errAuthFailed
+		return newInvalidUsernameOrPasswordError(fmt.Errorf("password auth disabled"))
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
 	if err != nil {
-		dc.logger.Printf("failed authentication for %q: wrong password: %v", username, err)
-		return errAuthFailed
+		return newInvalidUsernameOrPasswordError(fmt.Errorf("wrong password"))
 	}
 
 	dc.user = dc.srv.getUser(username)
 	if dc.user == nil {
-		dc.logger.Printf("failed authentication for %q: user not active", username)
-		return errAuthFailed
+		return fmt.Errorf("user not active")
 	}
 	dc.clientName = clientName
 	dc.networkName = networkName
@@ -1190,7 +1216,11 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 	dc.password = ""
 	if dc.user == nil {
 		if err := dc.authenticate(ctx, dc.rawUsername, password); err != nil {
-			return err
+			dc.logger.Printf("PASS authentication error for user %q: %v", dc.rawUsername, err)
+			return ircError{&irc.Message{
+				Command: irc.ERR_PASSWDMISMATCH,
+				Params:  []string{"*", authErrorReason(err)},
+			}}
 		}
 	}
 
