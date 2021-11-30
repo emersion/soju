@@ -191,6 +191,12 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	- _irc+insecure://<host>[:port]_ connects with plain-text TCP
 	- _irc+unix:///<path>_ connects to a Unix socket
 
+	For example, to connect to Libera Chat:
+
+	```
+	net create -addr irc.libera.chat
+	```
+
 	Other options are:
 
 	*-name* <name>
