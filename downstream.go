@@ -1079,6 +1079,21 @@ func (dc *downstreamConn) updateSupportedCaps() {
 		dc.unsetSupportedCap("sasl")
 	}
 
+	if uc := dc.upstream(); uc != nil && uc.caps["draft/account-registration"] {
+		// Strip "before-connect", because we require downstreams to be fully
+		// connected before attempting account registration.
+		values := strings.Split(uc.supportedCaps["draft/account-registration"], ",")
+		for i, v := range values {
+			if v == "before-connect" {
+				values = append(values[:i], values[i+1:]...)
+				break
+			}
+		}
+		dc.setSupportedCap("draft/account-registration", strings.Join(values, ","))
+	} else {
+		dc.unsetSupportedCap("draft/account-registration")
+	}
+
 	if _, ok := dc.user.msgStore.(chatHistoryMessageStore); ok && dc.network != nil {
 		dc.setSupportedCap("draft/event-playback", "")
 	} else {
@@ -2408,7 +2423,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		uc := dc.upstream()
 		if uc == nil || !uc.caps["sasl"] {
 			return ircError{&irc.Message{
-				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
 				Params:  []string{dc.nick, "Upstream network authentication not supported"},
 			}}
@@ -2436,6 +2450,23 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{"PLAIN"},
 			})
 		}
+	case "REGISTER", "VERIFY":
+		// Check number of params here, since we'll use that to save the
+		// credentials on command success
+		if (msg.Command == "REGISTER" && len(msg.Params) < 3) || (msg.Command == "VERIFY" && len(msg.Params) < 2) {
+			return newNeedMoreParamsError(msg.Command)
+		}
+
+		uc := dc.upstream()
+		if uc == nil || !uc.caps["draft/account-registration"] {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{msg.Command, "TEMPORARILY_UNAVAILABLE", "*", "Upstream network account registration not supported"},
+			}}
+		}
+
+		uc.logger.Printf("starting %v with account name %v", msg.Command, msg.Params[0])
+		uc.enqueueCommand(dc, msg)
 	case "MONITOR":
 		// MONITOR is unsupported in multi-upstream mode
 		uc := dc.upstream()

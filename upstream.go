@@ -35,7 +35,8 @@ var permanentUpstreamCaps = map[string]bool{
 	"server-time":      true,
 	"setname":          true,
 
-	"draft/extended-monitor": true,
+	"draft/account-registration": true,
+	"draft/extended-monitor":     true,
 }
 
 type registrationError string
@@ -300,6 +301,12 @@ func (uc *upstreamConn) endPendingCommands() {
 					Command: irc.ERR_SASLABORTED,
 					Params:  []string{dc.nick, "SASL authentication aborted"},
 				})
+			case "REGISTER", "VERIFY":
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: "FAIL",
+					Params:  []string{pendingCmd.msg.Command, "TEMPORARILY_UNAVAILABLE", pendingCmd.msg.Params[0], "Command aborted"},
+				})
 			default:
 				panic(fmt.Errorf("Unsupported pending command %q", pendingCmd.msg.Command))
 			}
@@ -318,7 +325,7 @@ func (uc *upstreamConn) sendNextPendingCommand(cmd string) {
 
 func (uc *upstreamConn) enqueueCommand(dc *downstreamConn, msg *irc.Message) {
 	switch msg.Command {
-	case "LIST", "WHO", "AUTHENTICATE":
+	case "LIST", "WHO", "AUTHENTICATE", "REGISTER", "VERIFY":
 		// Supported
 	default:
 		panic(fmt.Errorf("Unsupported pending command %q", msg.Command))
@@ -632,6 +639,21 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Command: "CAP",
 				Params:  []string{"END"},
 			})
+		}
+	case "REGISTER", "VERIFY":
+		if dc, cmd := uc.dequeueCommand(msg.Command); dc != nil {
+			if msg.Command == "REGISTER" {
+				var account, password string
+				if err := parseMessageParams(msg, nil, &account); err != nil {
+					return err
+				}
+				if err := parseMessageParams(cmd, nil, nil, &password); err != nil {
+					return err
+				}
+				uc.network.autoSaveSASLPlain(context.TODO(), account, password)
+			}
+
+			dc.SendMessage(msg)
 		}
 	case irc.RPL_WELCOME:
 		uc.registered = true
@@ -1569,11 +1591,8 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			return err
 		}
 
-		if command == "LIST" || command == "WHO" {
-			dc, _ := uc.dequeueCommand(command)
-			if dc != nil && downstreamID == 0 {
-				downstreamID = dc.id
-			}
+		if dc, _ := uc.dequeueCommand(command); dc != nil && downstreamID == 0 {
+			downstreamID = dc.id
 		}
 
 		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
@@ -1582,6 +1601,19 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				Command: msg.Command,
 				Params:  []string{dc.nick, command, reason},
 			})
+		})
+	case "FAIL":
+		var command string
+		if err := parseMessageParams(msg, &command); err != nil {
+			return err
+		}
+
+		if dc, _ := uc.dequeueCommand(command); dc != nil && downstreamID == 0 {
+			downstreamID = dc.id
+		}
+
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+			dc.SendMessage(msg)
 		})
 	case "ACK":
 		// Ignore
