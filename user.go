@@ -782,11 +782,44 @@ func (u *user) removeNetwork(network *network) {
 }
 
 func (u *user) checkNetwork(record *Network) error {
+	url, err := record.URL()
+	if err != nil {
+		return err
+	}
+	if url.User != nil {
+		return fmt.Errorf("%v:// URL must not have username and password information", url.Scheme)
+	}
+	if url.RawQuery != "" {
+		return fmt.Errorf("%v:// URL must not have query values", url.Scheme)
+	}
+	if url.Fragment != "" {
+		return fmt.Errorf("%v:// URL must not have a fragment", url.Scheme)
+	}
+	switch url.Scheme {
+	case "ircs", "irc+insecure":
+		if url.Host == "" {
+			return fmt.Errorf("%v:// URL must have a host", url.Scheme)
+		}
+		if url.Path != "" {
+			return fmt.Errorf("%v:// URL must not have a path", url.Scheme)
+		}
+	case "irc+unix", "unix":
+		if url.Host != "" {
+			return fmt.Errorf("%v:// URL must not have a host", url.Scheme)
+		}
+		if url.Path == "" {
+			return fmt.Errorf("%v:// URL must have a path", url.Scheme)
+		}
+	default:
+		return fmt.Errorf("unknown URL scheme %q", url.Scheme)
+	}
+
 	for _, net := range u.networks {
 		if net.GetName() == record.GetName() && net.ID != record.ID {
 			return fmt.Errorf("a network with the name %q already exists", record.GetName())
 		}
 	}
+
 	return nil
 }
 
