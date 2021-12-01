@@ -241,6 +241,11 @@ func init() {
 		},
 		"sasl": {
 			children: serviceCommandSet{
+				"status": {
+					usage:  "<network name>",
+					desc:   "show SASL status",
+					handle: handleServiceSaslStatus,
+				},
 				"set-plain": {
 					usage:  "<network name> <username> <password>",
 					desc:   "set SASL PLAIN credentials",
@@ -681,6 +686,38 @@ func handleServiceCertFPFingerprints(ctx context.Context, dc *downstreamConn, pa
 	}
 
 	sendCertfpFingerprints(dc, net.SASL.External.CertBlob)
+	return nil
+}
+
+func handleServiceSaslStatus(ctx context.Context, dc *downstreamConn, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+
+	net := dc.user.getNetwork(params[0])
+	if net == nil {
+		return fmt.Errorf("unknown network %q", params[0])
+	}
+
+	switch net.SASL.Mechanism {
+	case "PLAIN":
+		sendServicePRIVMSG(dc, fmt.Sprintf("SASL PLAIN enabled with username %q", net.SASL.Plain.Username))
+	case "EXTERNAL":
+		sendServicePRIVMSG(dc, "SASL EXTERNAL (CertFP) enabled")
+	case "":
+		sendServicePRIVMSG(dc, "SASL is disabled")
+	}
+
+	if uc := net.conn; uc != nil {
+		if uc.account != "" {
+			sendServicePRIVMSG(dc, fmt.Sprintf("Authenticated on upstream network with account %q", uc.account))
+		} else {
+			sendServicePRIVMSG(dc, "Unauthenticated on upstream network")
+		}
+	} else {
+		sendServicePRIVMSG(dc, "Disconnected from upstream network")
+	}
+
 	return nil
 }
 

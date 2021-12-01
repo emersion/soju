@@ -344,6 +344,9 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	Show SHA-1 and SHA-256 fingerprints for the certificate
 	currently used with the network.
 
+*sasl status* <network name>
+	Show current SASL status.
+
 *sasl set-plain* <network name> <username> <password>
 	Set SASL PLAIN credentials.
 
