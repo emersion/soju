@@ -39,10 +39,25 @@ var permanentUpstreamCaps = map[string]bool{
 	"draft/extended-monitor":     true,
 }
 
-type registrationError string
+type registrationError struct {
+	*irc.Message
+}
 
 func (err registrationError) Error() string {
-	return fmt.Sprintf("registration error: %v", string(err))
+	return fmt.Sprintf("registration error (%v): %v", err.Command, err.Reason())
+}
+
+func (err registrationError) Reason() string {
+	if len(err.Params) > 0 {
+		return err.Params[len(err.Params)-1]
+	}
+	return err.Command
+}
+
+func (err registrationError) Temporary() bool {
+	// Only return false if we're 100% sure that fixing the error requires a
+	// network configuration change
+	return err.Command != irc.ERR_PASSWDMISMATCH && err.Command != irc.ERR_ERRONEUSNICKNAME
 }
 
 type upstreamChannel struct {
@@ -1651,8 +1666,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 		return fmt.Errorf("fatal server error: %v", text)
 	case irc.ERR_PASSWDMISMATCH, irc.ERR_ERRONEUSNICKNAME, irc.ERR_NICKNAMEINUSE, irc.ERR_NICKCOLLISION, irc.ERR_UNAVAILRESOURCE, irc.ERR_NOPERMFORHOST, irc.ERR_YOUREBANNEDCREEP:
 		if !uc.registered {
-			text := msg.Params[len(msg.Params)-1]
-			return registrationError(text)
+			return registrationError{msg}
 		}
 		fallthrough
 	default:

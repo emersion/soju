@@ -221,14 +221,19 @@ func (net *network) run() {
 		uc.register()
 		if err := uc.runUntilRegistered(); err != nil {
 			text := err.Error()
+			temp := true
 			if regErr, ok := err.(registrationError); ok {
-				text = string(regErr)
+				text = regErr.Reason()
+				temp = regErr.Temporary()
 			}
 			uc.logger.Printf("failed to register: %v", text)
 			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to register: %v", text)}
 			uc.Close()
 			net.user.srv.metrics.upstreams.Add(-1)
 			net.user.srv.metrics.upstreamConnectErrorsTotal.Inc()
+			if !temp {
+				return
+			}
 			continue
 		}
 
