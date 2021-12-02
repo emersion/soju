@@ -385,6 +385,18 @@ func (uc *upstreamConn) dequeueCommand(cmd string) (*downstreamConn, *irc.Messag
 	return dc, msg
 }
 
+func (uc *upstreamConn) cancelPendingCommandsByDownstreamID(downstreamID uint64) {
+	for cmd := range uc.pendingCmds {
+		// We can't cancel the currently running command stored in
+		// uc.pendingCmds[cmd][0]
+		for i := len(uc.pendingCmds[cmd]) - 1; i >= 1; i-- {
+			if uc.pendingCmds[cmd][i].downstreamID == downstreamID {
+				uc.pendingCmds[cmd] = append(uc.pendingCmds[cmd][:i], uc.pendingCmds[cmd][i+1:]...)
+			}
+		}
+	}
+}
+
 func (uc *upstreamConn) parseMembershipPrefix(s string) (ms *memberships, nick string) {
 	memberships := make(memberships, 0, 4)
 	i := 0

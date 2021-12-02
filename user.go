@@ -662,6 +662,7 @@ func (u *user) run() {
 			})
 
 			u.forEachUpstream(func(uc *upstreamConn) {
+				uc.cancelPendingCommandsByDownstreamID(dc.id)
 				uc.updateAway()
 				uc.updateMonitor()
 			})
