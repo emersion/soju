@@ -372,7 +372,7 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 	})
 }
 
-func (net *network) storeClientDeliveryReceipts(clientName string) {
+func (net *network) storeClientDeliveryReceipts(ctx context.Context, clientName string) {
 	if !net.user.hasPersistentMsgStore() {
 		return
 	}
@@ -389,7 +389,7 @@ func (net *network) storeClientDeliveryReceipts(clientName string) {
 		})
 	})
 
-	if err := net.user.srv.db.StoreClientDeliveryReceipts(context.TODO(), net.ID, clientName, receipts); err != nil {
+	if err := net.user.srv.db.StoreClientDeliveryReceipts(ctx, net.ID, clientName, receipts); err != nil {
 		net.logger.Printf("failed to store delivery receipts for client %q: %v", clientName, err)
 	}
 }
@@ -658,7 +658,7 @@ func (u *user) run() {
 			}
 
 			dc.forEachNetwork(func(net *network) {
-				net.storeClientDeliveryReceipts(dc.clientName)
+				net.storeClientDeliveryReceipts(context.TODO(), dc.clientName)
 			})
 
 			u.forEachUpstream(func(uc *upstreamConn) {
@@ -713,7 +713,7 @@ func (u *user) run() {
 				n.stop()
 
 				n.delivered.ForEachClient(func(clientName string) {
-					n.storeClientDeliveryReceipts(clientName)
+					n.storeClientDeliveryReceipts(context.TODO(), clientName)
 				})
 			}
 			return
