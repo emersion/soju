@@ -106,6 +106,8 @@ type Server struct {
 		upstreamInMessagesTotal    prometheus.Counter
 		downstreamOutMessagesTotal prometheus.Counter
 		downstreamInMessagesTotal  prometheus.Counter
+
+		upstreamConnectErrorsTotal prometheus.Counter
 	}
 }
 
@@ -194,6 +196,11 @@ func (s *Server) registerMetrics() {
 	s.metrics.downstreamInMessagesTotal = factory.NewCounter(prometheus.CounterOpts{
 		Name: "soju_downstream_in_messages_total",
 		Help: "Total number of incoming messages received from downstream clients",
+	})
+
+	s.metrics.upstreamConnectErrorsTotal = factory.NewCounter(prometheus.CounterOpts{
+		Name: "soju_upstream_connect_errors_total",
+		Help: "Total number of upstream connection errors",
 	})
 }
 

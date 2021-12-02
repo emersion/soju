@@ -209,6 +209,7 @@ func (net *network) run() {
 			net.logger.Printf("failed to connect to upstream server %q: %v", net.Addr, err)
 			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to connect: %v", err)}
 			net.user.srv.metrics.upstreams.Add(-1)
+			net.user.srv.metrics.upstreamConnectErrorsTotal.Inc()
 			continue
 		}
 
@@ -226,6 +227,7 @@ func (net *network) run() {
 			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to register: %v", text)}
 			uc.Close()
 			net.user.srv.metrics.upstreams.Add(-1)
+			net.user.srv.metrics.upstreamConnectErrorsTotal.Inc()
 			continue
 		}
 
