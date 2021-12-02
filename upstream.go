@@ -123,7 +123,7 @@ type upstreamConn struct {
 	gotMotd bool
 }
 
-func connectToUpstream(network *network) (*upstreamConn, error) {
+func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, error) {
 	logger := &prefixLogger{network.user.logger, fmt.Sprintf("upstream %q: ", network.GetName())}
 
 	dialer := net.Dialer{Timeout: connectTimeout}
@@ -143,7 +143,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 			addr = u.Host + ":6697"
 		}
 
-		dialer.LocalAddr, err = network.user.localTCPAddrForHost(host)
+		dialer.LocalAddr, err = network.user.localTCPAddrForHost(ctx, host)
 		if err != nil {
 			return nil, fmt.Errorf("failed to pick local IP for remote host %q: %v", host, err)
 		}
@@ -171,7 +171,7 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 			logger.Printf("using TLS client certificate %x", sha256.Sum256(network.SASL.External.CertBlob))
 		}
 
-		netConn, err = dialer.Dial("tcp", addr)
+		netConn, err = dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to dial %q: %v", addr, err)
 		}
@@ -188,19 +188,19 @@ func connectToUpstream(network *network) (*upstreamConn, error) {
 			addr = u.Host + ":6667"
 		}
 
-		dialer.LocalAddr, err = network.user.localTCPAddrForHost(host)
+		dialer.LocalAddr, err = network.user.localTCPAddrForHost(ctx, host)
 		if err != nil {
 			return nil, fmt.Errorf("failed to pick local IP for remote host %q: %v", host, err)
 		}
 
 		logger.Printf("connecting to plain-text server at address %q", addr)
-		netConn, err = dialer.Dial("tcp", addr)
+		netConn, err = dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to dial %q: %v", addr, err)
 		}
 	case "irc+unix", "unix":
 		logger.Printf("connecting to Unix socket at path %q", u.Path)
-		netConn, err = dialer.Dial("unix", u.Path)
+		netConn, err = dialer.DialContext(ctx, "unix", u.Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to Unix socket %q: %v", u.Path, err)
 		}

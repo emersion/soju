@@ -202,7 +202,7 @@ func (net *network) run() {
 		}
 		lastTry = time.Now()
 
-		uc, err := connectToUpstream(net)
+		uc, err := connectToUpstream(context.TODO(), net)
 		if err != nil {
 			net.logger.Printf("failed to connect to upstream server %q: %v", net.Addr, err)
 			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to connect: %v", err)}
@@ -1015,13 +1015,13 @@ func (u *user) hasPersistentMsgStore() bool {
 
 // localAddrForHost returns the local address to use when connecting to host.
 // A nil address is returned when the OS should automatically pick one.
-func (u *user) localTCPAddrForHost(host string) (*net.TCPAddr, error) {
+func (u *user) localTCPAddrForHost(ctx context.Context, host string) (*net.TCPAddr, error) {
 	upstreamUserIPs := u.srv.Config().UpstreamUserIPs
 	if len(upstreamUserIPs) == 0 {
 		return nil, nil
 	}
 
-	ips, err := net.LookupIP(host)
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
 	if err != nil {
 		return nil, err
 	}
