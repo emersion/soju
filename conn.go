@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"golang.org/x/time/rate"
 	"gopkg.in/irc.v3"
 	"nhooyr.io/websocket"
 )
@@ -118,46 +119,6 @@ func (wa websocketAddr) String() string {
 	return string(wa)
 }
 
-type rateLimiter struct {
-	C       <-chan struct{}
-	ticker  *time.Ticker
-	stopped chan struct{}
-}
-
-func newRateLimiter(delay time.Duration, burst int) *rateLimiter {
-	ch := make(chan struct{}, burst)
-	for i := 0; i < burst; i++ {
-		ch <- struct{}{}
-	}
-	ticker := time.NewTicker(delay)
-	stopped := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				select {
-				case ch <- struct{}{}:
-					// This space is intentionally left blank
-				case <-stopped:
-					return
-				}
-			case <-stopped:
-				return
-			}
-		}
-	}()
-	return &rateLimiter{
-		C:       ch,
-		ticker:  ticker,
-		stopped: stopped,
-	}
-}
-
-func (rl *rateLimiter) Stop() {
-	rl.ticker.Stop()
-	close(rl.stopped)
-}
-
 type connOptions struct {
 	Logger         Logger
 	RateLimitDelay time.Duration
@@ -186,15 +147,13 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 	}
 
 	go func() {
-		var rl *rateLimiter
-		if options.RateLimitDelay > 0 && options.RateLimitBurst > 0 {
-			rl = newRateLimiter(options.RateLimitDelay, options.RateLimitBurst)
-			defer rl.Stop()
-		}
+		ctx, cancel := c.NewContext(context.Background())
+		defer cancel()
 
+		rl := rate.NewLimiter(rate.Every(options.RateLimitDelay), options.RateLimitBurst)
 		for msg := range outgoing {
-			if rl != nil {
-				<-rl.C
+			if err := rl.Wait(ctx); err != nil {
+				break
 			}
 
 			if c.srv.Config().Debug {
