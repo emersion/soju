@@ -202,18 +202,19 @@ func (net *network) run() {
 		}
 		lastTry = time.Now()
 
+		net.user.srv.metrics.upstreams.Add(1)
+
 		uc, err := connectToUpstream(context.TODO(), net)
 		if err != nil {
 			net.logger.Printf("failed to connect to upstream server %q: %v", net.Addr, err)
 			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to connect: %v", err)}
+			net.user.srv.metrics.upstreams.Add(-1)
 			continue
 		}
 
 		if net.user.srv.Identd != nil {
 			net.user.srv.Identd.Store(uc.RemoteAddr().String(), uc.LocalAddr().String(), userIdent(&net.user.User))
 		}
-
-		net.user.srv.metrics.upstreams.Add(1)
 
 		uc.register()
 		if err := uc.runUntilRegistered(); err != nil {
@@ -224,6 +225,7 @@ func (net *network) run() {
 			uc.logger.Printf("failed to register: %v", text)
 			net.user.events <- eventUpstreamConnectionError{net, fmt.Errorf("failed to register: %v", text)}
 			uc.Close()
+			net.user.srv.metrics.upstreams.Add(-1)
 			continue
 		}
 
