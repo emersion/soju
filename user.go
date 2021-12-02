@@ -611,7 +611,7 @@ func (u *user) run() {
 				uc.logger.Printf("ignoring message on closed connection: %v", msg)
 				break
 			}
-			if err := uc.handleMessage(msg); err != nil {
+			if err := uc.handleMessage(context.TODO(), msg); err != nil {
 				uc.logger.Printf("failed to handle message %q: %v", msg, err)
 			}
 		case eventChannelDetach:

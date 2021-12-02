@@ -412,7 +412,7 @@ func (uc *upstreamConn) parseMembershipPrefix(s string) (ms *memberships, nick s
 	return &memberships, s[i:]
 }
 
-func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
+func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) error {
 	var label string
 	if l, ok := msg.GetTag("label"); ok {
 		label = l
@@ -491,7 +491,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			ch := uc.network.channels.Value(target)
 			if ch != nil && msg.Command != "TAGMSG" {
 				if ch.Detached {
-					uc.handleDetachedMessage(ch, msg)
+					uc.handleDetachedMessage(ctx, ch, msg)
 				}
 
 				highlight := uc.network.isHighlight(msg)
@@ -662,7 +662,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 
 		if dc, _ := uc.dequeueCommand("AUTHENTICATE"); dc != nil && dc.sasl != nil {
 			if msg.Command == irc.RPL_SASLSUCCESS {
-				uc.network.autoSaveSASLPlain(context.TODO(), dc.sasl.plainUsername, dc.sasl.plainPassword)
+				uc.network.autoSaveSASLPlain(ctx, dc.sasl.plainUsername, dc.sasl.plainPassword)
 			}
 
 			dc.endSASL(msg)
@@ -684,7 +684,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 				if err := parseMessageParams(cmd, nil, nil, &password); err != nil {
 					return err
 				}
-				uc.network.autoSaveSASLPlain(context.TODO(), account, password)
+				uc.network.autoSaveSASLPlain(ctx, account, password)
 			}
 
 			dc.SendMessage(msg)
@@ -1715,7 +1715,7 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 	return nil
 }
 
-func (uc *upstreamConn) handleDetachedMessage(ch *Channel, msg *irc.Message) {
+func (uc *upstreamConn) handleDetachedMessage(ctx context.Context, ch *Channel, msg *irc.Message) {
 	if uc.network.detachedMessageNeedsRelay(ch, msg) {
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			dc.relayDetachedMessage(uc.network, msg)
@@ -1723,7 +1723,7 @@ func (uc *upstreamConn) handleDetachedMessage(ch *Channel, msg *irc.Message) {
 	}
 	if ch.ReattachOn == FilterMessage || (ch.ReattachOn == FilterHighlight && uc.network.isHighlight(msg)) {
 		uc.network.attach(ch)
-		if err := uc.srv.db.StoreChannel(context.TODO(), uc.network.ID, ch); err != nil {
+		if err := uc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 			uc.logger.Printf("failed to update channel %q: %v", ch.Name, err)
 		}
 	}
@@ -1914,7 +1914,7 @@ func (uc *upstreamConn) runUntilRegistered() error {
 			return fmt.Errorf("failed to read message: %v", err)
 		}
 
-		if err := uc.handleMessage(msg); err != nil {
+		if err := uc.handleMessage(context.TODO(), msg); err != nil {
 			if _, ok := err.(registrationError); ok {
 				return err
 			} else {
