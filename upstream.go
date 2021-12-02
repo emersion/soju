@@ -57,7 +57,14 @@ func (err registrationError) Reason() string {
 func (err registrationError) Temporary() bool {
 	// Only return false if we're 100% sure that fixing the error requires a
 	// network configuration change
-	return err.Command != irc.ERR_PASSWDMISMATCH && err.Command != irc.ERR_ERRONEUSNICKNAME
+	switch err.Command {
+	case irc.ERR_PASSWDMISMATCH, irc.ERR_ERRONEUSNICKNAME:
+		return false
+	case "FAIL":
+		return err.Params[1] != "ACCOUNT_REQUIRED"
+	default:
+		return true
+	}
 }
 
 type upstreamChannel struct {
@@ -1618,9 +1625,13 @@ func (uc *upstreamConn) handleMessage(msg *irc.Message) error {
 			})
 		})
 	case "FAIL":
-		var command string
-		if err := parseMessageParams(msg, &command); err != nil {
+		var command, code string
+		if err := parseMessageParams(msg, &command, &code); err != nil {
 			return err
+		}
+
+		if !uc.registered && command == "*" && code == "ACCOUNT_REQUIRED" {
+			return registrationError{msg}
 		}
 
 		if dc, _ := uc.dequeueCommand(command); dc != nil && downstreamID == 0 {
