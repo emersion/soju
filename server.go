@@ -23,7 +23,9 @@ import (
 )
 
 // TODO: make configurable
-var retryConnectDelay = time.Minute
+var retryConnectMinDelay = time.Minute
+var retryConnectMaxDelay = 10 * time.Minute
+var retryConnectJitter = time.Minute
 var connectTimeout = 15 * time.Second
 var writeTimeout = 10 * time.Second
 var upstreamMessageDelay = 2 * time.Second

@@ -190,13 +190,14 @@ func (net *network) run() {
 	}
 
 	var lastTry time.Time
+	backoff := newBackoffer(retryConnectMinDelay, retryConnectMaxDelay, retryConnectJitter)
 	for {
 		if net.isStopped() {
 			return
 		}
 
-		if dur := time.Now().Sub(lastTry); dur < retryConnectDelay {
-			delay := retryConnectDelay - dur
+		delay := backoff.Next() - time.Now().Sub(lastTry)
+		if delay > 0 {
 			net.logger.Printf("waiting %v before trying to reconnect to %q", delay.Truncate(time.Second), net.Addr)
 			time.Sleep(delay)
 		}
@@ -247,6 +248,7 @@ func (net *network) run() {
 		}
 
 		net.user.srv.metrics.upstreams.Add(-1)
+		backoff.Reset()
 	}
 }
 
