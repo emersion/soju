@@ -2075,6 +2075,10 @@ func (uc *upstreamConn) updateChannelAutoDetach(name string) {
 }
 
 func (uc *upstreamConn) updateMonitor() {
+	if _, ok := uc.isupport["MONITOR"]; !ok {
+		return
+	}
+
 	add := make(map[string]struct{})
 	var addList []string
 	seen := make(map[string]struct{})

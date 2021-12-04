@@ -2473,6 +2473,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if uc == nil {
 			return newUnknownCommandError(msg.Command)
 		}
+		if _, ok := uc.isupport["MONITOR"]; !ok {
+			return newUnknownCommandError(msg.Command)
+		}
 
 		var subcommand string
 		if err := parseMessageParams(msg, &subcommand); err != nil {
