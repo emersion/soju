@@ -774,6 +774,8 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
+		uc.updateMonitor()
+
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			if dc.network == nil {
 				return
@@ -876,6 +878,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateNick()
 			})
+			uc.updateMonitor()
 		}
 	case "SETNAME":
 		if msg.Prefix == nil {
@@ -1522,6 +1525,27 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.monitored.SetValue(prefix.Name, online)
 		}
 
+		// Check if the nick we want is now free
+		wantNick := GetNick(&uc.user.User, &uc.network.Network)
+		wantNickCM := uc.network.casemap(wantNick)
+		if !online && uc.nickCM != wantNickCM {
+			found := false
+			for _, target := range targets {
+				prefix := irc.ParsePrefix(target)
+				if uc.network.casemap(prefix.Name) == wantNickCM {
+					found = true
+					break
+				}
+			}
+			if found {
+				uc.logger.Printf("desired nick %q is now available", wantNick)
+				uc.SendMessage(&irc.Message{
+					Command: "NICK",
+					Params:  []string{wantNick},
+				})
+			}
+		}
+
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			for _, target := range targets {
 				prefix := irc.ParsePrefix(target)
@@ -1687,7 +1711,22 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 		return fmt.Errorf("fatal server error: %v", text)
-	case irc.ERR_PASSWDMISMATCH, irc.ERR_ERRONEUSNICKNAME, irc.ERR_NICKNAMEINUSE, irc.ERR_NICKCOLLISION, irc.ERR_UNAVAILRESOURCE, irc.ERR_NOPERMFORHOST, irc.ERR_YOUREBANNEDCREEP:
+	case irc.ERR_NICKNAMEINUSE:
+		// At this point, we haven't received ISUPPORT so we don't know the
+		// maximum nickname length or whether the server supports MONITOR. Many
+		// servers have NICKLEN=30 so let's just use that.
+		if !uc.registered && len(uc.nick)+1 < 30 {
+			uc.nick = uc.nick + "_"
+			uc.nickCM = uc.network.casemap(uc.nick)
+			uc.logger.Printf("desired nick is not available, falling back to %q", uc.nick)
+			uc.SendMessage(&irc.Message{
+				Command: "NICK",
+				Params:  []string{uc.nick},
+			})
+			return nil
+		}
+		fallthrough
+	case irc.ERR_PASSWDMISMATCH, irc.ERR_ERRONEUSNICKNAME, irc.ERR_NICKCOLLISION, irc.ERR_UNAVAILRESOURCE, irc.ERR_NOPERMFORHOST, irc.ERR_YOUREBANNEDCREEP:
 		if !uc.registered {
 			return registrationError{msg}
 		}
@@ -2087,13 +2126,20 @@ func (uc *upstreamConn) updateMonitor() {
 			if !uc.monitored.Has(targetCM) {
 				if _, ok := add[targetCM]; !ok {
 					addList = append(addList, targetCM)
+					add[targetCM] = struct{}{}
 				}
-				add[targetCM] = struct{}{}
 			} else {
 				seen[targetCM] = struct{}{}
 			}
 		}
 	})
+
+	wantNick := GetNick(&uc.user.User, &uc.network.Network)
+	wantNickCM := uc.network.casemap(wantNick)
+	if _, ok := add[wantNickCM]; !ok && !uc.monitored.Has(wantNick) && !uc.isOurNick(wantNick) {
+		addList = append(addList, wantNickCM)
+		add[wantNickCM] = struct{}{}
+	}
 
 	removeAll := true
 	var removeList []string
