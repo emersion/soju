@@ -690,8 +690,13 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			dc.SendMessage(msg)
 		}
 	case irc.RPL_WELCOME:
+		if err := parseMessageParams(msg, &uc.nick); err != nil {
+			return err
+		}
+
 		uc.registered = true
-		uc.logger.Printf("connection registered")
+		uc.nickCM = uc.network.casemap(uc.nick)
+		uc.logger.Printf("connection registered with nick %q", uc.nick)
 
 		if uc.network.channels.Len() > 0 {
 			var channels, keys []string
