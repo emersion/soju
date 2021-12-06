@@ -208,8 +208,8 @@ func updateNetworkAttrs(record *Network, attrs irc.Tags, subcommand string) erro
 
 // ' ' and ':' break the IRC message wire format, '@' and '!' break prefixes,
 // '*' and '?' break masks, '$' breaks server masks in PRIVMSG/NOTICE,
-// "*" is the reserved nickname for registration
-const illegalNickChars = " :@!*?$"
+// "*" is the reserved nickname for registration, ',' breaks lists
+const illegalNickChars = " :@!*?$,"
 
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
