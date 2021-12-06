@@ -1301,6 +1301,9 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 		panic("tried to welcome an unregistered connection")
 	}
 
+	remoteAddr := dc.conn.RemoteAddr().String()
+	dc.logger = &prefixLogger{dc.srv.Logger, fmt.Sprintf("user %q: downstream %q: ", dc.user.Username, remoteAddr)}
+
 	// TODO: doing this might take some time. We should do it in dc.register
 	// instead, but we'll potentially be adding a new network and this must be
 	// done in the user goroutine.
