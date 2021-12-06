@@ -292,7 +292,7 @@ func (uc *upstreamConn) isOurNick(nick string) bool {
 	return uc.nickCM == uc.network.casemap(nick)
 }
 
-func (uc *upstreamConn) endPendingCommands() {
+func (uc *upstreamConn) abortPendingCommands() {
 	for _, l := range uc.pendingCmds {
 		for _, pendingCmd := range l {
 			dc := uc.downstreamByID(pendingCmd.downstreamID)
@@ -305,7 +305,7 @@ func (uc *upstreamConn) endPendingCommands() {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_LISTEND,
-					Params:  []string{dc.nick, "End of /LIST"},
+					Params:  []string{dc.nick, "Command aborted"},
 				})
 			case "WHO":
 				mask := "*"
@@ -315,7 +315,7 @@ func (uc *upstreamConn) endPendingCommands() {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_ENDOFWHO,
-					Params:  []string{dc.nick, mask, "End of /WHO"},
+					Params:  []string{dc.nick, mask, "Command aborted"},
 				})
 			case "AUTHENTICATE":
 				dc.endSASL(&irc.Message{
