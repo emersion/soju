@@ -37,7 +37,6 @@ var chatHistoryLimit = 1000
 var backlogLimit = 4000
 
 type Logger interface {
-	Print(v ...interface{})
 	Printf(format string, v ...interface{})
 }
 
@@ -47,11 +46,6 @@ type prefixLogger struct {
 }
 
 var _ Logger = (*prefixLogger)(nil)
-
-func (l *prefixLogger) Print(v ...interface{}) {
-	v = append([]interface{}{l.prefix}, v...)
-	l.logger.Print(v...)
-}
 
 func (l *prefixLogger) Printf(format string, v ...interface{}) {
 	v = append([]interface{}{l.prefix}, v...)
@@ -296,12 +290,12 @@ func (s *Server) handle(ic ircConn) {
 	dc := newDownstreamConn(s, ic, id)
 	if err := dc.runUntilRegistered(); err != nil {
 		if !errors.Is(err, io.EOF) {
-			dc.logger.Print(err)
+			dc.logger.Printf("%v", err)
 		}
 	} else {
 		dc.user.events <- eventDownstreamConnected{dc}
 		if err := dc.readMessages(dc.user.events); err != nil {
-			dc.logger.Print(err)
+			dc.logger.Printf("%v", err)
 		}
 		dc.user.events <- eventDownstreamDisconnected{dc}
 	}
