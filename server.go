@@ -38,6 +38,26 @@ var backlogLimit = 4000
 
 type Logger interface {
 	Printf(format string, v ...interface{})
+	Debugf(format string, v ...interface{})
+}
+
+type logger struct {
+	*log.Logger
+	debug bool
+}
+
+func (l logger) Debugf(format string, v ...interface{}) {
+	if !l.debug {
+		return
+	}
+	l.Logger.Printf(format, v...)
+}
+
+func NewLogger(out io.Writer, debug bool) Logger {
+	return logger{
+		Logger: log.New(log.Writer(), "", log.LstdFlags),
+		debug:  debug,
+	}
 }
 
 type prefixLogger struct {
@@ -50,6 +70,11 @@ var _ Logger = (*prefixLogger)(nil)
 func (l *prefixLogger) Printf(format string, v ...interface{}) {
 	v = append([]interface{}{l.prefix}, v...)
 	l.logger.Printf("%v"+format, v...)
+}
+
+func (l *prefixLogger) Debugf(format string, v ...interface{}) {
+	v = append([]interface{}{l.prefix}, v...)
+	l.logger.Debugf("%v"+format, v...)
 }
 
 type int64Gauge struct {
@@ -72,7 +97,6 @@ type Config struct {
 	Hostname        string
 	Title           string
 	LogPath         string
-	Debug           bool
 	HTTPOrigins     []string
 	AcceptProxyIPs  config.IPSet
 	MaxUserNetworks int
@@ -109,7 +133,7 @@ type Server struct {
 
 func NewServer(db Database) *Server {
 	srv := &Server{
-		Logger:    log.New(log.Writer(), "", log.LstdFlags),
+		Logger:    NewLogger(log.Writer(), true),
 		db:        db,
 		listeners: make(map[net.Listener]struct{}),
 		users:     make(map[string]*user),

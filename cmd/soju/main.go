@@ -97,7 +97,6 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		MaxUserNetworks: raw.MaxUserNetworks,
 		MultiUpstream:   raw.MultiUpstream,
 		UpstreamUserIPs: raw.UpstreamUserIPs,
-		Debug:           debug,
 		MOTD:            motd,
 	}
 	return raw, cfg, nil
@@ -140,6 +139,7 @@ func main() {
 
 	srv := soju.NewServer(db)
 	srv.SetConfig(serverCfg)
+	srv.Logger = soju.NewLogger(log.Writer(), debug)
 
 	for _, listen := range cfg.Listen {
 		listenURI := listen
