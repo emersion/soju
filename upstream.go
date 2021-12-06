@@ -1338,19 +1338,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return nil
 		}
 
-		parts := strings.SplitN(trailing, " ", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("received malformed RPL_WHOREPLY: wrong trailing parameter: %s", trailing)
-		}
-		realname := parts[1]
-		hops, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return fmt.Errorf("received malformed RPL_WHOREPLY: wrong hop count: %s", parts[0])
-		}
-		hops++
-
-		trailing = strconv.Itoa(hops) + " " + realname
-
 		if channel != "*" {
 			channel = dc.marshalEntity(uc.network, channel)
 		}
