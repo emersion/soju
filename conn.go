@@ -166,7 +166,7 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 		if err := c.conn.Close(); err != nil && !isErrClosed(err) {
 			c.logger.Printf("failed to close connection: %v", err)
 		} else {
-			c.logger.Printf("connection closed")
+			c.logger.Debugf("connection closed")
 		}
 		// Drain the outgoing channel to prevent SendMessage from blocking
 		for range outgoing {
@@ -174,7 +174,7 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 		}
 	}()
 
-	c.logger.Printf("new connection")
+	c.logger.Debugf("new connection")
 	return c
 }
 
