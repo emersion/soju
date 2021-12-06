@@ -2041,7 +2041,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 
 	msgID, err := uc.user.msgStore.Append(&uc.network.Network, entityCM, msg)
 	if err != nil {
-		uc.logger.Printf("failed to log message: %v", err)
+		uc.logger.Printf("failed to append message to store: %v", err)
 		return ""
 	}
 
