@@ -1236,11 +1236,25 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 	password := dc.password
 	dc.password = ""
 	if dc.user == nil {
+		if password == "" {
+			if dc.caps["sasl"] {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"*", "ACCOUNT_REQUIRED", "Authentication required"},
+				}}
+			} else {
+				return ircError{&irc.Message{
+					Command: irc.ERR_PASSWDMISMATCH,
+					Params:  []string{dc.nick, "Authentication required"},
+				}}
+			}
+		}
+
 		if err := dc.authenticate(ctx, dc.rawUsername, password); err != nil {
 			dc.logger.Printf("PASS authentication error for user %q: %v", dc.rawUsername, err)
 			return ircError{&irc.Message{
 				Command: irc.ERR_PASSWDMISMATCH,
-				Params:  []string{"*", authErrorReason(err)},
+				Params:  []string{dc.nick, authErrorReason(err)},
 			}}
 		}
 	}
