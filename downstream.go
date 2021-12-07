@@ -927,21 +927,21 @@ func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *d
 		return nil, ircError{&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.ERR_SASLFAIL,
-			Params:  []string{"*", "AUTHENTICATE requires the \"sasl\" capability to be enabled"},
+			Params:  []string{dc.nick, "AUTHENTICATE requires the \"sasl\" capability to be enabled"},
 		}}
 	}
 	if len(msg.Params) == 0 {
 		return nil, ircError{&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.ERR_SASLFAIL,
-			Params:  []string{"*", "Missing AUTHENTICATE argument"},
+			Params:  []string{dc.nick, "Missing AUTHENTICATE argument"},
 		}}
 	}
 	if msg.Params[0] == "*" {
 		return nil, ircError{&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.ERR_SASLABORTED,
-			Params:  []string{"*", "SASL authentication aborted"},
+			Params:  []string{dc.nick, "SASL authentication aborted"},
 		}}
 	}
 
@@ -960,7 +960,7 @@ func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *d
 			return nil, ircError{&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
-				Params:  []string{"*", fmt.Sprintf("Unsupported SASL mechanism %q", mech)},
+				Params:  []string{dc.nick, fmt.Sprintf("Unsupported SASL mechanism %q", mech)},
 			}}
 		}
 
@@ -973,7 +973,7 @@ func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *d
 			return nil, ircError{&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
-				Params:  []string{"*", "Invalid base64-encoded response"},
+				Params:  []string{dc.nick, "Invalid base64-encoded response"},
 			}}
 		}
 	}
@@ -1229,7 +1229,7 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 		dc.endSASL(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.ERR_SASLABORTED,
-			Params:  []string{"*", "SASL authentication aborted"},
+			Params:  []string{dc.nick, "SASL authentication aborted"},
 		})
 	}
 
@@ -1285,7 +1285,7 @@ func (dc *downstreamConn) loadNetwork(ctx context.Context) error {
 			dc.logger.Printf("failed to connect to %q: %v", addr, err)
 			return ircError{&irc.Message{
 				Command: irc.ERR_PASSWDMISMATCH,
-				Params:  []string{"*", fmt.Sprintf("Failed to connect to %q", dc.networkName)},
+				Params:  []string{dc.nick, fmt.Sprintf("Failed to connect to %q", dc.networkName)},
 			}}
 		}
 
