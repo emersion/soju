@@ -217,14 +217,20 @@ func (c *conn) ReadMessage() (*irc.Message, error) {
 //
 // If the connection is closed before the message is sent, SendMessage silently
 // drops the message.
-func (c *conn) SendMessage(msg *irc.Message) {
+func (c *conn) SendMessage(ctx context.Context, msg *irc.Message) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	if c.closed {
 		return
 	}
-	c.outgoing <- msg
+
+	select {
+	case c.outgoing <- msg:
+		// Success
+	case <-ctx.Done():
+		c.logger.Printf("failed to send message: %v", ctx.Err())
+	}
 }
 
 func (c *conn) RemoteAddr() net.Addr {

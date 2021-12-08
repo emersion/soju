@@ -551,7 +551,7 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	}
 
 	dc.srv.metrics.downstreamOutMessagesTotal.Inc()
-	dc.conn.SendMessage(msg)
+	dc.conn.SendMessage(context.TODO(), msg)
 }
 
 func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, f func(batchRef irc.TagValue)) {
@@ -1666,7 +1666,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if upstream != nil && upstream != uc {
 				return
 			}
-			uc.SendMessageLabeled(dc.id, &irc.Message{
+			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Command: "NICK",
 				Params:  []string{nick},
 			})
@@ -1700,7 +1700,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			// We only need to call updateNetwork for upstreams that don't
 			// support setname
 			if uc := n.conn; uc != nil && uc.caps["setname"] {
-				uc.SendMessageLabeled(dc.id, &irc.Message{
+				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 					Command: "SETNAME",
 					Params:  []string{realname},
 				})
@@ -1775,7 +1775,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if key != "" {
 				params = append(params, key)
 			}
-			uc.SendMessageLabeled(dc.id, &irc.Message{
+			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Command: "JOIN",
 				Params:  params,
 			})
@@ -1835,7 +1835,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				if reason != "" {
 					params = append(params, reason)
 				}
-				uc.SendMessageLabeled(dc.id, &irc.Message{
+				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 					Command: "PART",
 					Params:  params,
 				})
@@ -1896,7 +1896,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if reason != "" {
 				params = append(params, reason)
 			}
-			uc.SendMessageLabeled(dc.id, &irc.Message{
+			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Command: "KICK",
 				Params:  params,
 			})
@@ -1915,7 +1915,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if casemapASCII(name) == dc.nickCM {
 			if modeStr != "" {
 				if uc := dc.upstream(); uc != nil {
-					uc.SendMessageLabeled(dc.id, &irc.Message{
+					uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 						Command: "MODE",
 						Params:  []string{uc.nick, modeStr},
 					})
@@ -1956,7 +1956,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if modeStr != "" {
 			params := []string{upstreamName, modeStr}
 			params = append(params, msg.Params[2:]...)
-			uc.SendMessageLabeled(dc.id, &irc.Message{
+			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Command: "MODE",
 				Params:  params,
 			})
@@ -2005,7 +2005,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		if len(msg.Params) > 1 { // setting topic
 			topic := msg.Params[1]
-			uc.SendMessageLabeled(dc.id, &irc.Message{
+			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Command: "TOPIC",
 				Params:  []string{upstreamName, topic},
 			})
@@ -2070,7 +2070,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				sendNames(dc, ch)
 			} else {
 				// NAMES on a channel we have not joined, ask upstream
-				uc.SendMessageLabeled(dc.id, &irc.Message{
+				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 					Command: "NAMES",
 					Params:  []string{upstreamName},
 				})
@@ -2270,7 +2270,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			params = []string{upstreamNick}
 		}
 
-		uc.SendMessageLabeled(dc.id, &irc.Message{
+		uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 			Command: "WHOIS",
 			Params:  params,
 		})
@@ -2347,7 +2347,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if uc.isChannel(upstreamName) {
 				unmarshaledText = dc.unmarshalText(uc, text)
 			}
-			uc.SendMessageLabeled(dc.id, &irc.Message{
+			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Tags:    tags,
 				Command: msg.Command,
 				Params:  []string{upstreamName, unmarshaledText},
@@ -2398,7 +2398,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				continue
 			}
 
-			uc.SendMessageLabeled(dc.id, &irc.Message{
+			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Tags:    tags,
 				Command: "TAGMSG",
 				Params:  []string{upstreamName},
@@ -2430,7 +2430,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 		uc := ucChannel
 
-		uc.SendMessageLabeled(dc.id, &irc.Message{
+		uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 			Command: "INVITE",
 			Params:  []string{upstreamUser, upstreamChannel},
 		})
@@ -2850,7 +2850,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return newUnknownCommandError(msg.Command)
 		}
 
-		uc.SendMessageLabeled(dc.id, msg)
+		uc.SendMessageLabeled(ctx, dc.id, msg)
 	}
 	return nil
 }

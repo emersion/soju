@@ -616,7 +616,7 @@ func handleServiceNetworkQuote(ctx context.Context, dc *downstreamConn, params [
 	if err != nil {
 		return fmt.Errorf("failed to parse command %q: %v", params[1], err)
 	}
-	uc.SendMessage(m)
+	uc.SendMessage(ctx, m)
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("sent command to %q", net.GetName()))
 	return nil

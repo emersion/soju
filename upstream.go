@@ -342,7 +342,7 @@ func (uc *upstreamConn) sendNextPendingCommand(cmd string) {
 	if len(uc.pendingCmds[cmd]) == 0 {
 		return
 	}
-	uc.SendMessage(uc.pendingCmds[cmd][0].msg)
+	uc.SendMessage(context.TODO(), uc.pendingCmds[cmd][0].msg)
 }
 
 func (uc *upstreamConn) enqueueCommand(dc *downstreamConn, msg *irc.Message) {
@@ -450,7 +450,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 	switch msg.Command {
 	case "PING":
-		uc.SendMessage(&irc.Message{
+		uc.SendMessage(ctx, &irc.Message{
 			Command: "PONG",
 			Params:  msg.Params,
 		})
@@ -529,7 +529,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				break // we'll send CAP END after authentication is completed
 			}
 
-			uc.SendMessage(&irc.Message{
+			uc.SendMessage(ctx, &irc.Message{
 				Command: "CAP",
 				Params:  []string{"END"},
 			})
@@ -583,7 +583,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		// TODO: if a challenge is 400 bytes long, buffer it
 		var challengeStr string
 		if err := parseMessageParams(msg, &challengeStr); err != nil {
-			uc.SendMessage(&irc.Message{
+			uc.SendMessage(ctx, &irc.Message{
 				Command: "AUTHENTICATE",
 				Params:  []string{"*"},
 			})
@@ -595,7 +595,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			var err error
 			challenge, err = base64.StdEncoding.DecodeString(challengeStr)
 			if err != nil {
-				uc.SendMessage(&irc.Message{
+				uc.SendMessage(ctx, &irc.Message{
 					Command: "AUTHENTICATE",
 					Params:  []string{"*"},
 				})
@@ -612,7 +612,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			resp, err = uc.saslClient.Next(challenge)
 		}
 		if err != nil {
-			uc.SendMessage(&irc.Message{
+			uc.SendMessage(ctx, &irc.Message{
 				Command: "AUTHENTICATE",
 				Params:  []string{"*"},
 			})
@@ -625,7 +625,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			respStr = base64.StdEncoding.EncodeToString(resp)
 		}
 
-		uc.SendMessage(&irc.Message{
+		uc.SendMessage(ctx, &irc.Message{
 			Command: "AUTHENTICATE",
 			Params:  []string{respStr},
 		})
@@ -669,7 +669,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 
 		if !uc.registered {
-			uc.SendMessage(&irc.Message{
+			uc.SendMessage(ctx, &irc.Message{
 				Command: "CAP",
 				Params:  []string{"END"},
 			})
@@ -707,7 +707,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 
 			for _, msg := range join(channels, keys) {
-				uc.SendMessage(msg)
+				uc.SendMessage(ctx, msg)
 			}
 		}
 	case irc.RPL_MYINFO:
@@ -931,7 +931,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				})
 				uc.updateChannelAutoDetach(ch)
 
-				uc.SendMessage(&irc.Message{
+				uc.SendMessage(ctx, &irc.Message{
 					Command: "MODE",
 					Params:  []string{ch},
 				})
@@ -1531,7 +1531,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 			if found {
 				uc.logger.Printf("desired nick %q is now available", wantNick)
-				uc.SendMessage(&irc.Message{
+				uc.SendMessage(ctx, &irc.Message{
 					Command: "NICK",
 					Params:  []string{wantNick},
 				})
@@ -1711,7 +1711,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.nick = uc.nick + "_"
 			uc.nickCM = uc.network.casemap(uc.nick)
 			uc.logger.Printf("desired nick is not available, falling back to %q", uc.nick)
-			uc.SendMessage(&irc.Message{
+			uc.SendMessage(ctx, &irc.Message{
 				Command: "NICK",
 				Params:  []string{uc.nick},
 			})
@@ -1825,7 +1825,7 @@ func (uc *upstreamConn) requestCaps() {
 		return
 	}
 
-	uc.SendMessage(&irc.Message{
+	uc.SendMessage(context.TODO(), &irc.Message{
 		Command: "CAP",
 		Params:  []string{"REQ", strings.Join(requestCaps, " ")},
 	})
@@ -1882,7 +1882,7 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 			return fmt.Errorf("unsupported SASL mechanism %q", name)
 		}
 
-		uc.SendMessage(&irc.Message{
+		uc.SendMessage(context.TODO(), &irc.Message{
 			Command: "AUTHENTICATE",
 			Params:  []string{auth.Mechanism},
 		})
@@ -1902,28 +1902,30 @@ func splitSpace(s string) []string {
 }
 
 func (uc *upstreamConn) register() {
+	ctx := context.TODO()
+
 	uc.nick = GetNick(&uc.user.User, &uc.network.Network)
 	uc.nickCM = uc.network.casemap(uc.nick)
 	uc.username = GetUsername(&uc.user.User, &uc.network.Network)
 	uc.realname = GetRealname(&uc.user.User, &uc.network.Network)
 
-	uc.SendMessage(&irc.Message{
+	uc.SendMessage(ctx, &irc.Message{
 		Command: "CAP",
 		Params:  []string{"LS", "302"},
 	})
 
 	if uc.network.Pass != "" {
-		uc.SendMessage(&irc.Message{
+		uc.SendMessage(ctx, &irc.Message{
 			Command: "PASS",
 			Params:  []string{uc.network.Pass},
 		})
 	}
 
-	uc.SendMessage(&irc.Message{
+	uc.SendMessage(ctx, &irc.Message{
 		Command: "NICK",
 		Params:  []string{uc.nick},
 	})
-	uc.SendMessage(&irc.Message{
+	uc.SendMessage(ctx, &irc.Message{
 		Command: "USER",
 		Params:  []string{uc.username, "0", "*", uc.realname},
 	})
@@ -1960,7 +1962,7 @@ func (uc *upstreamConn) runUntilRegistered() error {
 		if err != nil {
 			uc.logger.Printf("failed to parse connect command %q: %v", command, err)
 		} else {
-			uc.SendMessage(m)
+			uc.SendMessage(context.TODO(), m)
 		}
 	}
 
@@ -1982,17 +1984,17 @@ func (uc *upstreamConn) readMessages(ch chan<- event) error {
 	return nil
 }
 
-func (uc *upstreamConn) SendMessage(msg *irc.Message) {
+func (uc *upstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 	if !uc.caps["message-tags"] {
 		msg = msg.Copy()
 		msg.Tags = nil
 	}
 
 	uc.srv.metrics.upstreamOutMessagesTotal.Inc()
-	uc.conn.SendMessage(msg)
+	uc.conn.SendMessage(ctx, msg)
 }
 
-func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message) {
+func (uc *upstreamConn) SendMessageLabeled(ctx context.Context, downstreamID uint64, msg *irc.Message) {
 	if uc.caps["labeled-response"] {
 		if msg.Tags == nil {
 			msg.Tags = make(map[string]irc.TagValue)
@@ -2000,7 +2002,7 @@ func (uc *upstreamConn) SendMessageLabeled(downstreamID uint64, msg *irc.Message
 		msg.Tags["label"] = irc.TagValue(fmt.Sprintf("sd-%d-%d", downstreamID, uc.nextLabelID))
 		uc.nextLabelID++
 	}
-	uc.SendMessage(msg)
+	uc.SendMessage(ctx, msg)
 }
 
 // appendLog appends a message to the log file.
@@ -2073,6 +2075,8 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 }
 
 func (uc *upstreamConn) updateAway() {
+	ctx := context.TODO()
+
 	away := true
 	uc.forEachDownstream(func(*downstreamConn) {
 		away = false
@@ -2081,12 +2085,12 @@ func (uc *upstreamConn) updateAway() {
 		return
 	}
 	if away {
-		uc.SendMessage(&irc.Message{
+		uc.SendMessage(ctx, &irc.Message{
 			Command: "AWAY",
 			Params:  []string{"Auto away"},
 		})
 	} else {
-		uc.SendMessage(&irc.Message{
+		uc.SendMessage(ctx, &irc.Message{
 			Command: "AWAY",
 		})
 	}
@@ -2109,6 +2113,8 @@ func (uc *upstreamConn) updateMonitor() {
 	if _, ok := uc.isupport["MONITOR"]; !ok {
 		return
 	}
+
+	ctx := context.TODO()
 
 	add := make(map[string]struct{})
 	var addList []string
@@ -2148,7 +2154,7 @@ func (uc *upstreamConn) updateMonitor() {
 
 	if removeAll && len(addList) == 0 && len(removeList) > 0 {
 		// Optimization when the last MONITOR-aware downstream disconnects
-		uc.SendMessage(&irc.Message{
+		uc.SendMessage(ctx, &irc.Message{
 			Command: "MONITOR",
 			Params:  []string{"C"},
 		})
@@ -2156,7 +2162,7 @@ func (uc *upstreamConn) updateMonitor() {
 		msgs := generateMonitor("-", removeList)
 		msgs = append(msgs, generateMonitor("+", addList)...)
 		for _, msg := range msgs {
-			uc.SendMessage(msg)
+			uc.SendMessage(ctx, msg)
 		}
 	}
 
