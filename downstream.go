@@ -1771,14 +1771,20 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				continue
 			}
 
-			params := []string{upstreamName}
-			if key != "" {
-				params = append(params, key)
+			// Most servers ignore duplicate JOIN messages. We ignore them here
+			// because some clients automatically send JOIN messages in bulk
+			// when reconnecting to the bouncer. We don't want to flood the
+			// upstream connection with these.
+			if !uc.channels.Has(upstreamName) {
+				params := []string{upstreamName}
+				if key != "" {
+					params = append(params, key)
+				}
+				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
+					Command: "JOIN",
+					Params:  params,
+				})
 			}
-			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
-				Command: "JOIN",
-				Params:  params,
-			})
 
 			ch := uc.network.channels.Value(upstreamName)
 			if ch != nil {
