@@ -286,15 +286,15 @@ func (s *Server) addUserLocked(user *User) *user {
 			if err := recover(); err != nil {
 				s.Logger.Printf("panic serving user %q: %v\n%v", user.Username, err, debug.Stack())
 			}
+
+			s.lock.Lock()
+			delete(s.users, u.Username)
+			s.lock.Unlock()
+
+			s.stopWG.Done()
 		}()
 
 		u.run()
-
-		s.lock.Lock()
-		delete(s.users, u.Username)
-		s.lock.Unlock()
-
-		s.stopWG.Done()
 	}()
 
 	return u
