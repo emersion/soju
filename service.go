@@ -1090,12 +1090,20 @@ func handleServiceServerNotice(ctx context.Context, dc *downstreamConn, params [
 		Params:  []string{"$" + dc.srv.Config().Hostname, text},
 	}
 	var err error
+	sent := 0
+	total := 0
 	dc.srv.forEachUser(func(u *user) {
+		total++
 		select {
 		case <-ctx.Done():
 			err = ctx.Err()
 		case u.events <- eventBroadcast{broadcastMsg}:
+			sent++
 		}
 	})
+
+	dc.logger.Printf("broadcast bouncer-wide NOTICE to %v/%v downstreams", sent, total)
+	sendServicePRIVMSG(dc, fmt.Sprintf("sent to %v/%v downstream connections", sent, total))
+
 	return err
 }
