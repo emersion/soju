@@ -113,6 +113,8 @@ The following directives are supported:
 	  domain socket
 	- _ident://[host][:port]_ listens for plain-text ident connections (default
 	  port: 113)
+	- _fileno://[fd]_ accepts connections on an opened file descriptor socket.
+	  This can be used for socket activation.
 	- _http+prometheus://localhost:<port>_ listens for plain-text HTTP
 	  connections and serves Prometheus metrics (host must be "localhost")
 	- _http+insecure+prometheus://[host]:<port>_ listens for plain-text HTTP

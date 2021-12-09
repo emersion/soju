@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -463,6 +464,21 @@ func main() {
 			go func() {
 				if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
 					log.Fatalf("serving %q: %v", listen, err)
+				}
+			}()
+		case "fileno":
+			fd, err := strconv.Atoi(u.Host)
+			if err != nil {
+				log.Fatalf("failed to parse FD number: %v", err)
+			}
+			ln, err := net.FileListener(os.NewFile(uintptr(fd), fmt.Sprintf("/dev/fd/%v", fd)))
+			if err != nil {
+				log.Fatalf("failed to create listener on %q: %v", listen, err)
+			}
+			ln = proxyProtoListener(ln, srv)
+			go func() {
+				if err := srv.Serve(ln, srv.Handle); err != nil {
+					log.Printf("serving %q: %v", listen, err)
 				}
 			}()
 		default:
