@@ -1155,22 +1155,21 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		if _, err := applyChannelModes(ch, modeStr, msg.Params[3:]); err != nil {
 			return err
 		}
-		if firstMode {
-			c := uc.network.channels.Value(channel)
-			if c == nil || !c.Detached {
-				modeStr, modeParams := ch.modes.Format()
 
-				uc.forEachDownstream(func(dc *downstreamConn) {
-					params := []string{dc.nick, dc.marshalEntity(uc.network, channel), modeStr}
-					params = append(params, modeParams...)
+		c := uc.network.channels.Value(channel)
+		if firstMode && (c == nil || !c.Detached) {
+			modeStr, modeParams := ch.modes.Format()
 
-					dc.SendMessage(&irc.Message{
-						Prefix:  dc.srv.prefix(),
-						Command: irc.RPL_CHANNELMODEIS,
-						Params:  params,
-					})
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				params := []string{dc.nick, dc.marshalEntity(uc.network, channel), modeStr}
+				params = append(params, modeParams...)
+
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.RPL_CHANNELMODEIS,
+					Params:  params,
 				})
-			}
+			})
 		}
 	case rpl_creationtime:
 		var channel, creationTime string
@@ -1185,7 +1184,9 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		firstCreationTime := ch.creationTime == ""
 		ch.creationTime = creationTime
-		if firstCreationTime {
+
+		c := uc.network.channels.Value(channel)
+		if firstCreationTime && (c == nil || !c.Detached) {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
@@ -1195,14 +1196,16 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			})
 		}
 	case rpl_topicwhotime:
-		var name, who, timeStr string
-		if err := parseMessageParams(msg, nil, &name, &who, &timeStr); err != nil {
+		var channel, who, timeStr string
+		if err := parseMessageParams(msg, nil, &channel, &who, &timeStr); err != nil {
 			return err
 		}
-		ch, err := uc.getChannel(name)
+
+		ch, err := uc.getChannel(channel)
 		if err != nil {
 			return err
 		}
+
 		firstTopicWhoTime := ch.TopicWho == nil
 		ch.TopicWho = irc.ParsePrefix(who)
 		sec, err := strconv.ParseInt(timeStr, 10, 64)
@@ -1210,7 +1213,9 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return fmt.Errorf("failed to parse topic time: %v", err)
 		}
 		ch.TopicTime = time.Unix(sec, 0)
-		if firstTopicWhoTime {
+
+		c := uc.network.channels.Value(channel)
+		if firstTopicWhoTime && (c == nil || !c.Detached) {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				topicWho := dc.marshalUserPrefix(uc.network, ch.TopicWho)
 				dc.SendMessage(&irc.Message{
