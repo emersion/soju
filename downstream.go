@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -275,6 +276,7 @@ var passthroughIsupport = map[string]bool{
 type downstreamSASL struct {
 	server                       sasl.Server
 	plainUsername, plainPassword string
+	pendingResp                  bytes.Buffer
 }
 
 type downstreamConn struct {
@@ -966,16 +968,35 @@ func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *d
 
 		dc.sasl = &downstreamSASL{server: server}
 	} else {
-		// TODO: multi-line messages
-		if msg.Params[0] == "+" {
-			resp = nil
-		} else if resp, err = base64.StdEncoding.DecodeString(msg.Params[0]); err != nil {
+		chunk := msg.Params[0]
+		if chunk == "+" {
+			chunk = ""
+		}
+
+		if dc.sasl.pendingResp.Len()+len(chunk) > 10*1024 {
+			return nil, ircError{&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.ERR_SASLFAIL,
+				Params:  []string{dc.nick, "Response too long"},
+			}}
+		}
+
+		dc.sasl.pendingResp.WriteString(chunk)
+
+		if len(chunk) == 400 {
+			return nil, nil // Multi-line response, wait for the next command
+		}
+
+		resp, err = base64.StdEncoding.DecodeString(dc.sasl.pendingResp.String())
+		if err != nil {
 			return nil, ircError{&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
 				Params:  []string{dc.nick, "Invalid base64-encoded response"},
 			}}
 		}
+
+		dc.sasl.pendingResp.Reset()
 	}
 
 	challenge, done, err := dc.sasl.server.Next(resp)
