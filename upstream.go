@@ -540,7 +540,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			caps := strings.Fields(subParams[0])
 
 			for _, name := range caps {
-				if err := uc.handleCapAck(strings.ToLower(name), subCmd == "ACK"); err != nil {
+				if err := uc.handleCapAck(ctx, strings.ToLower(name), subCmd == "ACK"); err != nil {
 					return err
 				}
 			}
@@ -1872,7 +1872,7 @@ func (uc *upstreamConn) requestSASL() bool {
 	return uc.supportsSASL(uc.network.SASL.Mechanism)
 }
 
-func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
+func (uc *upstreamConn) handleCapAck(ctx context.Context, name string, ok bool) error {
 	uc.caps[name] = ok
 
 	switch name {
@@ -1897,7 +1897,7 @@ func (uc *upstreamConn) handleCapAck(name string, ok bool) error {
 			return fmt.Errorf("unsupported SASL mechanism %q", name)
 		}
 
-		uc.SendMessage(context.TODO(), &irc.Message{
+		uc.SendMessage(ctx, &irc.Message{
 			Command: "AUTHENTICATE",
 			Params:  []string{auth.Mechanism},
 		})
