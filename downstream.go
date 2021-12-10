@@ -983,7 +983,7 @@ func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *d
 
 		dc.sasl.pendingResp.WriteString(chunk)
 
-		if len(chunk) == 400 {
+		if len(chunk) == maxSASLLength {
 			return nil, nil // Multi-line response, wait for the next command
 		}
 

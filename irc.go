@@ -25,6 +25,7 @@ const (
 const (
 	maxMessageLength = 512
 	maxMessageParams = 15
+	maxSASLLength    = 400
 )
 
 // The server-time layout, as defined in the IRCv3 spec.

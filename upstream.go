@@ -619,16 +619,26 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		// TODO: send response in multiple chunks if >= 400 bytes
-		var respStr = "+"
-		if len(resp) != 0 {
-			respStr = base64.StdEncoding.EncodeToString(resp)
-		}
+		// <= instead of < because we need to send a final empty response if
+		// the last chunk is exactly 400 bytes long
+		for i := 0; i <= len(resp); i += maxSASLLength {
+			j := i + maxSASLLength
+			if j > len(resp) {
+				j = len(resp)
+			}
 
-		uc.SendMessage(ctx, &irc.Message{
-			Command: "AUTHENTICATE",
-			Params:  []string{respStr},
-		})
+			chunk := resp[i:j]
+
+			var respStr = "+"
+			if len(chunk) != 0 {
+				respStr = base64.StdEncoding.EncodeToString(chunk)
+			}
+
+			uc.SendMessage(ctx, &irc.Message{
+				Command: "AUTHENTICATE",
+				Params:  []string{respStr},
+			})
+		}
 	case irc.RPL_LOGGEDIN:
 		if err := parseMessageParams(msg, nil, nil, &uc.account); err != nil {
 			return err
