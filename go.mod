@@ -1,6 +1,6 @@
 module git.sr.ht/~emersion/soju
 
-go 1.13
+go 1.15
 
 require (
 	git.sr.ht/~emersion/go-scfg v0.0.0-20201019143924-142a8aa629fc
