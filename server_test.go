@@ -347,3 +347,53 @@ func TestServer_chatHistory(t *testing.T) {
 		testChatHistory(t, "db", "")
 	})
 }
+
+func TestServerBacklog(t *testing.T) {
+	db := createTempSqliteDB(t)
+	user := createTestUser(t, db)
+	network, upstream := createTestUpstream(t, db, user)
+	defer upstream.Close()
+
+	srv := NewServer(db)
+	if err := srv.Start(); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+	defer srv.Shutdown()
+
+	uc := mustAccept(t, upstream)
+	defer uc.Close()
+	registerUpstreamConn(t, uc)
+
+	// Create a new downstream connection and immediately close it
+	dc := createTestDownstream(t, srv)
+	registerDownstreamConn(t, dc, network)
+	dc.Close()
+
+	privmsgText := "This is a very important message."
+	uc.WriteMessage(&irc.Message{
+		Prefix:  &irc.Prefix{Name: "cool-user"},
+		Command: "PRIVMSG",
+		Params:  []string{testUsername, privmsgText},
+	})
+
+	// Re-create the downstream connection, wait for backlog
+	dc = createTestDownstream(t, srv)
+	registerDownstreamConn(t, dc, network)
+	defer dc.Close()
+
+	var msg *irc.Message
+	for {
+		var err error
+		msg, err = dc.ReadMessage()
+		if err != nil {
+			t.Fatalf("failed to read IRC message: %v", err)
+		}
+		if msg.Command == "PRIVMSG" {
+			break
+		}
+	}
+
+	if msg.Params[1] != privmsgText {
+		t.Fatalf("invalid PRIVMSG text: want %q, got: %v", privmsgText, msg)
+	}
+}
