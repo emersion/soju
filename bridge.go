@@ -12,7 +12,10 @@ func forwardChannel(dc *downstreamConn, ch *upstreamChannel) {
 		panic("Tried to forward a partial channel")
 	}
 
-	sendTopic(dc, ch)
+	// RPL_NOTOPIC shouldn't be sent on JOIN
+	if ch.Topic != "" {
+		sendTopic(dc, ch)
+	}
 	sendNames(dc, ch)
 }
 
