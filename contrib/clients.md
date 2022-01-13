@@ -4,6 +4,44 @@ This page describes how to configure IRC clients to better integrate with soju.
 
 Also see the [IRCv3 support tables] for a more general list of clients.
 
+# [Emacs]
+
+There are two clients provided with Emacs. They require some setup to work
+properly.
+
+## Erc
+
+You need to explicitly set the username, which is the defcustom
+`erc-email-userid`.
+
+```elisp
+(setq erc-email-userid "<username>/irc.libera.chat") ;; Example with Libera.Chat
+(defun run-erc ()
+  (interactive)
+  (erc-tls :server "<server>"
+           :port 6697
+           :nick "<nick>"
+           :password "<password>"))
+```
+
+Then run `M-x run-erc`.
+
+## Rcirc
+
+The only thing needed here is the general config:
+
+```elisp
+(setq rcirc-server-alist
+      '(("<server>"
+         :port 6697
+         :encryption tls
+         :nick "<nick>"
+         :user-name "<username>/irc.libera.chat" ;; Example with Libera.Chat
+         :password "<password>")))
+```
+
+Then run `M-x irc`.
+
 # [gamja]
 
 gamja has been designed together with soju, so should have excellent
@@ -45,3 +83,4 @@ See `/help cap` for more information.
 [Weechat]: https://weechat.org/
 [Weechat script]: https://github.com/weechat/scripts/blob/master/python/soju.py
 [Hexchat]: https://hexchat.github.io/
+[Emacs]: https://www.gnu.org/software/emacs/
