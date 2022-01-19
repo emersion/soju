@@ -142,6 +142,7 @@ func main() {
 	srv.Logger = soju.NewLogger(log.Writer(), debug)
 
 	for _, listen := range cfg.Listen {
+		listen := listen // copy
 		listenURI := listen
 		if !strings.Contains(listenURI, ":/") {
 			// This is a raw domain name, make it an URL with an empty scheme
