@@ -93,6 +93,36 @@ func (g *int64Gauge) Float64() float64 {
 	return float64(g.Value())
 }
 
+type retryListener struct {
+	net.Listener
+	Logger Logger
+
+	delay time.Duration
+}
+
+func (ln *retryListener) Accept() (net.Conn, error) {
+	for {
+		conn, err := ln.Listener.Accept()
+		if ne, ok := err.(net.Error); ok && ne.Temporary() {
+			if ln.delay == 0 {
+				ln.delay = 5 * time.Millisecond
+			} else {
+				ln.delay *= 2
+			}
+			if max := 1 * time.Second; ln.delay > max {
+				ln.delay = max
+			}
+			if ln.Logger != nil {
+				ln.Logger.Printf("accept error (retrying in %v): %v", ln.delay, err)
+			}
+			time.Sleep(ln.delay)
+		} else {
+			ln.delay = 0
+			return conn, err
+		}
+	}
+}
+
 type Config struct {
 	Hostname        string
 	Title           string
@@ -328,6 +358,11 @@ func (s *Server) handle(ic ircConn) {
 }
 
 func (s *Server) Serve(ln net.Listener) error {
+	ln = &retryListener{
+		Listener: ln,
+		Logger:   &prefixLogger{logger: s.Logger, prefix: fmt.Sprintf("listener %v: ", ln.Addr())},
+	}
+
 	s.lock.Lock()
 	s.listeners[ln] = struct{}{}
 	s.lock.Unlock()

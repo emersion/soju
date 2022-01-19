@@ -74,6 +74,8 @@ func (s *Identd) Delete(remoteAddr, localAddr string) {
 }
 
 func (s *Identd) Serve(ln net.Listener) error {
+	ln = &retryListener{Listener: ln}
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
