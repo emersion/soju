@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"sort"
 	"time"
 
 	"gopkg.in/irc.v3"
@@ -516,6 +517,10 @@ func (u *user) run() {
 		return
 	}
 
+	sort.Slice(networks, func(i, j int) bool {
+		return networks[i].ID < networks[j].ID
+	})
+
 	for _, record := range networks {
 		record := record
 		channels, err := u.srv.db.ListChannels(context.TODO(), record.ID)
@@ -765,6 +770,11 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 
 func (u *user) addNetwork(network *network) {
 	u.networks = append(u.networks, network)
+
+	sort.Slice(u.networks, func(i, j int) bool {
+		return u.networks[i].ID < u.networks[j].ID
+	})
+
 	go network.run()
 }
 
