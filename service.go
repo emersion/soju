@@ -244,7 +244,7 @@ func init() {
 				"status": {
 					usage:  "<network name>",
 					desc:   "show SASL status",
-					handle: handleServiceSaslStatus,
+					handle: handleServiceSASLStatus,
 				},
 				"set-plain": {
 					usage:  "<network name> <username> <password>",
@@ -689,7 +689,7 @@ func handleServiceCertFPFingerprints(ctx context.Context, dc *downstreamConn, pa
 	return nil
 }
 
-func handleServiceSaslStatus(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceSASLStatus(ctx context.Context, dc *downstreamConn, params []string) error {
 	if len(params) != 1 {
 		return fmt.Errorf("expected exactly one argument")
 	}
