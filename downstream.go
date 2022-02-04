@@ -351,7 +351,9 @@ func (dc *downstreamConn) forEachNetwork(f func(*network)) {
 	if dc.network != nil {
 		f(dc.network)
 	} else if dc.isMultiUpstream {
-		dc.user.forEachNetwork(f)
+		for _, network := range dc.user.networks {
+			f(network)
+		}
 	}
 }
 
@@ -775,11 +777,12 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			}
 
 			var match *network
-			dc.user.forEachNetwork(func(net *network) {
+			for _, net := range dc.user.networks {
 				if net.ID == id {
 					match = net
+					break
 				}
-			})
+			}
 			if match == nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",
@@ -1436,7 +1439,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 
 	if dc.caps["soju.im/bouncer-networks-notify"] {
 		dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef irc.TagValue) {
-			dc.user.forEachNetwork(func(network *network) {
+			for _, network := range dc.user.networks {
 				idStr := fmt.Sprintf("%v", network.ID)
 				attrs := getNetworkAttrs(network)
 				dc.SendMessage(&irc.Message{
@@ -1445,7 +1448,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 					Command: "BOUNCER",
 					Params:  []string{"NETWORK", idStr, attrs.String()},
 				})
-			})
+			}
 		})
 	}
 
@@ -2748,7 +2751,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}}
 		case "LISTNETWORKS":
 			dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef irc.TagValue) {
-				dc.user.forEachNetwork(func(network *network) {
+				for _, network := range dc.user.networks {
 					idStr := fmt.Sprintf("%v", network.ID)
 					attrs := getNetworkAttrs(network)
 					dc.SendMessage(&irc.Message{
@@ -2757,7 +2760,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						Command: "BOUNCER",
 						Params:  []string{"NETWORK", idStr, attrs.String()},
 					})
-				})
+				}
 			})
 		case "ADDNETWORK":
 			var attrsStr string

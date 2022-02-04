@@ -506,7 +506,7 @@ func handleServiceNetworkCreate(ctx context.Context, dc *downstreamConn, params 
 
 func handleServiceNetworkStatus(ctx context.Context, dc *downstreamConn, params []string) error {
 	n := 0
-	dc.user.forEachNetwork(func(net *network) {
+	for _, net := range dc.user.networks {
 		var statuses []string
 		var details string
 		if uc := net.conn; uc != nil {
@@ -541,7 +541,7 @@ func handleServiceNetworkStatus(ctx context.Context, dc *downstreamConn, params 
 		sendServicePRIVMSG(dc, s)
 
 		n++
-	})
+	}
 
 	if n == 0 {
 		sendServicePRIVMSG(dc, `No network configured, add one with "network create".`)
@@ -969,7 +969,9 @@ func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params 
 	}
 
 	if *networkName == "" {
-		dc.user.forEachNetwork(sendNetwork)
+		for _, net := range dc.user.networks {
+			sendNetwork(net)
+		}
 	} else {
 		net := dc.user.getNetwork(*networkName)
 		if net == nil {

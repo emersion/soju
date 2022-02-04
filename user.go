@@ -464,12 +464,6 @@ func newUser(srv *Server, record *User) *user {
 	}
 }
 
-func (u *user) forEachNetwork(f func(*network)) {
-	for _, network := range u.networks {
-		f(network)
-	}
-}
-
 func (u *user) forEachUpstream(f func(uc *upstreamConn)) {
 	for _, network := range u.networks {
 		if network.conn == nil {
@@ -992,11 +986,11 @@ func (u *user) updateUser(ctx context.Context, record *User) error {
 	if realnameUpdated {
 		// Re-connect to networks which use the default realname
 		var needUpdate []Network
-		u.forEachNetwork(func(net *network) {
+		for _, net := range u.networks {
 			if net.Realname == "" {
 				needUpdate = append(needUpdate, net.Network)
 			}
-		})
+		}
 
 		var netErr error
 		for _, net := range needUpdate {
