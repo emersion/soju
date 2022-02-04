@@ -325,13 +325,16 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		*default*
 			Currently same as *message*. This is the default behaviour.
 
-*certfp generate* [options...] <network name>
+*certfp generate* [options...]
 	Generate self-signed certificate and use it for authentication (via SASL
 	EXTERNAL).
 
 	Generates a 3072-bit RSA private key by default.
 
 	Options are:
+
+	*-network* <name>
+		Select a network. By default, the current network is selected, if any.
 
 	*-key-type* <type>
 		Private key algorithm to use. Valid values are: _rsa_, _ecdsa_ and
@@ -340,18 +343,38 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	*-bits* <bits>
 		Size of RSA key to generate. Ignored for other key types.
 
-*certfp fingerprint* <network name>
+*certfp fingerprint* [options...]
 	Show SHA-1 and SHA-256 fingerprints for the certificate
 	currently used with the network.
 
-*sasl status* <network name>
+	Options are:
+
+	*-network* <name>
+		Select a network. By default, the current network is selected, if any.
+
+*sasl status* [options...]
 	Show current SASL status.
 
-*sasl set-plain* <network name> <username> <password>
+	Options are:
+
+	*-network* <name>
+		Select a network. By default, the current network is selected, if any.
+
+*sasl set-plain* [options...] <username> <password>
 	Set SASL PLAIN credentials.
 
-*sasl reset* <network name>
+	Options are:
+
+	*-network* <name>
+		Select a network. By default, the current network is selected, if any.
+
+*sasl reset* [options...]
 	Disable SASL authentication and remove stored credentials.
+
+	Options are:
+
+	*-network* <name>
+		Select a network. By default, the current network is selected, if any.
 
 *user create* -username <username> -password <password> [options...]
 	Create a new soju user. Only admin users can create new accounts.

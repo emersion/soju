@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -228,13 +227,13 @@ func init() {
 		"certfp": {
 			children: serviceCommandSet{
 				"generate": {
-					usage:  "[-key-type rsa|ecdsa|ed25519] [-bits N] <network name>",
+					usage:  "[-key-type rsa|ecdsa|ed25519] [-bits N] [-network name]",
 					desc:   "generate a new self-signed certificate, defaults to using RSA-3072 key",
 					handle: handleServiceCertFPGenerate,
 				},
 				"fingerprint": {
-					usage:  "<network name>",
-					desc:   "show fingerprints of certificate associated with the network",
+					usage:  "[-network name]",
+					desc:   "show fingerprints of certificate",
 					handle: handleServiceCertFPFingerprints,
 				},
 			},
@@ -242,17 +241,17 @@ func init() {
 		"sasl": {
 			children: serviceCommandSet{
 				"status": {
-					usage:  "<network name>",
+					usage:  "[-network name]",
 					desc:   "show SASL status",
 					handle: handleServiceSASLStatus,
 				},
 				"set-plain": {
-					usage:  "<network name> <username> <password>",
+					usage:  "[-network name] <username> <password>",
 					desc:   "set SASL PLAIN credentials",
 					handle: handleServiceSASLSetPlain,
 				},
 				"reset": {
-					usage:  "<network name>",
+					usage:  "[-network name]",
 					desc:   "disable SASL authentication and remove stored credentials",
 					handle: handleServiceSASLReset,
 				},
@@ -631,8 +630,24 @@ func sendCertfpFingerprints(dc *downstreamConn, cert []byte) {
 	sendServicePRIVMSG(dc, "SHA-512 fingerprint: "+hex.EncodeToString(sha512Sum[:]))
 }
 
+func getNetworkFromFlag(dc *downstreamConn, name string) (*network, error) {
+	if name == "" {
+		if dc.network == nil {
+			return nil, fmt.Errorf("no network selected, -network is required")
+		}
+		return dc.network, nil
+	} else {
+		net := dc.user.getNetwork(name)
+		if net == nil {
+			return nil, fmt.Errorf("unknown network %q", name)
+		}
+		return net, nil
+	}
+}
+
 func handleServiceCertFPGenerate(ctx context.Context, dc *downstreamConn, params []string) error {
 	fs := newFlagSet()
+	netName := fs.String("network", "", "select a network")
 	keyType := fs.String("key-type", "rsa", "key type to generate (rsa, ecdsa, ed25519)")
 	bits := fs.Int("bits", 3072, "size of key to generate, meaningful only for RSA")
 
@@ -640,17 +655,13 @@ func handleServiceCertFPGenerate(ctx context.Context, dc *downstreamConn, params
 		return err
 	}
 
-	if len(fs.Args()) != 1 {
-		return errors.New("exactly one argument is required")
-	}
-
-	net := dc.user.getNetwork(fs.Arg(0))
-	if net == nil {
-		return fmt.Errorf("unknown network %q", fs.Arg(0))
-	}
-
 	if *bits <= 0 || *bits > maxRSABits {
 		return fmt.Errorf("invalid value for -bits")
+	}
+
+	net, err := getNetworkFromFlag(dc, *netName)
+	if err != nil {
+		return err
 	}
 
 	privKey, cert, err := generateCertFP(*keyType, *bits)
@@ -672,13 +683,16 @@ func handleServiceCertFPGenerate(ctx context.Context, dc *downstreamConn, params
 }
 
 func handleServiceCertFPFingerprints(ctx context.Context, dc *downstreamConn, params []string) error {
-	if len(params) != 1 {
-		return fmt.Errorf("expected exactly one argument")
+	fs := newFlagSet()
+	netName := fs.String("network", "", "select a network")
+
+	if err := fs.Parse(params); err != nil {
+		return err
 	}
 
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
+	net, err := getNetworkFromFlag(dc, *netName)
+	if err != nil {
+		return err
 	}
 
 	if net.SASL.Mechanism != "EXTERNAL" {
@@ -690,13 +704,16 @@ func handleServiceCertFPFingerprints(ctx context.Context, dc *downstreamConn, pa
 }
 
 func handleServiceSASLStatus(ctx context.Context, dc *downstreamConn, params []string) error {
-	if len(params) != 1 {
-		return fmt.Errorf("expected exactly one argument")
+	fs := newFlagSet()
+	netName := fs.String("network", "", "select a network")
+
+	if err := fs.Parse(params); err != nil {
+		return err
 	}
 
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
+	net, err := getNetworkFromFlag(dc, *netName)
+	if err != nil {
+		return err
 	}
 
 	switch net.SASL.Mechanism {
@@ -722,17 +739,24 @@ func handleServiceSASLStatus(ctx context.Context, dc *downstreamConn, params []s
 }
 
 func handleServiceSASLSetPlain(ctx context.Context, dc *downstreamConn, params []string) error {
-	if len(params) != 3 {
-		return fmt.Errorf("expected exactly 3 arguments")
+	fs := newFlagSet()
+	netName := fs.String("network", "", "select a network")
+
+	if err := fs.Parse(params); err != nil {
+		return err
 	}
 
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
+	if len(fs.Args()) != 2 {
+		return fmt.Errorf("expected exactly 2 arguments")
 	}
 
-	net.SASL.Plain.Username = params[1]
-	net.SASL.Plain.Password = params[2]
+	net, err := getNetworkFromFlag(dc, *netName)
+	if err != nil {
+		return err
+	}
+
+	net.SASL.Plain.Username = fs.Arg(0)
+	net.SASL.Plain.Password = fs.Arg(1)
 	net.SASL.Mechanism = "PLAIN"
 
 	if err := dc.srv.db.StoreNetwork(ctx, dc.user.ID, &net.Network); err != nil {
@@ -744,13 +768,16 @@ func handleServiceSASLSetPlain(ctx context.Context, dc *downstreamConn, params [
 }
 
 func handleServiceSASLReset(ctx context.Context, dc *downstreamConn, params []string) error {
-	if len(params) != 1 {
-		return fmt.Errorf("expected exactly one argument")
+	fs := newFlagSet()
+	netName := fs.String("network", "", "select a network")
+
+	if err := fs.Parse(params); err != nil {
+		return err
 	}
 
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
+	net, err := getNetworkFromFlag(dc, *netName)
+	if err != nil {
+		return err
 	}
 
 	net.SASL.Plain.Username = ""
