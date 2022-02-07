@@ -236,18 +236,24 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		The flag can be specified multiple times to send multiple IRC messages.
 		To clear all commands, set it to the empty string.
 
-*network update* <name> [options...]
+*network update* [name] [options...]
 	Update an existing network. The options are the same as the
 	_network create_ command.
 
 	When this command is executed, soju will disconnect and re-connect to the
 	network.
 
-*network delete* <name>
+	If _name_ is not specified, the current network is updated.
+
+*network delete* [name]
 	Disconnect and delete a network.
 
-*network quote* <name> <command>
+	If _name_ is not specified, the current network is deleted.
+
+*network quote* [name] <command>
 	Send a raw IRC line as-is to a network.
+
+	If _name_ is not specified, the command is sent to the current network.
 
 *network status*
 	Show a list of saved networks and their current status.

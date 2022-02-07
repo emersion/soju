@@ -208,17 +208,17 @@ func init() {
 					handle: handleServiceNetworkStatus,
 				},
 				"update": {
-					usage:  "<name> [-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-enabled enabled] [-connect-command command]...",
+					usage:  "[name] [-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-enabled enabled] [-connect-command command]...",
 					desc:   "update a network",
 					handle: handleServiceNetworkUpdate,
 				},
 				"delete": {
-					usage:  "<name>",
+					usage:  "[name]",
 					desc:   "delete a network",
 					handle: handleServiceNetworkDelete,
 				},
 				"quote": {
-					usage:  "<name> <command>",
+					usage:  "[name] <command>",
 					desc:   "send a raw line to a network",
 					handle: handleServiceNetworkQuote,
 				},
@@ -411,6 +411,22 @@ func (f boolPtrFlag) Set(s string) error {
 	return nil
 }
 
+func getNetworkFromArg(dc *downstreamConn, params []string) (*network, []string, error) {
+	name, params := popArg(params)
+	if name == "" {
+		if dc.network == nil {
+			return nil, params, fmt.Errorf("no network selected, a name argument is required")
+		}
+		return dc.network, params, nil
+	} else {
+		net := dc.user.getNetwork(name)
+		if net == nil {
+			return nil, params, fmt.Errorf("unknown network %q", name)
+		}
+		return net, params, nil
+	}
+}
+
 type networkFlagSet struct {
 	*flag.FlagSet
 	Addr, Name, Nick, Username, Pass, Realname *string
@@ -550,18 +566,14 @@ func handleServiceNetworkStatus(ctx context.Context, dc *downstreamConn, params 
 }
 
 func handleServiceNetworkUpdate(ctx context.Context, dc *downstreamConn, params []string) error {
-	if len(params) < 1 {
-		return fmt.Errorf("expected at least one argument")
-	}
-
-	fs := newNetworkFlagSet()
-	if err := fs.Parse(params[1:]); err != nil {
+	net, params, err := getNetworkFromArg(dc, params)
+	if err != nil {
 		return err
 	}
 
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
+	fs := newNetworkFlagSet()
+	if err := fs.Parse(params); err != nil {
+		return err
 	}
 
 	record := net.Network // copy network record because we'll mutate it
@@ -579,13 +591,9 @@ func handleServiceNetworkUpdate(ctx context.Context, dc *downstreamConn, params 
 }
 
 func handleServiceNetworkDelete(ctx context.Context, dc *downstreamConn, params []string) error {
-	if len(params) != 1 {
-		return fmt.Errorf("expected exactly one argument")
-	}
-
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
+	net, params, err := getNetworkFromArg(dc, params)
+	if err != nil {
+		return err
 	}
 
 	if err := dc.user.deleteNetwork(ctx, net.ID); err != nil {
@@ -597,23 +605,26 @@ func handleServiceNetworkDelete(ctx context.Context, dc *downstreamConn, params 
 }
 
 func handleServiceNetworkQuote(ctx context.Context, dc *downstreamConn, params []string) error {
-	if len(params) != 2 {
-		return fmt.Errorf("expected exactly two arguments")
+	if len(params) != 1 && len(params) != 2 {
+		return fmt.Errorf("expected one or two arguments")
 	}
 
-	net := dc.user.getNetwork(params[0])
-	if net == nil {
-		return fmt.Errorf("unknown network %q", params[0])
+	raw := params[len(params)-1]
+	params = params[:len(params)-1]
+
+	net, params, err := getNetworkFromArg(dc, params)
+	if err != nil {
+		return err
 	}
 
 	uc := net.conn
 	if uc == nil {
-		return fmt.Errorf("network %q is not currently connected", params[0])
+		return fmt.Errorf("network %q is not currently connected", net.GetName())
 	}
 
-	m, err := irc.ParseMessage(params[1])
+	m, err := irc.ParseMessage(raw)
 	if err != nil {
-		return fmt.Errorf("failed to parse command %q: %v", params[1], err)
+		return fmt.Errorf("failed to parse command %q: %v", raw, err)
 	}
 	uc.SendMessage(ctx, m)
 
