@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/irc.v3"
@@ -828,6 +829,14 @@ func (u *user) checkNetwork(record *Network) error {
 		}
 	default:
 		return fmt.Errorf("unknown URL scheme %q", url.Scheme)
+	}
+
+	if record.GetName() == "" {
+		return fmt.Errorf("network name cannot be empty")
+	}
+	if strings.HasPrefix(record.GetName(), "-") {
+		// Can be mixed up with flags when sending commands to the service
+		return fmt.Errorf("network name cannot start with a dash character")
 	}
 
 	for _, net := range u.networks {
