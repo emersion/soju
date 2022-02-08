@@ -33,6 +33,8 @@ CREATE TABLE "User" (
 	realname VARCHAR(255)
 );
 
+CREATE TYPE sasl_mechanism AS ENUM ('PLAIN', 'EXTERNAL');
+
 CREATE TABLE "Network" (
 	id SERIAL PRIMARY KEY,
 	name VARCHAR(255),
@@ -43,7 +45,7 @@ CREATE TABLE "Network" (
 	realname VARCHAR(255),
 	pass VARCHAR(255),
 	connect_commands VARCHAR(1023),
-	sasl_mechanism VARCHAR(255),
+	sasl_mechanism sasl_mechanism,
 	sasl_plain_username VARCHAR(255),
 	sasl_plain_password VARCHAR(255),
 	sasl_external_cert BYTEA,
@@ -80,6 +82,13 @@ CREATE TABLE "DeliveryReceipt" (
 var postgresMigrations = []string{
 	"", // migration #0 is reserved for schema initialization
 	`ALTER TABLE "Network" ALTER COLUMN nick DROP NOT NULL`,
+	`
+		CREATE TYPE sasl_mechanism AS ENUM ('PLAIN', 'EXTERNAL');
+		ALTER TABLE "Network"
+			ALTER COLUMN sasl_mechanism
+			TYPE sasl_mechanism
+			USING sasl_mechanism::sasl_mechanism;
+	`,
 }
 
 type PostgresDB struct {
