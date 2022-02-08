@@ -221,7 +221,7 @@ func (net *network) run() {
 		}
 
 		uc.register()
-		if err := uc.runUntilRegistered(); err != nil {
+		if err := uc.runUntilRegistered(context.TODO()); err != nil {
 			text := err.Error()
 			temp := true
 			if regErr, ok := err.(registrationError); ok {

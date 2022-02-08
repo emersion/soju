@@ -1955,14 +1955,14 @@ func (uc *upstreamConn) ReadMessage() (*irc.Message, error) {
 	return msg, nil
 }
 
-func (uc *upstreamConn) runUntilRegistered() error {
+func (uc *upstreamConn) runUntilRegistered(ctx context.Context) error {
 	for !uc.registered {
 		msg, err := uc.ReadMessage()
 		if err != nil {
 			return fmt.Errorf("failed to read message: %v", err)
 		}
 
-		if err := uc.handleMessage(context.TODO(), msg); err != nil {
+		if err := uc.handleMessage(ctx, msg); err != nil {
 			if _, ok := err.(registrationError); ok {
 				return err
 			} else {
@@ -1977,7 +1977,7 @@ func (uc *upstreamConn) runUntilRegistered() error {
 		if err != nil {
 			uc.logger.Printf("failed to parse connect command %q: %v", command, err)
 		} else {
-			uc.SendMessage(context.TODO(), m)
+			uc.SendMessage(ctx, m)
 		}
 	}
 
