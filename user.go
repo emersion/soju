@@ -220,7 +220,7 @@ func (net *network) run() {
 			net.user.srv.Identd.Store(uc.RemoteAddr().String(), uc.LocalAddr().String(), userIdent(&net.user.User))
 		}
 
-		uc.register()
+		uc.register(context.TODO())
 		if err := uc.runUntilRegistered(context.TODO()); err != nil {
 			text := err.Error()
 			temp := true

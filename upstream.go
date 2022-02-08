@@ -1916,9 +1916,7 @@ func splitSpace(s string) []string {
 	})
 }
 
-func (uc *upstreamConn) register() {
-	ctx := context.TODO()
-
+func (uc *upstreamConn) register(ctx context.Context) {
 	uc.nick = GetNick(&uc.user.User, &uc.network.Network)
 	uc.nickCM = uc.network.casemap(uc.nick)
 	uc.username = GetUsername(&uc.user.User, &uc.network.Network)
