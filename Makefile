@@ -1,13 +1,10 @@
-.POSIX:
-.SUFFIXES:
-
-GO = go
-RM = rm
-SCDOC = scdoc
-GOFLAGS =
-PREFIX = /usr/local
-BINDIR = bin
-MANDIR = share/man
+GO ?= go
+RM ?= rm
+SCDOC ?= scdoc
+GOFLAGS ?=
+PREFIX ?= /usr/local
+BINDIR ?= bin
+MANDIR ?= share/man
 
 all: soju sojuctl doc/soju.1
 
@@ -19,7 +16,7 @@ doc/soju.1: doc/soju.1.scd
 	$(SCDOC) <doc/soju.1.scd >doc/soju.1
 
 clean:
-	$(RM) -rf soju sojuctl doc/soju.1
+	$(RM) -f soju sojuctl doc/soju.1
 install:
 	mkdir -p $(DESTDIR)$(PREFIX)/$(BINDIR)
 	mkdir -p $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
@@ -29,4 +26,4 @@ install:
 	cp -f doc/soju.1 $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
 	[ -f $(DESTDIR)/etc/soju/config ] || cp -f config.in $(DESTDIR)/etc/soju/config
 
-.PHONY: soju sojuctl
+.PHONY: soju sojuctl clean install

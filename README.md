@@ -20,6 +20,7 @@ A user-friendly IRC bouncer.
 Dependencies:
 
 - Go
+- BSD or GNU make
 - a C89 compiler (for SQLite)
 - scdoc (optional, for man pages)
 
@@ -30,7 +31,7 @@ For end users, a `Makefile` is provided:
 
 For development, you can use `go run ./cmd/soju` as usual.
 
-To link with the system libsqlite3, use `make GOFLAGS="-tags=libsqlite3"`.
+To link with the system libsqlite3, set `GOFLAGS="-tags=libsqlite3"`.
 
 ## Contributing
 
