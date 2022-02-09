@@ -1341,8 +1341,8 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			})
 		}
 	case irc.RPL_WHOREPLY:
-		var channel, username, host, server, nick, mode, trailing string
-		if err := parseMessageParams(msg, nil, &channel, &username, &host, &server, &nick, &mode, &trailing); err != nil {
+		var channel, username, host, server, nick, flags, trailing string
+		if err := parseMessageParams(msg, nil, &channel, &username, &host, &server, &nick, &flags, &trailing); err != nil {
 			return err
 		}
 
@@ -1360,7 +1360,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_WHOREPLY,
-			Params:  []string{dc.nick, channel, username, host, server, nick, mode, trailing},
+			Params:  []string{dc.nick, channel, username, host, server, nick, flags, trailing},
 		})
 	case rpl_whospcrpl:
 		dc, cmd := uc.currentPendingCommand("WHO")
