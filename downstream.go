@@ -2434,6 +2434,19 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{upstreamName},
 			})
 
+			echoTags := tags.Copy()
+			echoTags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
+			if uc.account != "" {
+				echoTags["account"] = irc.TagValue(uc.account)
+			}
+			echoMsg := &irc.Message{
+				Tags:    echoTags,
+				Prefix:  &irc.Prefix{Name: uc.nick},
+				Command: "TAGMSG",
+				Params:  []string{upstreamName},
+			}
+			uc.produce(upstreamName, echoMsg, dc)
+
 			uc.updateChannelAutoDetach(upstreamName)
 		}
 	case "INVITE":
