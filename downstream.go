@@ -2766,6 +2766,16 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			criteria = msg.Params[1]
 		}
 
+		// We don't save read receipts for our service
+		if casemapASCII(target) == serviceNickCM {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.prefix(),
+				Command: "READ",
+				Params:  []string{target, "*"},
+			})
+			return nil
+		}
+
 		uc, entity, err := dc.unmarshalEntity(target)
 		if err != nil {
 			return err
