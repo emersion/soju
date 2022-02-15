@@ -337,6 +337,9 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	if srv.Config().LogPath != "" {
 		dc.supportedCaps["draft/chathistory"] = ""
 	}
+	if dc.conn.conn.SupportsCompression() {
+		dc.supportedCaps["draft/compression"] = ""
+	}
 	return dc
 }
 
@@ -796,11 +799,23 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 
 			dc.networkName = match.GetName()
 		}
+	case "COMPRESS":
+		// handled in dc.conn.ReadMessage() if supported
+		if !dc.conn.conn.SupportsCompression() {
+			return newUnknownCommandError(msg.Command)
+		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
 	if dc.rawUsername != "" && dc.nick != "*" && !dc.negotiatingCaps {
+		if dc.caps["draft/compression"] {
+			// triggers compression at dc.conn level
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "COMPRESS",
+			})
+		}
 		return dc.register(ctx)
 	}
 	return nil
@@ -2843,6 +2858,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				})
 			}
 		})
+	case "COMPRESS":
+		// handled in dc.conn.ReadMessage() if supported
+		if !dc.conn.conn.SupportsCompression() {
+			return newUnknownCommandError(msg.Command)
+		}
 	case "BOUNCER":
 		var subcommand string
 		if err := parseMessageParams(msg, &subcommand); err != nil {
