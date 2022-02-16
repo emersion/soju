@@ -27,7 +27,7 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 		} else {
 			timestampStr := "*"
 			if r != nil {
-				timestampStr = fmt.Sprintf("timestamp=%s", r.Timestamp.UTC().Format(serverTimeLayout))
+				timestampStr = fmt.Sprintf("timestamp=%s", formatServerTime(r.Timestamp))
 			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),

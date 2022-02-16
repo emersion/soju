@@ -795,7 +795,7 @@ func (db *SqliteDB) StoreReadReceipt(ctx context.Context, networkID int64, recei
 
 	args := []interface{}{
 		sql.Named("id", receipt.ID),
-		sql.Named("timestamp", receipt.Timestamp.UTC().Format(serverTimeLayout)),
+		sql.Named("timestamp", formatServerTime(receipt.Timestamp)),
 		sql.Named("network", networkID),
 		sql.Named("target", receipt.Target),
 	}

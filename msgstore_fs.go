@@ -380,7 +380,7 @@ func parseMessage(line, entity string, ref time.Time, events bool) (*irc.Message
 
 	msg := &irc.Message{
 		Tags: map[string]irc.TagValue{
-			"time": irc.TagValue(t.UTC().Format(serverTimeLayout)),
+			"time": irc.TagValue(formatServerTime(t)),
 		},
 		Prefix:  prefix,
 		Command: cmd,

@@ -445,7 +445,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 	}
 
 	if _, ok := msg.Tags["time"]; !ok {
-		msg.Tags["time"] = irc.TagValue(time.Now().UTC().Format(serverTimeLayout))
+		msg.Tags["time"] = irc.TagValue(formatServerTime(time.Now()))
 	}
 
 	switch msg.Command {

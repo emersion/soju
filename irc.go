@@ -31,6 +31,10 @@ const (
 // The server-time layout, as defined in the IRCv3 spec.
 const serverTimeLayout = "2006-01-02T15:04:05.000Z"
 
+func formatServerTime(t time.Time) string {
+	return t.UTC().Format(serverTimeLayout)
+}
+
 type userModes string
 
 func (ms userModes) Has(c byte) bool {
