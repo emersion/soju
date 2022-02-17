@@ -5,6 +5,7 @@ go 1.15
 require (
 	git.sr.ht/~emersion/go-scfg v0.0.0-20201019143924-142a8aa629fc
 	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9
+	github.com/DataDog/zstd v1.5.0
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/emersion/go-sasl v0.0.0-20211008083017-0b9dcfb154ac
 	github.com/golang/protobuf v1.5.2 // indirect

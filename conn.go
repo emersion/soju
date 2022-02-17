@@ -1,6 +1,8 @@
 package soju
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/DataDog/zstd"
 	"golang.org/x/time/rate"
 	"gopkg.in/irc.v3"
 	"nhooyr.io/websocket"
@@ -25,14 +28,16 @@ type ircConn interface {
 	SetWriteDeadline(time.Time) error
 	RemoteAddr() net.Addr
 	LocalAddr() net.Addr
+	SupportsCompression() bool
+	EnableReadCompression() error
+	EnableWriteCompression() error
 }
 
 func newNetIRCConn(c net.Conn) ircConn {
-	type netConn net.Conn
-	return struct {
-		*irc.Conn
-		netConn
-	}{irc.NewConn(c), c}
+	return &tcpIRCConn{
+		Conn: c,
+		r:    bufio.NewReader(c),
+	}
 }
 
 type websocketIRCConn struct {
@@ -109,6 +114,18 @@ func (wic *websocketIRCConn) LocalAddr() net.Addr {
 	return websocketAddr("")
 }
 
+func (wic websocketIRCConn) SupportsCompression() bool {
+	return false
+}
+
+func (wic websocketIRCConn) EnableReadCompression() error {
+	return fmt.Errorf("websocket: compression is unsupported")
+}
+
+func (wic websocketIRCConn) EnableWriteCompression() error {
+	return fmt.Errorf("websocket: compression is unsupported")
+}
+
 type websocketAddr string
 
 func (websocketAddr) Network() string {
@@ -117,6 +134,74 @@ func (websocketAddr) Network() string {
 
 func (wa websocketAddr) String() string {
 	return string(wa)
+}
+
+type tcpIRCConn struct {
+	net.Conn
+	wz *zstd.Writer
+	rz io.ReadCloser
+	r  *bufio.Reader
+}
+
+func (tic *tcpIRCConn) ReadMessage() (msg *irc.Message, err error) {
+	err = irc.ErrZeroLengthMessage
+	for err == irc.ErrZeroLengthMessage {
+		var line string
+		line, err = tic.r.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		msg, err = irc.ParseMessage(line)
+	}
+	return msg, err
+}
+
+func (tic *tcpIRCConn) WriteMessage(msg *irc.Message) error {
+	data := []byte(msg.String() + "\r\n")
+	if tic.wz != nil {
+		_, err := tic.wz.Write(data)
+		if err != nil {
+			return err
+		}
+		return tic.wz.Flush()
+	}
+	_, err := tic.Conn.Write(data)
+	return err
+}
+
+func (tic *tcpIRCConn) Close() error {
+	if tic.wz != nil {
+		tic.wz.Close()
+	}
+	if tic.rz != nil {
+		tic.rz.Close()
+	}
+	return tic.Conn.Close()
+}
+
+func (tic *tcpIRCConn) SupportsCompression() bool {
+	return true
+}
+
+func (tic *tcpIRCConn) EnableReadCompression() error {
+	if tic.rz == nil {
+		tic.rz = zstd.NewReader(tic)
+		rem, err := tic.r.Peek(tic.r.Buffered())
+		if err != nil {
+			return err
+		}
+		remRd := bytes.NewReader(rem)
+		mr := io.MultiReader(remRd, tic.rz)
+		tic.r = bufio.NewReader(mr)
+	}
+	return nil
+}
+
+func (tic *tcpIRCConn) EnableWriteCompression() error {
+	if tic.wz == nil {
+		tic.wz = zstd.NewWriterLevel(tic, 1)
+	}
+	return nil
 }
 
 type connOptions struct {
@@ -162,6 +247,12 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 				c.logger.Printf("failed to write message: %v", err)
 				break
 			}
+			if msg.Command == "COMPRESS" {
+				if err := c.conn.EnableWriteCompression(); err != nil {
+					c.logger.Printf("failed to enable compression: %v", err)
+					break
+				}
+			}
 		}
 		if err := c.conn.Close(); err != nil && !isErrClosed(err) {
 			c.logger.Printf("failed to close connection: %v", err)
@@ -206,6 +297,11 @@ func (c *conn) ReadMessage() (*irc.Message, error) {
 		return nil, io.EOF
 	} else if err != nil {
 		return nil, err
+	}
+	if msg.Command == "COMPRESS" && c.conn.SupportsCompression() {
+		if err := c.conn.EnableReadCompression(); err != nil {
+			return nil, err
+		}
 	}
 
 	c.logger.Debugf("received: %v", msg)
