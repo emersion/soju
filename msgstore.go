@@ -51,6 +51,24 @@ type chatHistoryMessageStore interface {
 	LoadAfterTime(ctx context.Context, network *Network, entity string, start, end time.Time, limit int, events bool) ([]*irc.Message, error)
 }
 
+type searchOptions struct {
+	start time.Time
+	end   time.Time
+	limit int
+	from  string
+	in    string
+	text  string
+}
+
+// searchMessageStore is a message store that supports server-side search
+// operations.
+type searchMessageStore interface {
+	messageStore
+
+	// Search returns messages matching the specified options.
+	Search(ctx context.Context, network *Network, search searchOptions) ([]*irc.Message, error)
+}
+
 type msgIDType uint
 
 const (

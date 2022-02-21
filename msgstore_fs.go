@@ -88,6 +88,7 @@ type fsMessageStore struct {
 
 var _ messageStore = (*fsMessageStore)(nil)
 var _ chatHistoryMessageStore = (*fsMessageStore)(nil)
+var _ searchMessageStore = (*fsMessageStore)(nil)
 
 func newFSMessageStore(root string, user *User) *fsMessageStore {
 	return &fsMessageStore{
@@ -398,7 +399,7 @@ func (ms *fsMessageStore) parseMessage(line string, network *Network, entity str
 	return msg, t, nil
 }
 
-func (ms *fsMessageStore) parseMessagesBefore(network *Network, entity string, ref time.Time, end time.Time, events bool, limit int, afterOffset int64) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesBefore(network *Network, entity string, ref time.Time, end time.Time, events bool, limit int, afterOffset int64, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -430,6 +431,9 @@ func (ms *fsMessageStore) parseMessagesBefore(network *Network, entity string, r
 		} else if !t.Before(ref) {
 			break
 		}
+		if selector != nil && !selector(msg) {
+			continue
+		}
 
 		historyRing[cur%limit] = msg
 		cur++
@@ -454,7 +458,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *Network, entity string, r
 	}
 }
 
-func (ms *fsMessageStore) parseMessagesAfter(network *Network, entity string, ref time.Time, end time.Time, events bool, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesAfter(network *Network, entity string, ref time.Time, end time.Time, events bool, limit int, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -476,6 +480,9 @@ func (ms *fsMessageStore) parseMessagesAfter(network *Network, entity string, re
 		} else if !t.Before(end) {
 			break
 		}
+		if selector != nil && !selector(msg) {
+			continue
+		}
 
 		history = append(history, msg)
 	}
@@ -486,14 +493,18 @@ func (ms *fsMessageStore) parseMessagesAfter(network *Network, entity string, re
 	return history, nil
 }
 
-func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
-	start = start.In(time.Local)
+func (ms *fsMessageStore) getBeforeTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+	if start.IsZero() {
+		start = time.Now()
+	} else {
+		start = start.In(time.Local)
+	}
 	end = end.In(time.Local)
-	history := make([]*irc.Message, limit)
+	messages := make([]*irc.Message, limit)
 	remaining := limit
 	tries := 0
 	for remaining > 0 && tries < fsMessageStoreMaxTries && end.Before(start) {
-		buf, err := ms.parseMessagesBefore(network, entity, start, end, events, remaining, -1)
+		buf, err := ms.parseMessagesBefore(network, entity, start, end, events, remaining, -1, selector)
 		if err != nil {
 			return nil, err
 		}
@@ -502,7 +513,7 @@ func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, network *Network, 
 		} else {
 			tries = 0
 		}
-		copy(history[remaining-len(buf):], buf)
+		copy(messages[remaining-len(buf):], buf)
 		remaining -= len(buf)
 		year, month, day := start.Date()
 		start = time.Date(year, month, day, 0, 0, 0, 0, start.Location()).Add(-1)
@@ -512,17 +523,25 @@ func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, network *Network, 
 		}
 	}
 
-	return history[remaining:], nil
+	return messages[remaining:], nil
 }
 
-func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
+	return ms.getBeforeTime(ctx, network, entity, start, end, limit, events, nil)
+}
+
+func (ms *fsMessageStore) getAfterTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
-	end = end.In(time.Local)
-	var history []*irc.Message
+	if end.IsZero() {
+		end = time.Now()
+	} else {
+		end = end.In(time.Local)
+	}
+	var messages []*irc.Message
 	remaining := limit
 	tries := 0
 	for remaining > 0 && tries < fsMessageStoreMaxTries && start.Before(end) {
-		buf, err := ms.parseMessagesAfter(network, entity, start, end, events, remaining)
+		buf, err := ms.parseMessagesAfter(network, entity, start, end, events, remaining, selector)
 		if err != nil {
 			return nil, err
 		}
@@ -531,7 +550,7 @@ func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, network *Network, e
 		} else {
 			tries = 0
 		}
-		history = append(history, buf...)
+		messages = append(messages, buf...)
 		remaining -= len(buf)
 		year, month, day := start.Date()
 		start = time.Date(year, month, day+1, 0, 0, 0, 0, start.Location())
@@ -540,7 +559,11 @@ func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, network *Network, e
 			return nil, err
 		}
 	}
-	return history, nil
+	return messages, nil
+}
+
+func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
+	return ms.getAfterTime(ctx, network, entity, start, end, limit, events, nil)
 }
 
 func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *Network, entity, id string, limit int) ([]*irc.Message, error) {
@@ -569,7 +592,7 @@ func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *Network, en
 			offset = afterOffset
 		}
 
-		buf, err := ms.parseMessagesBefore(network, entity, t, time.Time{}, false, remaining, offset)
+		buf, err := ms.parseMessagesBefore(network, entity, t, time.Time{}, false, remaining, offset, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -668,6 +691,24 @@ func (ms *fsMessageStore) ListTargets(ctx context.Context, network *Network, sta
 	}
 
 	return targets, nil
+}
+
+func (ms *fsMessageStore) Search(ctx context.Context, network *Network, opts searchOptions) ([]*irc.Message, error) {
+	text := strings.ToLower(opts.text)
+	selector := func(m *irc.Message) bool {
+		if opts.from != "" && m.User != opts.from {
+			return false
+		}
+		if text != "" && !strings.Contains(strings.ToLower(m.Params[1]), text) {
+			return false
+		}
+		return true
+	}
+	if !opts.start.IsZero() {
+		return ms.getAfterTime(ctx, network, opts.in, opts.start, opts.end, opts.limit, false, selector)
+	} else {
+		return ms.getBeforeTime(ctx, network, opts.in, opts.end, opts.start, opts.limit, false, selector)
+	}
 }
 
 func (ms *fsMessageStore) RenameNetwork(oldNet, newNet *Network) error {
