@@ -361,6 +361,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	// chatHistoryMessageStore
 	if srv.Config().LogPath != "" {
 		dc.caps.Available["draft/chathistory"] = ""
+		dc.caps.Available["soju.im/search"] = ""
 	}
 	return dc
 }
@@ -2959,6 +2960,92 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Command: "READ",
 					Params:  []string{d.marshalEntity(network, entity), timestampStr},
 				})
+			}
+		})
+	case "SEARCH":
+		store, ok := dc.user.msgStore.(searchMessageStore)
+		if !ok {
+			return ircError{&irc.Message{
+				Command: irc.ERR_UNKNOWNCOMMAND,
+				Params:  []string{dc.nick, "SEARCH", "Unknown command"},
+			}}
+		}
+		var attrsStr string
+		if err := parseMessageParams(msg, &attrsStr); err != nil {
+			return err
+		}
+		attrs := irc.ParseTags(attrsStr)
+
+		var uc *upstreamConn
+		const searchMaxLimit = 100
+		opts := searchOptions{
+			limit: searchMaxLimit,
+		}
+		for name, v := range attrs {
+			value := string(v)
+			switch name {
+			case "before", "after":
+				timestamp, err := time.Parse(serverTimeLayout, value)
+				if err != nil {
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"SEARCH", "INVALID_PARAMS", name, "Invalid criteria"},
+					}}
+				}
+				switch name {
+				case "after":
+					opts.start = timestamp
+				case "before":
+					opts.end = timestamp
+				}
+			case "from":
+				opts.from = value
+			case "in":
+				u, upstreamName, err := dc.unmarshalEntity(value)
+				if err != nil {
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"SEARCH", "INVALID_PARAMS", name, "Invalid criteria"},
+					}}
+				}
+				uc = u
+				opts.in = u.network.casemap(upstreamName)
+			case "text":
+				opts.text = value
+			case "limit":
+				limit, err := strconv.Atoi(value)
+				if err != nil || limit <= 0 {
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"SEARCH", "INVALID_PARAMS", name, "Invalid limit"},
+					}}
+				}
+				opts.limit = limit
+			}
+		}
+		if uc == nil {
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"SEARCH", "INVALID_PARAMS", "in", "The in parameter is mandatory"},
+			}}
+		}
+		if opts.limit > searchMaxLimit {
+			opts.limit = searchMaxLimit
+		}
+
+		messages, err := store.Search(ctx, &uc.network.Network, opts)
+		if err != nil {
+			dc.logger.Printf("failed fetching messages for search: %v", err)
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"SEARCH", "INTERNAL_ERROR", "Messages could not be retrieved"},
+			}}
+		}
+
+		dc.SendBatch("soju.im/search", nil, nil, func(batchRef irc.TagValue) {
+			for _, msg := range messages {
+				msg.Tags["batch"] = batchRef
+				dc.SendMessage(dc.marshalMessage(msg, uc.network))
 			}
 		})
 	case "BOUNCER":
