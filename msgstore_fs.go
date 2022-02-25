@@ -80,6 +80,7 @@ type fsMessageStoreFile struct {
 // https://github.com/znc/znc/blob/master/modules/log.cpp
 type fsMessageStore struct {
 	root string
+	user *User
 
 	// Write-only files used by Append
 	files map[string]*fsMessageStoreFile // indexed by entity
@@ -88,9 +89,10 @@ type fsMessageStore struct {
 var _ messageStore = (*fsMessageStore)(nil)
 var _ chatHistoryMessageStore = (*fsMessageStore)(nil)
 
-func newFSMessageStore(root, username string) *fsMessageStore {
+func newFSMessageStore(root string, user *User) *fsMessageStore {
 	return &fsMessageStore{
-		root:  filepath.Join(root, escapeFilename(username)),
+		root:  filepath.Join(root, escapeFilename(user.Username)),
+		user:  user,
 		files: make(map[string]*fsMessageStoreFile),
 	}
 }
@@ -250,7 +252,7 @@ func formatMessage(msg *irc.Message) string {
 	}
 }
 
-func parseMessage(line, entity string, ref time.Time, events bool) (*irc.Message, time.Time, error) {
+func (ms *fsMessageStore) parseMessage(line string, network *Network, entity string, ref time.Time, events bool) (*irc.Message, time.Time, error) {
 	var hour, minute, second int
 	_, err := fmt.Sscanf(line, "[%02d:%02d:%02d] ", &hour, &minute, &second)
 	if err != nil {
@@ -372,6 +374,13 @@ func parseMessage(line, entity string, ref time.Time, events bool) (*irc.Message
 		}
 
 		prefix = &irc.Prefix{Name: sender}
+		if entity == sender {
+			// This is a direct message from a user to us. We don't store own
+			// our nickname in the logs, so grab it from the network settings.
+			// Not very accurate since this may not match our nick at the time
+			// the message was received, but we can't do a lot better.
+			entity = GetNick(ms.user, network)
+		}
 		params = []string{entity, text}
 	}
 
@@ -413,7 +422,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *Network, entity string, r
 	}
 
 	for sc.Scan() {
-		msg, t, err := parseMessage(sc.Text(), entity, ref, events)
+		msg, t, err := ms.parseMessage(sc.Text(), network, entity, ref, events)
 		if err != nil {
 			return nil, err
 		} else if msg == nil || !t.After(end) {
@@ -459,7 +468,7 @@ func (ms *fsMessageStore) parseMessagesAfter(network *Network, entity string, re
 	var history []*irc.Message
 	sc := bufio.NewScanner(f)
 	for sc.Scan() && len(history) < limit {
-		msg, t, err := parseMessage(sc.Text(), entity, ref, events)
+		msg, t, err := ms.parseMessage(sc.Text(), network, entity, ref, events)
 		if err != nil {
 			return nil, err
 		} else if msg == nil || !t.After(ref) {
