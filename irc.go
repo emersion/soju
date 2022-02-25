@@ -681,10 +681,8 @@ func (cm *monitorCasemapMap) Value(name string) (online bool) {
 
 func isWordBoundary(r rune) bool {
 	switch r {
-	case '-', '_', '|':
+	case '-', '_', '|': // inspired from weechat.look.highlight_regex
 		return false
-	case '\u00A0':
-		return true
 	default:
 		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
 	}
@@ -697,14 +695,8 @@ func isHighlight(text, nick string) bool {
 			return false
 		}
 
-		// Detect word boundaries
-		var left, right rune
-		if i > 0 {
-			left, _ = utf8.DecodeLastRuneInString(text[:i])
-		}
-		if i < len(text) {
-			right, _ = utf8.DecodeRuneInString(text[i+len(nick):])
-		}
+		left, _ := utf8.DecodeLastRuneInString(text[:i])
+		right, _ := utf8.DecodeRuneInString(text[i+len(nick):])
 		if isWordBoundary(left) && isWordBoundary(right) {
 			return true
 		}
