@@ -1250,7 +1250,7 @@ func (dc *downstreamConn) authenticate(ctx context.Context, username, password s
 
 func (dc *downstreamConn) register(ctx context.Context) error {
 	if dc.registered {
-		return fmt.Errorf("tried to register twice")
+		panic("tried to register twice")
 	}
 
 	if dc.sasl != nil {
