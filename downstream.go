@@ -215,7 +215,8 @@ func updateNetworkAttrs(record *Network, attrs irc.Tags, subcommand string) erro
 //     '?' breaks masks
 //     '$' breaks server masks in PRIVMSG/NOTICE
 //     ',' breaks lists
-const illegalNickChars = " :@!*?$,"
+//     '.' is reserved for server names
+const illegalNickChars = " :@!*?$,."
 
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
