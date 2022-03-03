@@ -1290,9 +1290,19 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 	_, fallbackClientName, fallbackNetworkName := unmarshalUsername(dc.rawUsername)
 	if dc.clientName == "" {
 		dc.clientName = fallbackClientName
+	} else if dc.clientName != fallbackClientName {
+		return ircError{&irc.Message{
+			Command: irc.ERR_ERRONEUSNICKNAME,
+			Params:  []string{dc.nick, "Client name mismatch in usernames"},
+		}}
 	}
 	if dc.networkName == "" {
 		dc.networkName = fallbackNetworkName
+	} else if dc.networkName != fallbackNetworkName {
+		return ircError{&irc.Message{
+			Command: irc.ERR_ERRONEUSNICKNAME,
+			Params:  []string{dc.nick, "Network name mismatch in usernames"},
+		}}
 	}
 
 	dc.registered = true
