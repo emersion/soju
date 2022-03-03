@@ -1287,8 +1287,12 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 		}
 	}
 
-	if dc.clientName == "" && dc.networkName == "" {
-		_, dc.clientName, dc.networkName = unmarshalUsername(dc.rawUsername)
+	_, fallbackClientName, fallbackNetworkName := unmarshalUsername(dc.rawUsername)
+	if dc.clientName == "" {
+		dc.clientName = fallbackClientName
+	}
+	if dc.networkName == "" {
+		dc.networkName = fallbackNetworkName
 	}
 
 	dc.registered = true
