@@ -55,6 +55,13 @@ integration. gamja supports many IRCv3 features including chat history.
 gamja also provides UI to manage soju networks via the
 `soju.im/bouncer-networks` extension.
 
+# [goguma]
+
+Much like gamja, goguma has been designed together with soju, so should have
+excellent integration. goguma supports many IRCv3 features including chat
+history. goguma should seamlessly connect to all networks configured in soju via
+the `soju.im/bouncer-networks` extension.
+
 # [Hexchat]
 
 Hexchat has support for a small set of IRCv3 capabilities. To prevent
@@ -85,6 +92,7 @@ See `/help cap` for more information.
 
 [IRCv3 support tables]: https://ircv3.net/software/clients
 [gamja]: https://sr.ht/~emersion/gamja/
+[goguma]: https://sr.ht/~emersion/goguma/
 [senpai]: https://sr.ht/~taiite/senpai/
 [Weechat]: https://weechat.org/
 [Weechat script]: https://github.com/weechat/scripts/blob/master/python/soju.py
