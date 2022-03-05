@@ -4,6 +4,12 @@ This page describes how to configure IRC clients to better integrate with soju.
 
 Also see the [IRCv3 support tables] for a more general list of clients.
 
+# catgirl
+
+catgirl doesn't properly implement cap-3.2, so many capabilities will be
+disabled. catgirl developers have publicly stated that supporting bouncers such
+as soju is a non-goal.
+
 # [Emacs]
 
 There are two clients provided with Emacs. They require some setup to work
