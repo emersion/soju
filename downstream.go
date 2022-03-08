@@ -2812,13 +2812,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return nil
 		}
 
-		uc, entity, err := dc.unmarshalEntity(target)
+		network, entity, err := dc.unmarshalEntityNetwork(target)
 		if err != nil {
 			return err
 		}
-		entityCM := uc.network.casemap(entity)
+		entityCM := network.casemap(entity)
 
-		r, err := dc.srv.db.GetReadReceipt(ctx, uc.network.ID, entityCM)
+		r, err := dc.srv.db.GetReadReceipt(ctx, network.ID, entityCM)
 		if err != nil {
 			dc.logger.Printf("failed to get the read receipt for %q: %v", entity, err)
 			return ircError{&irc.Message{
@@ -2855,7 +2855,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 			if r.Timestamp.Before(timestamp) {
 				r.Timestamp = timestamp
-				if err := dc.srv.db.StoreReadReceipt(ctx, uc.network.ID, r); err != nil {
+				if err := dc.srv.db.StoreReadReceipt(ctx, network.ID, r); err != nil {
 					dc.logger.Printf("failed to store receipt for %q: %v", entity, err)
 					return ircError{&irc.Message{
 						Command: "FAIL",
@@ -2870,12 +2870,12 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if !r.Timestamp.IsZero() {
 			timestampStr = fmt.Sprintf("timestamp=%s", formatServerTime(r.Timestamp))
 		}
-		uc.forEachDownstream(func(d *downstreamConn) {
+		network.forEachDownstream(func(d *downstreamConn) {
 			if broadcast || dc.id == d.id {
 				d.SendMessage(&irc.Message{
 					Prefix:  d.prefix(),
 					Command: "READ",
-					Params:  []string{d.marshalEntity(uc.network, entity), timestampStr},
+					Params:  []string{d.marshalEntity(network, entity), timestampStr},
 				})
 			}
 		})
