@@ -2133,7 +2133,8 @@ func (uc *upstreamConn) updateMonitor() {
 	var addList []string
 	seen := make(map[string]struct{})
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		for targetCM := range dc.monitored.innerMap {
+		for _, entry := range dc.monitored.innerMap {
+			targetCM := uc.network.casemap(entry.originalKey)
 			if !uc.monitored.Has(targetCM) {
 				if _, ok := add[targetCM]; !ok {
 					addList = append(addList, targetCM)
