@@ -2587,6 +2587,16 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 					dc.monitored.SetValue(target, nil)
 
+					if uc.network.casemap(target) == serviceNickCM {
+						// BouncerServ is never tired
+						dc.SendMessage(&irc.Message{
+							Prefix:  dc.srv.prefix(),
+							Command: irc.RPL_MONONLINE,
+							Params:  []string{dc.nick, target},
+						})
+						continue
+					}
+
 					if uc.monitored.Has(target) {
 						cmd := irc.RPL_MONOFFLINE
 						if online := uc.monitored.Value(target); online {
@@ -2629,6 +2639,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 				cmd := irc.RPL_MONOFFLINE
 				if online := uc.monitored.Value(target); online {
+					cmd = irc.RPL_MONONLINE
+				}
+
+				if uc.network.casemap(target) == serviceNickCM {
 					cmd = irc.RPL_MONONLINE
 				}
 

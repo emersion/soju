@@ -2135,6 +2135,9 @@ func (uc *upstreamConn) updateMonitor() {
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		for _, entry := range dc.monitored.innerMap {
 			targetCM := uc.network.casemap(entry.originalKey)
+			if targetCM == serviceNickCM {
+				continue
+			}
 			if !uc.monitored.Has(targetCM) {
 				if _, ok := add[targetCM]; !ok {
 					addList = append(addList, targetCM)
