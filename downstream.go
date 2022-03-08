@@ -329,6 +329,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		caps:          make(map[string]bool),
 		monitored:     newCasemapMap(0),
 	}
+	dc.monitored.SetCasemapping(casemapASCII)
 	dc.hostname = remoteAddr
 	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
 		dc.hostname = host
@@ -2605,6 +2606,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			uc.updateMonitor()
 		case "C": // clear
 			dc.monitored = newCasemapMap(0)
+			dc.monitored.SetCasemapping(casemapASCII)
 			uc.updateMonitor()
 		case "L": // list
 			// TODO: be less lazy and pack the list
