@@ -177,6 +177,9 @@ func (db *PostgresDB) Close() error {
 }
 
 func (db *PostgresDB) RegisterMetrics(r prometheus.Registerer) error {
+	if err := r.Register(&postgresMetricsCollector{db}); err != nil {
+		return err
+	}
 	return r.Register(promcollectors.NewDBStatsCollector(db.db, "main"))
 }
 
@@ -557,4 +560,79 @@ func (db *PostgresDB) StoreReadReceipt(ctx context.Context, networkID int64, rec
 			networkID, receipt.Target, receipt.Timestamp).Scan(&receipt.ID)
 	}
 	return err
+}
+
+func (db *PostgresDB) listTopNetworkAddrs(ctx context.Context) (map[string]int, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	addrs := make(map[string]int)
+
+	rows, err := db.db.QueryContext(ctx, `
+		SELECT addr, COUNT(addr) AS n
+		FROM "Network"
+		GROUP BY addr
+		ORDER BY n DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			addr string
+			n    int
+		)
+		if err := rows.Scan(&addr, &n); err != nil {
+			return nil, err
+		}
+		addrs[addr] = n
+	}
+
+	return addrs, rows.Err()
+}
+
+var postgresNetworksTotalDesc = prometheus.NewDesc("soju_networks_total", "Number of networks", []string{"hostname"}, nil)
+
+type postgresMetricsCollector struct {
+	db *PostgresDB
+}
+
+var _ prometheus.Collector = (*postgresMetricsCollector)(nil)
+
+func (c *postgresMetricsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- postgresNetworksTotalDesc
+}
+
+func (c *postgresMetricsCollector) Collect(ch chan<- prometheus.Metric) {
+	addrs, err := c.db.listTopNetworkAddrs(context.TODO())
+	if err != nil {
+		ch <- prometheus.NewInvalidMetric(postgresNetworksTotalDesc, err)
+		return
+	}
+
+	// Group by hostname
+	hostnames := make(map[string]int)
+	for addr, n := range addrs {
+		hostname := addr
+		network := Network{Addr: addr}
+		if u, err := network.URL(); err == nil {
+			hostname = u.Hostname()
+		}
+		hostnames[hostname] += n
+	}
+
+	// Group networks with low counts for privacy
+	watermark := 10
+	grouped := 0
+	for hostname, n := range hostnames {
+		if n >= watermark && hostname != "" && hostname != "*" {
+			ch <- prometheus.MustNewConstMetric(postgresNetworksTotalDesc, prometheus.GaugeValue, float64(n), hostname)
+		} else {
+			grouped += n
+		}
+	}
+	if grouped > 0 {
+		ch <- prometheus.MustNewConstMetric(postgresNetworksTotalDesc, prometheus.GaugeValue, float64(grouped), "*")
+	}
 }
