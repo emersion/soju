@@ -35,7 +35,7 @@ type Database interface {
 
 type MetricsCollectorDatabase interface {
 	Database
-	MetricsCollector() prometheus.Collector
+	RegisterMetrics(r prometheus.Registerer) error
 }
 
 func OpenDB(driver, source string) (Database, error) {

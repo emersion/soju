@@ -316,7 +316,9 @@ func main() {
 	}
 
 	if db, ok := db.(soju.MetricsCollectorDatabase); ok && srv.MetricsRegistry != nil {
-		srv.MetricsRegistry.MustRegister(db.MetricsCollector())
+		if err := db.RegisterMetrics(srv.MetricsRegistry); err != nil {
+			log.Fatalf("failed to register database metrics: %v", err)
+		}
 	}
 
 	sigCh := make(chan os.Signal, 1)

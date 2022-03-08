@@ -176,8 +176,8 @@ func (db *PostgresDB) Close() error {
 	return db.db.Close()
 }
 
-func (db *PostgresDB) MetricsCollector() prometheus.Collector {
-	return promcollectors.NewDBStatsCollector(db.db, "main")
+func (db *PostgresDB) RegisterMetrics(r prometheus.Registerer) error {
+	return r.Register(promcollectors.NewDBStatsCollector(db.db, "main"))
 }
 
 func (db *PostgresDB) Stats(ctx context.Context) (*DatabaseStats, error) {
