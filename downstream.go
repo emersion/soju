@@ -596,7 +596,7 @@ func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, 
 func (dc *downstreamConn) sendMessageWithID(msg *irc.Message, id string) {
 	dc.SendMessage(msg)
 
-	if id == "" || !dc.messageSupportsBacklog(msg) {
+	if id == "" || !dc.messageSupportsBacklog(msg) || dc.caps["draft/chathistory"] {
 		return
 	}
 
@@ -607,7 +607,7 @@ func (dc *downstreamConn) sendMessageWithID(msg *irc.Message, id string) {
 // sending a message. This is useful e.g. for self-messages when echo-message
 // isn't enabled.
 func (dc *downstreamConn) advanceMessageWithID(msg *irc.Message, id string) {
-	if id == "" || !dc.messageSupportsBacklog(msg) {
+	if id == "" || !dc.messageSupportsBacklog(msg) || dc.caps["draft/chathistory"] {
 		return
 	}
 
