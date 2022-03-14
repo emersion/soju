@@ -481,6 +481,9 @@ func (fs *networkFlagSet) update(network *Network) error {
 		if len(fs.ConnectCommands) == 1 && fs.ConnectCommands[0] == "" {
 			network.ConnectCommands = nil
 		} else {
+			if len(fs.ConnectCommands) > 20 {
+				return fmt.Errorf("too many -connect-command flags supplied")
+			}
 			for _, command := range fs.ConnectCommands {
 				_, err := irc.ParseMessage(command)
 				if err != nil {
