@@ -271,7 +271,7 @@ func (m *memberships) Remove(oldMembership membership) {
 }
 
 func (m memberships) Format(dc *downstreamConn) string {
-	if !dc.caps["multi-prefix"] {
+	if !dc.caps.IsEnabled("multi-prefix") {
 		if len(m) == 0 {
 			return ""
 		}
@@ -808,4 +808,39 @@ var isupportEncoder = strings.NewReplacer(" ", "\\x20", "\\", "\\x5C")
 
 func encodeISUPPORT(s string) string {
 	return isupportEncoder.Replace(s)
+}
+
+type capRegistry struct {
+	Available map[string]string
+	Enabled   map[string]struct{}
+}
+
+func newCapRegistry() capRegistry {
+	return capRegistry{
+		Available: make(map[string]string),
+		Enabled:   make(map[string]struct{}),
+	}
+}
+
+func (cr *capRegistry) IsAvailable(name string) bool {
+	_, ok := cr.Available[name]
+	return ok
+}
+
+func (cr *capRegistry) IsEnabled(name string) bool {
+	_, ok := cr.Enabled[name]
+	return ok
+}
+
+func (cr *capRegistry) Del(name string) {
+	delete(cr.Available, name)
+	delete(cr.Enabled, name)
+}
+
+func (cr *capRegistry) SetEnabled(name string, enabled bool) {
+	if enabled {
+		cr.Enabled[name] = struct{}{}
+	} else {
+		delete(cr.Enabled, name)
+	}
 }
