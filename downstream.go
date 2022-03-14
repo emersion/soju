@@ -875,9 +875,9 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 			}}
 		}
 
-		// TODO: atomically ack/nak the whole capability set
 		caps := strings.Fields(args[0])
 		ack := true
+		m := make(map[string]bool, len(caps))
 		for _, name := range caps {
 			name = strings.ToLower(name)
 			enable := !strings.HasPrefix(name, "-")
@@ -900,7 +900,14 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 				break
 			}
 
-			dc.caps.SetEnabled(name, enable)
+			m[name] = enable
+		}
+
+		// Atomically ack the whole capability set
+		if ack {
+			for name, enable := range m {
+				dc.caps.SetEnabled(name, enable)
+			}
 		}
 
 		reply := "NAK"
