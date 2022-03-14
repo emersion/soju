@@ -117,20 +117,19 @@ type upstreamConn struct {
 	availableMemberships  []membership
 	isupport              map[string]*string
 
-	registered    bool
-	nick          string
-	nickCM        string
-	username      string
-	realname      string
-	modes         userModes
-	channels      upstreamChannelCasemapMap
-	supportedCaps map[string]string
-	caps          map[string]bool
-	batches       map[string]batch
-	away          bool
-	account       string
-	nextLabelID   uint64
-	monitored     monitorCasemapMap
+	registered  bool
+	nick        string
+	nickCM      string
+	username    string
+	realname    string
+	modes       userModes
+	channels    upstreamChannelCasemapMap
+	caps        capRegistry
+	batches     map[string]batch
+	away        bool
+	account     string
+	nextLabelID uint64
+	monitored   monitorCasemapMap
 
 	saslClient  sasl.Client
 	saslStarted bool
@@ -241,8 +240,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		network:               network,
 		user:                  network.user,
 		channels:              upstreamChannelCasemapMap{newCasemapMap(0)},
-		supportedCaps:         make(map[string]string),
-		caps:                  make(map[string]bool),
+		caps:                  newCapRegistry(),
 		batches:               make(map[string]batch),
 		availableChannelTypes: stdChannelTypes,
 		availableChannelModes: stdChannelModes,
@@ -563,8 +561,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			caps := strings.Fields(subParams[0])
 
 			for _, c := range caps {
-				delete(uc.supportedCaps, c)
-				delete(uc.caps, c)
+				uc.caps.Del(c)
 			}
 
 			if uc.registered {
@@ -1824,14 +1821,14 @@ func (uc *upstreamConn) handleSupportedCaps(capsStr string) {
 		if len(kv) == 2 {
 			v = kv[1]
 		}
-		uc.supportedCaps[k] = v
+		uc.caps.Available[k] = v
 	}
 }
 
 func (uc *upstreamConn) requestCaps() {
 	var requestCaps []string
 	for c := range permanentUpstreamCaps {
-		if _, ok := uc.supportedCaps[c]; ok && !uc.caps[c] {
+		if uc.caps.IsAvailable(c) && !uc.caps.IsEnabled(c) {
 			requestCaps = append(requestCaps, c)
 		}
 	}
@@ -1847,7 +1844,7 @@ func (uc *upstreamConn) requestCaps() {
 }
 
 func (uc *upstreamConn) supportsSASL(mech string) bool {
-	v, ok := uc.supportedCaps["sasl"]
+	v, ok := uc.caps.Available["sasl"]
 	if !ok {
 		return false
 	}
@@ -1873,7 +1870,7 @@ func (uc *upstreamConn) requestSASL() bool {
 }
 
 func (uc *upstreamConn) handleCapAck(ctx context.Context, name string, ok bool) error {
-	uc.caps[name] = ok
+	uc.caps.SetEnabled(name, ok)
 
 	switch name {
 	case "sasl":
@@ -1998,7 +1995,7 @@ func (uc *upstreamConn) readMessages(ch chan<- event) error {
 }
 
 func (uc *upstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
-	if !uc.caps["message-tags"] {
+	if !uc.caps.IsEnabled("message-tags") {
 		msg = msg.Copy()
 		msg.Tags = nil
 	}
@@ -2008,7 +2005,7 @@ func (uc *upstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 }
 
 func (uc *upstreamConn) SendMessageLabeled(ctx context.Context, downstreamID uint64, msg *irc.Message) {
-	if uc.caps["labeled-response"] {
+	if uc.caps.IsEnabled("labeled-response") {
 		if msg.Tags == nil {
 			msg.Tags = make(map[string]irc.TagValue)
 		}

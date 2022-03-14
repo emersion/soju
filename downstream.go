@@ -1090,7 +1090,7 @@ func (dc *downstreamConn) updateSupportedCaps() {
 	}
 	dc.forEachUpstream(func(uc *upstreamConn) {
 		for cap, supported := range supportedCaps {
-			supportedCaps[cap] = supported && uc.caps[cap]
+			supportedCaps[cap] = supported && uc.caps.IsEnabled(cap)
 		}
 	})
 
@@ -1108,10 +1108,10 @@ func (dc *downstreamConn) updateSupportedCaps() {
 		dc.unsetSupportedCap("sasl")
 	}
 
-	if uc := dc.upstream(); uc != nil && uc.caps["draft/account-registration"] {
+	if uc := dc.upstream(); uc != nil && uc.caps.IsEnabled("draft/account-registration") {
 		// Strip "before-connect", because we require downstreams to be fully
 		// connected before attempting account registration.
-		values := strings.Split(uc.supportedCaps["draft/account-registration"], ",")
+		values := strings.Split(uc.caps.Available["draft/account-registration"], ",")
 		for i, v := range values {
 			if v == "before-connect" {
 				values = append(values[:i], values[i+1:]...)
@@ -1742,7 +1742,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		dc.forEachNetwork(func(n *network) {
 			// We only need to call updateNetwork for upstreams that don't
 			// support setname
-			if uc := n.conn; uc != nil && uc.caps["setname"] {
+			if uc := n.conn; uc != nil && uc.caps.IsEnabled("setname") {
 				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 					Command: "SETNAME",
 					Params:  []string{realname},
@@ -2443,7 +2443,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if err != nil {
 				return err
 			}
-			if _, ok := uc.caps["message-tags"]; !ok {
+			if !uc.caps.IsEnabled("message-tags") {
 				continue
 			}
 
@@ -2500,7 +2500,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		// Post-connection-registration AUTHENTICATE is unsupported in
 		// multi-upstream mode, or if the upstream doesn't support SASL
 		uc := dc.upstream()
-		if uc == nil || !uc.caps["sasl"] {
+		if uc == nil || !uc.caps.IsEnabled("sasl") {
 			return ircError{&irc.Message{
 				Command: irc.ERR_SASLFAIL,
 				Params:  []string{dc.nick, "Upstream network authentication not supported"},
@@ -2537,7 +2537,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		uc := dc.upstream()
-		if uc == nil || !uc.caps["draft/account-registration"] {
+		if uc == nil || !uc.caps.IsEnabled("draft/account-registration") {
 			return ircError{&irc.Message{
 				Command: "FAIL",
 				Params:  []string{msg.Command, "TEMPORARILY_UNAVAILABLE", "*", "Upstream network account registration not supported"},
