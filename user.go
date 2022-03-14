@@ -562,7 +562,7 @@ func (u *user) run() {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateSupportedCaps()
 
-				if !dc.caps["soju.im/bouncer-networks"] {
+				if !dc.caps.IsEnabled("soju.im/bouncer-networks") {
 					sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
 				}
 
@@ -571,7 +571,7 @@ func (u *user) run() {
 				dc.updateAccount()
 			})
 			u.forEachDownstream(func(dc *downstreamConn) {
-				if dc.caps["soju.im/bouncer-networks-notify"] {
+				if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
 					dc.SendMessage(&irc.Message{
 						Prefix:  dc.srv.prefix(),
 						Command: "BOUNCER",
@@ -751,7 +751,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	}
 
 	u.forEachDownstream(func(dc *downstreamConn) {
-		if dc.caps["soju.im/bouncer-networks-notify"] {
+		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
@@ -762,7 +762,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 
 	if uc.network.lastError == nil {
 		uc.forEachDownstream(func(dc *downstreamConn) {
-			if !dc.caps["soju.im/bouncer-networks"] {
+			if !dc.caps.IsEnabled("soju.im/bouncer-networks") {
 				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s", uc.network.GetName()))
 			}
 		})
@@ -872,7 +872,7 @@ func (u *user) createNetwork(ctx context.Context, record *Network) (*network, er
 	idStr := fmt.Sprintf("%v", network.ID)
 	attrs := getNetworkAttrs(network)
 	u.forEachDownstream(func(dc *downstreamConn) {
-		if dc.caps["soju.im/bouncer-networks-notify"] {
+		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
@@ -953,7 +953,7 @@ func (u *user) updateNetwork(ctx context.Context, record *Network) (*network, er
 	idStr := fmt.Sprintf("%v", updatedNetwork.ID)
 	attrs := getNetworkAttrs(updatedNetwork)
 	u.forEachDownstream(func(dc *downstreamConn) {
-		if dc.caps["soju.im/bouncer-networks-notify"] {
+		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
@@ -979,7 +979,7 @@ func (u *user) deleteNetwork(ctx context.Context, id int64) error {
 
 	idStr := fmt.Sprintf("%v", network.ID)
 	u.forEachDownstream(func(dc *downstreamConn) {
-		if dc.caps["soju.im/bouncer-networks-notify"] {
+		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",

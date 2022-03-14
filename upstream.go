@@ -1497,7 +1497,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		weAreInvited := uc.isOurNick(nick)
 
 		uc.forEachDownstream(func(dc *downstreamConn) {
-			if !weAreInvited && !dc.caps["invite-notify"] {
+			if !weAreInvited && !dc.caps.IsEnabled("invite-notify") {
 				return
 			}
 			dc.SendMessage(&irc.Message{
@@ -2079,7 +2079,7 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 	detached := ch != nil && ch.Detached
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		if !detached && (dc != origin || dc.caps["echo-message"]) {
+		if !detached && (dc != origin || dc.caps.IsEnabled("echo-message")) {
 			dc.sendMessageWithID(dc.marshalMessage(msg, uc.network), msgID)
 		} else {
 			dc.advanceMessageWithID(msg, msgID)

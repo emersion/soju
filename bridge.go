@@ -19,7 +19,7 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 		sendTopic(dc, ch)
 	}
 
-	if dc.caps["soju.im/read"] {
+	if dc.caps.IsEnabled("soju.im/read") {
 		channelCM := ch.conn.network.casemap(ch.Name)
 		r, err := dc.srv.db.GetReadReceipt(ctx, ch.conn.network.ID, channelCM)
 		if err != nil {
