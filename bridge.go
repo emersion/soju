@@ -37,7 +37,9 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 		}
 	}
 
-	sendNames(dc, ch)
+	if !dc.caps.IsEnabled("soju.im/no-implicit-names") {
+		sendNames(dc, ch)
+	}
 }
 
 func sendTopic(dc *downstreamConn, ch *upstreamChannel) {

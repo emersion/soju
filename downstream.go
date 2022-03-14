@@ -231,6 +231,7 @@ var permanentDownstreamCaps = map[string]string{
 
 	"soju.im/bouncer-networks":        "",
 	"soju.im/bouncer-networks-notify": "",
+	"soju.im/no-implicit-names":       "",
 	"soju.im/read":                    "",
 }
 
