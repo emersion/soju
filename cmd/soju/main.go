@@ -71,6 +71,11 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		raw = config.Defaults()
 	}
 
+	// A hostname without a dot can confuse clients
+	if !strings.Contains(raw.Hostname, ".") {
+		log.Printf("warning: hostname %q is not a fully qualified domain name", raw.Hostname)
+	}
+
 	var motd string
 	if raw.MOTDPath != "" {
 		b, err := ioutil.ReadFile(raw.MOTDPath)
