@@ -110,6 +110,8 @@ The following directives are supported:
 *hostname* <name>
 	Server hostname (default: system hostname).
 
+	This should be set to a fully qualified domain name.
+
 *title* <title>
 	Server title. This will be sent as the _ISUPPORT NETWORK_ value when clients
 	don't select a specific network.
