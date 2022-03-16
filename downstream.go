@@ -709,7 +709,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		if nick == "" || strings.ContainsAny(nick, illegalNickChars) {
 			return ircError{&irc.Message{
 				Command: irc.ERR_ERRONEUSNICKNAME,
-				Params:  []string{dc.nick, nick, "contains illegal characters"},
+				Params:  []string{dc.nick, nick, "Nickname contains illegal characters"},
 			}}
 		}
 		nickCM := casemapASCII(nick)
@@ -1690,7 +1690,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if nick == "" || strings.ContainsAny(nick, illegalNickChars) {
 			return ircError{&irc.Message{
 				Command: irc.ERR_ERRONEUSNICKNAME,
-				Params:  []string{dc.nick, rawNick, "contains illegal characters"},
+				Params:  []string{dc.nick, rawNick, "Nickname contains illegal characters"},
 			}}
 		}
 		if casemapASCII(nick) == serviceNickCM {
