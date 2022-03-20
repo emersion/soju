@@ -632,7 +632,18 @@ func (u *user) run() {
 			}
 
 			if err := dc.welcome(context.TODO()); err != nil {
+				if ircErr, ok := err.(ircError); ok {
+					msg := ircErr.Message.Copy()
+					msg.Prefix = dc.srv.prefix()
+					dc.SendMessage(msg)
+				} else {
+					dc.SendMessage(&irc.Message{
+						Command: "ERROR",
+						Params:  []string{"Internal server error"},
+					})
+				}
 				dc.logger.Printf("failed to handle new registered connection: %v", err)
+				// TODO: close dc after the error message is sent
 				break
 			}
 
