@@ -460,6 +460,9 @@ func (fs *networkFlagSet) update(network *Network) error {
 		network.Addr = *fs.Addr
 	}
 	if fs.Name != nil {
+		if *fs.Name == "*" {
+			return fmt.Errorf("the network name %q is reserved for multi-upstream mode", *fs.Name)
+		}
 		network.Name = *fs.Name
 	}
 	if fs.Nick != nil {

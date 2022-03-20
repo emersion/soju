@@ -36,7 +36,7 @@ In this mode, a single connection to your soju bouncer can handle multiple
 upstream connections. You will need to manually configure each upstream
 connection using the the special `BouncerServ` user.
 
-Connect to your soju server by specifying your soju username in the username
+Connect to your soju server by specifying `<soju username>/*` in the username
 field in your client and your password in the password field.
 
 You should now be able to send private messages to the `BouncerServ`. You can

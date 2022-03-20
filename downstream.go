@@ -1368,15 +1368,22 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	remoteAddr := dc.conn.RemoteAddr().String()
 	dc.logger = &prefixLogger{dc.srv.Logger, fmt.Sprintf("user %q: downstream %q: ", dc.user.Username, remoteAddr)}
 
+	if dc.networkName == "*" {
+		if !dc.srv.Config().MultiUpstream {
+			return ircError{&irc.Message{
+				Command: irc.ERR_PASSWDMISMATCH,
+				Params:  []string{dc.nick, fmt.Sprintf("Multi-upstream mode is disabled on this server")},
+			}}
+		}
+		dc.networkName = ""
+		dc.isMultiUpstream = true
+	}
+
 	// TODO: doing this might take some time. We should do it in dc.register
 	// instead, but we'll potentially be adding a new network and this must be
 	// done in the user goroutine.
 	if err := dc.loadNetwork(ctx); err != nil {
 		return err
-	}
-
-	if dc.network == nil && !dc.caps.IsEnabled("soju.im/bouncer-networks") && dc.srv.Config().MultiUpstream {
-		dc.isMultiUpstream = true
 	}
 
 	dc.updateSupportedCaps()

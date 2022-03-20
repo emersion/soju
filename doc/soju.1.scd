@@ -39,7 +39,8 @@ soju supports two connection modes:
 - Multiple upstream mode: one downstream connection maps to multiple upstream
   connections. Channels and nicks are suffixed with the network name. To join
   a channel, you need to use the suffix too: _/join #channel/network_. Same
-  applies to messages sent to users.
+  applies to messages sent to users. To enable this mode, connect to the bouncer
+  with the username "<username>/*".
 
 For per-client history to work, clients need to indicate their name. This can
 be done by adding a "@<client>" suffix to the username.
