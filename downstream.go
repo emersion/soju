@@ -293,6 +293,8 @@ type downstreamRegistration struct {
 
 	networkName string
 	networkID   int64
+
+	negotiatingCaps bool
 }
 
 type downstreamConn struct {
@@ -313,11 +315,10 @@ type downstreamConn struct {
 	hostname string
 	account  string // RPL_LOGGEDIN/OUT state
 
-	negotiatingCaps bool
-	capVersion      int
-	caps            capRegistry
-	sasl            *downstreamSASL
-	registration    *downstreamRegistration // nil after RPL_WELCOME
+	capVersion   int
+	caps         capRegistry
+	sasl         *downstreamSASL
+	registration *downstreamRegistration // nil after RPL_WELCOME
 
 	lastBatchRef uint64
 
@@ -785,7 +786,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
-	if dc.registration.nick != "" && dc.registration.username != "" && !dc.negotiatingCaps {
+	if dc.registration.nick != "" && dc.registration.username != "" && !dc.registration.negotiatingCaps {
 		return dc.register(ctx)
 	}
 	return nil
@@ -833,7 +834,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		}
 
 		if !dc.registered {
-			dc.negotiatingCaps = true
+			dc.registration.negotiatingCaps = true
 		}
 	case "LIST":
 		var caps []string
@@ -901,10 +902,12 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		})
 
 		if !dc.registered {
-			dc.negotiatingCaps = true
+			dc.registration.negotiatingCaps = true
 		}
 	case "END":
-		dc.negotiatingCaps = false
+		if !dc.registered {
+			dc.registration.negotiatingCaps = false
+		}
 	default:
 		return ircError{&irc.Message{
 			Command: err_invalidcapcmd,
