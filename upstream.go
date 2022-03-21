@@ -26,6 +26,7 @@ var permanentUpstreamCaps = map[string]bool{
 	"account-tag":      true,
 	"away-notify":      true,
 	"batch":            true,
+	"chghost":          true,
 	"extended-join":    true,
 	"invite-notify":    true,
 	"labeled-response": true,
@@ -948,6 +949,36 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			})
 		} else {
 			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.SendMessage(dc.marshalMessage(msg, uc.network))
+			})
+		}
+	case "CHGHOST":
+		if msg.Prefix == nil {
+			return fmt.Errorf("expected a prefix")
+		}
+
+		var newUsername, newHostname string
+		if err := parseMessageParams(msg, &newUsername, &newHostname); err != nil {
+			return err
+		}
+
+		newPrefix := &irc.Prefix{
+			Name: uc.nick,
+			User: newUsername,
+			Host: newHostname,
+		}
+
+		if uc.isOurNick(msg.Prefix.Name) {
+			uc.logger.Printf("changed prefix from %q to %q", msg.Prefix.Host, newPrefix)
+			uc.username = newUsername
+			uc.hostname = newHostname
+
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				dc.updateHost()
+			})
+		} else {
+			uc.forEachDownstream(func(dc *downstreamConn) {
+				// TODO: add fallback with QUIT/JOIN/MODE messages
 				dc.SendMessage(dc.marshalMessage(msg, uc.network))
 			})
 		}

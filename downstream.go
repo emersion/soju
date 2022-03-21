@@ -235,11 +235,12 @@ var permanentDownstreamCaps = map[string]string{
 }
 
 // needAllDownstreamCaps is the list of downstream capabilities that
-// require support from all upstreams to be enabled
+// require support from all upstreams to be enabled.
 var needAllDownstreamCaps = map[string]string{
 	"account-notify": "",
 	"account-tag":    "",
 	"away-notify":    "",
+	"chghost":        "",
 	"extended-join":  "",
 	"multi-prefix":   "",
 
@@ -312,6 +313,7 @@ type downstreamConn struct {
 	nick     string
 	nickCM   string
 	realname string
+	username string
 	hostname string
 	account  string // RPL_LOGGEDIN/OUT state
 
@@ -359,7 +361,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 func (dc *downstreamConn) prefix() *irc.Prefix {
 	return &irc.Prefix{
 		Name: dc.nick,
-		User: dc.user.Username,
+		User: dc.username,
 		Host: dc.hostname,
 	}
 }
@@ -564,6 +566,9 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	if msg.Command == "SETNAME" && !dc.caps.IsEnabled("setname") {
 		return
 	}
+	if msg.Command == "CHGHOST" && !dc.caps.IsEnabled("chghost") {
+		return
+	}
 	if msg.Command == "AWAY" && !dc.caps.IsEnabled("away-notify") {
 		return
 	}
@@ -682,7 +687,7 @@ func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Me
 		msg.Params[1] = dc.marshalEntity(net, msg.Params[1])
 	case "TOPIC":
 		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
-	case "QUIT", "SETNAME":
+	case "QUIT", "SETNAME", "CHGHOST":
 		// This space is intentionally left blank
 	default:
 		panic(fmt.Sprintf("unexpected %q message", msg.Command))
@@ -1133,14 +1138,31 @@ func (dc *downstreamConn) updateNick() {
 }
 
 func (dc *downstreamConn) updateHost() {
-	if uc := dc.upstream(); uc != nil && uc.hostname != "" && uc.hostname != dc.hostname {
+	uc := dc.upstream()
+	if uc == nil || uc.hostname == "" {
+		return
+	}
+
+	if uc.hostname == dc.hostname && uc.username == dc.username {
+		return
+	}
+
+	if dc.caps.IsEnabled("chghost") {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.prefix(),
+			Command: "CHGHOST",
+			Params:  []string{uc.username, uc.hostname},
+		})
+	} else if uc.hostname != dc.hostname {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.prefix(),
 			Command: rpl_visiblehost,
 			Params:  []string{dc.nick, uc.hostname, "is now your visible host"},
 		})
-		dc.hostname = uc.hostname
 	}
+
+	dc.hostname = uc.hostname
+	dc.username = uc.username
 }
 
 func (dc *downstreamConn) updateRealname() {
@@ -1309,6 +1331,7 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 	}
 
 	dc.registered = true
+	dc.username = dc.user.Username
 	dc.logger.Printf("registration complete for user %q", dc.user.Username)
 	return nil
 }
