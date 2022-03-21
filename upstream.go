@@ -111,6 +111,7 @@ type upstreamConn struct {
 	network *network
 	user    *user
 
+	serverPrefix          *irc.Prefix
 	serverName            string
 	availableUserModes    string
 	availableChannelModes map[byte]channelModeType
@@ -244,6 +245,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		channels:              upstreamChannelCasemapMap{newCasemapMap(0)},
 		caps:                  newCapRegistry(),
 		batches:               make(map[string]batch),
+		serverPrefix:          &irc.Prefix{Name: "*"},
 		availableChannelTypes: stdChannelTypes,
 		availableChannelModes: stdChannelModes,
 		availableMemberships:  stdMemberships,
@@ -444,6 +446,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 	}
 
+	if msg.Prefix == nil {
+		msg.Prefix = uc.serverPrefix
+	}
+
 	if _, ok := msg.Tags["time"]; !ok {
 		msg.Tags["time"] = irc.TagValue(formatServerTime(time.Now()))
 	}
@@ -456,10 +462,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		})
 		return nil
 	case "NOTICE", "PRIVMSG", "TAGMSG":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		var entity, text string
 		if msg.Command != "TAGMSG" {
 			if err := parseMessageParams(msg, &entity, &text); err != nil {
@@ -738,6 +740,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 
 		uc.registered = true
+		uc.serverPrefix = msg.Prefix
 		uc.nickCM = uc.network.casemap(uc.nick)
 		uc.logger.Printf("connection registered with nick %q", uc.nick)
 
@@ -891,10 +894,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return fmt.Errorf("unexpected BATCH reference tag: missing +/- prefix: %q", tag)
 		}
 	case "NICK":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		var newNick string
 		if err := parseMessageParams(msg, &newNick); err != nil {
 			return err
@@ -929,10 +928,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.updateMonitor()
 		}
 	case "SETNAME":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		var newRealname string
 		if err := parseMessageParams(msg, &newRealname); err != nil {
 			return err
@@ -953,10 +948,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			})
 		}
 	case "CHGHOST":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		var newUsername, newHostname string
 		if err := parseMessageParams(msg, &newUsername, &newHostname); err != nil {
 			return err
@@ -983,10 +974,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			})
 		}
 	case "JOIN":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		var channels string
 		if err := parseMessageParams(msg, &channels); err != nil {
 			return err
@@ -1021,10 +1008,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.produce(ch, chMsg, nil)
 		}
 	case "PART":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		var channels string
 		if err := parseMessageParams(msg, &channels); err != nil {
 			return err
@@ -1051,10 +1034,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.produce(ch, chMsg, nil)
 		}
 	case "KICK":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		var channel, user string
 		if err := parseMessageParams(msg, &channel, &user); err != nil {
 			return err
@@ -1073,10 +1052,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		uc.produce(channel, msg, nil)
 	case "QUIT":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		if uc.isOurNick(msg.Prefix.Name) {
 			uc.logger.Printf("quit")
 		}
@@ -1110,10 +1085,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			ch.Topic = ""
 		}
 	case "TOPIC":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		var name string
 		if err := parseMessageParams(msg, &name); err != nil {
 			return err
@@ -1660,10 +1631,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			})
 		})
 	case "AWAY", "ACCOUNT":
-		if msg.Prefix == nil {
-			return fmt.Errorf("expected a prefix")
-		}
-
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
