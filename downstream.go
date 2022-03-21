@@ -300,23 +300,24 @@ type downstreamConn struct {
 
 	id uint64
 
+	// These don't change after connection registration
 	registered      bool
 	user            *user
-	nick            string
-	nickCM          string
-	clientName      string
-	realname        string
-	hostname        string
-	account         string   // RPL_LOGGEDIN/OUT state
 	network         *network // can be nil
 	isMultiUpstream bool
+	clientName      string
 
-	registration *downstreamRegistration // nil after RPL_WELCOME
+	nick     string
+	nickCM   string
+	realname string
+	hostname string
+	account  string // RPL_LOGGEDIN/OUT state
 
 	negotiatingCaps bool
 	capVersion      int
 	caps            capRegistry
 	sasl            *downstreamSASL
+	registration    *downstreamRegistration // nil after RPL_WELCOME
 
 	lastBatchRef uint64
 
