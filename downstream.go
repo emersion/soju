@@ -336,6 +336,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		id:           id,
 		nick:         "*",
 		nickCM:       "*",
+		username:     "~u",
 		caps:         newCapRegistry(),
 		monitored:    newCasemapMap(0),
 		registration: new(downstreamRegistration),
