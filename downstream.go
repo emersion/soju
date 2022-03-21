@@ -563,6 +563,7 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 		delete(msg.Tags, "batch")
 	}
 	if msg.Command == "JOIN" && !dc.caps.IsEnabled("extended-join") {
+		msg = msg.Copy()
 		msg.Params = msg.Params[:1]
 	}
 	if msg.Command == "SETNAME" && !dc.caps.IsEnabled("setname") {
