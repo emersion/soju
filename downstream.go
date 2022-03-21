@@ -91,7 +91,7 @@ func newInvalidUsernameOrPasswordError(err error) error {
 
 func parseBouncerNetID(subcommand, s string) (int64, error) {
 	id, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
+	if err != nil || id <= 0 {
 		return 0, ircError{&irc.Message{
 			Command: "FAIL",
 			Params:  []string{"BOUNCER", "INVALID_NETID", subcommand, s, "Invalid network ID"},
