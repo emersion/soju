@@ -567,6 +567,7 @@ func (u *user) run() {
 				}
 
 				dc.updateNick()
+				dc.updateHost()
 				dc.updateRealname()
 				dc.updateAccount()
 			})

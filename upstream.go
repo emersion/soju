@@ -122,6 +122,7 @@ type upstreamConn struct {
 	nickCM      string
 	username    string
 	realname    string
+	hostname    string
 	modes       userModes
 	channels    upstreamChannelCasemapMap
 	caps        capRegistry
@@ -637,18 +638,52 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			})
 		}
 	case irc.RPL_LOGGEDIN:
-		if err := parseMessageParams(msg, nil, nil, &uc.account); err != nil {
+		var rawPrefix string
+		if err := parseMessageParams(msg, nil, &rawPrefix, &uc.account); err != nil {
 			return err
 		}
+
+		prefix := irc.ParsePrefix(rawPrefix)
+		uc.username = prefix.User
+		uc.hostname = prefix.Host
+
 		uc.logger.Printf("logged in with account %q", uc.account)
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			dc.updateAccount()
+			dc.updateHost()
 		})
 	case irc.RPL_LOGGEDOUT:
+		var rawPrefix string
+		if err := parseMessageParams(msg, nil, &rawPrefix); err != nil {
+			return err
+		}
+
 		uc.account = ""
+
+		prefix := irc.ParsePrefix(rawPrefix)
+		uc.username = prefix.User
+		uc.hostname = prefix.Host
+
 		uc.logger.Printf("logged out")
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			dc.updateAccount()
+			dc.updateHost()
+		})
+	case rpl_visiblehost:
+		var rawHost string
+		if err := parseMessageParams(msg, nil, &rawHost); err != nil {
+			return err
+		}
+
+		parts := strings.SplitN(rawHost, "@", 2)
+		if len(parts) == 2 {
+			uc.username, uc.hostname = parts[0], parts[1]
+		} else {
+			uc.hostname = rawHost
+		}
+
+		uc.forEachDownstream(func(dc *downstreamConn) {
+			dc.updateHost()
 		})
 	case irc.ERR_NICKLOCKED, irc.RPL_SASLSUCCESS, irc.ERR_SASLFAIL, irc.ERR_SASLTOOLONG, irc.ERR_SASLABORTED:
 		var info string

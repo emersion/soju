@@ -19,6 +19,7 @@ const (
 	rpl_topicwhotime  = "333"
 	rpl_whospcrpl     = "354"
 	rpl_whoisaccount  = "330"
+	rpl_visiblehost   = "396"
 	err_invalidcapcmd = "410"
 
 	// https://ircv3.net/specs/extensions/bot-mode

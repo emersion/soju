@@ -1132,6 +1132,17 @@ func (dc *downstreamConn) updateNick() {
 	}
 }
 
+func (dc *downstreamConn) updateHost() {
+	if uc := dc.upstream(); uc != nil && uc.hostname != "" && uc.hostname != dc.hostname {
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.prefix(),
+			Command: rpl_visiblehost,
+			Params:  []string{dc.nick, uc.hostname, "is now your visible host"},
+		})
+		dc.hostname = uc.hostname
+	}
+}
+
 func (dc *downstreamConn) updateRealname() {
 	if uc := dc.upstream(); uc != nil && uc.realname != dc.realname && dc.caps.IsEnabled("setname") {
 		dc.SendMessage(&irc.Message{
@@ -1471,6 +1482,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 		})
 	}
 
+	dc.updateHost()
 	dc.updateRealname()
 	dc.updateAccount()
 
