@@ -581,6 +581,11 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	if msg.Command == "READ" && !dc.caps.IsEnabled("soju.im/read") {
 		return
 	}
+	if msg.Prefix != nil && msg.Prefix.Name == "*" {
+		// We use "*" as a sentinel value to simplify upstream message handling
+		msg = msg.Copy()
+		msg.Prefix = nil
+	}
 
 	dc.srv.metrics.downstreamOutMessagesTotal.Inc()
 	dc.conn.SendMessage(context.TODO(), msg)
