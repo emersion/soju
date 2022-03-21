@@ -341,9 +341,10 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		registration: new(downstreamRegistration),
 	}
 	dc.monitored.SetCasemapping(casemapASCII)
-	dc.hostname = remoteAddr
-	if host, _, err := net.SplitHostPort(dc.hostname); err == nil {
+	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
 		dc.hostname = host
+	} else {
+		dc.hostname = remoteAddr
 	}
 	for k, v := range permanentDownstreamCaps {
 		dc.caps.Available[k] = v
