@@ -317,7 +317,7 @@ type downstreamConn struct {
 
 	capVersion   int
 	caps         capRegistry
-	sasl         *downstreamSASL
+	sasl         *downstreamSASL         // nil unless SASL is underway
 	registration *downstreamRegistration // nil after RPL_WELCOME
 
 	lastBatchRef uint64
