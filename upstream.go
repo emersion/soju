@@ -434,7 +434,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		delete(msg.Tags, "batch")
 	}
 
-	var downstreamID uint64 = 0
+	var downstreamID uint64
 	if label != "" {
 		var labelOffset uint64
 		n, err := fmt.Sscanf(label, "sd-%d-%d", &downstreamID, &labelOffset)
