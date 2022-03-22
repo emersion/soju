@@ -848,3 +848,15 @@ func (cr *capRegistry) SetEnabled(name string, enabled bool) {
 		delete(cr.Enabled, name)
 	}
 }
+
+func isNumeric(cmd string) bool {
+	if len(cmd) != 3 {
+		return false
+	}
+	for i := 0; i < 3; i++ {
+		if cmd[i] < '0' || cmd[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
