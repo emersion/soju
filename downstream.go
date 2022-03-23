@@ -2203,13 +2203,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				})
 			}
 		}
-	// For WHOX docs, see:
-	// - http://faerion.sourceforge.net/doc/irc/whox.var
-	// - https://github.com/quakenet/snircd/blob/master/doc/readme.who
-	// Note, many features aren't widely implemented, such as flags and mask2
 	case "WHO":
 		if len(msg.Params) == 0 {
-			// TODO: support WHO without parameters
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
@@ -2296,7 +2291,14 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		// TODO: properly support WHO masks
 		uc, upstreamMask, err := dc.unmarshalEntity(mask)
 		if err != nil {
-			return err
+			// Ignore the error here, because clients don't know how to deal
+			// with anything other than RPL_ENDOFWHO
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.RPL_ENDOFWHO,
+				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
+			})
+			return nil
 		}
 
 		params := []string{upstreamMask}
