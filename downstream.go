@@ -1274,7 +1274,7 @@ func (dc *downstreamConn) authenticate(ctx context.Context, username, password s
 
 	dc.user = dc.srv.getUser(username)
 	if dc.user == nil {
-		return fmt.Errorf("user not active")
+		return fmt.Errorf("user exists in the DB but hasn't been loaded by the bouncer -- a restart may help")
 	}
 	dc.clientName = clientName
 	dc.registration.networkName = networkName
