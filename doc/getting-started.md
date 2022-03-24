@@ -14,39 +14,31 @@ channels from a ZNC config file:
 
 ## Client side
 
-soju can operate in two different modes: multi upstream and single upstream.
+### Client supporting `soju.im/bouncer-networks`
 
-### Single upstream mode
+If your are using a client supporting the `soju.im/bouncer-networks` IRC
+extension (see the [client list]), then you can just connect to soju with your
+username and password.
 
-In this mode, 1 upstream connection to a irc server = 1 connection to your soju
-bouncer.
+If your client doesn't provide a UI to manage IRC networks, you can talk to
+`BouncerServ`. See the [man page] or use `/msg BouncerServ help`.
 
-The easiest and fastest way to use this is to specify the address of the server
-in your username in your client configuration. For example to connect to
-Libera Chat, your username will be: `<soju username>/irc.libera.chat`. Also set
-your soju password in the password field of your client configuration.
+### Other clients
+
+You will need to setup one separate server in your client for each server you
+want soju to connect to.
+
+The easiest way to get started is to specify the IRC server address directly in
+the username in the client configuration. For example to connect to Libera Chat,
+your username will be: `<soju username>/irc.libera.chat`. Also set your soju
+password in the password field of your client configuration.
 
 This will autoconfigure soju by adding a network with the address
 `irc.libera.chat` and then autoconnect to it. You will now be able to join
 any channel like you would normally do.
 
-### Multi upstream mode
+For more advanced configuration options, you can talk to `BouncerServ`. See the
+[man page] or use `/msg BouncerServ help`.
 
-In this mode, a single connection to your soju bouncer can handle multiple
-upstream connections. You will need to manually configure each upstream
-connection using the the special `BouncerServ` user.
-
-Connect to your soju server by specifying `<soju username>/*` in the username
-field in your client and your password in the password field.
-
-You should now be able to send private messages to the `BouncerServ`. You can
-send it commands to configure soju. Create new networks:
-
-    /msg BouncerServ network create -addr irc.libera.chat -name libera
-    /msg BouncerServ network create -addr irc.rizon.net -name rizon
-
-You will now be able to join channels on these networks by specifying their
-name:
-
-    /join #soju/libera
-    /join #somechannel/rizon
+[man page]: https://soju.im/doc/soju.1.html#IRC_SERVICE
+[client list]: ../contrib/clients.md
