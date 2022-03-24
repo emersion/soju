@@ -75,6 +75,8 @@ outgoing messages:
 
 senpai is being developed with soju in mind, so should have excellent
 integration. senpai supports many IRCv3 features including chat history.
+senpai should seamlessly connect to all networks configured in soju via the
+`soju.im/bouncer-networks` extension.
 
 # [Weechat]
 
