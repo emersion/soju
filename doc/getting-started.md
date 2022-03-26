@@ -40,5 +40,11 @@ any channel like you would normally do.
 For more advanced configuration options, you can talk to `BouncerServ`. See the
 [man page] or use `/msg BouncerServ help`.
 
+If you intend to connect to the bouncer from multiple clients, you will need to
+append a client name in your username. For instance, to connect from a laptop
+and a workstation, you can setup each client to use the respective usernames
+`<soju username>/irc.libera.chat@laptop` and
+`<soju username>/irc.libera.chat@workstation`.
+
 [man page]: https://soju.im/doc/soju.1.html#IRC_SERVICE
 [client list]: ../contrib/clients.md
