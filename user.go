@@ -1018,9 +1018,21 @@ func (u *user) updateUser(ctx context.Context, record *User) error {
 		// Re-connect to networks which use the default realname
 		var needUpdate []Network
 		for _, net := range u.networks {
-			if net.Realname == "" {
-				needUpdate = append(needUpdate, net.Network)
+			if net.Realname != "" {
+				continue
 			}
+
+			// We only need to call updateNetwork for upstreams that don't
+			// support setname
+			if uc := net.conn; uc != nil && uc.caps.IsEnabled("setname") {
+				uc.SendMessage(ctx, &irc.Message{
+					Command: "SETNAME",
+					Params:  []string{GetRealname(&u.User, &net.Network)},
+				})
+				continue
+			}
+
+			needUpdate = append(needUpdate, net.Network)
 		}
 
 		var netErr error
