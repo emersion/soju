@@ -1175,13 +1175,26 @@ func (dc *downstreamConn) updateHost() {
 }
 
 func (dc *downstreamConn) updateRealname() {
-	if uc := dc.upstream(); uc != nil && uc.realname != dc.realname && dc.caps.IsEnabled("setname") {
+	if !dc.caps.IsEnabled("setname") {
+		return
+	}
+
+	var realname string
+	if uc := dc.upstream(); uc != nil {
+		realname = uc.realname
+	} else if dc.network != nil {
+		realname = GetRealname(&dc.user.User, &dc.network.Network)
+	} else {
+		realname = GetRealname(&dc.user.User, nil)
+	}
+
+	if realname != dc.realname {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.prefix(),
 			Command: "SETNAME",
-			Params:  []string{uc.realname},
+			Params:  []string{realname},
 		})
-		dc.realname = uc.realname
+		dc.realname = realname
 	}
 }
 
