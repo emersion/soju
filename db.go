@@ -116,21 +116,21 @@ func (net *Network) URL() (*url.URL, error) {
 }
 
 func GetNick(user *User, net *Network) string {
-	if net.Nick != "" {
+	if net != nil && net.Nick != "" {
 		return net.Nick
 	}
 	return user.Username
 }
 
 func GetUsername(user *User, net *Network) string {
-	if net.Username != "" {
+	if net != nil && net.Username != "" {
 		return net.Username
 	}
 	return GetNick(user, net)
 }
 
 func GetRealname(user *User, net *Network) string {
-	if net.Realname != "" {
+	if net != nil && net.Realname != "" {
 		return net.Realname
 	}
 	if user.Realname != "" {
