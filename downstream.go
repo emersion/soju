@@ -1821,58 +1821,57 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return err
 		}
 
-		// If the client just resets to the default, just wipe the per-network
-		// preference
-		storeRealname := realname
-		if realname == dc.user.Realname {
-			storeRealname = ""
+		if dc.realname == realname {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.prefix(),
+				Command: "SETNAME",
+				Params:  []string{realname},
+			})
+			return nil
 		}
 
-		var storeErr error
-		var needUpdate []Network
-		dc.forEachNetwork(func(n *network) {
-			// We only need to call updateNetwork for upstreams that don't
-			// support setname
-			if uc := n.conn; uc != nil && uc.caps.IsEnabled("setname") {
-				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
+		var err error
+		if dc.network != nil {
+			// If the client just resets to the default, just wipe the per-network
+			// preference
+			record := dc.network.Network
+			record.Realname = realname
+			if realname == dc.user.Realname {
+				record.Realname = ""
+			}
+
+			if uc := dc.upstream(); uc != nil && uc.caps.IsEnabled("setname") {
+				// Upstream will reply with a SETNAME message on success
+				uc.SendMessage(ctx, &irc.Message{
 					Command: "SETNAME",
 					Params:  []string{realname},
 				})
 
-				n.Realname = storeRealname
-				if err := dc.srv.db.StoreNetwork(ctx, dc.user.ID, &n.Network); err != nil {
-					dc.logger.Printf("failed to store network realname: %v", err)
-					storeErr = err
-				}
-				return
+				err = dc.srv.db.StoreNetwork(ctx, dc.user.ID, &record)
+			} else {
+				// This will disconnect then re-connect the upstream connection
+				_, err = dc.user.updateNetwork(ctx, &record)
 			}
-
-			record := n.Network // copy network record because we'll mutate it
-			record.Realname = storeRealname
-			needUpdate = append(needUpdate, record)
-		})
-
-		// Walk the network list as a second step, because updateNetwork
-		// mutates the original list
-		for _, record := range needUpdate {
-			if _, err := dc.user.updateNetwork(ctx, &record); err != nil {
-				dc.logger.Printf("failed to update network realname: %v", err)
-				storeErr = err
-			}
+		} else {
+			record := dc.user.User
+			record.Realname = realname
+			err = dc.user.updateUser(ctx, &record)
 		}
-		if storeErr != nil {
+
+		if err != nil {
+			dc.logger.Printf("failed to update realname: %v", err)
 			return ircError{&irc.Message{
 				Command: "FAIL",
 				Params:  []string{"SETNAME", "CANNOT_CHANGE_REALNAME", "Failed to update realname"},
 			}}
 		}
 
-		if dc.upstream() == nil {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.prefix(),
-				Command: "SETNAME",
-				Params:  []string{realname},
-			})
+		if dc.network == nil {
+			for _, c := range dc.user.downstreamConns {
+				if c.network == nil {
+					c.updateRealname()
+				}
+			}
 		}
 	case "JOIN":
 		var namesStr string
