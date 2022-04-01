@@ -1135,15 +1135,26 @@ func (dc *downstreamConn) updateSupportedCaps() {
 }
 
 func (dc *downstreamConn) updateNick() {
-	if uc := dc.upstream(); uc != nil && uc.nick != dc.nick {
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.prefix(),
-			Command: "NICK",
-			Params:  []string{uc.nick},
-		})
-		dc.nick = uc.nick
-		dc.nickCM = casemapASCII(dc.nick)
+	var nick string
+	if uc := dc.upstream(); uc != nil {
+		nick = uc.nick
+	} else if dc.network != nil {
+		nick = GetNick(&dc.user.User, &dc.network.Network)
+	} else {
+		nick = GetNick(&dc.user.User, nil)
 	}
+
+	if nick == dc.nick {
+		return
+	}
+
+	dc.SendMessage(&irc.Message{
+		Prefix:  dc.prefix(),
+		Command: "NICK",
+		Params:  []string{nick},
+	})
+	dc.nick = nick
+	dc.nickCM = casemapASCII(dc.nick)
 }
 
 func (dc *downstreamConn) updateHost() {
@@ -1756,57 +1767,42 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			Params:  []string{dc.nick, "You may not reregister"},
 		}}
 	case "NICK":
-		var rawNick string
-		if err := parseMessageParams(msg, &rawNick); err != nil {
+		var nick string
+		if err := parseMessageParams(msg, &nick); err != nil {
 			return err
 		}
 
-		nick := rawNick
-		var upstream *upstreamConn
-		if dc.upstream() == nil {
-			uc, unmarshaledNick, err := dc.unmarshalEntity(nick)
-			if err == nil { // NICK nick/network: NICK only on a specific upstream
-				upstream = uc
-				nick = unmarshaledNick
-			}
+		if dc.network == nil {
+			return ircError{&irc.Message{
+				Command: err_unknownerror,
+				Params:  []string{dc.nick, "NICK", "Cannot change nickname on the bouncer connection"},
+			}}
 		}
-
 		if nick == "" || strings.ContainsAny(nick, illegalNickChars) {
 			return ircError{&irc.Message{
 				Command: irc.ERR_ERRONEUSNICKNAME,
-				Params:  []string{dc.nick, rawNick, "Nickname contains illegal characters"},
+				Params:  []string{dc.nick, nick, "Nickname contains illegal characters"},
 			}}
 		}
 		if casemapASCII(nick) == serviceNickCM {
 			return ircError{&irc.Message{
 				Command: irc.ERR_NICKNAMEINUSE,
-				Params:  []string{dc.nick, rawNick, "Nickname reserved for bouncer service"},
+				Params:  []string{dc.nick, nick, "Nickname reserved for bouncer service"},
 			}}
 		}
 
-		var err error
-		dc.forEachNetwork(func(n *network) {
-			if err != nil || (upstream != nil && upstream.network != n) {
-				return
-			}
-			n.Nick = nick
-			err = dc.srv.db.StoreNetwork(ctx, dc.user.ID, &n.Network)
-		})
-		if err != nil {
+		record := dc.network.Network
+		record.Nick = nick
+		if err := dc.srv.db.StoreNetwork(ctx, dc.user.ID, &record); err != nil {
 			return err
 		}
 
-		dc.forEachUpstream(func(uc *upstreamConn) {
-			if upstream != nil && upstream != uc {
-				return
-			}
+		if uc := dc.upstream(); uc != nil {
 			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Command: "NICK",
 				Params:  []string{nick},
 			})
-		})
-
-		if dc.upstream() == nil && upstream == nil && dc.nick != nick {
+		} else {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),
 				Command: "NICK",
