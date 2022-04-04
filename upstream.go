@@ -526,7 +526,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				break // wait to receive all capabilities
 			}
 
-			uc.requestCaps()
+			uc.requestCaps(ctx)
 
 			if uc.requestSASL() {
 				break // we'll send CAP END after authentication is completed
@@ -558,7 +558,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				return newNeedMoreParamsError(msg.Command)
 			}
 			uc.handleSupportedCaps(subParams[0])
-			uc.requestCaps()
+			uc.requestCaps(ctx)
 		case "DEL":
 			if len(subParams) < 1 {
 				return newNeedMoreParamsError(msg.Command)
@@ -1846,7 +1846,7 @@ func (uc *upstreamConn) handleSupportedCaps(capsStr string) {
 	}
 }
 
-func (uc *upstreamConn) requestCaps() {
+func (uc *upstreamConn) requestCaps(ctx context.Context) {
 	var requestCaps []string
 	for c := range permanentUpstreamCaps {
 		if uc.caps.IsAvailable(c) && !uc.caps.IsEnabled(c) {
@@ -1858,7 +1858,7 @@ func (uc *upstreamConn) requestCaps() {
 		return
 	}
 
-	uc.SendMessage(context.TODO(), &irc.Message{
+	uc.SendMessage(ctx, &irc.Message{
 		Command: "CAP",
 		Params:  []string{"REQ", strings.Join(requestCaps, " ")},
 	})
