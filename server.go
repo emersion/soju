@@ -314,7 +314,7 @@ func (s *Server) addUserLocked(user *User) *user {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				s.Logger.Printf("panic serving user %q: %v\n%v", user.Username, err, debug.Stack())
+				s.Logger.Printf("panic serving user %q: %v\n%v", user.Username, err, string(debug.Stack()))
 			}
 
 			s.lock.Lock()
