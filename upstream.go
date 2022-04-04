@@ -344,7 +344,8 @@ func (uc *upstreamConn) sendNextPendingCommand(cmd string) {
 	if len(uc.pendingCmds[cmd]) == 0 {
 		return
 	}
-	uc.SendMessage(context.TODO(), uc.pendingCmds[cmd][0].msg)
+	pendingCmd := uc.pendingCmds[cmd][0]
+	uc.SendMessageLabeled(context.TODO(), pendingCmd.downstreamID, pendingCmd.msg)
 }
 
 func (uc *upstreamConn) enqueueCommand(dc *downstreamConn, msg *irc.Message) {
