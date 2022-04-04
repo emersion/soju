@@ -330,7 +330,7 @@ func (s *Server) addUserLocked(user *User) *user {
 	return u
 }
 
-var lastDownstreamID uint64 = 0
+var lastDownstreamID uint64
 
 func (s *Server) handle(ic ircConn) {
 	defer func() {
