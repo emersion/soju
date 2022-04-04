@@ -1428,63 +1428,16 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			Command: irc.RPL_ENDOFWHO,
 			Params:  []string{dc.nick, mask, "End of /WHO list"},
 		})
-	case irc.RPL_WHOISUSER:
-		var nick, username, host, realname string
-		if err := parseMessageParams(msg, nil, &nick, &username, &host, nil, &realname); err != nil {
-			return err
-		}
-
-		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-			nick := dc.marshalEntity(uc.network, nick)
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_WHOISUSER,
-				Params:  []string{dc.nick, nick, username, host, "*", realname},
-			})
-		})
-	case irc.RPL_WHOISSERVER:
-		var nick, server, serverInfo string
-		if err := parseMessageParams(msg, nil, &nick, &server, &serverInfo); err != nil {
-			return err
-		}
-
-		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-			nick := dc.marshalEntity(uc.network, nick)
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_WHOISSERVER,
-				Params:  []string{dc.nick, nick, server, serverInfo},
-			})
-		})
-	case irc.RPL_WHOISOPERATOR:
+	case rpl_whoiscertfp, rpl_whoisregnick, irc.RPL_WHOISUSER, irc.RPL_WHOISSERVER, irc.RPL_WHOISOPERATOR, irc.RPL_WHOISIDLE, rpl_whoisspecial, rpl_whoisaccount, rpl_whoisactually, rpl_whoishost, rpl_whoismodes, rpl_whoissecure:
 		var nick string
 		if err := parseMessageParams(msg, nil, &nick); err != nil {
 			return err
 		}
 
 		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-			nick := dc.marshalEntity(uc.network, nick)
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_WHOISOPERATOR,
-				Params:  []string{dc.nick, nick, "is an IRC operator"},
-			})
-		})
-	case irc.RPL_WHOISIDLE:
-		var nick string
-		if err := parseMessageParams(msg, nil, &nick, nil); err != nil {
-			return err
-		}
-
-		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-			nick := dc.marshalEntity(uc.network, nick)
-			params := []string{dc.nick, nick}
-			params = append(params, msg.Params[2:]...)
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_WHOISIDLE,
-				Params:  params,
-			})
+			msg := msg.Copy()
+			msg.Params[1] = dc.marshalEntity(uc.network, nick)
+			dc.SendMessage(msg)
 		})
 	case irc.RPL_WHOISCHANNELS:
 		var nick, channelList string
