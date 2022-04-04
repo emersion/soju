@@ -350,7 +350,7 @@ func (uc *upstreamConn) sendNextPendingCommand(cmd string) {
 
 func (uc *upstreamConn) enqueueCommand(dc *downstreamConn, msg *irc.Message) {
 	switch msg.Command {
-	case "LIST", "WHO", "AUTHENTICATE", "REGISTER", "VERIFY":
+	case "LIST", "WHO", "WHOIS", "AUTHENTICATE", "REGISTER", "VERIFY":
 		// Supported
 	default:
 		panic(fmt.Errorf("Unsupported pending command %q", msg.Command))
@@ -1435,11 +1435,16 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-			msg := msg.Copy()
-			msg.Params[1] = dc.marshalEntity(uc.network, nick)
-			dc.SendMessage(msg)
-		})
+		dc, cmd := uc.currentPendingCommand("WHOIS")
+		if cmd == nil {
+			return fmt.Errorf("unexpected WHOIS reply %q: no matching pending WHOIS", msg.Command)
+		} else if dc == nil {
+			return nil
+		}
+
+		msg := msg.Copy()
+		msg.Params[1] = dc.marshalEntity(uc.network, nick)
+		dc.SendMessage(msg)
 	case irc.RPL_WHOISCHANNELS:
 		var nick, channelList string
 		if err := parseMessageParams(msg, nil, &nick, &channelList); err != nil {
@@ -1447,20 +1452,25 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 		channels := splitSpace(channelList)
 
-		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-			nick := dc.marshalEntity(uc.network, nick)
-			channelList := make([]string, len(channels))
-			for i, channel := range channels {
-				prefix, channel := uc.parseMembershipPrefix(channel)
-				channel = dc.marshalEntity(uc.network, channel)
-				channelList[i] = prefix.Format(dc) + channel
-			}
-			channels := strings.Join(channelList, " ")
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_WHOISCHANNELS,
-				Params:  []string{dc.nick, nick, channels},
-			})
+		dc, cmd := uc.currentPendingCommand("WHOIS")
+		if cmd == nil {
+			return fmt.Errorf("unexpected RPL_WHOISCHANNELS: no matching pending WHOIS")
+		} else if dc == nil {
+			return nil
+		}
+
+		nick = dc.marshalEntity(uc.network, nick)
+		l := make([]string, len(channels))
+		for i, channel := range channels {
+			prefix, channel := uc.parseMembershipPrefix(channel)
+			channel = dc.marshalEntity(uc.network, channel)
+			l[i] = prefix.Format(dc) + channel
+		}
+		channelList = strings.Join(l, " ")
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.RPL_WHOISCHANNELS,
+			Params:  []string{dc.nick, nick, channelList},
 		})
 	case irc.RPL_ENDOFWHOIS:
 		var nick string
@@ -1468,13 +1478,18 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-			nick := dc.marshalEntity(uc.network, nick)
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_ENDOFWHOIS,
-				Params:  []string{dc.nick, nick, "End of /WHOIS list"},
-			})
+		dc, cmd := uc.dequeueCommand("WHOIS")
+		if cmd == nil {
+			return fmt.Errorf("unexpected RPL_ENDOFWHOIS: no matching pending WHOIS")
+		} else if dc == nil {
+			return nil
+		}
+
+		nick = dc.marshalEntity(uc.network, nick)
+		dc.SendMessage(&irc.Message{
+			Prefix:  dc.srv.prefix(),
+			Command: irc.RPL_ENDOFWHOIS,
+			Params:  []string{dc.nick, nick, "End of /WHOIS list"},
 		})
 	case "INVITE":
 		var nick, channel string
@@ -1634,6 +1649,25 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				Params:  []string{dc.nick, upstreamChannel, trailing},
 			})
 		})
+	case irc.ERR_NOSUCHNICK:
+		var nick, reason string
+		if err := parseMessageParams(msg, nil, &nick, &reason); err != nil {
+			return err
+		}
+
+		cm := uc.network.casemap
+		dc, cmd := uc.currentPendingCommand("WHOIS")
+		if cmd != nil && cm(cmd.Params[len(cmd.Params)-1]) == cm(nick) {
+			uc.dequeueCommand("WHOIS")
+			if dc != nil {
+				nick = dc.marshalEntity(uc.network, nick)
+				dc.SendMessage(&irc.Message{
+					Prefix:  uc.srv.prefix(),
+					Command: msg.Command,
+					Params:  []string{dc.nick, nick, reason},
+				})
+			}
+		}
 	case irc.ERR_UNKNOWNCOMMAND, irc.RPL_TRYAGAIN:
 		var command, reason string
 		if err := parseMessageParams(msg, nil, &command, &reason); err != nil {

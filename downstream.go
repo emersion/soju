@@ -2420,7 +2420,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			params = []string{upstreamNick}
 		}
 
-		uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
+		uc.enqueueCommand(dc, &irc.Message{
 			Command: "WHOIS",
 			Params:  params,
 		})
