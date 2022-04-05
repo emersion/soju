@@ -2424,14 +2424,26 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			Command: "WHOIS",
 			Params:  params,
 		})
-	case "PRIVMSG", "NOTICE":
+	case "PRIVMSG", "NOTICE", "TAGMSG":
 		var targetsStr, text string
-		if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
-			return err
+		if msg.Command != "TAGMSG" {
+			if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
+				return err
+			}
+		} else {
+			if err := parseMessageParams(msg, &targetsStr); err != nil {
+				return err
+			}
 		}
+
 		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
+			params := []string{name}
+			if msg.Command != "TAGMSG" {
+				params = append(params, text)
+			}
+
 			if name == "$"+dc.srv.Config().Hostname || (name == "$*" && dc.network == nil) {
 				// "$" means a server mask follows. If it's the bouncer's
 				// hostname, broadcast the message to all bouncer users.
@@ -2451,7 +2463,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Tags:    broadcastTags,
 					Prefix:  servicePrefix,
 					Command: msg.Command,
-					Params:  []string{name, text},
+					Params:  params,
 				}
 				dc.srv.forEachUser(func(u *user) {
 					u.events <- eventBroadcast{broadcastMsg}
@@ -2464,12 +2476,12 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Tags:    msg.Tags.Copy(),
 					Prefix:  dc.prefix(),
 					Command: msg.Command,
-					Params:  []string{name, text},
+					Params:  params,
 				})
 				continue
 			}
 
-			if msg.Command == "PRIVMSG" && casemapASCII(name) == serviceNickCM {
+			if casemapASCII(name) == serviceNickCM {
 				if dc.caps.IsEnabled("echo-message") {
 					echoTags := tags.Copy()
 					echoTags["time"] = irc.TagValue(formatServerTime(time.Now()))
@@ -2477,10 +2489,12 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						Tags:    echoTags,
 						Prefix:  dc.prefix(),
 						Command: msg.Command,
-						Params:  []string{name, text},
+						Params:  params,
 					})
 				}
-				handleServicePRIVMSG(ctx, dc, text)
+				if msg.Command == "PRIVMSG" {
+					handleServicePRIVMSG(ctx, dc, text)
+				}
 				continue
 			}
 
@@ -2497,11 +2511,22 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if uc.isChannel(upstreamName) {
 				unmarshaledText = dc.unmarshalText(uc, text)
 			}
+
+			upstreamParams := []string{upstreamName}
+			if msg.Command != "TAGMSG" {
+				upstreamParams = append(upstreamParams, unmarshaledText)
+			}
+
 			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Tags:    tags,
 				Command: msg.Command,
-				Params:  []string{upstreamName, unmarshaledText},
+				Params:  upstreamParams,
 			})
+
+			echoParams := []string{upstreamName}
+			if msg.Command != "TAGMSG" {
+				echoParams = append(echoParams, text)
+			}
 
 			echoTags := tags.Copy()
 			echoTags["time"] = irc.TagValue(formatServerTime(time.Now()))
@@ -2512,58 +2537,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Tags:    echoTags,
 				Prefix:  &irc.Prefix{Name: uc.nick},
 				Command: msg.Command,
-				Params:  []string{upstreamName, text},
-			}
-			uc.produce(upstreamName, echoMsg, dc)
-
-			uc.updateChannelAutoDetach(upstreamName)
-		}
-	case "TAGMSG":
-		var targetsStr string
-		if err := parseMessageParams(msg, &targetsStr); err != nil {
-			return err
-		}
-		tags := copyClientTags(msg.Tags)
-
-		for _, name := range strings.Split(targetsStr, ",") {
-			if dc.network == nil && casemapASCII(name) == dc.nickCM {
-				dc.SendMessage(&irc.Message{
-					Tags:    msg.Tags.Copy(),
-					Prefix:  dc.prefix(),
-					Command: "TAGMSG",
-					Params:  []string{name},
-				})
-				continue
-			}
-
-			if casemapASCII(name) == serviceNickCM {
-				continue
-			}
-
-			uc, upstreamName, err := dc.unmarshalEntity(name)
-			if err != nil {
-				return err
-			}
-			if !uc.caps.IsEnabled("message-tags") {
-				continue
-			}
-
-			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
-				Tags:    tags,
-				Command: "TAGMSG",
-				Params:  []string{upstreamName},
-			})
-
-			echoTags := tags.Copy()
-			echoTags["time"] = irc.TagValue(formatServerTime(time.Now()))
-			if uc.account != "" {
-				echoTags["account"] = irc.TagValue(uc.account)
-			}
-			echoMsg := &irc.Message{
-				Tags:    echoTags,
-				Prefix:  &irc.Prefix{Name: uc.nick},
-				Command: "TAGMSG",
-				Params:  []string{upstreamName},
+				Params:  echoParams,
 			}
 			uc.produce(upstreamName, echoMsg, dc)
 
