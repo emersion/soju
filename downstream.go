@@ -2534,8 +2534,12 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				echoTags["account"] = irc.TagValue(uc.account)
 			}
 			echoMsg := &irc.Message{
-				Tags:    echoTags,
-				Prefix:  &irc.Prefix{Name: uc.nick},
+				Tags: echoTags,
+				Prefix: &irc.Prefix{
+					Name: uc.nick,
+					User: uc.username,
+					Host: uc.hostname,
+				},
 				Command: msg.Command,
 				Params:  echoParams,
 			}
