@@ -1,0 +1,21 @@
+body {
+	max-width: 700px;
+	margin: auto;
+	padding: 0 10px;
+	font-family: sans-serif;
+}
+
+nav {
+	text-align: center;
+	margin-bottom: 30px;
+}
+nav a {
+	padding: 10px;
+}
+
+a {
+	color: #007bff;
+}
+a:visited {
+	color: #003e80;
+}
