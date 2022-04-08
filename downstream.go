@@ -148,17 +148,17 @@ func getNetworkAttrs(network *network) irc.Tags {
 }
 
 func networkAddrFromAttrs(attrs irc.Tags) string {
-	host, ok := attrs.GetTag("host")
-	if !ok {
+	host := string(attrs["host"])
+	if host == "" {
 		return ""
 	}
 
 	addr := host
-	if port, ok := attrs.GetTag("port"); ok {
+	if port := string(attrs["port"]); port != "" {
 		addr += ":" + port
 	}
 
-	if tlsStr, ok := attrs.GetTag("tls"); ok && tlsStr == "0" {
+	if tlsStr := string(attrs["tls"]); tlsStr == "0" {
 		addr = "irc+insecure://" + tlsStr
 	}
 
