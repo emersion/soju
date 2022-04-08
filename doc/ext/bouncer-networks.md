@@ -242,6 +242,10 @@ Bouncers MUST recognise the following network attributes:
 * `realname`: the realname to use during registration.
 * `pass`: the server password (PASS) to use during registration.
 
+Bouncers MAY recognise the following network attributes:
+* `error` (read-only): a human-readable short text describing an error with the current network.
+  This is typically used when the bouncer state is `disconnected` to describe the reason why the bouncer is disconnected.
+
 TODO: more attributes
 
 ### Examples

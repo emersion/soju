@@ -576,7 +576,10 @@ func (u *user) run() {
 					dc.SendMessage(&irc.Message{
 						Prefix:  dc.srv.prefix(),
 						Command: "BOUNCER",
-						Params:  []string{"NETWORK", netIDStr, "state=connected"},
+						Params: []string{"NETWORK", netIDStr, irc.Tags{
+							"state": "connected",
+							"error": "",
+						}.String()},
 					})
 				}
 			})
@@ -599,6 +602,17 @@ func (u *user) run() {
 				})
 			}
 			net.lastError = e.err
+			u.forEachDownstream(func(dc *downstreamConn) {
+				if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
+					dc.SendMessage(&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: "BOUNCER",
+						Params: []string{"NETWORK", fmt.Sprintf("%v", net.ID), irc.Tags{
+							"error": irc.TagValue(net.lastError.Error()),
+						}.String()},
+					})
+				}
+			})
 		case eventUpstreamError:
 			uc := e.uc
 
@@ -606,6 +620,17 @@ func (u *user) run() {
 				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", uc.network.GetName(), e.err))
 			})
 			uc.network.lastError = e.err
+			u.forEachDownstream(func(dc *downstreamConn) {
+				if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
+					dc.SendMessage(&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: "BOUNCER",
+						Params: []string{"NETWORK", fmt.Sprintf("%v", uc.network.ID), irc.Tags{
+							"error": irc.TagValue(uc.network.lastError.Error()),
+						}.String()},
+					})
+				}
+			})
 		case eventUpstreamMessage:
 			msg, uc := e.msg, e.uc
 			if uc.isClosed() {

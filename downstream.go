@@ -142,6 +142,10 @@ func getNetworkAttrs(network *network) irc.Tags {
 		attrs["realname"] = irc.TagValue(realname)
 	}
 
+	if network.lastError != nil {
+		attrs["error"] = irc.TagValue(network.lastError.Error())
+	}
+
 	fillNetworkAddrAttrs(attrs, &network.Network)
 
 	return attrs
