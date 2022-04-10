@@ -484,15 +484,17 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 
 		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
-			uc.produce("", msg, nil)
+			uc.produce("", msg, 0)
 		} else { // regular user message
 			target := entity
 			if uc.isOurNick(target) {
 				target = msg.Prefix.Name
 			}
 
+			self := uc.isOurNick(msg.Prefix.Name)
+
 			ch := uc.network.channels.Value(target)
-			if ch != nil && msg.Command != "TAGMSG" {
+			if ch != nil && msg.Command != "TAGMSG" && !self {
 				if ch.Detached {
 					uc.handleDetachedMessage(ctx, ch, msg)
 				}
@@ -503,7 +505,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				}
 			}
 
-			uc.produce(target, msg, nil)
+			uc.produce(target, msg, downstreamID)
 		}
 	case "CAP":
 		var subCmd string
@@ -526,7 +528,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				break // wait to receive all capabilities
 			}
 
-			uc.requestCaps(ctx)
+			uc.updateCaps(ctx)
 
 			if uc.requestSASL() {
 				break // we'll send CAP END after authentication is completed
@@ -563,7 +565,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				return newNeedMoreParamsError(msg.Command)
 			}
 			uc.handleSupportedCaps(subParams[0])
-			uc.requestCaps(ctx)
+			uc.updateCaps(ctx)
 		case "DEL":
 			if len(subParams) < 1 {
 				return newNeedMoreParamsError(msg.Command)
@@ -1011,7 +1013,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 			chMsg := msg.Copy()
 			chMsg.Params[0] = ch
-			uc.produce(ch, chMsg, nil)
+			uc.produce(ch, chMsg, 0)
 		}
 	case "PART":
 		var channels string
@@ -1037,7 +1039,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 			chMsg := msg.Copy()
 			chMsg.Params[0] = ch
-			uc.produce(ch, chMsg, nil)
+			uc.produce(ch, chMsg, 0)
 		}
 	case "KICK":
 		var channel, user string
@@ -1056,7 +1058,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			ch.Members.Delete(user)
 		}
 
-		uc.produce(channel, msg, nil)
+		uc.produce(channel, msg, 0)
 	case "QUIT":
 		if uc.isOurNick(msg.Prefix.Name) {
 			uc.logger.Printf("quit")
@@ -1106,7 +1108,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		} else {
 			ch.Topic = ""
 		}
-		uc.produce(ch.Name, msg, nil)
+		uc.produce(ch.Name, msg, 0)
 	case "MODE":
 		var name, modeStr string
 		if err := parseMessageParams(msg, &name, &modeStr); err != nil {
@@ -1851,12 +1853,19 @@ func (uc *upstreamConn) handleSupportedCaps(capsStr string) {
 	}
 }
 
-func (uc *upstreamConn) requestCaps(ctx context.Context) {
+func (uc *upstreamConn) updateCaps(ctx context.Context) {
 	var requestCaps []string
 	for c := range permanentUpstreamCaps {
 		if uc.caps.IsAvailable(c) && !uc.caps.IsEnabled(c) {
 			requestCaps = append(requestCaps, c)
 		}
+	}
+
+	echoMessage := uc.caps.IsAvailable("labeled-response")
+	if !uc.caps.IsEnabled("echo-message") && echoMessage {
+		requestCaps = append(requestCaps, "echo-message")
+	} else if uc.caps.IsEnabled("echo-message") && !echoMessage {
+		requestCaps = append(requestCaps, "-echo-message")
 	}
 
 	if len(requestCaps) == 0 {
@@ -1924,6 +1933,7 @@ func (uc *upstreamConn) handleCapAck(ctx context.Context, name string, ok bool) 
 			Command: "AUTHENTICATE",
 			Params:  []string{auth.Mechanism},
 		})
+	case "echo-message":
 	default:
 		if permanentUpstreamCaps[name] {
 			break
@@ -2089,9 +2099,10 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 // produce appends a message to the logs and forwards it to connected downstream
 // connections.
 //
-// If origin is not nil and origin doesn't support echo-message, the message is
-// forwarded to all connections except origin.
-func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstreamConn) {
+// originID is the id of the downstream (origin) that sent the message. If it is not 0
+// and origin doesn't support echo-message, the message is forwarded to all
+// connections except origin.
+func (uc *upstreamConn) produce(target string, msg *irc.Message, originID uint64) {
 	var msgID string
 	if target != "" {
 		msgID = uc.appendLog(target, msg)
@@ -2102,7 +2113,7 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, origin *downstr
 	detached := ch != nil && ch.Detached
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		if !detached && (dc != origin || dc.caps.IsEnabled("echo-message")) {
+		if !detached && (dc.id != originID || dc.caps.IsEnabled("echo-message")) {
 			dc.sendMessageWithID(dc.marshalMessage(msg, uc.network), msgID)
 		} else {
 			dc.advanceMessageWithID(msg, msgID)

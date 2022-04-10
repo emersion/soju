@@ -2527,27 +2527,32 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  upstreamParams,
 			})
 
-			echoParams := []string{upstreamName}
-			if msg.Command != "TAGMSG" {
-				echoParams = append(echoParams, text)
-			}
+			// If the upstream supports echo message, we'll produce the message
+			// when it is echoed from the upstream.
+			// Otherwise, produce/log it here because it's the last time we'll see it.
+			if !uc.caps.IsEnabled("echo-message") {
+				echoParams := []string{upstreamName}
+				if msg.Command != "TAGMSG" {
+					echoParams = append(echoParams, text)
+				}
 
-			echoTags := tags.Copy()
-			echoTags["time"] = irc.TagValue(formatServerTime(time.Now()))
-			if uc.account != "" {
-				echoTags["account"] = irc.TagValue(uc.account)
+				echoTags := tags.Copy()
+				echoTags["time"] = irc.TagValue(formatServerTime(time.Now()))
+				if uc.account != "" {
+					echoTags["account"] = irc.TagValue(uc.account)
+				}
+				echoMsg := &irc.Message{
+					Tags: echoTags,
+					Prefix: &irc.Prefix{
+						Name: uc.nick,
+						User: uc.username,
+						Host: uc.hostname,
+					},
+					Command: msg.Command,
+					Params:  echoParams,
+				}
+				uc.produce(upstreamName, echoMsg, dc.id)
 			}
-			echoMsg := &irc.Message{
-				Tags: echoTags,
-				Prefix: &irc.Prefix{
-					Name: uc.nick,
-					User: uc.username,
-					Host: uc.hostname,
-				},
-				Command: msg.Command,
-				Params:  echoParams,
-			}
-			uc.produce(upstreamName, echoMsg, dc)
 
 			uc.updateChannelAutoDetach(upstreamName)
 		}
