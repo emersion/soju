@@ -543,7 +543,12 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			caps := strings.Fields(subParams[0])
 
 			for _, name := range caps {
-				if err := uc.handleCapAck(ctx, strings.ToLower(name), subCmd == "ACK"); err != nil {
+				enable := subCmd == "ACK"
+				if strings.HasPrefix(name, "-") {
+					name = strings.TrimPrefix(name, "-")
+					enable = false
+				}
+				if err := uc.handleCapAck(ctx, strings.ToLower(name), enable); err != nil {
 					return err
 				}
 			}
