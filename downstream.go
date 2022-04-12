@@ -558,6 +558,8 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 				supported = dc.caps.IsEnabled("server-time")
 			case "account":
 				supported = dc.caps.IsEnabled("account")
+			case "batch":
+				supported = dc.caps.IsEnabled("batch")
 			}
 			if !supported {
 				delete(msg.Tags, name)
