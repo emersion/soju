@@ -229,7 +229,6 @@ var permanentDownstreamCaps = map[string]string{
 	"cap-notify":    "",
 	"echo-message":  "",
 	"invite-notify": "",
-	"message-tags":  "",
 	"server-time":   "",
 	"setname":       "",
 
@@ -247,6 +246,7 @@ var needAllDownstreamCaps = map[string]string{
 	"away-notify":    "",
 	"chghost":        "",
 	"extended-join":  "",
+	"message-tags":   "",
 	"multi-prefix":   "",
 
 	"draft/extended-monitor": "",
