@@ -561,7 +561,6 @@ func (u *user) run() {
 			uc.updateAway()
 			uc.updateMonitor()
 
-			netIDStr := fmt.Sprintf("%v", uc.network.ID)
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateSupportedCaps()
 
@@ -574,18 +573,10 @@ func (u *user) run() {
 				dc.updateRealname()
 				dc.updateAccount()
 			})
-			for _, dc := range u.downstreamConns {
-				if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-					dc.SendMessage(&irc.Message{
-						Prefix:  dc.srv.prefix(),
-						Command: "BOUNCER",
-						Params: []string{"NETWORK", netIDStr, irc.Tags{
-							"state": "connected",
-							"error": "",
-						}.String()},
-					})
-				}
-			}
+			u.notifyBouncerNetworkState(uc.network.ID, irc.Tags{
+				"state": "connected",
+				"error": "",
+			})
 			uc.network.lastError = nil
 		case eventUpstreamDisconnected:
 			u.handleUpstreamDisconnected(e.uc)
@@ -605,17 +596,9 @@ func (u *user) run() {
 				})
 			}
 			net.lastError = e.err
-			for _, dc := range u.downstreamConns {
-				if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-					dc.SendMessage(&irc.Message{
-						Prefix:  dc.srv.prefix(),
-						Command: "BOUNCER",
-						Params: []string{"NETWORK", fmt.Sprintf("%v", net.ID), irc.Tags{
-							"error": irc.TagValue(net.lastError.Error()),
-						}.String()},
-					})
-				}
-			}
+			u.notifyBouncerNetworkState(net.ID, irc.Tags{
+				"error": irc.TagValue(net.lastError.Error()),
+			})
 		case eventUpstreamError:
 			uc := e.uc
 
@@ -623,17 +606,9 @@ func (u *user) run() {
 				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", uc.network.GetName(), e.err))
 			})
 			uc.network.lastError = e.err
-			for _, dc := range u.downstreamConns {
-				if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-					dc.SendMessage(&irc.Message{
-						Prefix:  dc.srv.prefix(),
-						Command: "BOUNCER",
-						Params: []string{"NETWORK", fmt.Sprintf("%v", uc.network.ID), irc.Tags{
-							"error": irc.TagValue(uc.network.lastError.Error()),
-						}.String()},
-					})
-				}
-			}
+			u.notifyBouncerNetworkState(uc.network.ID, irc.Tags{
+				"error": irc.TagValue(uc.network.lastError.Error()),
+			})
 		case eventUpstreamMessage:
 			msg, uc := e.msg, e.uc
 			if uc.isClosed() {
@@ -773,7 +748,6 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 		uch.updateAutoDetach(0)
 	}
 
-	netIDStr := fmt.Sprintf("%v", uc.network.ID)
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		dc.updateSupportedCaps()
 	})
@@ -790,15 +764,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 		return
 	}
 
-	for _, dc := range u.downstreamConns {
-		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BOUNCER",
-				Params:  []string{"NETWORK", netIDStr, "state=disconnected"},
-			})
-		}
-	}
+	u.notifyBouncerNetworkState(uc.network.ID, irc.Tags{"state": "disconnected"})
 
 	if uc.network.lastError == nil {
 		uc.forEachDownstream(func(dc *downstreamConn) {
@@ -806,6 +772,19 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s", uc.network.GetName()))
 			}
 		})
+	}
+}
+
+func (u *user) notifyBouncerNetworkState(netID int64, attrs irc.Tags) {
+	netIDStr := fmt.Sprintf("%v", netID)
+	for _, dc := range u.downstreamConns {
+		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
+			dc.SendMessage(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: "BOUNCER",
+				Params:  []string{"NETWORK", netIDStr, attrs.String()},
+			})
+		}
 	}
 }
 
@@ -909,17 +888,8 @@ func (u *user) createNetwork(ctx context.Context, record *Network) (*network, er
 
 	u.addNetwork(network)
 
-	idStr := fmt.Sprintf("%v", network.ID)
 	attrs := getNetworkAttrs(network)
-	for _, dc := range u.downstreamConns {
-		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BOUNCER",
-				Params:  []string{"NETWORK", idStr, attrs.String()},
-			})
-		}
-	}
+	u.notifyBouncerNetworkState(network.ID, attrs)
 
 	return network, nil
 }
@@ -990,17 +960,8 @@ func (u *user) updateNetwork(ctx context.Context, record *Network) (*network, er
 	u.addNetwork(updatedNetwork)
 
 	// TODO: only broadcast attributes that have changed
-	idStr := fmt.Sprintf("%v", updatedNetwork.ID)
 	attrs := getNetworkAttrs(updatedNetwork)
-	for _, dc := range u.downstreamConns {
-		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: "BOUNCER",
-				Params:  []string{"NETWORK", idStr, attrs.String()},
-			})
-		}
-	}
+	u.notifyBouncerNetworkState(updatedNetwork.ID, attrs)
 
 	return updatedNetwork, nil
 }
