@@ -1609,11 +1609,11 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 		// Only send history if we're the first connected client with that name
 		// for the network
 		firstClient := true
-		dc.user.forEachDownstream(func(c *downstreamConn) {
+		for _, c := range dc.user.downstreamConns {
 			if c != dc && c.clientName == dc.clientName && c.network == dc.network {
 				firstClient = false
 			}
-		})
+		}
 		if firstClient {
 			net.delivered.ForEachTarget(func(target string) {
 				lastDelivered := net.delivered.LoadID(target, dc.clientName)
