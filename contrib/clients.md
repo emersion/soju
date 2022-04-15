@@ -71,6 +71,18 @@ outgoing messages:
     /set irc_reconnect_rejoin off
     /set net_throttle off
 
+# [irssi]
+
+Assuming you want to connect irssi to your soju instance for one network
+(single-upstream mode), for example libera.chat:
+
+    /network add -user <soju user>/irc.libera.chat libera
+    /server add -auto -tls -network libera <soju ip or hostname> <soju port> <soju password>
+
+Then, to actually connect:
+
+    /connect libera
+
 # [senpai]
 
 senpai is being developed with soju in mind, so should have excellent
@@ -100,3 +112,4 @@ See `/help cap` for more information.
 [Weechat script]: https://github.com/weechat/scripts/blob/master/python/soju.py
 [Hexchat]: https://hexchat.github.io/
 [Emacs]: https://www.gnu.org/software/emacs/
+[irssi]: https://irssi.org/
