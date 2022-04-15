@@ -191,6 +191,9 @@ func (net *network) runConn(ctx context.Context) error {
 	net.user.srv.metrics.upstreams.Add(1)
 	defer net.user.srv.metrics.upstreams.Add(-1)
 
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
 	uc, err := connectToUpstream(ctx, net)
 	if err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
