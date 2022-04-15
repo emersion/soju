@@ -205,6 +205,8 @@ func (net *network) runConn(ctx context.Context) error {
 		defer net.user.srv.Identd.Delete(uc.RemoteAddr().String(), uc.LocalAddr().String())
 	}
 
+	// TODO: this is racy, we're not running in the user goroutine yet
+	// uc.register accesses user/network DB records
 	uc.register(ctx)
 	if err := uc.runUntilRegistered(ctx); err != nil {
 		return fmt.Errorf("failed to register: %w", err)
