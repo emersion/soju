@@ -200,6 +200,28 @@ func updateNetworkAttrs(record *database.Network, attrs irc.Tags, subcommand str
 	return nil
 }
 
+type downstreamLabelContextKey struct {
+	id uint64
+}
+
+type downstreamLabelContext struct {
+	label      string
+	batch      string
+	pendingMsg *irc.Message
+}
+
+func downstreamLabelContextWith(ctx context.Context, downstreamID uint64, cmdCtx *downstreamLabelContext) context.Context {
+	return context.WithValue(ctx, downstreamLabelContextKey{id: downstreamID}, cmdCtx)
+}
+
+func downstreamLabelContextFrom(ctx context.Context, downstreamID uint64) *downstreamLabelContext {
+	if v := ctx.Value(downstreamLabelContextKey{id: downstreamID}); v != nil {
+		return v.(*downstreamLabelContext)
+	} else {
+		return nil
+	}
+}
+
 // illegalNickChars is the list of characters forbidden in a nickname.
 //
 //   - ' ' and ':' break the IRC message wire format
@@ -250,6 +272,7 @@ var passthroughDownstreamCaps = map[string]string{
 	"chghost":          "",
 	"extended-join":    "",
 	"extended-monitor": "",
+	"labeled-response": "",
 	"message-tags":     "",
 	"multi-prefix":     "",
 
@@ -469,6 +492,32 @@ func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	return nil
 }
 
+func (dc *downstreamConn) FlushBatch(ctx context.Context) {
+	labelCtx := downstreamLabelContextFrom(ctx, dc.id)
+	if labelCtx != nil && labelCtx.label != "" {
+		if labelCtx.pendingMsg != nil {
+			msg := labelCtx.pendingMsg.Copy()
+			msg.Tags["label"] = labelCtx.label
+			dc.sendMessage(ctx, msg)
+		} else if labelCtx.batch != "" {
+			dc.sendMessage(ctx, &irc.Message{
+				Command: "BATCH",
+				Params:  []string{"-" + labelCtx.batch},
+			})
+		} else {
+			dc.sendMessage(ctx, &irc.Message{
+				Command: "ACK",
+				Tags:    irc.Tags{"label": labelCtx.label},
+			})
+		}
+	}
+}
+
+func (dc *downstreamConn) sendMessage(ctx context.Context, msg *irc.Message) {
+	dc.srv.metrics.downstreamOutMessagesTotal.Inc()
+	dc.conn.SendMessage(ctx, msg)
+}
+
 // SendMessage sends an outgoing message.
 //
 // This can only called from the user goroutine.
@@ -538,8 +587,48 @@ func (dc *downstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 		msg.Prefix = dc.srv.prefix()
 	}
 
-	dc.srv.metrics.downstreamOutMessagesTotal.Inc()
-	dc.conn.SendMessage(ctx, msg)
+	if labelCtx := downstreamLabelContextFrom(ctx, dc.id); labelCtx != nil && labelCtx.label != "" {
+		if labelCtx.pendingMsg != nil {
+			// create a batch
+			dc.lastBatchRef++
+			labelCtx.batch = fmt.Sprintf("%v", dc.lastBatchRef)
+			dc.sendMessage(ctx, &irc.Message{
+				Tags:    irc.Tags{"label": labelCtx.label},
+				Command: "BATCH",
+				Params:  []string{"+" + labelCtx.batch, "labeled-response"},
+			})
+
+			// send the buffered message
+			pendingMsg := labelCtx.pendingMsg
+			if pendingMsg.Tags["batch"] == "" {
+				msgCopy := *labelCtx.pendingMsg
+				pendingMsg = &msgCopy
+				if pendingMsg.Tags == nil {
+					pendingMsg.Tags = make(irc.Tags)
+				}
+				pendingMsg.Tags["batch"] = labelCtx.batch
+			}
+			dc.sendMessage(ctx, pendingMsg)
+			labelCtx.pendingMsg = nil
+		}
+		if labelCtx.batch != "" {
+			// send the current message in the batch
+			if msg.Tags["batch"] == "" {
+				msgCopy := *msg
+				msg = &msgCopy
+				if msg.Tags == nil {
+					msg.Tags = make(irc.Tags)
+				}
+				msg.Tags["batch"] = labelCtx.batch
+			}
+			dc.sendMessage(ctx, msg)
+		} else {
+			// first message we're sending: buffer it
+			labelCtx.pendingMsg = msg
+		}
+	} else {
+		dc.sendMessage(ctx, msg)
+	}
 }
 
 func (dc *downstreamConn) SendBatch(ctx context.Context, typ string, params []string, tags irc.Tags, f func(batchRef string)) {
@@ -626,10 +715,16 @@ func (dc *downstreamConn) handleMessage(ctx context.Context, msg *irc.Message) e
 	ctx, cancel = context.WithTimeout(ctx, handleDownstreamMessageTimeout)
 	defer cancel()
 
+	var labelCtx *downstreamLabelContext
+	if label, ok := msg.Tags["label"]; ok && dc.caps.IsEnabled("labeled-response") {
+		labelCtx = &downstreamLabelContext{label: label}
+		ctx = downstreamLabelContextWith(ctx, dc.id, labelCtx)
+	}
+
 	switch msg.Command {
 	case "QUIT":
 		dc.conn.Shutdown(ctx)
-		return nil // TODO: stop handling commands
+		// TODO: stop handling commands
 	default:
 		var err error
 		if dc.registered {
@@ -640,10 +735,14 @@ func (dc *downstreamConn) handleMessage(ctx context.Context, msg *irc.Message) e
 		if ircErr, ok := err.(ircError); ok {
 			ircErr.Message.Prefix = dc.srv.prefix()
 			dc.SendMessage(ctx, ircErr.Message)
-			return nil
+		} else if err != nil {
+			return err
 		}
-		return err
 	}
+
+	dc.FlushBatch(ctx)
+
+	return nil
 }
 
 func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *irc.Message) error {
@@ -1949,7 +2048,15 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			keys = strings.Split(msg.Params[1], ",")
 		}
 
-		for i, name := range strings.Split(namesStr, ",") {
+		names := strings.Split(namesStr, ",")
+		if len(names) > 1 {
+			// We need to potentially mix local and remote messages so we drop
+			// the label
+			if labelCtx := downstreamLabelContextFrom(ctx, dc.id); labelCtx != nil {
+				labelCtx.label = ""
+			}
+		}
+		for i, name := range names {
 			var key string
 			if len(keys) > i {
 				key = keys[i]
@@ -2020,7 +2127,15 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			reason = msg.Params[1]
 		}
 
-		for _, name := range strings.Split(namesStr, ",") {
+		names := strings.Split(namesStr, ",")
+		if len(names) > 1 {
+			// We need to potentially mix local and remote messages so we drop
+			// the label
+			if labelCtx := downstreamLabelContextFrom(ctx, dc.id); labelCtx != nil {
+				labelCtx.label = ""
+			}
+		}
+		for _, name := range names {
 			if strings.EqualFold(reason, "detach") {
 				ch := uc.network.channels.Get(name)
 				if ch != nil {
@@ -2173,7 +2288,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return err
 		}
 
-		uc.enqueueCommand(dc, msg)
+		uc.enqueueCommand(ctx, dc, msg)
 	case "NAMES":
 		uc, err := dc.upstreamForCommand(msg.Command)
 		if err != nil {
@@ -2189,12 +2304,18 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		channels := strings.Split(msg.Params[0], ",")
+		if len(channels) > 1 {
+			// We need to potentially mix local and remote messages so we drop
+			// the label
+			if labelCtx := downstreamLabelContextFrom(ctx, dc.id); labelCtx != nil {
+				labelCtx.label = ""
+			}
+		}
 		for _, name := range channels {
 			ch := uc.channels.Get(name)
 			if ch != nil {
 				sendNames(ctx, dc, ch)
 			} else {
-				// NAMES on a channel we have not joined, ask upstream
 				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 					Command: "NAMES",
 					Params:  []string{name},
@@ -2329,7 +2450,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return nil
 		}
 
-		uc.enqueueCommand(dc, msg)
+		uc.enqueueCommand(ctx, dc, msg)
 	case "WHOIS":
 		if len(msg.Params) == 0 {
 			return ircError{&irc.Message{
@@ -2407,7 +2528,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return err
 		}
 
-		uc.enqueueCommand(dc, msg)
+		uc.enqueueCommand(ctx, dc, msg)
 	case "PRIVMSG", "NOTICE", "TAGMSG", "REDACT":
 		isText := msg.Command == "PRIVMSG" || msg.Command == "NOTICE"
 
@@ -2424,7 +2545,15 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		tags := copyClientTags(msg.Tags)
 
-		for _, name := range strings.Split(targetsStr, ",") {
+		targets := strings.Split(targetsStr, ",")
+		if len(targets) > 1 {
+			// We need to potentially mix local and remote messages so we drop
+			// the label
+			if labelCtx := downstreamLabelContextFrom(ctx, dc.id); labelCtx != nil {
+				labelCtx.label = ""
+			}
+		}
+		for _, name := range targets {
 			params := append([]string{name}, msg.Params[1:]...)
 
 			if name == "$"+dc.srv.Config().Hostname || (name == "$*" && dc.network == nil) {
@@ -2501,7 +2630,14 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				dc.handleNickServPRIVMSG(ctx, uc, text)
 			}
 
-			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
+			// If upstream doesn't support echo-message, we will send it
+			// manually ourselves below (with a potential label), so we don't
+			// want to relay it to upstream (and risk getting an ACK).
+			upstreamCtx := ctx
+			if !uc.caps.IsEnabled("echo-message") {
+				upstreamCtx = downstreamLabelContextWith(ctx, dc.id, nil)
+			}
+			uc.SendMessageLabeled(upstreamCtx, dc.id, &irc.Message{
 				Tags:    tags,
 				Command: msg.Command,
 				Params:  params,
@@ -2526,7 +2662,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Command: msg.Command,
 					Params:  params,
 				}
-				uc.produce(context.TODO(), name, echoMsg, dc.id)
+				produceCtx := downstreamLabelContextWith(context.TODO(), dc.id, downstreamLabelContextFrom(ctx, dc.id))
+				uc.produce(produceCtx, name, echoMsg, dc.id)
 			}
 
 			uc.updateChannelAutoDetach(name)
@@ -2575,7 +2712,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 			uc.logger.Printf("starting post-registration SASL PLAIN authentication with username %q", credentials.plain.Username)
 			uc.saslClient = sasl.NewPlainClient("", credentials.plain.Username, credentials.plain.Password)
-			uc.enqueueCommand(dc, &irc.Message{
+			uc.enqueueCommand(ctx, dc, &irc.Message{
 				Command: "AUTHENTICATE",
 				Params:  []string{"PLAIN"},
 			})
@@ -2620,7 +2757,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		uc.logger.Printf("starting %v with account name %v", msg.Command, msg.Params[0])
-		uc.enqueueCommand(dc, msg)
+		uc.enqueueCommand(ctx, dc, msg)
 	case "AWAY":
 		if len(msg.Params) > 0 {
 			dc.away = &msg.Params[0]
@@ -2668,6 +2805,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if err := parseMessageParams(msg, &subcommand); err != nil {
 			return err
 		}
+
+		// TODO: support MONITOR labeled-response through upstream
 
 		switch strings.ToUpper(subcommand) {
 		case "+", "-":

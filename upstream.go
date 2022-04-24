@@ -188,9 +188,10 @@ func (uu *upstreamUser) updateFrom(update *upstreamUser) {
 }
 
 type pendingUpstreamCommand struct {
-	downstreamID uint64
-	msg          *irc.Message
-	sentAt       time.Time
+	downstreamID    uint64
+	downstreamLabel string
+	msg             *irc.Message
+	sentAt          time.Time
 }
 
 type upstreamConn struct {
@@ -453,6 +454,8 @@ func (uc *upstreamConn) forwardMsgByID(ctx context.Context, id uint64, msg *irc.
 }
 
 func (uc *upstreamConn) abortPendingCommands() {
+	// TODO: support labeled-response
+
 	ctx := context.TODO()
 	for _, l := range uc.pendingCmds {
 		for _, pendingCmd := range l {
@@ -506,11 +509,20 @@ func (uc *upstreamConn) sendNextPendingCommand(cmd string) {
 		return
 	}
 	pendingCmd := &uc.pendingCmds[cmd][0]
-	uc.SendMessageLabeled(context.TODO(), pendingCmd.downstreamID, pendingCmd.msg)
+	ctx := downstreamLabelContextWith(context.TODO(), pendingCmd.downstreamID, &downstreamLabelContext{
+		label: pendingCmd.downstreamLabel,
+	})
+	uc.SendMessageLabeled(ctx, pendingCmd.downstreamID, pendingCmd.msg)
 	pendingCmd.sentAt = time.Now()
 }
 
-func (uc *upstreamConn) enqueueCommand(dc *downstreamConn, msg *irc.Message) {
+func (uc *upstreamConn) enqueueCommand(ctx context.Context, dc *downstreamConn, msg *irc.Message) {
+	var label string
+	if labelCtx := downstreamLabelContextFrom(ctx, dc.id); labelCtx != nil {
+		label = labelCtx.label
+		labelCtx.label = ""
+	}
+
 	switch msg.Command {
 	case "LIST", "WHO", "WHOIS", "AUTHENTICATE", "REGISTER", "VERIFY":
 		// Supported
@@ -519,8 +531,9 @@ func (uc *upstreamConn) enqueueCommand(dc *downstreamConn, msg *irc.Message) {
 	}
 
 	uc.pendingCmds[msg.Command] = append(uc.pendingCmds[msg.Command], pendingUpstreamCommand{
-		downstreamID: dc.id,
-		msg:          msg,
+		downstreamID:    dc.id,
+		downstreamLabel: label,
+		msg:             msg,
 	})
 
 	// If we didn't get a reply after a while, just give up
@@ -583,6 +596,26 @@ func (uc *upstreamConn) parseMembershipPrefix(s string) (ms xirc.MembershipSet, 
 	return memberships, s[i:]
 }
 
+func (uc *upstreamConn) parseLabel(label string) (downstreamID uint64, downstreamLabel string, err error) {
+	if label == "" {
+		return
+	}
+	parts := strings.SplitN(label, "-", 4)
+	if len(parts) < 4 {
+		err = errors.New("not enough arguments")
+	} else if parts[0] != "sd" {
+		err = fmt.Errorf("expected %v, got %v", "sd", parts[0])
+	} else {
+		downstreamID, err = strconv.ParseUint(parts[1], 10, 64)
+	}
+	if err != nil {
+		err = fmt.Errorf("unexpected message label: invalid downstream reference for label %q: %v", label, err)
+		return
+	}
+	downstreamLabel = parts[3]
+	return
+}
+
 func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) error {
 	var label string
 	if l, ok := msg.Tags["label"]; ok {
@@ -591,6 +624,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 	}
 
 	var msgBatch *upstreamBatch
+	batchLabel := false
 	if batchName, ok := msg.Tags["batch"]; ok {
 		b, ok := uc.batches[batchName]
 		if !ok {
@@ -598,22 +632,39 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 		msgBatch = &b
 		if label == "" {
+			batchLabel = true
 			label = msgBatch.Label
 		}
 		delete(msg.Tags, "batch")
 	}
 
-	var downstreamID uint64
-	if label != "" {
-		var labelOffset uint64
-		n, err := fmt.Sscanf(label, "sd-%d-%d", &downstreamID, &labelOffset)
-		if err == nil && n < 2 {
-			err = errors.New("not enough arguments")
-		}
-		if err != nil {
-			return fmt.Errorf("unexpected message label: invalid downstream reference for label %q: %v", label, err)
+	downstreamID, downstreamLabel, err := uc.parseLabel(label)
+	if err != nil {
+		return err
+	}
+	if downstreamID != 0 {
+		if batchLabel {
+			// label comes from batch, send the message as part of that batch
+			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+				ctx = downstreamLabelContextWith(ctx, dc.id, &downstreamLabelContext{
+					label: downstreamLabel,
+					batch: msg.Tags["batch"],
+				})
+			})
+		} else {
+			// label comes from this message, respond to the message with that label
+			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+				ctx = downstreamLabelContextWith(ctx, dc.id, &downstreamLabelContext{
+					label: downstreamLabel,
+				})
+			})
 		}
 	}
+	defer func() {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+			dc.FlushBatch(ctx)
+		})
+	}()
 
 	if msg.Prefix == nil {
 		msg.Prefix = uc.serverPrefix
@@ -1114,12 +1165,41 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				Outer:  msgBatch,
 				Label:  label,
 			}
+			if downstreamID != 0 && downstreamLabel != "" {
+				uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+					if labelCtx := downstreamLabelContextFrom(ctx, dc.id); labelCtx != nil {
+						labelCtx.label = ""
+					}
+					dc.SendMessage(ctx, &irc.Message{
+						Prefix:  uc.srv.prefix(),
+						Command: "BATCH",
+						Params:  msg.Params,
+						Tags: irc.Tags{
+							"label": downstreamLabel,
+						},
+					})
+				})
+			}
 		} else if strings.HasPrefix(tag, "-") {
 			tag = tag[1:]
 			if _, ok := uc.batches[tag]; !ok {
 				return fmt.Errorf("unknown BATCH reference tag: %q", tag)
 			}
+			label := uc.batches[tag].Label
 			delete(uc.batches, tag)
+
+			// BATCH - does not have @label/@batch attached to it, so downstreamID is empty.
+			// extract it back from the batch struct.
+			downstreamID, downstreamLabel, err := uc.parseLabel(label)
+			if downstreamID != 0 && downstreamLabel != "" && err == nil {
+				uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+					dc.SendMessage(ctx, &irc.Message{
+						Prefix:  uc.srv.prefix(),
+						Command: "BATCH",
+						Params:  msg.Params,
+					})
+				})
+			}
 		} else {
 			return fmt.Errorf("unexpected BATCH reference tag: missing +/- prefix: %q", tag)
 		}
@@ -2176,11 +2256,19 @@ func (uc *upstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 }
 
 func (uc *upstreamConn) SendMessageLabeled(ctx context.Context, downstreamID uint64, msg *irc.Message) {
+	var label string
+	if labelCtx := downstreamLabelContextFrom(ctx, downstreamID); labelCtx != nil {
+		if labelCtx.pendingMsg != nil || labelCtx.batch != "" {
+			panic("called both downstreamConn.SendMessage and upstreamConn.SendMessage with the same label")
+		}
+		label = labelCtx.label
+		labelCtx.label = ""
+	}
 	if uc.caps.IsEnabled("labeled-response") {
 		if msg.Tags == nil {
 			msg.Tags = make(irc.Tags)
 		}
-		msg.Tags["label"] = fmt.Sprintf("sd-%d-%d", downstreamID, uc.nextLabelID)
+		msg.Tags["label"] = fmt.Sprintf("sd-%d-%d-%s", downstreamID, uc.nextLabelID, label)
 		uc.nextLabelID++
 	}
 	uc.SendMessage(ctx, msg)
