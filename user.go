@@ -158,10 +158,10 @@ func newNetwork(user *user, record *Network, channels []Channel) *network {
 func (net *network) forEachDownstream(f func(*downstreamConn)) {
 	for _, dc := range net.user.downstreamConns {
 		if dc.network == nil && !dc.isMultiUpstream {
-			return
+			continue
 		}
 		if dc.network != nil && dc.network != net {
-			return
+			continue
 		}
 		f(dc)
 	}
