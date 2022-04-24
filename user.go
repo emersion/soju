@@ -798,10 +798,7 @@ func (u *user) run() {
 				break
 			}
 			err := dc.handleMessage(context.TODO(), msg)
-			if ircErr, ok := err.(ircError); ok {
-				ircErr.Message.Prefix = dc.srv.prefix()
-				dc.SendMessage(context.TODO(), ircErr.Message)
-			} else if err != nil {
+			if err != nil {
 				dc.logger.Printf("failed to handle message %q: %v", msg, err)
 				dc.Close()
 			}
