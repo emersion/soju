@@ -3188,9 +3188,16 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		dc.logger.Printf("unhandled message: %v", msg)
 
 		// Only forward unknown commands in single-upstream mode
+		if dc.network == nil {
+			return newUnknownCommandError(msg.Command)
+		}
+
 		uc := dc.upstream()
 		if uc == nil {
-			return newUnknownCommandError(msg.Command)
+			return ircError{&irc.Message{
+				Command: irc.ERR_UNKNOWNCOMMAND,
+				Params:  []string{"*", msg.Command, "Disconnected from upstream network"},
+			}}
 		}
 
 		uc.SendMessageLabeled(ctx, dc.id, msg)
