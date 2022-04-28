@@ -1,6 +1,6 @@
 # [soju]
 
-[![builds.sr.ht status](https://builds.sr.ht/~emersion/soju/commits.svg)](https://builds.sr.ht/~emersion/soju/commits?)
+[![builds.sr.ht status](https://builds.sr.ht/~emersion/soju/commits/master.svg)](https://builds.sr.ht/~emersion/soju/commits/master?)
 
 A user-friendly IRC bouncer.
 
