@@ -149,7 +149,8 @@ with the `soju.im/bouncer-networks-notify` capability enabled:
 
     BOUNCER NETWORK <netid> <attributes>
 
-The notification SHOULD NOT contain attributes that haven't been updated.
+The notification SHOULD NOT contain attributes that haven't been updated. An
+attribute without a value means that the attribute has been removed.
 
 When a network is removed, the bouncer MUST broadcast a `BOUNCER NETWORK`
 message with the special argument `*` to all connected clients with the
