@@ -163,7 +163,7 @@ func networkAddrFromAttrs(attrs irc.Tags) string {
 	}
 
 	if tlsStr := string(attrs["tls"]); tlsStr == "0" {
-		addr = "irc+insecure://" + tlsStr
+		addr = "irc+insecure://" + addr
 	}
 
 	return addr
