@@ -69,8 +69,8 @@ A new `BOUNCER` command is introduced. It has a case-insensitive subcommand:
 #### `BIND` subcommand
 
 The `BIND` subcommand selects an upstream network to bind to for the lifetime
-of the current connection. Clients can only send it after authentication but
-before the registration completes.
+of the current connection. Clients can only send it before the connection
+registration completes.
 
     BOUNCER BIND <netid>
 
