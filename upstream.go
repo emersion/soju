@@ -322,6 +322,13 @@ func (uc *upstreamConn) abortPendingCommands() {
 					Command: irc.RPL_ENDOFWHO,
 					Params:  []string{dc.nick, mask, "Command aborted"},
 				})
+			case "WHOIS":
+				nick := pendingCmd.msg.Params[len(pendingCmd.msg.Params)-1]
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.RPL_ENDOFWHOIS,
+					Params:  []string{dc.nick, nick, "Command aborted"},
+				})
 			case "AUTHENTICATE":
 				dc.endSASL(&irc.Message{
 					Prefix:  dc.srv.prefix(),
