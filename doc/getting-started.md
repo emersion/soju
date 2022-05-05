@@ -24,7 +24,7 @@ channels from a ZNC config file:
 
 ### Client supporting `soju.im/bouncer-networks`
 
-If your are using a client supporting the `soju.im/bouncer-networks` IRC
+If you are using a client supporting the `soju.im/bouncer-networks` IRC
 extension (see the [client list]), then you can just connect to soju with your
 username and password.
 
