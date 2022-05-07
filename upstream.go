@@ -290,7 +290,7 @@ func (uc *upstreamConn) getChannel(name string) (*upstreamChannel, error) {
 }
 
 func (uc *upstreamConn) isChannel(entity string) bool {
-	return strings.ContainsRune(uc.availableChannelTypes, rune(entity[0]))
+	return len(entity) > 0 && strings.ContainsRune(uc.availableChannelTypes, rune(entity[0]))
 }
 
 func (uc *upstreamConn) isOurNick(nick string) bool {
