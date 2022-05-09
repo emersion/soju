@@ -109,7 +109,7 @@ func parse(cfg scfg.Block) (*Server, error) {
 			if err := d.ParseParams(&srv.SQLDriver, &srv.SQLSource); err != nil {
 				return nil, err
 			}
-		case "log":
+		case "message-store", "log":
 			var driver string
 			if err := d.ParseParams(&driver, &srv.LogPath); err != nil {
 				return nil, err

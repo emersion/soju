@@ -133,9 +133,11 @@ The following directives are supported:
 	  strings, see:
 	  <https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters>.
 
-*log* fs <path>
+*message-store* fs <path>
 	Path to the bouncer logs root directory, or empty to disable logging. By
 	default, logging is disabled.
+
+	(_log_ is a deprecated alias for this directive.)
 
 *http-origin* <patterns...>
 	List of allowed HTTP origins for WebSocket listeners. The parameters are
