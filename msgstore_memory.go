@@ -96,19 +96,23 @@ func (ms *memoryMessageStore) Append(network *database.Network, entity string, m
 	return formatMemoryMsgID(network.ID, entity, seq), nil
 }
 
-func (ms *memoryMessageStore) LoadLatestID(ctx context.Context, network *database.Network, entity, id string, limit int) ([]*irc.Message, error) {
+func (ms *memoryMessageStore) LoadLatestID(ctx context.Context, id string, options *loadMessageOptions) ([]*irc.Message, error) {
+	if options.Events {
+		return nil, fmt.Errorf("events are unsupported for memory message store")
+	}
+
 	_, _, seq, err := parseMemoryMsgID(id)
 	if err != nil {
 		return nil, err
 	}
 
-	k := ringBufferKey{networkID: network.ID, entity: entity}
+	k := ringBufferKey{networkID: options.Network.ID, entity: options.Entity}
 	rb, ok := ms.buffers[k]
 	if !ok {
 		return nil, nil
 	}
 
-	return rb.LoadLatestSeq(seq, limit)
+	return rb.LoadLatestSeq(seq, options.Limit)
 }
 
 type messageRingBuffer struct {

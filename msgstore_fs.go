@@ -401,8 +401,8 @@ func (ms *fsMessageStore) parseMessage(line string, network *database.Network, e
 	return msg, t, nil
 }
 
-func (ms *fsMessageStore) parseMessagesBefore(network *database.Network, entity string, ref time.Time, end time.Time, events bool, limit int, afterOffset int64, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
-	path := ms.logPath(network, entity, ref)
+func (ms *fsMessageStore) parseMessagesBefore(ref time.Time, end time.Time, options *loadMessageOptions, afterOffset int64, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+	path := ms.logPath(options.Network, options.Entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -412,7 +412,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *database.Network, entity 
 	}
 	defer f.Close()
 
-	historyRing := make([]*irc.Message, limit)
+	historyRing := make([]*irc.Message, options.Limit)
 	cur := 0
 
 	sc := bufio.NewScanner(f)
@@ -425,7 +425,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *database.Network, entity 
 	}
 
 	for sc.Scan() {
-		msg, t, err := ms.parseMessage(sc.Text(), network, entity, ref, events)
+		msg, t, err := ms.parseMessage(sc.Text(), options.Network, options.Entity, ref, options.Events)
 		if err != nil {
 			return nil, err
 		} else if msg == nil || !t.After(end) {
@@ -437,20 +437,20 @@ func (ms *fsMessageStore) parseMessagesBefore(network *database.Network, entity 
 			continue
 		}
 
-		historyRing[cur%limit] = msg
+		historyRing[cur%options.Limit] = msg
 		cur++
 	}
 	if sc.Err() != nil {
 		return nil, fmt.Errorf("failed to parse messages before ref: scanner error: %v", sc.Err())
 	}
 
-	n := limit
-	if cur < limit {
+	n := options.Limit
+	if cur < options.Limit {
 		n = cur
 	}
-	start := (cur - n + limit) % limit
+	start := (cur - n + options.Limit) % options.Limit
 
-	if start+n <= limit { // ring doesnt wrap
+	if start+n <= options.Limit { // ring doesnt wrap
 		return historyRing[start : start+n], nil
 	} else { // ring wraps
 		history := make([]*irc.Message, n)
@@ -460,8 +460,8 @@ func (ms *fsMessageStore) parseMessagesBefore(network *database.Network, entity 
 	}
 }
 
-func (ms *fsMessageStore) parseMessagesAfter(network *database.Network, entity string, ref time.Time, end time.Time, events bool, limit int, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
-	path := ms.logPath(network, entity, ref)
+func (ms *fsMessageStore) parseMessagesAfter(ref time.Time, end time.Time, options *loadMessageOptions, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+	path := ms.logPath(options.Network, options.Entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -473,8 +473,8 @@ func (ms *fsMessageStore) parseMessagesAfter(network *database.Network, entity s
 
 	var history []*irc.Message
 	sc := bufio.NewScanner(f)
-	for sc.Scan() && len(history) < limit {
-		msg, t, err := ms.parseMessage(sc.Text(), network, entity, ref, events)
+	for sc.Scan() && len(history) < options.Limit {
+		msg, t, err := ms.parseMessage(sc.Text(), options.Network, options.Entity, ref, options.Events)
 		if err != nil {
 			return nil, err
 		} else if msg == nil || !t.After(ref) {
@@ -495,18 +495,20 @@ func (ms *fsMessageStore) parseMessagesAfter(network *database.Network, entity s
 	return history, nil
 }
 
-func (ms *fsMessageStore) getBeforeTime(ctx context.Context, network *database.Network, entity string, start time.Time, end time.Time, limit int, events bool, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) getBeforeTime(ctx context.Context, start time.Time, end time.Time, options *loadMessageOptions, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	if start.IsZero() {
 		start = time.Now()
 	} else {
 		start = start.In(time.Local)
 	}
 	end = end.In(time.Local)
-	messages := make([]*irc.Message, limit)
-	remaining := limit
+	messages := make([]*irc.Message, options.Limit)
+	remaining := options.Limit
 	tries := 0
 	for remaining > 0 && tries < fsMessageStoreMaxTries && end.Before(start) {
-		buf, err := ms.parseMessagesBefore(network, entity, start, end, events, remaining, -1, selector)
+		parseOptions := *options
+		parseOptions.Limit = remaining
+		buf, err := ms.parseMessagesBefore(start, end, &parseOptions, -1, selector)
 		if err != nil {
 			return nil, err
 		}
@@ -528,11 +530,11 @@ func (ms *fsMessageStore) getBeforeTime(ctx context.Context, network *database.N
 	return messages[remaining:], nil
 }
 
-func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, network *database.Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
-	return ms.getBeforeTime(ctx, network, entity, start, end, limit, events, nil)
+func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, start time.Time, end time.Time, options *loadMessageOptions) ([]*irc.Message, error) {
+	return ms.getBeforeTime(ctx, start, end, options, nil)
 }
 
-func (ms *fsMessageStore) getAfterTime(ctx context.Context, network *database.Network, entity string, start time.Time, end time.Time, limit int, events bool, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) getAfterTime(ctx context.Context, start time.Time, end time.Time, options *loadMessageOptions, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
 	if end.IsZero() {
 		end = time.Now()
@@ -540,10 +542,12 @@ func (ms *fsMessageStore) getAfterTime(ctx context.Context, network *database.Ne
 		end = end.In(time.Local)
 	}
 	var messages []*irc.Message
-	remaining := limit
+	remaining := options.Limit
 	tries := 0
 	for remaining > 0 && tries < fsMessageStoreMaxTries && start.Before(end) {
-		buf, err := ms.parseMessagesAfter(network, entity, start, end, events, remaining, selector)
+		parseOptions := *options
+		parseOptions.Limit = remaining
+		buf, err := ms.parseMessagesAfter(start, end, &parseOptions, selector)
 		if err != nil {
 			return nil, err
 		}
@@ -564,11 +568,11 @@ func (ms *fsMessageStore) getAfterTime(ctx context.Context, network *database.Ne
 	return messages, nil
 }
 
-func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, network *database.Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
-	return ms.getAfterTime(ctx, network, entity, start, end, limit, events, nil)
+func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, start time.Time, end time.Time, options *loadMessageOptions) ([]*irc.Message, error) {
+	return ms.getAfterTime(ctx, start, end, options, nil)
 }
 
-func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *database.Network, entity, id string, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadLatestID(ctx context.Context, id string, options *loadMessageOptions) ([]*irc.Message, error) {
 	var afterTime time.Time
 	var afterOffset int64
 	if id != "" {
@@ -579,14 +583,14 @@ func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *database.Ne
 		if err != nil {
 			return nil, err
 		}
-		if idNet != network.ID || idEntity != entity {
+		if idNet != options.Network.ID || idEntity != options.Entity {
 			return nil, fmt.Errorf("cannot find message ID: message ID doesn't match network/entity")
 		}
 	}
 
-	history := make([]*irc.Message, limit)
+	history := make([]*irc.Message, options.Limit)
 	t := time.Now()
-	remaining := limit
+	remaining := options.Limit
 	tries := 0
 	for remaining > 0 && tries < fsMessageStoreMaxTries && !truncateDay(t).Before(afterTime) {
 		var offset int64 = -1
@@ -594,7 +598,9 @@ func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *database.Ne
 			offset = afterOffset
 		}
 
-		buf, err := ms.parseMessagesBefore(network, entity, t, time.Time{}, false, remaining, offset, nil)
+		parseOptions := *options
+		parseOptions.Limit = remaining
+		buf, err := ms.parseMessagesBefore(t, time.Time{}, &parseOptions, offset, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -706,10 +712,15 @@ func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network,
 		}
 		return true
 	}
+	loadOptions := loadMessageOptions{
+		Network: network,
+		Entity:  opts.in,
+		Limit:   opts.limit,
+	}
 	if !opts.start.IsZero() {
-		return ms.getAfterTime(ctx, network, opts.in, opts.start, opts.end, opts.limit, false, selector)
+		return ms.getAfterTime(ctx, opts.start, opts.end, &loadOptions, selector)
 	} else {
-		return ms.getBeforeTime(ctx, network, opts.in, opts.end, opts.start, opts.limit, false, selector)
+		return ms.getBeforeTime(ctx, opts.end, opts.start, &loadOptions, selector)
 	}
 }
 

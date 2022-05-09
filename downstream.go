@@ -1664,7 +1664,12 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 	defer cancel()
 
 	targetCM := net.casemap(target)
-	history, err := dc.user.msgStore.LoadLatestID(ctx, &net.Network, targetCM, msgID, backlogLimit)
+	loadOptions := loadMessageOptions{
+		Network: &net.Network,
+		Entity:  targetCM,
+		Limit:   backlogLimit,
+	}
+	history, err := dc.user.msgStore.LoadLatestID(ctx, msgID, &loadOptions)
 	if err != nil {
 		dc.logger.Printf("failed to send backlog for %q: %v", target, err)
 		return
@@ -2826,17 +2831,24 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		eventPlayback := dc.caps.IsEnabled("draft/event-playback")
 
+		options := loadMessageOptions{
+			Network: &network.Network,
+			Entity:  entity,
+			Limit:   limit,
+			Events:  eventPlayback,
+		}
+
 		var history []*irc.Message
 		switch subcommand {
 		case "BEFORE", "LATEST":
-			history, err = store.LoadBeforeTime(ctx, &network.Network, entity, bounds[0], time.Time{}, limit, eventPlayback)
+			history, err = store.LoadBeforeTime(ctx, bounds[0], time.Time{}, &options)
 		case "AFTER":
-			history, err = store.LoadAfterTime(ctx, &network.Network, entity, bounds[0], time.Now(), limit, eventPlayback)
+			history, err = store.LoadAfterTime(ctx, bounds[0], time.Now(), &options)
 		case "BETWEEN":
 			if bounds[0].Before(bounds[1]) {
-				history, err = store.LoadAfterTime(ctx, &network.Network, entity, bounds[0], bounds[1], limit, eventPlayback)
+				history, err = store.LoadAfterTime(ctx, bounds[0], bounds[1], &options)
 			} else {
-				history, err = store.LoadBeforeTime(ctx, &network.Network, entity, bounds[0], bounds[1], limit, eventPlayback)
+				history, err = store.LoadBeforeTime(ctx, bounds[0], bounds[1], &options)
 			}
 		case "TARGETS":
 			// TODO: support TARGETS in multi-upstream mode
