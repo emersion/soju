@@ -8,6 +8,29 @@ import (
 	"gopkg.in/irc.v3"
 )
 
+const (
+	RPL_STATSPING     = "246"
+	RPL_LOCALUSERS    = "265"
+	RPL_GLOBALUSERS   = "266"
+	RPL_WHOISCERTFP   = "276"
+	RPL_WHOISREGNICK  = "307"
+	RPL_WHOISSPECIAL  = "320"
+	RPL_CREATIONTIME  = "329"
+	RPL_WHOISACCOUNT  = "330"
+	RPL_TOPICWHOTIME  = "333"
+	RPL_WHOISACTUALLY = "338"
+	RPL_WHOSPCRPL     = "354"
+	RPL_WHOISHOST     = "378"
+	RPL_WHOISMODES    = "379"
+	RPL_VISIBLEHOST   = "396"
+	ERR_UNKNOWNERROR  = "400"
+	ERR_INVALIDCAPCMD = "410"
+	RPL_WHOISSECURE   = "671"
+
+	// https://ircv3.net/specs/extensions/bot-mode
+	RPL_WHOISBOT = "335"
+)
+
 // The server-time layout, as defined in the IRCv3 spec.
 const ServerTimeLayout = "2006-01-02T15:04:05.000Z"
 

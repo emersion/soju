@@ -17,29 +17,6 @@ import (
 // TODO: generalize and move helpers to the xirc package
 
 const (
-	rpl_statsping     = "246"
-	rpl_localusers    = "265"
-	rpl_globalusers   = "266"
-	rpl_whoiscertfp   = "276"
-	rpl_whoisregnick  = "307"
-	rpl_whoisspecial  = "320"
-	rpl_creationtime  = "329"
-	rpl_whoisaccount  = "330"
-	rpl_topicwhotime  = "333"
-	rpl_whoisactually = "338"
-	rpl_whospcrpl     = "354"
-	rpl_whoishost     = "378"
-	rpl_whoismodes    = "379"
-	rpl_visiblehost   = "396"
-	err_unknownerror  = "400"
-	err_invalidcapcmd = "410"
-	rpl_whoissecure   = "671"
-
-	// https://ircv3.net/specs/extensions/bot-mode
-	rpl_whoisbot = "335"
-)
-
-const (
 	maxMessageLength = 512
 	maxMessageParams = 15
 	maxSASLLength    = 400
@@ -787,7 +764,7 @@ func generateWHOXReply(prefix *irc.Prefix, nick, fields string, info *whoxInfo) 
 
 	return &irc.Message{
 		Prefix:  prefix,
-		Command: rpl_whospcrpl,
+		Command: xirc.RPL_WHOSPCRPL,
 		Params:  append([]string{nick}, values...),
 	}
 }

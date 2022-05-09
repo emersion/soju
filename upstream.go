@@ -693,7 +693,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			dc.updateAccount()
 			dc.updateHost()
 		})
-	case rpl_visiblehost:
+	case xirc.RPL_VISIBLEHOST:
 		var rawHost string
 		if err := parseMessageParams(msg, nil, &rawHost); err != nil {
 			return err
@@ -1236,7 +1236,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				})
 			})
 		}
-	case rpl_creationtime:
+	case xirc.RPL_CREATIONTIME:
 		var channel, creationTime string
 		if err := parseMessageParams(msg, nil, &channel, &creationTime); err != nil {
 			return err
@@ -1255,12 +1255,12 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
-					Command: rpl_creationtime,
+					Command: xirc.RPL_CREATIONTIME,
 					Params:  []string{dc.nick, dc.marshalEntity(uc.network, ch.Name), creationTime},
 				})
 			})
 		}
-	case rpl_topicwhotime:
+	case xirc.RPL_TOPICWHOTIME:
 		var channel, who, timeStr string
 		if err := parseMessageParams(msg, nil, &channel, &who, &timeStr); err != nil {
 			return err
@@ -1285,7 +1285,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				topicWho := dc.marshalUserPrefix(uc.network, ch.TopicWho)
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
-					Command: rpl_topicwhotime,
+					Command: xirc.RPL_TOPICWHOTIME,
 					Params: []string{
 						dc.nick,
 						dc.marshalEntity(uc.network, ch.Name),
@@ -1417,7 +1417,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			Command: irc.RPL_WHOREPLY,
 			Params:  []string{dc.nick, channel, username, host, server, nick, flags, trailing},
 		})
-	case rpl_whospcrpl:
+	case xirc.RPL_WHOSPCRPL:
 		dc, cmd := uc.currentPendingCommand("WHO")
 		if cmd == nil {
 			return fmt.Errorf("unexpected RPL_WHOSPCRPL: no matching pending WHO")
@@ -1449,7 +1449,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			Command: irc.RPL_ENDOFWHO,
 			Params:  []string{dc.nick, mask, "End of /WHO list"},
 		})
-	case rpl_whoiscertfp, rpl_whoisregnick, irc.RPL_WHOISUSER, irc.RPL_WHOISSERVER, irc.RPL_WHOISOPERATOR, irc.RPL_WHOISIDLE, rpl_whoisspecial, rpl_whoisaccount, rpl_whoisactually, rpl_whoishost, rpl_whoismodes, rpl_whoissecure:
+	case xirc.RPL_WHOISCERTFP, xirc.RPL_WHOISREGNICK, irc.RPL_WHOISUSER, irc.RPL_WHOISSERVER, irc.RPL_WHOISOPERATOR, irc.RPL_WHOISIDLE, xirc.RPL_WHOISSPECIAL, xirc.RPL_WHOISACCOUNT, xirc.RPL_WHOISACTUALLY, xirc.RPL_WHOISHOST, xirc.RPL_WHOISMODES, xirc.RPL_WHOISSECURE:
 		var nick string
 		if err := parseMessageParams(msg, nil, &nick); err != nil {
 			return err
@@ -1730,9 +1730,9 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		// Ignore
 	case irc.RPL_LUSERCLIENT, irc.RPL_LUSEROP, irc.RPL_LUSERUNKNOWN, irc.RPL_LUSERCHANNELS, irc.RPL_LUSERME:
 		fallthrough
-	case irc.RPL_STATSVLINE, rpl_statsping, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
+	case irc.RPL_STATSVLINE, xirc.RPL_STATSPING, irc.RPL_STATSBLINE, irc.RPL_STATSDLINE:
 		fallthrough
-	case rpl_localusers, rpl_globalusers:
+	case xirc.RPL_LOCALUSERS, xirc.RPL_GLOBALUSERS:
 		fallthrough
 	case irc.RPL_MOTDSTART, irc.RPL_MOTD:
 		// Ignore these messages if they're part of the initial registration

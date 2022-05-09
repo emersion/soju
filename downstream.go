@@ -876,7 +876,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 	case "REQ":
 		if len(args) == 0 {
 			return ircError{&irc.Message{
-				Command: err_invalidcapcmd,
+				Command: xirc.ERR_INVALIDCAPCMD,
 				Params:  []string{dc.nick, cmd, "Missing argument in CAP REQ command"},
 			}}
 		}
@@ -935,7 +935,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 		}
 	default:
 		return ircError{&irc.Message{
-			Command: err_invalidcapcmd,
+			Command: xirc.ERR_INVALIDCAPCMD,
 			Params:  []string{dc.nick, cmd, "Unknown CAP command"},
 		}}
 	}
@@ -1187,7 +1187,7 @@ func (dc *downstreamConn) updateHost() {
 	} else if uc.hostname != dc.hostname {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.prefix(),
-			Command: rpl_visiblehost,
+			Command: xirc.RPL_VISIBLEHOST,
 			Params:  []string{dc.nick, uc.hostname, "is now your visible host"},
 		})
 	}
@@ -1790,7 +1790,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		if dc.network == nil {
 			return ircError{&irc.Message{
-				Command: err_unknownerror,
+				Command: xirc.ERR_UNKNOWNERROR,
 				Params:  []string{dc.nick, "NICK", "Cannot change nickname on the bouncer connection"},
 			}}
 		}
@@ -2138,7 +2138,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if ch.creationTime != "" {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
-					Command: rpl_creationtime,
+					Command: xirc.RPL_CREATIONTIME,
 					Params:  []string{dc.nick, name, ch.creationTime},
 				})
 			}
@@ -2375,7 +2375,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
-				Command: rpl_whoisaccount,
+				Command: xirc.RPL_WHOISACCOUNT,
 				Params:  []string{dc.nick, dc.nick, dc.user.Username, "is logged in as"},
 			})
 			dc.SendMessage(&irc.Message{
@@ -2403,12 +2403,12 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
-				Command: rpl_whoisaccount,
+				Command: xirc.RPL_WHOISACCOUNT,
 				Params:  []string{dc.nick, serviceNick, serviceNick, "is logged in as"},
 			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
-				Command: rpl_whoisbot,
+				Command: xirc.RPL_WHOISBOT,
 				Params:  []string{dc.nick, serviceNick, "is a bot"},
 			})
 			dc.SendMessage(&irc.Message{

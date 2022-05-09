@@ -58,7 +58,7 @@ func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
 			topicTime := strconv.FormatInt(ch.TopicTime.Unix(), 10)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
-				Command: rpl_topicwhotime,
+				Command: xirc.RPL_TOPICWHOTIME,
 				Params:  []string{dc.nick, downstreamName, topicWho.String(), topicTime},
 			})
 		}
