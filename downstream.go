@@ -2994,8 +2994,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		var uc *upstreamConn
 		const searchMaxLimit = 100
-		opts := searchOptions{
-			limit: searchMaxLimit,
+		opts := searchMessageOptions{
+			Limit: searchMaxLimit,
 		}
 		for name, v := range attrs {
 			value := string(v)
@@ -3010,12 +3010,12 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}
 				switch name {
 				case "after":
-					opts.start = timestamp
+					opts.Start = timestamp
 				case "before":
-					opts.end = timestamp
+					opts.End = timestamp
 				}
 			case "from":
-				opts.from = value
+				opts.From = value
 			case "in":
 				u, upstreamName, err := dc.unmarshalEntity(value)
 				if err != nil {
@@ -3025,9 +3025,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					}}
 				}
 				uc = u
-				opts.in = u.network.casemap(upstreamName)
+				opts.In = u.network.casemap(upstreamName)
 			case "text":
-				opts.text = value
+				opts.Text = value
 			case "limit":
 				limit, err := strconv.Atoi(value)
 				if err != nil || limit <= 0 {
@@ -3036,7 +3036,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						Params:  []string{"SEARCH", "INVALID_PARAMS", name, "Invalid limit"},
 					}}
 				}
-				opts.limit = limit
+				opts.Limit = limit
 			}
 		}
 		if uc == nil {
@@ -3045,11 +3045,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{"SEARCH", "INVALID_PARAMS", "in", "The in parameter is mandatory"},
 			}}
 		}
-		if opts.limit > searchMaxLimit {
-			opts.limit = searchMaxLimit
+		if opts.Limit > searchMaxLimit {
+			opts.Limit = searchMaxLimit
 		}
 
-		messages, err := store.Search(ctx, &uc.network.Network, opts)
+		messages, err := store.Search(ctx, &uc.network.Network, &opts)
 		if err != nil {
 			dc.logger.Printf("failed fetching messages for search: %v", err)
 			return ircError{&irc.Message{

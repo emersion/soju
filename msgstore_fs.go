@@ -701,10 +701,10 @@ func (ms *fsMessageStore) ListTargets(ctx context.Context, network *database.Net
 	return targets, nil
 }
 
-func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network, opts searchOptions) ([]*irc.Message, error) {
-	text := strings.ToLower(opts.text)
+func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network, opts *searchMessageOptions) ([]*irc.Message, error) {
+	text := strings.ToLower(opts.Text)
 	selector := func(m *irc.Message) bool {
-		if opts.from != "" && m.User != opts.from {
+		if opts.From != "" && m.User != opts.From {
 			return false
 		}
 		if text != "" && !strings.Contains(strings.ToLower(m.Params[1]), text) {
@@ -714,13 +714,13 @@ func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network,
 	}
 	loadOptions := loadMessageOptions{
 		Network: network,
-		Entity:  opts.in,
-		Limit:   opts.limit,
+		Entity:  opts.In,
+		Limit:   opts.Limit,
 	}
-	if !opts.start.IsZero() {
-		return ms.getAfterTime(ctx, opts.start, opts.end, &loadOptions, selector)
+	if !opts.Start.IsZero() {
+		return ms.getAfterTime(ctx, opts.Start, opts.End, &loadOptions, selector)
 	} else {
-		return ms.getBeforeTime(ctx, opts.end, opts.start, &loadOptions, selector)
+		return ms.getBeforeTime(ctx, opts.End, opts.Start, &loadOptions, selector)
 	}
 }
 
