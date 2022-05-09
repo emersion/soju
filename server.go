@@ -20,6 +20,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"git.sr.ht/~emersion/soju/config"
+	"git.sr.ht/~emersion/soju/database"
 )
 
 // TODO: make configurable
@@ -141,7 +142,7 @@ type Server struct {
 	MetricsRegistry prometheus.Registerer // can be nil
 
 	config atomic.Value // *Config
-	db     Database
+	db     database.Database
 	stopWG sync.WaitGroup
 
 	lock      sync.Mutex
@@ -161,7 +162,7 @@ type Server struct {
 	}
 }
 
-func NewServer(db Database) *Server {
+func NewServer(db database.Database) *Server {
 	srv := &Server{
 		Logger:    NewLogger(log.Writer(), true),
 		db:        db,
@@ -273,7 +274,7 @@ func (s *Server) Shutdown() {
 	}
 }
 
-func (s *Server) createUser(ctx context.Context, user *User) (*user, error) {
+func (s *Server) createUser(ctx context.Context, user *database.User) (*user, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -304,7 +305,7 @@ func (s *Server) getUser(name string) *user {
 	return u
 }
 
-func (s *Server) addUserLocked(user *User) *user {
+func (s *Server) addUserLocked(user *database.User) *user {
 	s.Logger.Printf("starting bouncer for user %q", user.Username)
 	u := newUser(s, user)
 	s.users[u.Username] = u

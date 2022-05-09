@@ -1,4 +1,4 @@
-package soju
+package database
 
 import (
 	"context"
@@ -14,6 +14,12 @@ import (
 )
 
 const sqliteQueryTimeout = 5 * time.Second
+
+const sqliteTimeLayout = "2006-01-02T15:04:05.000Z"
+
+func formatSqliteTime(t time.Time) string {
+	return t.UTC().Format(sqliteTimeLayout)
+}
 
 const sqliteSchema = `
 CREATE TABLE User (
@@ -210,6 +216,13 @@ func OpenSqliteDB(source string) (Database, error) {
 	}
 
 	return db, nil
+}
+
+func OpenTempSqliteDB() (Database, error) {
+	// :memory: will open a separate database for each new connection. Make
+	// sure the sql package only uses a single connection via SetMaxOpenConns.
+	// An alternative solution is to use "file::memory:?cache=shared".
+	return OpenSqliteDB(":memory:")
 }
 
 func (db *SqliteDB) Close() error {
@@ -732,7 +745,7 @@ func (db *SqliteDB) GetReadReceipt(ctx context.Context, networkID int64, name st
 		}
 		return nil, err
 	}
-	if t, err := time.Parse(serverTimeLayout, timestamp); err != nil {
+	if t, err := time.Parse(sqliteTimeLayout, timestamp); err != nil {
 		return nil, err
 	} else {
 		receipt.Timestamp = t
@@ -746,7 +759,7 @@ func (db *SqliteDB) StoreReadReceipt(ctx context.Context, networkID int64, recei
 
 	args := []interface{}{
 		sql.Named("id", receipt.ID),
-		sql.Named("timestamp", formatServerTime(receipt.Timestamp)),
+		sql.Named("timestamp", formatSqliteTime(receipt.Timestamp)),
 		sql.Named("network", networkID),
 		sql.Named("target", receipt.Target),
 	}

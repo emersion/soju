@@ -7,6 +7,8 @@ import (
 
 	"git.sr.ht/~sircmpwn/go-bare"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 const messageRingBufferCap = 4096
@@ -55,7 +57,7 @@ func (ms *memoryMessageStore) Close() error {
 	return nil
 }
 
-func (ms *memoryMessageStore) get(network *Network, entity string) *messageRingBuffer {
+func (ms *memoryMessageStore) get(network *database.Network, entity string) *messageRingBuffer {
 	k := ringBufferKey{networkID: network.ID, entity: entity}
 	if rb, ok := ms.buffers[k]; ok {
 		return rb
@@ -65,7 +67,7 @@ func (ms *memoryMessageStore) get(network *Network, entity string) *messageRingB
 	return rb
 }
 
-func (ms *memoryMessageStore) LastMsgID(network *Network, entity string, t time.Time) (string, error) {
+func (ms *memoryMessageStore) LastMsgID(network *database.Network, entity string, t time.Time) (string, error) {
 	var seq uint64
 	k := ringBufferKey{networkID: network.ID, entity: entity}
 	if rb, ok := ms.buffers[k]; ok {
@@ -74,7 +76,7 @@ func (ms *memoryMessageStore) LastMsgID(network *Network, entity string, t time.
 	return formatMemoryMsgID(network.ID, entity, seq), nil
 }
 
-func (ms *memoryMessageStore) Append(network *Network, entity string, msg *irc.Message) (string, error) {
+func (ms *memoryMessageStore) Append(network *database.Network, entity string, msg *irc.Message) (string, error) {
 	switch msg.Command {
 	case "PRIVMSG", "NOTICE":
 		// Only append these messages, because LoadLatestID shouldn't return
@@ -94,7 +96,7 @@ func (ms *memoryMessageStore) Append(network *Network, entity string, msg *irc.M
 	return formatMemoryMsgID(network.ID, entity, seq), nil
 }
 
-func (ms *memoryMessageStore) LoadLatestID(ctx context.Context, network *Network, entity, id string, limit int) ([]*irc.Message, error) {
+func (ms *memoryMessageStore) LoadLatestID(ctx context.Context, network *database.Network, entity, id string, limit int) ([]*irc.Message, error) {
 	_, _, seq, err := parseMemoryMsgID(id)
 	if err != nil {
 		return nil, err

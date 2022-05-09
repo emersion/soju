@@ -1,4 +1,4 @@
-package soju
+package database
 
 import (
 	"context"
@@ -38,7 +38,7 @@ type MetricsCollectorDatabase interface {
 	RegisterMetrics(r prometheus.Registerer) error
 }
 
-func OpenDB(driver, source string) (Database, error) {
+func Open(driver, source string) (Database, error) {
 	switch driver {
 	case "sqlite3":
 		return OpenSqliteDB(source)
@@ -148,20 +148,6 @@ const (
 	FilterHighlight
 	FilterMessage
 )
-
-func parseFilter(filter string) (MessageFilter, error) {
-	switch filter {
-	case "default":
-		return FilterDefault, nil
-	case "none":
-		return FilterNone, nil
-	case "highlight":
-		return FilterHighlight, nil
-	case "message":
-		return FilterMessage, nil
-	}
-	return 0, fmt.Errorf("unknown filter: %q", filter)
-}
 
 type Channel struct {
 	ID   int64

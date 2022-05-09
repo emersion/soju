@@ -1,4 +1,4 @@
-package soju
+package database
 
 import (
 	"database/sql"

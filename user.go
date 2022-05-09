@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 type event interface{}
@@ -123,7 +125,7 @@ func (ds deliveredStore) ForEachClient(f func(clientName string)) {
 }
 
 type network struct {
-	Network
+	database.Network
 	user    *user
 	logger  Logger
 	stopped chan struct{}
@@ -135,7 +137,7 @@ type network struct {
 	casemap   casemapping
 }
 
-func newNetwork(user *user, record *Network, channels []Channel) *network {
+func newNetwork(user *user, record *database.Network, channels []database.Channel) *network {
 	logger := &prefixLogger{user.logger, fmt.Sprintf("network %q: ", record.GetName())}
 
 	m := channelCasemapMap{newCasemapMap(0)}
@@ -176,7 +178,7 @@ func (net *network) isStopped() bool {
 	}
 }
 
-func userIdent(u *User) string {
+func userIdent(u *database.User) string {
 	// The ident is a string we will send to upstream servers in clear-text.
 	// For privacy reasons, make sure it doesn't expose any meaningful user
 	// metadata. We just use the base64-encoded hashed ID, so that people don't
@@ -278,7 +280,7 @@ func (net *network) stop() {
 	}
 }
 
-func (net *network) detach(ch *Channel) {
+func (net *network) detach(ch *database.Channel) {
 	if ch.Detached {
 		return
 	}
@@ -312,7 +314,7 @@ func (net *network) detach(ch *Channel) {
 	})
 }
 
-func (net *network) attach(ctx context.Context, ch *Channel) {
+func (net *network) attach(ctx context.Context, ch *database.Channel) {
 	if !ch.Detached {
 		return
 	}
@@ -388,13 +390,13 @@ func (net *network) storeClientDeliveryReceipts(ctx context.Context, clientName 
 		return
 	}
 
-	var receipts []DeliveryReceipt
+	var receipts []database.DeliveryReceipt
 	net.delivered.ForEachTarget(func(target string) {
 		msgID := net.delivered.LoadID(target, clientName)
 		if msgID == "" {
 			return
 		}
-		receipts = append(receipts, DeliveryReceipt{
+		receipts = append(receipts, database.DeliveryReceipt{
 			Target:        target,
 			InternalMsgID: msgID,
 		})
@@ -421,9 +423,9 @@ func (net *network) isHighlight(msg *irc.Message) bool {
 	return msg.Prefix.Name != nick && isHighlight(text, nick)
 }
 
-func (net *network) detachedMessageNeedsRelay(ch *Channel, msg *irc.Message) bool {
+func (net *network) detachedMessageNeedsRelay(ch *database.Channel, msg *irc.Message) bool {
 	highlight := net.isHighlight(msg)
-	return ch.RelayDetached == FilterMessage || ((ch.RelayDetached == FilterHighlight || ch.RelayDetached == FilterDefault) && highlight)
+	return ch.RelayDetached == database.FilterMessage || ((ch.RelayDetached == database.FilterHighlight || ch.RelayDetached == database.FilterDefault) && highlight)
 }
 
 func (net *network) autoSaveSASLPlain(ctx context.Context, username, password string) {
@@ -443,7 +445,7 @@ func (net *network) autoSaveSASLPlain(ctx context.Context, username, password st
 }
 
 type user struct {
-	User
+	database.User
 	srv    *Server
 	logger Logger
 
@@ -455,7 +457,7 @@ type user struct {
 	msgStore        messageStore
 }
 
-func newUser(srv *Server, record *User) *user {
+func newUser(srv *Server, record *database.User) *user {
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("user %q: ", record.Username)}
 
 	var msgStore messageStore
@@ -817,7 +819,7 @@ func (u *user) removeNetwork(network *network) {
 	panic("tried to remove a non-existing network")
 }
 
-func (u *user) checkNetwork(record *Network) error {
+func (u *user) checkNetwork(record *database.Network) error {
 	url, err := record.URL()
 	if err != nil {
 		return err
@@ -867,7 +869,7 @@ func (u *user) checkNetwork(record *Network) error {
 	return nil
 }
 
-func (u *user) createNetwork(ctx context.Context, record *Network) (*network, error) {
+func (u *user) createNetwork(ctx context.Context, record *database.Network) (*network, error) {
 	if record.ID != 0 {
 		panic("tried creating an already-existing network")
 	}
@@ -894,7 +896,7 @@ func (u *user) createNetwork(ctx context.Context, record *Network) (*network, er
 	return network, nil
 }
 
-func (u *user) updateNetwork(ctx context.Context, record *Network) (*network, error) {
+func (u *user) updateNetwork(ctx context.Context, record *database.Network) (*network, error) {
 	if record.ID == 0 {
 		panic("tried updating a new network")
 	}
@@ -920,9 +922,9 @@ func (u *user) updateNetwork(ctx context.Context, record *Network) (*network, er
 
 	// Most network changes require us to re-connect to the upstream server
 
-	channels := make([]Channel, 0, network.channels.Len())
+	channels := make([]database.Channel, 0, network.channels.Len())
 	for _, entry := range network.channels.innerMap {
-		ch := entry.value.(*Channel)
+		ch := entry.value.(*database.Channel)
 		channels = append(channels, *ch)
 	}
 
@@ -992,7 +994,7 @@ func (u *user) deleteNetwork(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (u *user) updateUser(ctx context.Context, record *User) error {
+func (u *user) updateUser(ctx context.Context, record *database.User) error {
 	if u.ID != record.ID {
 		panic("ID mismatch when updating user")
 	}
@@ -1005,7 +1007,7 @@ func (u *user) updateUser(ctx context.Context, record *User) error {
 
 	if realnameUpdated {
 		// Re-connect to networks which use the default realname
-		var needUpdate []Network
+		var needUpdate []database.Network
 		for _, net := range u.networks {
 			if net.Realname != "" {
 				continue
@@ -1016,7 +1018,7 @@ func (u *user) updateUser(ctx context.Context, record *User) error {
 			if uc := net.conn; uc != nil && uc.caps.IsEnabled("setname") {
 				uc.SendMessage(ctx, &irc.Message{
 					Command: "SETNAME",
-					Params:  []string{GetRealname(&u.User, &net.Network)},
+					Params:  []string{database.GetRealname(&u.User, &net.Network)},
 				})
 				continue
 			}

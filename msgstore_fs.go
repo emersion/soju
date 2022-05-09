@@ -13,6 +13,8 @@ import (
 
 	"git.sr.ht/~sircmpwn/go-bare"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 const (
@@ -80,7 +82,7 @@ type fsMessageStoreFile struct {
 // https://github.com/znc/znc/blob/master/modules/log.cpp
 type fsMessageStore struct {
 	root string
-	user *User
+	user *database.User
 
 	// Write-only files used by Append
 	files map[string]*fsMessageStoreFile // indexed by entity
@@ -90,7 +92,7 @@ var _ messageStore = (*fsMessageStore)(nil)
 var _ chatHistoryMessageStore = (*fsMessageStore)(nil)
 var _ searchMessageStore = (*fsMessageStore)(nil)
 
-func newFSMessageStore(root string, user *User) *fsMessageStore {
+func newFSMessageStore(root string, user *database.User) *fsMessageStore {
 	return &fsMessageStore{
 		root:  filepath.Join(root, escapeFilename(user.Username)),
 		user:  user,
@@ -98,14 +100,14 @@ func newFSMessageStore(root string, user *User) *fsMessageStore {
 	}
 }
 
-func (ms *fsMessageStore) logPath(network *Network, entity string, t time.Time) string {
+func (ms *fsMessageStore) logPath(network *database.Network, entity string, t time.Time) string {
 	year, month, day := t.Date()
 	filename := fmt.Sprintf("%04d-%02d-%02d.log", year, month, day)
 	return filepath.Join(ms.root, escapeFilename(network.GetName()), escapeFilename(entity), filename)
 }
 
 // nextMsgID queries the message ID for the next message to be written to f.
-func nextFSMsgID(network *Network, entity string, t time.Time, f *os.File) (string, error) {
+func nextFSMsgID(network *database.Network, entity string, t time.Time, f *os.File) (string, error) {
 	offset, err := f.Seek(0, io.SeekEnd)
 	if err != nil {
 		return "", fmt.Errorf("failed to query next FS message ID: %v", err)
@@ -113,7 +115,7 @@ func nextFSMsgID(network *Network, entity string, t time.Time, f *os.File) (stri
 	return formatFSMsgID(network.ID, entity, t, offset), nil
 }
 
-func (ms *fsMessageStore) LastMsgID(network *Network, entity string, t time.Time) (string, error) {
+func (ms *fsMessageStore) LastMsgID(network *database.Network, entity string, t time.Time) (string, error) {
 	p := ms.logPath(network, entity, t)
 	fi, err := os.Stat(p)
 	if os.IsNotExist(err) {
@@ -124,7 +126,7 @@ func (ms *fsMessageStore) LastMsgID(network *Network, entity string, t time.Time
 	return formatFSMsgID(network.ID, entity, t, fi.Size()-1), nil
 }
 
-func (ms *fsMessageStore) Append(network *Network, entity string, msg *irc.Message) (string, error) {
+func (ms *fsMessageStore) Append(network *database.Network, entity string, msg *irc.Message) (string, error) {
 	s := formatMessage(msg)
 	if s == "" {
 		return "", nil
@@ -253,7 +255,7 @@ func formatMessage(msg *irc.Message) string {
 	}
 }
 
-func (ms *fsMessageStore) parseMessage(line string, network *Network, entity string, ref time.Time, events bool) (*irc.Message, time.Time, error) {
+func (ms *fsMessageStore) parseMessage(line string, network *database.Network, entity string, ref time.Time, events bool) (*irc.Message, time.Time, error) {
 	var hour, minute, second int
 	_, err := fmt.Sscanf(line, "[%02d:%02d:%02d] ", &hour, &minute, &second)
 	if err != nil {
@@ -380,7 +382,7 @@ func (ms *fsMessageStore) parseMessage(line string, network *Network, entity str
 			// our nickname in the logs, so grab it from the network settings.
 			// Not very accurate since this may not match our nick at the time
 			// the message was received, but we can't do a lot better.
-			entity = GetNick(ms.user, network)
+			entity = database.GetNick(ms.user, network)
 		}
 		params = []string{entity, text}
 	}
@@ -399,7 +401,7 @@ func (ms *fsMessageStore) parseMessage(line string, network *Network, entity str
 	return msg, t, nil
 }
 
-func (ms *fsMessageStore) parseMessagesBefore(network *Network, entity string, ref time.Time, end time.Time, events bool, limit int, afterOffset int64, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesBefore(network *database.Network, entity string, ref time.Time, end time.Time, events bool, limit int, afterOffset int64, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -458,7 +460,7 @@ func (ms *fsMessageStore) parseMessagesBefore(network *Network, entity string, r
 	}
 }
 
-func (ms *fsMessageStore) parseMessagesAfter(network *Network, entity string, ref time.Time, end time.Time, events bool, limit int, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesAfter(network *database.Network, entity string, ref time.Time, end time.Time, events bool, limit int, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	path := ms.logPath(network, entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -493,7 +495,7 @@ func (ms *fsMessageStore) parseMessagesAfter(network *Network, entity string, re
 	return history, nil
 }
 
-func (ms *fsMessageStore) getBeforeTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) getBeforeTime(ctx context.Context, network *database.Network, entity string, start time.Time, end time.Time, limit int, events bool, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	if start.IsZero() {
 		start = time.Now()
 	} else {
@@ -526,11 +528,11 @@ func (ms *fsMessageStore) getBeforeTime(ctx context.Context, network *Network, e
 	return messages[remaining:], nil
 }
 
-func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, network *database.Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
 	return ms.getBeforeTime(ctx, network, entity, start, end, limit, events, nil)
 }
 
-func (ms *fsMessageStore) getAfterTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) getAfterTime(ctx context.Context, network *database.Network, entity string, start time.Time, end time.Time, limit int, events bool, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
 	if end.IsZero() {
 		end = time.Now()
@@ -562,11 +564,11 @@ func (ms *fsMessageStore) getAfterTime(ctx context.Context, network *Network, en
 	return messages, nil
 }
 
-func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, network *Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, network *database.Network, entity string, start time.Time, end time.Time, limit int, events bool) ([]*irc.Message, error) {
 	return ms.getAfterTime(ctx, network, entity, start, end, limit, events, nil)
 }
 
-func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *Network, entity, id string, limit int) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *database.Network, entity, id string, limit int) ([]*irc.Message, error) {
 	var afterTime time.Time
 	var afterOffset int64
 	if id != "" {
@@ -614,7 +616,7 @@ func (ms *fsMessageStore) LoadLatestID(ctx context.Context, network *Network, en
 	return history[remaining:], nil
 }
 
-func (ms *fsMessageStore) ListTargets(ctx context.Context, network *Network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error) {
+func (ms *fsMessageStore) ListTargets(ctx context.Context, network *database.Network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	rootPath := filepath.Join(ms.root, escapeFilename(network.GetName()))
@@ -693,7 +695,7 @@ func (ms *fsMessageStore) ListTargets(ctx context.Context, network *Network, sta
 	return targets, nil
 }
 
-func (ms *fsMessageStore) Search(ctx context.Context, network *Network, opts searchOptions) ([]*irc.Message, error) {
+func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network, opts searchOptions) ([]*irc.Message, error) {
 	text := strings.ToLower(opts.text)
 	selector := func(m *irc.Message) bool {
 		if opts.from != "" && m.User != opts.from {
@@ -711,7 +713,7 @@ func (ms *fsMessageStore) Search(ctx context.Context, network *Network, opts sea
 	}
 }
 
-func (ms *fsMessageStore) RenameNetwork(oldNet, newNet *Network) error {
+func (ms *fsMessageStore) RenameNetwork(oldNet, newNet *database.Network) error {
 	oldDir := filepath.Join(ms.root, escapeFilename(oldNet.GetName()))
 	newDir := filepath.Join(ms.root, escapeFilename(newNet.GetName()))
 	// Avoid loosing data by overwriting an existing directory

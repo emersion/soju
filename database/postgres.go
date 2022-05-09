@@ -1,4 +1,4 @@
-package soju
+package database
 
 import (
 	"context"
@@ -114,6 +114,37 @@ type PostgresDB struct {
 
 func OpenPostgresDB(source string) (Database, error) {
 	sqlPostgresDB, err := sql.Open("postgres", source)
+	if err != nil {
+		return nil, err
+	}
+
+	db := &PostgresDB{db: sqlPostgresDB}
+	if err := db.upgrade(); err != nil {
+		sqlPostgresDB.Close()
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func openTempPostgresDB(source string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", source)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to PostgreSQL: %v", err)
+	}
+
+	// Store all tables in a temporary schema which will be dropped when the
+	// connection to PostgreSQL is closed.
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec("SET search_path TO pg_temp"); err != nil {
+		return nil, fmt.Errorf("failed to set PostgreSQL search_path: %v", err)
+	}
+
+	return db, nil
+}
+
+func OpenTempPostgresDB(source string) (Database, error) {
+	sqlPostgresDB, err := openTempPostgresDB(source)
 	if err != nil {
 		return nil, err
 	}

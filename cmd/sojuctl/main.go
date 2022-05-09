@@ -9,10 +9,11 @@ import (
 	"log"
 	"os"
 
-	"git.sr.ht/~emersion/soju"
-	"git.sr.ht/~emersion/soju/config"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh/terminal"
+
+	"git.sr.ht/~emersion/soju/config"
+	"git.sr.ht/~emersion/soju/database"
 )
 
 const usage = `usage: sojuctl [-config path] <action> [options...]
@@ -44,7 +45,7 @@ func main() {
 		cfg = config.Defaults()
 	}
 
-	db, err := soju.OpenDB(cfg.SQLDriver, cfg.SQLSource)
+	db, err := database.Open(cfg.SQLDriver, cfg.SQLSource)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
@@ -73,7 +74,7 @@ func main() {
 			log.Fatalf("failed to hash password: %v", err)
 		}
 
-		user := soju.User{
+		user := database.User{
 			Username: username,
 			Password: string(hashed),
 			Admin:    *admin,

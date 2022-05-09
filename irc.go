@@ -9,6 +9,8 @@ import (
 	"unicode/utf8"
 
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 const (
@@ -653,12 +655,12 @@ func (cm *upstreamChannelCasemapMap) Value(name string) *upstreamChannel {
 
 type channelCasemapMap struct{ casemapMap }
 
-func (cm *channelCasemapMap) Value(name string) *Channel {
+func (cm *channelCasemapMap) Value(name string) *database.Channel {
 	entry, ok := cm.innerMap[cm.casemap(name)]
 	if !ok {
 		return nil
 	}
-	return entry.value.(*Channel)
+	return entry.value.(*database.Channel)
 }
 
 type membershipsCasemapMap struct{ casemapMap }

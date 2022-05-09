@@ -12,8 +12,8 @@ import (
 	"strings"
 	"unicode"
 
-	"git.sr.ht/~emersion/soju"
 	"git.sr.ht/~emersion/soju/config"
+	"git.sr.ht/~emersion/soju/database"
 )
 
 const usage = `usage: znc-import [options...] <znc config path>
@@ -64,7 +64,7 @@ func main() {
 
 	ctx := context.Background()
 
-	db, err := soju.OpenDB(cfg.SQLDriver, cfg.SQLSource)
+	db, err := database.Open(cfg.SQLDriver, cfg.SQLSource)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
@@ -86,7 +86,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to list users in DB: %v", err)
 	}
-	existingUsers := make(map[string]*soju.User, len(l))
+	existingUsers := make(map[string]*database.User, len(l))
 	for i, u := range l {
 		existingUsers[u.Username] = &l[i]
 	}
@@ -107,7 +107,7 @@ func main() {
 			log.Printf("user %q: updating existing user", username)
 		} else {
 			// "!!" is an invalid crypt format, thus disables password auth
-			u = &soju.User{Username: username, Password: "!!"}
+			u = &database.User{Username: username, Password: "!!"}
 			usersCreated++
 			log.Printf("user %q: creating new user", username)
 		}
@@ -123,7 +123,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to list networks for user %q: %v", username, err)
 		}
-		existingNetworks := make(map[string]*soju.Network, len(l))
+		existingNetworks := make(map[string]*database.Network, len(l))
 		for i, n := range l {
 			existingNetworks[n.GetName()] = &l[i]
 		}
@@ -175,7 +175,7 @@ func main() {
 			if ok {
 				logger.Printf("updating existing network")
 			} else {
-				n = &soju.Network{Name: netName}
+				n = &database.Network{Name: netName}
 				logger.Printf("creating new network")
 			}
 
@@ -194,7 +194,7 @@ func main() {
 			if err != nil {
 				logger.Fatalf("failed to list channels: %v", err)
 			}
-			existingChannels := make(map[string]*soju.Channel, len(l))
+			existingChannels := make(map[string]*database.Channel, len(l))
 			for i, ch := range l {
 				existingChannels[ch.Name] = &l[i]
 			}
@@ -213,7 +213,7 @@ func main() {
 				if ok {
 					logger.Printf("channel %q: updating existing channel", chName)
 				} else {
-					ch = &soju.Channel{Name: chName}
+					ch = &database.Channel{Name: chName}
 					logger.Printf("channel %q: creating new channel", chName)
 				}
 

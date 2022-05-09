@@ -1,7 +1,6 @@
-package soju
+package database
 
 import (
-	"database/sql"
 	"os"
 	"testing"
 )
@@ -68,29 +67,17 @@ CREATE TABLE "DeliveryReceipt" (
 );
 `
 
-func openTempPostgresDB(t *testing.T) *sql.DB {
+func TestPostgresMigrations(t *testing.T) {
 	source, ok := os.LookupEnv("SOJU_TEST_POSTGRES")
 	if !ok {
 		t.Skip("set SOJU_TEST_POSTGRES to a connection string to execute PostgreSQL tests")
 	}
 
-	db, err := sql.Open("postgres", source)
+	sqlDB, err := openTempPostgresDB(source)
 	if err != nil {
-		t.Fatalf("failed to connect to PostgreSQL: %v", err)
+		t.Fatalf("openTempPostgresDB() failed: %v", err)
 	}
 
-	// Store all tables in a temporary schema which will be dropped when the
-	// connection to PostgreSQL is closed.
-	db.SetMaxOpenConns(1)
-	if _, err := db.Exec("SET search_path TO pg_temp"); err != nil {
-		t.Fatalf("failed to set PostgreSQL search_path: %v", err)
-	}
-
-	return db
-}
-
-func TestPostgresMigrations(t *testing.T) {
-	sqlDB := openTempPostgresDB(t)
 	if _, err := sqlDB.Exec(postgresV0Schema); err != nil {
 		t.Fatalf("DB.Exec() failed for v0 schema: %v", err)
 	}

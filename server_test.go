@@ -3,10 +3,13 @@ package soju
 import (
 	"context"
 	"net"
+	"os"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 var testServerPrefix = &irc.Prefix{Name: "soju-test-server"}
@@ -16,34 +19,35 @@ const (
 	testPassword = testUsername
 )
 
-func createTempSqliteDB(t *testing.T) Database {
-	db, err := OpenDB("sqlite3", ":memory:")
+func createTempSqliteDB(t *testing.T) database.Database {
+	db, err := database.OpenTempSqliteDB()
 	if err != nil {
 		t.Fatalf("failed to create temporary SQLite database: %v", err)
 	}
-	// :memory: will open a separate database for each new connection. Make
-	// sure the sql package only uses a single connection. An alternative
-	// solution is to use "file::memory:?cache=shared".
-	db.(*SqliteDB).db.SetMaxOpenConns(1)
 	return db
 }
 
-func createTempPostgresDB(t *testing.T) Database {
-	db := &PostgresDB{db: openTempPostgresDB(t)}
-	if err := db.upgrade(); err != nil {
-		t.Fatalf("failed to upgrade PostgreSQL database: %v", err)
+func createTempPostgresDB(t *testing.T) database.Database {
+	source, ok := os.LookupEnv("SOJU_TEST_POSTGRES")
+	if !ok {
+		t.Skip("set SOJU_TEST_POSTGRES to a connection string to execute PostgreSQL tests")
+	}
+
+	db, err := database.OpenTempPostgresDB(source)
+	if err != nil {
+		t.Fatalf("failed to create temporary PostgreSQL database: %v", err)
 	}
 
 	return db
 }
 
-func createTestUser(t *testing.T, db Database) *User {
+func createTestUser(t *testing.T, db database.Database) *database.User {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(testPassword), bcrypt.DefaultCost)
 	if err != nil {
 		t.Fatalf("failed to generate bcrypt hash: %v", err)
 	}
 
-	record := &User{Username: testUsername, Password: string(hashed)}
+	record := &database.User{Username: testUsername, Password: string(hashed)}
 	if err := db.StoreUser(context.Background(), record); err != nil {
 		t.Fatalf("failed to store test user: %v", err)
 	}
@@ -57,13 +61,13 @@ func createTestDownstream(t *testing.T, srv *Server) ircConn {
 	return newNetIRCConn(c2)
 }
 
-func createTestUpstream(t *testing.T, db Database, user *User) (*Network, net.Listener) {
+func createTestUpstream(t *testing.T, db database.Database, user *database.User) (*database.Network, net.Listener) {
 	ln, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatalf("failed to create TCP listener: %v", err)
 	}
 
-	network := &Network{
+	network := &database.Network{
 		Name:    "testnet",
 		Addr:    "irc+insecure://" + ln.Addr().String(),
 		Nick:    user.Username,
@@ -95,7 +99,7 @@ func expectMessage(t *testing.T, c ircConn, cmd string) *irc.Message {
 	return msg
 }
 
-func registerDownstreamConn(t *testing.T, c ircConn, network *Network) {
+func registerDownstreamConn(t *testing.T, c ircConn, network *database.Network) {
 	c.WriteMessage(&irc.Message{
 		Command: "PASS",
 		Params:  []string{testPassword},
@@ -151,7 +155,7 @@ func registerUpstreamConn(t *testing.T, c ircConn) {
 	})
 }
 
-func testServer(t *testing.T, db Database) {
+func testServer(t *testing.T, db database.Database) {
 	user := createTestUser(t, db)
 	network, upstream := createTestUpstream(t, db, user)
 	defer upstream.Close()

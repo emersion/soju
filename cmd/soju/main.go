@@ -24,6 +24,7 @@ import (
 
 	"git.sr.ht/~emersion/soju"
 	"git.sr.ht/~emersion/soju/config"
+	"git.sr.ht/~emersion/soju/database"
 )
 
 // TCP keep-alive interval for downstream TCP connections
@@ -116,7 +117,7 @@ func main() {
 		log.Printf("failed to bump max number of opened files: %v", err)
 	}
 
-	db, err := soju.OpenDB(cfg.SQLDriver, cfg.SQLSource)
+	db, err := database.Open(cfg.SQLDriver, cfg.SQLSource)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
@@ -308,7 +309,7 @@ func main() {
 		log.Printf("server listening on %q", listen)
 	}
 
-	if db, ok := db.(soju.MetricsCollectorDatabase); ok && srv.MetricsRegistry != nil {
+	if db, ok := db.(database.MetricsCollectorDatabase); ok && srv.MetricsRegistry != nil {
 		if err := db.RegisterMetrics(srv.MetricsRegistry); err != nil {
 			log.Fatalf("failed to register database metrics: %v", err)
 		}

@@ -9,6 +9,8 @@ import (
 
 	"git.sr.ht/~sircmpwn/go-bare"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 // messageStore is a per-user store for IRC messages.
@@ -17,11 +19,11 @@ type messageStore interface {
 	// LastMsgID queries the last message ID for the given network, entity and
 	// date. The message ID returned may not refer to a valid message, but can be
 	// used in history queries.
-	LastMsgID(network *Network, entity string, t time.Time) (string, error)
+	LastMsgID(network *database.Network, entity string, t time.Time) (string, error)
 	// LoadLatestID queries the latest non-event messages for the given network,
 	// entity and date, up to a count of limit messages, sorted from oldest to newest.
-	LoadLatestID(ctx context.Context, network *Network, entity, id string, limit int) ([]*irc.Message, error)
-	Append(network *Network, entity string, msg *irc.Message) (id string, err error)
+	LoadLatestID(ctx context.Context, network *database.Network, entity, id string, limit int) ([]*irc.Message, error)
+	Append(network *database.Network, entity string, msg *irc.Message) (id string, err error)
 }
 
 type chatHistoryTarget struct {
@@ -38,17 +40,17 @@ type chatHistoryMessageStore interface {
 	// It returns up to limit targets, starting from start and ending on end,
 	// both excluded. end may be before or after start.
 	// If events is false, only PRIVMSG/NOTICE messages are considered.
-	ListTargets(ctx context.Context, network *Network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error)
+	ListTargets(ctx context.Context, network *database.Network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error)
 	// LoadBeforeTime loads up to limit messages before start down to end. The
 	// returned messages must be between and excluding the provided bounds.
 	// end is before start.
 	// If events is false, only PRIVMSG/NOTICE messages are considered.
-	LoadBeforeTime(ctx context.Context, network *Network, entity string, start, end time.Time, limit int, events bool) ([]*irc.Message, error)
+	LoadBeforeTime(ctx context.Context, network *database.Network, entity string, start, end time.Time, limit int, events bool) ([]*irc.Message, error)
 	// LoadBeforeTime loads up to limit messages after start up to end. The
 	// returned messages must be between and excluding the provided bounds.
 	// end is after start.
 	// If events is false, only PRIVMSG/NOTICE messages are considered.
-	LoadAfterTime(ctx context.Context, network *Network, entity string, start, end time.Time, limit int, events bool) ([]*irc.Message, error)
+	LoadAfterTime(ctx context.Context, network *database.Network, entity string, start, end time.Time, limit int, events bool) ([]*irc.Message, error)
 }
 
 type searchOptions struct {
@@ -66,7 +68,7 @@ type searchMessageStore interface {
 	messageStore
 
 	// Search returns messages matching the specified options.
-	Search(ctx context.Context, network *Network, search searchOptions) ([]*irc.Message, error)
+	Search(ctx context.Context, network *database.Network, search searchOptions) ([]*irc.Message, error)
 }
 
 type msgIDType uint

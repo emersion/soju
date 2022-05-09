@@ -16,6 +16,8 @@ import (
 	"github.com/emersion/go-sasl"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 type ircError struct {
@@ -100,7 +102,7 @@ func parseBouncerNetID(subcommand, s string) (int64, error) {
 	return id, nil
 }
 
-func fillNetworkAddrAttrs(attrs irc.Tags, network *Network) {
+func fillNetworkAddrAttrs(attrs irc.Tags, network *database.Network) {
 	u, err := network.URL()
 	if err != nil {
 		return
@@ -132,13 +134,13 @@ func getNetworkAttrs(network *network) irc.Tags {
 	attrs := irc.Tags{
 		"name":     irc.TagValue(network.GetName()),
 		"state":    irc.TagValue(state),
-		"nickname": irc.TagValue(GetNick(&network.user.User, &network.Network)),
+		"nickname": irc.TagValue(database.GetNick(&network.user.User, &network.Network)),
 	}
 
 	if network.Username != "" {
 		attrs["username"] = irc.TagValue(network.Username)
 	}
-	if realname := GetRealname(&network.user.User, &network.Network); realname != "" {
+	if realname := database.GetRealname(&network.user.User, &network.Network); realname != "" {
 		attrs["realname"] = irc.TagValue(realname)
 	}
 
@@ -169,7 +171,7 @@ func networkAddrFromAttrs(attrs irc.Tags) string {
 	return addr
 }
 
-func updateNetworkAttrs(record *Network, attrs irc.Tags, subcommand string) error {
+func updateNetworkAttrs(record *database.Network, attrs irc.Tags, subcommand string) error {
 	addrAttrs := irc.Tags{}
 	fillNetworkAddrAttrs(addrAttrs, record)
 
@@ -414,7 +416,7 @@ func isOurNick(net *network, nick string) bool {
 	// know whether this name is our nickname. Best-effort: use the network's
 	// configured nickname and hope it was the one being used when we were
 	// connected.
-	return net.casemap(nick) == net.casemap(GetNick(&net.user.User, &net.Network))
+	return net.casemap(nick) == net.casemap(database.GetNick(&net.user.User, &net.Network))
 }
 
 // marshalEntity converts an upstream entity name (ie. channel or nick) into a
@@ -1146,9 +1148,9 @@ func (dc *downstreamConn) updateNick() {
 	if uc := dc.upstream(); uc != nil {
 		nick = uc.nick
 	} else if dc.network != nil {
-		nick = GetNick(&dc.user.User, &dc.network.Network)
+		nick = database.GetNick(&dc.user.User, &dc.network.Network)
 	} else {
-		nick = GetNick(&dc.user.User, nil)
+		nick = database.GetNick(&dc.user.User, nil)
 	}
 
 	if nick == dc.nick {
@@ -1201,9 +1203,9 @@ func (dc *downstreamConn) updateRealname() {
 	if uc := dc.upstream(); uc != nil {
 		realname = uc.realname
 	} else if dc.network != nil {
-		realname = GetRealname(&dc.user.User, &dc.network.Network)
+		realname = database.GetRealname(&dc.user.User, &dc.network.Network)
 	} else {
-		realname = GetRealname(&dc.user.User, nil)
+		realname = database.GetRealname(&dc.user.User, nil)
 	}
 
 	if realname != dc.realname {
@@ -1439,7 +1441,7 @@ func (dc *downstreamConn) loadNetwork(ctx context.Context) error {
 
 		dc.logger.Printf("auto-saving network %q", dc.registration.networkName)
 		var err error
-		network, err = dc.user.createNetwork(ctx, &Network{
+		network, err = dc.user.createNetwork(ctx, &database.Network{
 			Addr:    dc.registration.networkName,
 			Nick:    nick,
 			Enabled: true,
@@ -1475,7 +1477,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	if uc := dc.upstream(); uc != nil {
 		dc.nick = uc.nick
 	} else if dc.network != nil {
-		dc.nick = GetNick(&dc.user.User, &dc.network.Network)
+		dc.nick = database.GetNick(&dc.user.User, &dc.network.Network)
 	} else {
 		dc.nick = dc.user.Username
 	}
@@ -1931,7 +1933,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}
 				uc.network.attach(ctx, ch)
 			} else {
-				ch = &Channel{
+				ch = &database.Channel{
 					Name: upstreamName,
 					Key:  key,
 				}
@@ -1963,7 +1965,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				if ch != nil {
 					uc.network.detach(ch)
 				} else {
-					ch = &Channel{
+					ch = &database.Channel{
 						Name:     name,
 						Detached: true,
 					}
@@ -2911,7 +2913,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{"READ", "INTERNAL_ERROR", target, "Internal error"},
 			}}
 		} else if r == nil {
-			r = &ReadReceipt{
+			r = &database.ReadReceipt{
 				Target: entityCM,
 			}
 		}
@@ -3082,7 +3084,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 			attrs := irc.ParseTags(attrsStr)
 
-			record := &Network{Nick: dc.nick, Enabled: true}
+			record := &database.Network{Nick: dc.nick, Enabled: true}
 			if err := updateNetworkAttrs(record, attrs, subcommand); err != nil {
 				return err
 			}

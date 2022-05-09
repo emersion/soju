@@ -17,6 +17,8 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 const serviceNick = "BouncerServ"
@@ -447,7 +449,7 @@ func newNetworkFlagSet() *networkFlagSet {
 	return fs
 }
 
-func (fs *networkFlagSet) update(network *Network) error {
+func (fs *networkFlagSet) update(network *database.Network) error {
 	if fs.Addr != nil {
 		if addrParts := strings.SplitN(*fs.Addr, "://", 2); len(addrParts) == 2 {
 			scheme := addrParts[0]
@@ -508,7 +510,7 @@ func handleServiceNetworkCreate(ctx context.Context, dc *downstreamConn, params 
 		return fmt.Errorf("flag -addr is required")
 	}
 
-	record := &Network{
+	record := &database.Network{
 		Addr:    *fs.Addr,
 		Enabled: true,
 	}
@@ -833,7 +835,7 @@ func handleUserCreate(ctx context.Context, dc *downstreamConn, params []string) 
 		return fmt.Errorf("failed to hash password: %v", err)
 	}
 
-	user := &User{
+	user := &database.User{
 		Username: *username,
 		Password: string(hashed),
 		Realname: *realname,
@@ -971,9 +973,9 @@ func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params 
 	n := 0
 
 	sendNetwork := func(net *network) {
-		var channels []*Channel
+		var channels []*database.Channel
 		for _, entry := range net.channels.innerMap {
-			channels = append(channels, entry.value.(*Channel))
+			channels = append(channels, entry.value.(*database.Channel))
 		}
 
 		sort.Slice(channels, func(i, j int) bool {
@@ -1031,6 +1033,20 @@ func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params 
 	return nil
 }
 
+func parseFilter(filter string) (database.MessageFilter, error) {
+	switch filter {
+	case "default":
+		return database.FilterDefault, nil
+	case "none":
+		return database.FilterNone, nil
+	case "highlight":
+		return database.FilterHighlight, nil
+	case "message":
+		return database.FilterMessage, nil
+	}
+	return 0, fmt.Errorf("unknown filter: %q", filter)
+}
+
 type channelFlagSet struct {
 	*flag.FlagSet
 	RelayDetached, ReattachOn, DetachAfter, DetachOn *string
@@ -1045,7 +1061,7 @@ func newChannelFlagSet() *channelFlagSet {
 	return fs
 }
 
-func (fs *channelFlagSet) update(channel *Channel) error {
+func (fs *channelFlagSet) update(channel *database.Channel) error {
 	if fs.RelayDetached != nil {
 		filter, err := parseFilter(*fs.RelayDetached)
 		if err != nil {

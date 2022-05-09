@@ -17,6 +17,8 @@ import (
 
 	"github.com/emersion/go-sasl"
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/database"
 )
 
 // permanentUpstreamCaps is the static list of upstream capabilities always
@@ -510,7 +512,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				}
 
 				highlight := uc.network.isHighlight(msg)
-				if ch.DetachOn == FilterMessage || ch.DetachOn == FilterDefault || (ch.DetachOn == FilterHighlight && highlight) {
+				if ch.DetachOn == database.FilterMessage || ch.DetachOn == database.FilterDefault || (ch.DetachOn == database.FilterHighlight && highlight) {
 					uc.updateChannelAutoDetach(target)
 				}
 			}
@@ -765,7 +767,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		if uc.network.channels.Len() > 0 {
 			var channels, keys []string
 			for _, entry := range uc.network.channels.innerMap {
-				ch := entry.value.(*Channel)
+				ch := entry.value.(*database.Channel)
 				channels = append(channels, ch.Name)
 				keys = append(keys, ch.Key)
 			}
@@ -1553,7 +1555,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 
 		// Check if the nick we want is now free
-		wantNick := GetNick(&uc.user.User, &uc.network.Network)
+		wantNick := database.GetNick(&uc.user.User, &uc.network.Network)
 		wantNickCM := uc.network.casemap(wantNick)
 		if !online && uc.nickCM != wantNickCM {
 			found := false
@@ -1796,13 +1798,13 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 	return nil
 }
 
-func (uc *upstreamConn) handleDetachedMessage(ctx context.Context, ch *Channel, msg *irc.Message) {
+func (uc *upstreamConn) handleDetachedMessage(ctx context.Context, ch *database.Channel, msg *irc.Message) {
 	if uc.network.detachedMessageNeedsRelay(ch, msg) {
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			dc.relayDetachedMessage(uc.network, msg)
 		})
 	}
-	if ch.ReattachOn == FilterMessage || (ch.ReattachOn == FilterHighlight && uc.network.isHighlight(msg)) {
+	if ch.ReattachOn == database.FilterMessage || (ch.ReattachOn == database.FilterHighlight && uc.network.isHighlight(msg)) {
 		uc.network.attach(ctx, ch)
 		if err := uc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 			uc.logger.Printf("failed to update channel %q: %v", ch.Name, err)
@@ -1960,10 +1962,10 @@ func splitSpace(s string) []string {
 }
 
 func (uc *upstreamConn) register(ctx context.Context) {
-	uc.nick = GetNick(&uc.user.User, &uc.network.Network)
+	uc.nick = database.GetNick(&uc.user.User, &uc.network.Network)
 	uc.nickCM = uc.network.casemap(uc.nick)
-	uc.username = GetUsername(&uc.user.User, &uc.network.Network)
-	uc.realname = GetRealname(&uc.user.User, &uc.network.Network)
+	uc.username = database.GetUsername(&uc.user.User, &uc.network.Network)
+	uc.realname = database.GetRealname(&uc.user.User, &uc.network.Network)
 
 	uc.SendMessage(ctx, &irc.Message{
 		Command: "CAP",
@@ -2193,7 +2195,7 @@ func (uc *upstreamConn) updateMonitor() {
 		}
 	})
 
-	wantNick := GetNick(&uc.user.User, &uc.network.Network)
+	wantNick := database.GetNick(&uc.user.User, &uc.network.Network)
 	wantNickCM := uc.network.casemap(wantNick)
 	if _, ok := add[wantNickCM]; !ok && !uc.monitored.Has(wantNick) && !uc.isOurNick(wantNick) {
 		addList = append(addList, wantNickCM)
