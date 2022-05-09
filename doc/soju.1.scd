@@ -133,9 +133,15 @@ The following directives are supported:
 	  strings, see:
 	  <https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters>.
 
-*message-store* fs <path>
-	Path to the bouncer logs root directory, or empty to disable logging. By
-	default, logging is disabled.
+*message-store* <driver> [source]
+	Set the database location for IRC messages. By default, an in-memory message
+	database is used.
+
+	Supported drivers:
+
+	- _memory_ stores messages in memory.
+	- _fs_ stores messages on disk, in the same format as ZNC. _source_ is
+	  required and is the root directory path for the database.
 
 	(_log_ is a deprecated alias for this directive.)
 

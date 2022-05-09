@@ -86,7 +86,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 	cfg := &soju.Config{
 		Hostname:        raw.Hostname,
 		Title:           raw.Title,
-		LogPath:         raw.LogPath,
+		LogPath:         raw.MsgStoreSource,
 		HTTPOrigins:     raw.HTTPOrigins,
 		AcceptProxyIPs:  raw.AcceptProxyIPs,
 		MaxUserNetworks: raw.MaxUserNetworks,

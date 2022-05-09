@@ -45,7 +45,9 @@ type Server struct {
 
 	SQLDriver string
 	SQLSource string
-	LogPath   string
+
+	MsgStoreDriver string
+	MsgStoreSource string
 
 	HTTPOrigins    []string
 	AcceptProxyIPs IPSet
@@ -64,6 +66,7 @@ func Defaults() *Server {
 		Hostname:        hostname,
 		SQLDriver:       "sqlite3",
 		SQLSource:       "soju.db",
+		MsgStoreDriver:  "memory",
 		MaxUserNetworks: -1,
 		MultiUpstream:   true,
 	}
@@ -110,12 +113,18 @@ func parse(cfg scfg.Block) (*Server, error) {
 				return nil, err
 			}
 		case "message-store", "log":
-			var driver string
-			if err := d.ParseParams(&driver, &srv.LogPath); err != nil {
+			if err := d.ParseParams(&srv.MsgStoreDriver); err != nil {
 				return nil, err
 			}
-			if driver != "fs" {
-				return nil, fmt.Errorf("directive %q: unknown driver %q", d.Name, driver)
+			switch srv.MsgStoreDriver {
+			case "memory":
+				srv.MsgStoreSource = ""
+			case "fs":
+				if err := d.ParseParams(nil, &srv.MsgStoreSource); err != nil {
+					return nil, err
+				}
+			default:
+				return nil, fmt.Errorf("directive %q: unknown driver %q", d.Name, srv.MsgStoreDriver)
 			}
 		case "http-origin":
 			srv.HTTPOrigins = d.Params
