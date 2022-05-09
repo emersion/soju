@@ -300,7 +300,7 @@ type batch struct {
 	Label  string
 }
 
-func join(channels, keys []string) []*irc.Message {
+func generateJoin(channels, keys []string) []*irc.Message {
 	// Put channels with a key first
 	js := joinSorter{channels, keys}
 	sort.Sort(&js)

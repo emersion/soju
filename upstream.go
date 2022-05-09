@@ -773,7 +773,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				keys = append(keys, ch.Key)
 			}
 
-			for _, msg := range join(channels, keys) {
+			for _, msg := range generateJoin(channels, keys) {
 				uc.SendMessage(ctx, msg)
 			}
 		}
