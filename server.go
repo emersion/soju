@@ -21,6 +21,7 @@ import (
 
 	"git.sr.ht/~emersion/soju/config"
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/identd"
 )
 
 // TODO: make configurable
@@ -101,6 +102,10 @@ type retryListener struct {
 	delay time.Duration
 }
 
+func NewRetryListener(ln net.Listener) net.Listener {
+	return &retryListener{Listener: ln}
+}
+
 func (ln *retryListener) Accept() (net.Conn, error) {
 	for {
 		conn, err := ln.Listener.Accept()
@@ -138,7 +143,7 @@ type Config struct {
 
 type Server struct {
 	Logger          Logger
-	Identd          *Identd               // can be nil
+	Identd          *identd.Identd        // can be nil
 	MetricsRegistry prometheus.Registerer // can be nil
 
 	config atomic.Value // *Config

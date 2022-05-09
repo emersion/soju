@@ -1,4 +1,4 @@
-package soju
+package identd
 
 import (
 	"bufio"
@@ -49,7 +49,7 @@ type Identd struct {
 	lock    sync.RWMutex
 }
 
-func NewIdentd() *Identd {
+func New() *Identd {
 	return &Identd{entries: make(map[identKey]string)}
 }
 
@@ -74,8 +74,6 @@ func (s *Identd) Delete(remoteAddr, localAddr string) {
 }
 
 func (s *Identd) Serve(ln net.Listener) error {
-	ln = &retryListener{Listener: ln}
-
 	for {
 		conn, err := ln.Accept()
 		if err != nil {

@@ -25,6 +25,7 @@ import (
 	"git.sr.ht/~emersion/soju"
 	"git.sr.ht/~emersion/soju/config"
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/identd"
 )
 
 // TCP keep-alive interval for downstream TCP connections
@@ -235,7 +236,7 @@ func main() {
 			}()
 		case "ident":
 			if srv.Identd == nil {
-				srv.Identd = soju.NewIdentd()
+				srv.Identd = identd.New()
 			}
 
 			host := u.Host
@@ -247,6 +248,7 @@ func main() {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
 			ln = proxyProtoListener(ln, srv)
+			ln = soju.NewRetryListener(ln)
 			go func() {
 				if err := srv.Identd.Serve(ln); err != nil {
 					log.Printf("serving %q: %v", listen, err)
