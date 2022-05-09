@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"gopkg.in/irc.v3"
+
+	"git.sr.ht/~emersion/soju/xirc"
 )
 
 func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel) {
@@ -27,7 +29,7 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 		} else {
 			timestampStr := "*"
 			if r != nil {
-				timestampStr = fmt.Sprintf("timestamp=%s", formatServerTime(r.Timestamp))
+				timestampStr = fmt.Sprintf("timestamp=%s", xirc.FormatServerTime(r.Timestamp))
 			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),

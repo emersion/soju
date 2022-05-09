@@ -15,6 +15,7 @@ import (
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/xirc"
 )
 
 const (
@@ -135,7 +136,7 @@ func (ms *fsMessageStore) Append(network *database.Network, entity string, msg *
 	var t time.Time
 	if tag, ok := msg.Tags["time"]; ok {
 		var err error
-		t, err = time.Parse(serverTimeLayout, string(tag))
+		t, err = time.Parse(xirc.ServerTimeLayout, string(tag))
 		if err != nil {
 			return "", fmt.Errorf("failed to parse message time tag: %v", err)
 		}
@@ -245,7 +246,7 @@ func formatMessage(msg *irc.Message) string {
 	case "NOTICE":
 		return fmt.Sprintf("-%s- %s", msg.Prefix.Name, msg.Params[1])
 	case "PRIVMSG":
-		if cmd, params, ok := parseCTCPMessage(msg); ok && cmd == "ACTION" {
+		if cmd, params, ok := xirc.ParseCTCPMessage(msg); ok && cmd == "ACTION" {
 			return fmt.Sprintf("* %s %s", msg.Prefix.Name, params)
 		} else {
 			return fmt.Sprintf("<%s> %s", msg.Prefix.Name, msg.Params[1])
@@ -392,7 +393,7 @@ func (ms *fsMessageStore) parseMessage(line string, network *database.Network, e
 
 	msg := &irc.Message{
 		Tags: map[string]irc.TagValue{
-			"time": irc.TagValue(formatServerTime(t)),
+			"time": irc.TagValue(xirc.FormatServerTime(t)),
 		},
 		Prefix:  prefix,
 		Command: cmd,

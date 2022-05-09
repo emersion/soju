@@ -11,7 +11,10 @@ import (
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/xirc"
 )
+
+// TODO: generalize and move helpers to the xirc package
 
 const (
 	rpl_statsping     = "246"
@@ -41,13 +44,6 @@ const (
 	maxMessageParams = 15
 	maxSASLLength    = 400
 )
-
-// The server-time layout, as defined in the IRCv3 spec.
-const serverTimeLayout = "2006-01-02T15:04:05.000Z"
-
-func formatServerTime(t time.Time) string {
-	return t.UTC().Format(serverTimeLayout)
-}
 
 type userModes string
 
@@ -479,28 +475,6 @@ func (js *joinSorter) Swap(i, j int) {
 	js.keys[i], js.keys[j] = js.keys[j], js.keys[i]
 }
 
-// parseCTCPMessage parses a CTCP message. CTCP is defined in
-// https://tools.ietf.org/html/draft-oakley-irc-ctcp-02
-func parseCTCPMessage(msg *irc.Message) (cmd string, params string, ok bool) {
-	if (msg.Command != "PRIVMSG" && msg.Command != "NOTICE") || len(msg.Params) < 2 {
-		return "", "", false
-	}
-	text := msg.Params[1]
-
-	if !strings.HasPrefix(text, "\x01") {
-		return "", "", false
-	}
-	text = strings.Trim(text, "\x01")
-
-	words := strings.SplitN(text, " ", 2)
-	cmd = strings.ToUpper(words[0])
-	if len(words) > 1 {
-		params = words[1]
-	}
-
-	return cmd, params, true
-}
-
 type casemapping func(string) string
 
 func casemapNone(name string) string {
@@ -728,7 +702,7 @@ func parseChatHistoryBound(param string) time.Time {
 	}
 	switch parts[0] {
 	case "timestamp":
-		timestamp, err := time.Parse(serverTimeLayout, parts[1])
+		timestamp, err := time.Parse(xirc.ServerTimeLayout, parts[1])
 		if err != nil {
 			return time.Time{}
 		}

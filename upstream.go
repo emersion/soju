@@ -19,6 +19,7 @@ import (
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/xirc"
 )
 
 // permanentUpstreamCaps is the static list of upstream capabilities always
@@ -464,7 +465,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 	}
 
 	if _, ok := msg.Tags["time"]; !ok && !isNumeric(msg.Command) {
-		msg.Tags["time"] = irc.TagValue(formatServerTime(time.Now()))
+		msg.Tags["time"] = irc.TagValue(xirc.FormatServerTime(time.Now()))
 	}
 
 	switch msg.Command {

@@ -18,6 +18,7 @@ import (
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/xirc"
 )
 
 type ircError struct {
@@ -2472,7 +2473,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				dc.logger.Printf("broadcasting bouncer-wide %v: %v", msg.Command, text)
 
 				broadcastTags := tags.Copy()
-				broadcastTags["time"] = irc.TagValue(formatServerTime(time.Now()))
+				broadcastTags["time"] = irc.TagValue(xirc.FormatServerTime(time.Now()))
 				broadcastMsg := &irc.Message{
 					Tags:    broadcastTags,
 					Prefix:  servicePrefix,
@@ -2498,7 +2499,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if casemapASCII(name) == serviceNickCM {
 				if dc.caps.IsEnabled("echo-message") {
 					echoTags := tags.Copy()
-					echoTags["time"] = irc.TagValue(formatServerTime(time.Now()))
+					echoTags["time"] = irc.TagValue(xirc.FormatServerTime(time.Now()))
 					dc.SendMessage(&irc.Message{
 						Tags:    echoTags,
 						Prefix:  dc.prefix(),
@@ -2547,7 +2548,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}
 
 				echoTags := tags.Copy()
-				echoTags["time"] = irc.TagValue(formatServerTime(time.Now()))
+				echoTags["time"] = irc.TagValue(xirc.FormatServerTime(time.Now()))
 				if uc.account != "" {
 					echoTags["account"] = irc.TagValue(uc.account)
 				}
@@ -2871,7 +2872,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						Tags:    irc.Tags{"batch": batchRef},
 						Prefix:  dc.srv.prefix(),
 						Command: "CHATHISTORY",
-						Params:  []string{"TARGETS", target.Name, formatServerTime(target.LatestMessage)},
+						Params:  []string{"TARGETS", target.Name, xirc.FormatServerTime(target.LatestMessage)},
 					})
 				}
 			})
@@ -2941,7 +2942,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
-			timestamp, err := time.Parse(serverTimeLayout, criteriaParts[1])
+			timestamp, err := time.Parse(xirc.ServerTimeLayout, criteriaParts[1])
 			if err != nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",
@@ -2967,7 +2968,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		timestampStr := "*"
 		if !r.Timestamp.IsZero() {
-			timestampStr = fmt.Sprintf("timestamp=%s", formatServerTime(r.Timestamp))
+			timestampStr = fmt.Sprintf("timestamp=%s", xirc.FormatServerTime(r.Timestamp))
 		}
 		network.forEachDownstream(func(d *downstreamConn) {
 			if broadcast || dc.id == d.id {
@@ -3001,7 +3002,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			value := string(v)
 			switch name {
 			case "before", "after":
-				timestamp, err := time.Parse(serverTimeLayout, value)
+				timestamp, err := time.Parse(xirc.ServerTimeLayout, value)
 				if err != nil {
 					return ircError{&irc.Message{
 						Command: "FAIL",
