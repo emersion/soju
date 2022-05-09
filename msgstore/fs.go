@@ -1,4 +1,4 @@
-package soju
+package msgstore
 
 import (
 	"bufio"
@@ -57,7 +57,7 @@ func (fsMsgID) msgIDType() msgIDType {
 
 func parseFSMsgID(s string) (netID int64, entity string, t time.Time, offset int64, err error) {
 	var id fsMsgID
-	netID, entity, err = parseMsgID(s, &id)
+	netID, entity, err = ParseMsgID(s, &id)
 	if err != nil {
 		return 0, "", time.Time{}, 0, err
 	}
@@ -89,11 +89,14 @@ type fsMessageStore struct {
 	files map[string]*fsMessageStoreFile // indexed by entity
 }
 
-var _ messageStore = (*fsMessageStore)(nil)
-var _ chatHistoryMessageStore = (*fsMessageStore)(nil)
-var _ searchMessageStore = (*fsMessageStore)(nil)
+var (
+	_ Store              = (*fsMessageStore)(nil)
+	_ ChatHistoryStore   = (*fsMessageStore)(nil)
+	_ SearchStore        = (*fsMessageStore)(nil)
+	_ RenameNetworkStore = (*fsMessageStore)(nil)
+)
 
-func newFSMessageStore(root string, user *database.User) *fsMessageStore {
+func NewFSStore(root string, user *database.User) *fsMessageStore {
 	return &fsMessageStore{
 		root:  filepath.Join(root, escapeFilename(user.Username)),
 		user:  user,
@@ -402,7 +405,7 @@ func (ms *fsMessageStore) parseMessage(line string, network *database.Network, e
 	return msg, t, nil
 }
 
-func (ms *fsMessageStore) parseMessagesBefore(ref time.Time, end time.Time, options *loadMessageOptions, afterOffset int64, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesBefore(ref time.Time, end time.Time, options *LoadMessageOptions, afterOffset int64, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	path := ms.logPath(options.Network, options.Entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -461,7 +464,7 @@ func (ms *fsMessageStore) parseMessagesBefore(ref time.Time, end time.Time, opti
 	}
 }
 
-func (ms *fsMessageStore) parseMessagesAfter(ref time.Time, end time.Time, options *loadMessageOptions, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) parseMessagesAfter(ref time.Time, end time.Time, options *LoadMessageOptions, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	path := ms.logPath(options.Network, options.Entity, ref)
 	f, err := os.Open(path)
 	if err != nil {
@@ -496,7 +499,7 @@ func (ms *fsMessageStore) parseMessagesAfter(ref time.Time, end time.Time, optio
 	return history, nil
 }
 
-func (ms *fsMessageStore) getBeforeTime(ctx context.Context, start time.Time, end time.Time, options *loadMessageOptions, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) getBeforeTime(ctx context.Context, start time.Time, end time.Time, options *LoadMessageOptions, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	if start.IsZero() {
 		start = time.Now()
 	} else {
@@ -531,11 +534,11 @@ func (ms *fsMessageStore) getBeforeTime(ctx context.Context, start time.Time, en
 	return messages[remaining:], nil
 }
 
-func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, start time.Time, end time.Time, options *loadMessageOptions) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadBeforeTime(ctx context.Context, start time.Time, end time.Time, options *LoadMessageOptions) ([]*irc.Message, error) {
 	return ms.getBeforeTime(ctx, start, end, options, nil)
 }
 
-func (ms *fsMessageStore) getAfterTime(ctx context.Context, start time.Time, end time.Time, options *loadMessageOptions, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
+func (ms *fsMessageStore) getAfterTime(ctx context.Context, start time.Time, end time.Time, options *LoadMessageOptions, selector func(m *irc.Message) bool) ([]*irc.Message, error) {
 	start = start.In(time.Local)
 	if end.IsZero() {
 		end = time.Now()
@@ -569,11 +572,11 @@ func (ms *fsMessageStore) getAfterTime(ctx context.Context, start time.Time, end
 	return messages, nil
 }
 
-func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, start time.Time, end time.Time, options *loadMessageOptions) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadAfterTime(ctx context.Context, start time.Time, end time.Time, options *LoadMessageOptions) ([]*irc.Message, error) {
 	return ms.getAfterTime(ctx, start, end, options, nil)
 }
 
-func (ms *fsMessageStore) LoadLatestID(ctx context.Context, id string, options *loadMessageOptions) ([]*irc.Message, error) {
+func (ms *fsMessageStore) LoadLatestID(ctx context.Context, id string, options *LoadMessageOptions) ([]*irc.Message, error) {
 	var afterTime time.Time
 	var afterOffset int64
 	if id != "" {
@@ -623,7 +626,7 @@ func (ms *fsMessageStore) LoadLatestID(ctx context.Context, id string, options *
 	return history[remaining:], nil
 }
 
-func (ms *fsMessageStore) ListTargets(ctx context.Context, network *database.Network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error) {
+func (ms *fsMessageStore) ListTargets(ctx context.Context, network *database.Network, start, end time.Time, limit int, events bool) ([]ChatHistoryTarget, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
 	rootPath := filepath.Join(ms.root, escapeFilename(network.GetName()))
@@ -642,7 +645,7 @@ func (ms *fsMessageStore) ListTargets(ctx context.Context, network *database.Net
 		return nil, err
 	}
 
-	var targets []chatHistoryTarget
+	var targets []ChatHistoryTarget
 	for _, target := range targetNames {
 		// target is already escaped here
 		targetPath := filepath.Join(rootPath, target)
@@ -673,7 +676,7 @@ func (ms *fsMessageStore) ListTargets(ctx context.Context, network *database.Net
 			continue
 		}
 
-		targets = append(targets, chatHistoryTarget{
+		targets = append(targets, ChatHistoryTarget{
 			Name:          target,
 			LatestMessage: t,
 		})
@@ -702,7 +705,7 @@ func (ms *fsMessageStore) ListTargets(ctx context.Context, network *database.Net
 	return targets, nil
 }
 
-func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network, opts *searchMessageOptions) ([]*irc.Message, error) {
+func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network, opts *SearchMessageOptions) ([]*irc.Message, error) {
 	text := strings.ToLower(opts.Text)
 	selector := func(m *irc.Message) bool {
 		if opts.From != "" && m.User != opts.From {
@@ -713,7 +716,7 @@ func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network,
 		}
 		return true
 	}
-	loadOptions := loadMessageOptions{
+	loadOptions := LoadMessageOptions{
 		Network: network,
 		Entity:  opts.In,
 		Limit:   opts.Limit,

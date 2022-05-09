@@ -16,6 +16,7 @@ import (
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/msgstore"
 )
 
 type event interface{}
@@ -454,17 +455,17 @@ type user struct {
 
 	networks        []*network
 	downstreamConns []*downstreamConn
-	msgStore        messageStore
+	msgStore        msgstore.Store
 }
 
 func newUser(srv *Server, record *database.User) *user {
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("user %q: ", record.Username)}
 
-	var msgStore messageStore
+	var msgStore msgstore.Store
 	if logPath := srv.Config().LogPath; logPath != "" {
-		msgStore = newFSMessageStore(logPath, record)
+		msgStore = msgstore.NewFSStore(logPath, record)
 	} else {
-		msgStore = newMemoryMessageStore()
+		msgStore = msgstore.NewMemoryStore()
 	}
 
 	return &user{
@@ -951,10 +952,10 @@ func (u *user) updateNetwork(ctx context.Context, record *database.Network) (*ne
 
 	// The filesystem message store needs to be notified whenever the network
 	// is renamed
-	fsMsgStore, isFS := u.msgStore.(*fsMessageStore)
-	if isFS && updatedNetwork.GetName() != network.GetName() {
-		if err := fsMsgStore.RenameNetwork(&network.Network, &updatedNetwork.Network); err != nil {
-			network.logger.Printf("failed to update FS message store network name to %q: %v", updatedNetwork.GetName(), err)
+	renameNetMsgStore, ok := u.msgStore.(msgstore.RenameNetworkStore)
+	if ok && updatedNetwork.GetName() != network.GetName() {
+		if err := renameNetMsgStore.RenameNetwork(&network.Network, &updatedNetwork.Network); err != nil {
+			network.logger.Printf("failed to update message store network name to %q: %v", updatedNetwork.GetName(), err)
 		}
 	}
 
@@ -1049,8 +1050,7 @@ func (u *user) hasPersistentMsgStore() bool {
 	if u.msgStore == nil {
 		return false
 	}
-	_, isMem := u.msgStore.(*memoryMessageStore)
-	return !isMem
+	return !msgstore.IsMemoryStore(u.msgStore)
 }
 
 // localAddrForHost returns the local address to use when connecting to host.

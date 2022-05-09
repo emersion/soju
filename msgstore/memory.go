@@ -1,4 +1,4 @@
-package soju
+package msgstore
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func (memoryMsgID) msgIDType() msgIDType {
 
 func parseMemoryMsgID(s string) (netID int64, entity string, seq uint64, err error) {
 	var id memoryMsgID
-	netID, entity, err = parseMsgID(s, &id)
+	netID, entity, err = ParseMsgID(s, &id)
 	if err != nil {
 		return 0, "", 0, err
 	}
@@ -40,13 +40,18 @@ type ringBufferKey struct {
 	entity    string
 }
 
+func IsMemoryStore(store Store) bool {
+	_, ok := store.(*memoryMessageStore)
+	return ok
+}
+
 type memoryMessageStore struct {
 	buffers map[ringBufferKey]*messageRingBuffer
 }
 
-var _ messageStore = (*memoryMessageStore)(nil)
+var _ Store = (*memoryMessageStore)(nil)
 
-func newMemoryMessageStore() *memoryMessageStore {
+func NewMemoryStore() *memoryMessageStore {
 	return &memoryMessageStore{
 		buffers: make(map[ringBufferKey]*messageRingBuffer),
 	}
@@ -96,7 +101,7 @@ func (ms *memoryMessageStore) Append(network *database.Network, entity string, m
 	return formatMemoryMsgID(network.ID, entity, seq), nil
 }
 
-func (ms *memoryMessageStore) LoadLatestID(ctx context.Context, id string, options *loadMessageOptions) ([]*irc.Message, error) {
+func (ms *memoryMessageStore) LoadLatestID(ctx context.Context, id string, options *LoadMessageOptions) ([]*irc.Message, error) {
 	if options.Events {
 		return nil, fmt.Errorf("events are unsupported for memory message store")
 	}

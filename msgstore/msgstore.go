@@ -1,4 +1,4 @@
-package soju
+package msgstore
 
 import (
 	"bytes"
@@ -13,15 +13,15 @@ import (
 	"git.sr.ht/~emersion/soju/database"
 )
 
-type loadMessageOptions struct {
+type LoadMessageOptions struct {
 	Network *database.Network
 	Entity  string
 	Limit   int
 	Events  bool
 }
 
-// messageStore is a per-user store for IRC messages.
-type messageStore interface {
+// Store is a per-user store for IRC messages.
+type Store interface {
 	Close() error
 	// LastMsgID queries the last message ID for the given network, entity and
 	// date. The message ID returned may not refer to a valid message, but can be
@@ -29,38 +29,37 @@ type messageStore interface {
 	LastMsgID(network *database.Network, entity string, t time.Time) (string, error)
 	// LoadLatestID queries the latest non-event messages for the given network,
 	// entity and date, up to a count of limit messages, sorted from oldest to newest.
-	LoadLatestID(ctx context.Context, id string, options *loadMessageOptions) ([]*irc.Message, error)
+	LoadLatestID(ctx context.Context, id string, options *LoadMessageOptions) ([]*irc.Message, error)
 	Append(network *database.Network, entity string, msg *irc.Message) (id string, err error)
 }
 
-type chatHistoryTarget struct {
+type ChatHistoryTarget struct {
 	Name          string
 	LatestMessage time.Time
 }
 
-// chatHistoryMessageStore is a message store that supports chat history
-// operations.
-type chatHistoryMessageStore interface {
-	messageStore
+// ChatHistoryStore is a message store that supports chat history operations.
+type ChatHistoryStore interface {
+	Store
 
 	// ListTargets lists channels and nicknames by time of the latest message.
 	// It returns up to limit targets, starting from start and ending on end,
 	// both excluded. end may be before or after start.
 	// If events is false, only PRIVMSG/NOTICE messages are considered.
-	ListTargets(ctx context.Context, network *database.Network, start, end time.Time, limit int, events bool) ([]chatHistoryTarget, error)
+	ListTargets(ctx context.Context, network *database.Network, start, end time.Time, limit int, events bool) ([]ChatHistoryTarget, error)
 	// LoadBeforeTime loads up to limit messages before start down to end. The
 	// returned messages must be between and excluding the provided bounds.
 	// end is before start.
 	// If events is false, only PRIVMSG/NOTICE messages are considered.
-	LoadBeforeTime(ctx context.Context, start, end time.Time, options *loadMessageOptions) ([]*irc.Message, error)
+	LoadBeforeTime(ctx context.Context, start, end time.Time, options *LoadMessageOptions) ([]*irc.Message, error)
 	// LoadBeforeTime loads up to limit messages after start up to end. The
 	// returned messages must be between and excluding the provided bounds.
 	// end is after start.
 	// If events is false, only PRIVMSG/NOTICE messages are considered.
-	LoadAfterTime(ctx context.Context, start, end time.Time, options *loadMessageOptions) ([]*irc.Message, error)
+	LoadAfterTime(ctx context.Context, start, end time.Time, options *LoadMessageOptions) ([]*irc.Message, error)
 }
 
-type searchMessageOptions struct {
+type SearchMessageOptions struct {
 	Start time.Time
 	End   time.Time
 	Limit int
@@ -69,13 +68,20 @@ type searchMessageOptions struct {
 	Text  string
 }
 
-// searchMessageStore is a message store that supports server-side search
-// operations.
-type searchMessageStore interface {
-	messageStore
+// SearchStore is a message store that supports server-side search operations.
+type SearchStore interface {
+	Store
 
 	// Search returns messages matching the specified options.
-	Search(ctx context.Context, network *database.Network, options *searchMessageOptions) ([]*irc.Message, error)
+	Search(ctx context.Context, network *database.Network, options *SearchMessageOptions) ([]*irc.Message, error)
+}
+
+// RenameNetworkStore is a message store which needs to be notified of network
+// name changes.
+type RenameNetworkStore interface {
+	Store
+
+	RenameNetwork(oldNet, newNet *database.Network) error
 }
 
 type msgIDType uint
@@ -118,7 +124,7 @@ func formatMsgID(netID int64, target string, body msgIDBody) string {
 	return base64.RawURLEncoding.EncodeToString(buf.Bytes())
 }
 
-func parseMsgID(s string, body msgIDBody) (netID int64, target string, err error) {
+func ParseMsgID(s string, body msgIDBody) (netID int64, target string, err error) {
 	b, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
 		return 0, "", fmt.Errorf("invalid internal message ID: %v", err)

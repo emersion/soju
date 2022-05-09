@@ -18,6 +18,7 @@ import (
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/msgstore"
 	"git.sr.ht/~emersion/soju/xirc"
 )
 
@@ -650,7 +651,7 @@ func (dc *downstreamConn) advanceMessageWithID(msg *irc.Message, id string) {
 
 // ackMsgID acknowledges that a message has been received.
 func (dc *downstreamConn) ackMsgID(id string) {
-	netID, entity, err := parseMsgID(id, nil)
+	netID, entity, err := msgstore.ParseMsgID(id, nil)
 	if err != nil {
 		dc.logger.Printf("failed to ACK message ID %q: %v", id, err)
 		return
@@ -1137,7 +1138,7 @@ func (dc *downstreamConn) updateSupportedCaps() {
 		dc.unsetSupportedCap("draft/account-registration")
 	}
 
-	if _, ok := dc.user.msgStore.(chatHistoryMessageStore); ok && dc.network != nil {
+	if _, ok := dc.user.msgStore.(msgstore.ChatHistoryStore); ok && dc.network != nil {
 		dc.setSupportedCap("draft/event-playback", "")
 	} else {
 		dc.unsetSupportedCap("draft/event-playback")
@@ -1665,7 +1666,7 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 	defer cancel()
 
 	targetCM := net.casemap(target)
-	loadOptions := loadMessageOptions{
+	loadOptions := msgstore.LoadMessageOptions{
 		Network: &net.Network,
 		Entity:  targetCM,
 		Limit:   backlogLimit,
@@ -2786,7 +2787,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return nil
 		}
 
-		store, ok := dc.user.msgStore.(chatHistoryMessageStore)
+		store, ok := dc.user.msgStore.(msgstore.ChatHistoryStore)
 		if !ok {
 			return ircError{&irc.Message{
 				Command: irc.ERR_UNKNOWNCOMMAND,
@@ -2832,7 +2833,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		eventPlayback := dc.caps.IsEnabled("draft/event-playback")
 
-		options := loadMessageOptions{
+		options := msgstore.LoadMessageOptions{
 			Network: &network.Network,
 			Entity:  entity,
 			Limit:   limit,
@@ -2980,7 +2981,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 		})
 	case "SEARCH":
-		store, ok := dc.user.msgStore.(searchMessageStore)
+		store, ok := dc.user.msgStore.(msgstore.SearchStore)
 		if !ok {
 			return ircError{&irc.Message{
 				Command: irc.ERR_UNKNOWNCOMMAND,
@@ -2995,7 +2996,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		var uc *upstreamConn
 		const searchMaxLimit = 100
-		opts := searchMessageOptions{
+		opts := msgstore.SearchMessageOptions{
 			Limit: searchMaxLimit,
 		}
 		for name, v := range attrs {
