@@ -77,7 +77,7 @@ type upstreamChannel struct {
 	Topic        string
 	TopicWho     *irc.Prefix
 	TopicTime    time.Time
-	Status       channelStatus
+	Status       xirc.ChannelStatus
 	modes        channelModes
 	creationTime string
 	Members      membershipsCasemapMap
@@ -1353,7 +1353,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return nil
 		}
 
-		status, err := parseChannelStatus(statusStr)
+		status, err := xirc.ParseChannelStatus(statusStr)
 		if err != nil {
 			return err
 		}

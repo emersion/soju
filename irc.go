@@ -185,26 +185,6 @@ func (cm channelModes) Format() (modeString string, parameters []string) {
 
 const stdChannelTypes = "#&+!"
 
-type channelStatus byte
-
-const (
-	channelPublic  channelStatus = '='
-	channelSecret  channelStatus = '@'
-	channelPrivate channelStatus = '*'
-)
-
-func parseChannelStatus(s string) (channelStatus, error) {
-	if len(s) > 1 {
-		return 0, fmt.Errorf("invalid channel status %q: more than one character", s)
-	}
-	switch cs := channelStatus(s[0]); cs {
-	case channelPublic, channelSecret, channelPrivate:
-		return cs, nil
-	default:
-		return 0, fmt.Errorf("invalid channel status %q: unknown status", s)
-	}
-}
-
 type membership struct {
 	Mode   byte
 	Prefix byte

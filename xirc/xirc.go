@@ -2,6 +2,7 @@
 package xirc
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -59,4 +60,24 @@ func ParseCTCPMessage(msg *irc.Message) (cmd string, params string, ok bool) {
 	}
 
 	return cmd, params, true
+}
+
+type ChannelStatus byte
+
+const (
+	ChannelPublic  ChannelStatus = '='
+	ChannelSecret  ChannelStatus = '@'
+	ChannelPrivate ChannelStatus = '*'
+)
+
+func ParseChannelStatus(s string) (ChannelStatus, error) {
+	if len(s) > 1 {
+		return 0, fmt.Errorf("invalid channel status %q: more than one character", s)
+	}
+	switch cs := ChannelStatus(s[0]); cs {
+	case ChannelPublic, ChannelSecret, ChannelPrivate:
+		return cs, nil
+	default:
+		return 0, fmt.Errorf("invalid channel status %q: unknown status", s)
+	}
 }
