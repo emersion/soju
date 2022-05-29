@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"gopkg.in/irc.v3"
 
@@ -74,47 +73,16 @@ func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
 func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 	downstreamName := dc.marshalEntity(ch.conn.network, ch.Name)
 
-	emptyNameReply := &irc.Message{
-		Prefix:  dc.srv.prefix(),
-		Command: irc.RPL_NAMREPLY,
-		Params:  []string{dc.nick, string(ch.Status), downstreamName, ""},
-	}
-	maxLength := maxMessageLength - len(emptyNameReply.String())
-
-	var buf strings.Builder
+	var members []string
 	for _, entry := range ch.Members.innerMap {
 		nick := entry.originalKey
 		memberships := entry.value.(*memberships)
 		s := memberships.Format(dc) + dc.marshalEntity(ch.conn.network, nick)
-
-		n := buf.Len() + 1 + len(s)
-		if buf.Len() != 0 && n > maxLength {
-			// There's not enough space for the next space + nick.
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.srv.prefix(),
-				Command: irc.RPL_NAMREPLY,
-				Params:  []string{dc.nick, string(ch.Status), downstreamName, buf.String()},
-			})
-			buf.Reset()
-		}
-
-		if buf.Len() != 0 {
-			buf.WriteByte(' ')
-		}
-		buf.WriteString(s)
+		members = append(members, s)
 	}
 
-	if buf.Len() != 0 {
-		dc.SendMessage(&irc.Message{
-			Prefix:  dc.srv.prefix(),
-			Command: irc.RPL_NAMREPLY,
-			Params:  []string{dc.nick, string(ch.Status), downstreamName, buf.String()},
-		})
+	msgs := xirc.GenerateNamesReply(dc.srv.prefix(), dc.nick, downstreamName, ch.Status, members)
+	for _, msg := range msgs {
+		dc.SendMessage(msg)
 	}
-
-	dc.SendMessage(&irc.Message{
-		Prefix:  dc.srv.prefix(),
-		Command: irc.RPL_ENDOFNAMES,
-		Params:  []string{dc.nick, downstreamName, "End of /NAMES list"},
-	})
 }

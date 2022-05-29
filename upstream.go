@@ -773,7 +773,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				keys = append(keys, ch.Key)
 			}
 
-			for _, msg := range generateJoin(channels, keys) {
+			for _, msg := range xirc.GenerateJoin(channels, keys) {
 				uc.SendMessage(ctx, msg)
 			}
 		}
@@ -852,7 +852,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			if dc.network == nil {
 				return
 			}
-			msgs := generateIsupport(dc.srv.prefix(), dc.nick, downstreamIsupport)
+			msgs := xirc.GenerateIsupport(dc.srv.prefix(), dc.nick, downstreamIsupport)
 			for _, msg := range msgs {
 				dc.SendMessage(msg)
 			}
@@ -2223,8 +2223,8 @@ func (uc *upstreamConn) updateMonitor() {
 			Params:  []string{"C"},
 		})
 	} else {
-		msgs := generateMonitor("-", removeList)
-		msgs = append(msgs, generateMonitor("+", addList)...)
+		msgs := xirc.GenerateMonitor("-", removeList)
+		msgs = append(msgs, xirc.GenerateMonitor("+", addList)...)
 		for _, msg := range msgs {
 			uc.SendMessage(ctx, msg)
 		}

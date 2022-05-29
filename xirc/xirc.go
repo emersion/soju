@@ -10,6 +10,11 @@ import (
 )
 
 const (
+	maxMessageLength = 512
+	maxMessageParams = 15
+)
+
+const (
 	RPL_STATSPING     = "246"
 	RPL_LOCALUSERS    = "265"
 	RPL_GLOBALUSERS   = "266"

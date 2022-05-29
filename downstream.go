@@ -1531,7 +1531,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 		Command: irc.RPL_MYINFO,
 		Params:  []string{dc.nick, dc.srv.Config().Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
-	for _, msg := range generateIsupport(dc.srv.prefix(), dc.nick, isupport) {
+	for _, msg := range xirc.GenerateIsupport(dc.srv.prefix(), dc.nick, isupport) {
 		dc.SendMessage(msg)
 	}
 	if uc := dc.upstream(); uc != nil {
@@ -1554,7 +1554,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	dc.updateAccount()
 
 	if motd := dc.user.srv.Config().MOTD; motd != "" && dc.network == nil {
-		for _, msg := range generateMOTD(dc.srv.prefix(), dc.nick, motd) {
+		for _, msg := range xirc.GenerateMOTD(dc.srv.prefix(), dc.nick, motd) {
 			dc.SendMessage(msg)
 		}
 	} else {
