@@ -2266,7 +2266,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if dc.user.Admin {
 				flags += "*"
 			}
-			info := whoxInfo{
+			info := xirc.WHOXInfo{
 				Token:    whoxToken,
 				Username: dc.user.Username,
 				Hostname: dc.hostname,
@@ -2276,7 +2276,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Account:  dc.user.Username,
 				Realname: dc.realname,
 			}
-			dc.SendMessage(generateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
+			dc.SendMessage(xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
@@ -2293,7 +2293,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					flags += *v
 				}
 			}
-			info := whoxInfo{
+			info := xirc.WHOXInfo{
 				Token:    whoxToken,
 				Username: servicePrefix.User,
 				Hostname: servicePrefix.Host,
@@ -2303,7 +2303,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Account:  serviceNick,
 				Realname: serviceRealname,
 			}
-			dc.SendMessage(generateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
+			dc.SendMessage(xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
