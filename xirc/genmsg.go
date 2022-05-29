@@ -84,6 +84,7 @@ func (js *joinSorter) Swap(i, j int) {
 func GenerateIsupport(prefix *irc.Prefix, nick string, tokens []string) []*irc.Message {
 	maxTokens := maxMessageParams - 2 // 2 reserved params: nick + text
 
+	// TODO: take into account maxMessageLength as well
 	var msgs []*irc.Message
 	for len(tokens) > 0 {
 		var msgTokens []string
@@ -95,15 +96,22 @@ func GenerateIsupport(prefix *irc.Prefix, nick string, tokens []string) []*irc.M
 			tokens = nil
 		}
 
+		encodedTokens := make([]string, len(msgTokens))
+		for i, tok := range msgTokens {
+			encodedTokens[i] = isupportEncoder.Replace(tok)
+		}
+
 		msgs = append(msgs, &irc.Message{
 			Prefix:  prefix,
 			Command: irc.RPL_ISUPPORT,
-			Params:  append(append([]string{nick}, msgTokens...), "are supported"),
+			Params:  append(append([]string{nick}, encodedTokens...), "are supported"),
 		})
 	}
 
 	return msgs
 }
+
+var isupportEncoder = strings.NewReplacer(" ", "\\x20", "\\", "\\x5C")
 
 func GenerateMOTD(prefix *irc.Prefix, nick string, motd string) []*irc.Message {
 	var msgs []*irc.Message

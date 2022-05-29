@@ -592,12 +592,6 @@ func generateWHOXReply(prefix *irc.Prefix, nick, fields string, info *whoxInfo) 
 	}
 }
 
-var isupportEncoder = strings.NewReplacer(" ", "\\x20", "\\", "\\x5C")
-
-func encodeISUPPORT(s string) string {
-	return isupportEncoder.Replace(s)
-}
-
 type capRegistry struct {
 	Available map[string]string
 	Enabled   map[string]struct{}

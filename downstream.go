@@ -1496,7 +1496,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 		isupport = append(isupport, "BOT=B")
 	}
 	if title := dc.srv.Config().Title; dc.network == nil && title != "" {
-		isupport = append(isupport, "NETWORK="+encodeISUPPORT(title))
+		isupport = append(isupport, "NETWORK="+title)
 	}
 	if dc.network == nil && !dc.isMultiUpstream {
 		isupport = append(isupport, "WHOX")
