@@ -130,7 +130,7 @@ type upstreamConn struct {
 	hostname    string
 	modes       userModes
 	channels    upstreamChannelCasemapMap
-	caps        capRegistry
+	caps        xirc.CapRegistry
 	batches     map[string]batch
 	away        bool
 	account     string
@@ -249,7 +249,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		network:               network,
 		user:                  network.user,
 		channels:              upstreamChannelCasemapMap{newCasemapMap(0)},
-		caps:                  newCapRegistry(),
+		caps:                  xirc.NewCapRegistry(),
 		batches:               make(map[string]batch),
 		serverPrefix:          &irc.Prefix{Name: "*"},
 		availableChannelTypes: stdChannelTypes,

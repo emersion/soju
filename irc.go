@@ -592,41 +592,6 @@ func generateWHOXReply(prefix *irc.Prefix, nick, fields string, info *whoxInfo) 
 	}
 }
 
-type capRegistry struct {
-	Available map[string]string
-	Enabled   map[string]struct{}
-}
-
-func newCapRegistry() capRegistry {
-	return capRegistry{
-		Available: make(map[string]string),
-		Enabled:   make(map[string]struct{}),
-	}
-}
-
-func (cr *capRegistry) IsAvailable(name string) bool {
-	_, ok := cr.Available[name]
-	return ok
-}
-
-func (cr *capRegistry) IsEnabled(name string) bool {
-	_, ok := cr.Enabled[name]
-	return ok
-}
-
-func (cr *capRegistry) Del(name string) {
-	delete(cr.Available, name)
-	delete(cr.Enabled, name)
-}
-
-func (cr *capRegistry) SetEnabled(name string, enabled bool) {
-	if enabled {
-		cr.Enabled[name] = struct{}{}
-	} else {
-		delete(cr.Enabled, name)
-	}
-}
-
 func isNumeric(cmd string) bool {
 	if len(cmd) != 3 {
 		return false

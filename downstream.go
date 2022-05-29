@@ -327,7 +327,7 @@ type downstreamConn struct {
 	account  string // RPL_LOGGEDIN/OUT state
 
 	capVersion   int
-	caps         capRegistry
+	caps         xirc.CapRegistry
 	sasl         *downstreamSASL         // nil unless SASL is underway
 	registration *downstreamRegistration // nil after RPL_WELCOME
 
@@ -346,7 +346,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		nick:         "*",
 		nickCM:       "*",
 		username:     "~u",
-		caps:         newCapRegistry(),
+		caps:         xirc.NewCapRegistry(),
 		monitored:    newCasemapMap(0),
 		registration: new(downstreamRegistration),
 	}
