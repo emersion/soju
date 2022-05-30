@@ -86,3 +86,48 @@ func ParseChannelStatus(s string) (ChannelStatus, error) {
 		return 0, fmt.Errorf("invalid channel status %q: unknown status", s)
 	}
 }
+
+// Membership is a channel member rank.
+type Membership struct {
+	Mode   byte
+	Prefix byte
+}
+
+// MembershipSet is a set of memberships sorted by descending rank.
+type MembershipSet []Membership
+
+func (ms *MembershipSet) Add(availableMemberships []Membership, newMembership Membership) {
+	l := *ms
+	i := 0
+	for _, availableMembership := range availableMemberships {
+		if i >= len(l) {
+			break
+		}
+		if l[i] == availableMembership {
+			if availableMembership == newMembership {
+				// we already have this membership
+				return
+			}
+			i++
+			continue
+		}
+		if availableMembership == newMembership {
+			break
+		}
+	}
+	// insert newMembership at i
+	l = append(l, Membership{})
+	copy(l[i+1:], l[i:])
+	l[i] = newMembership
+	*ms = l
+}
+
+func (ms *MembershipSet) Remove(membership Membership) {
+	l := *ms
+	for i, m := range l {
+		if m == membership {
+			*ms = append(l[:i], l[i+1:]...)
+			return
+		}
+	}
+}

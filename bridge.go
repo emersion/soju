@@ -76,8 +76,8 @@ func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 	var members []string
 	for _, entry := range ch.Members.innerMap {
 		nick := entry.originalKey
-		memberships := entry.value.(*memberships)
-		s := memberships.Format(dc) + dc.marshalEntity(ch.conn.network, nick)
+		memberships := entry.value.(*xirc.MembershipSet)
+		s := formatMemberPrefix(*memberships, dc) + dc.marshalEntity(ch.conn.network, nick)
 		members = append(members, s)
 	}
 

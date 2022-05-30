@@ -119,7 +119,7 @@ type upstreamConn struct {
 	availableUserModes    string
 	availableChannelModes map[byte]channelModeType
 	availableChannelTypes string
-	availableMemberships  []membership
+	availableMemberships  []xirc.Membership
 	isupport              map[string]*string
 
 	registered  bool
@@ -413,8 +413,8 @@ func (uc *upstreamConn) cancelPendingCommandsByDownstreamID(downstreamID uint64)
 	}
 }
 
-func (uc *upstreamConn) parseMembershipPrefix(s string) (ms *memberships, nick string) {
-	memberships := make(memberships, 0, 4)
+func (uc *upstreamConn) parseMembershipPrefix(s string) (ms xirc.MembershipSet, nick string) {
+	var memberships xirc.MembershipSet
 	i := 0
 	for _, m := range uc.availableMemberships {
 		if i >= len(s) {
@@ -425,7 +425,7 @@ func (uc *upstreamConn) parseMembershipPrefix(s string) (ms *memberships, nick s
 			i++
 		}
 	}
-	return &memberships, s[i:]
+	return memberships, s[i:]
 }
 
 func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) error {
@@ -1021,7 +1021,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				if err != nil {
 					return err
 				}
-				ch.Members.SetValue(msg.Prefix.Name, &memberships{})
+				ch.Members.SetValue(msg.Prefix.Name, &xirc.MembershipSet{})
 			}
 
 			chMsg := msg.Copy()
@@ -1340,7 +1340,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				members := splitSpace(members)
 				for i, member := range members {
 					memberships, nick := uc.parseMembershipPrefix(member)
-					members[i] = memberships.Format(dc) + dc.marshalEntity(uc.network, nick)
+					members[i] = formatMemberPrefix(memberships, dc) + dc.marshalEntity(uc.network, nick)
 				}
 				memberStr := strings.Join(members, " ")
 
@@ -1484,7 +1484,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		for i, channel := range channels {
 			prefix, channel := uc.parseMembershipPrefix(channel)
 			channel = dc.marshalEntity(uc.network, channel)
-			l[i] = prefix.Format(dc) + channel
+			l[i] = formatMemberPrefix(prefix, dc) + channel
 		}
 		channelList = strings.Join(l, " ")
 		dc.SendMessage(&irc.Message{
@@ -1842,9 +1842,9 @@ func (uc *upstreamConn) handleMemberships(s string) error {
 	if sep < 0 || len(s) != sep*2 {
 		return fmt.Errorf("malformed ISUPPORT PREFIX value: %v", s)
 	}
-	memberships := make([]membership, len(s)/2-1)
+	memberships := make([]xirc.Membership, len(s)/2-1)
 	for i := range memberships {
-		memberships[i] = membership{
+		memberships[i] = xirc.Membership{
 			Mode:   s[i+1],
 			Prefix: s[sep+i+1],
 		}

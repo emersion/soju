@@ -180,12 +180,7 @@ func (cm channelModes) Format() (modeString string, parameters []string) {
 
 const stdChannelTypes = "#&+!"
 
-type membership struct {
-	Mode   byte
-	Prefix byte
-}
-
-var stdMemberships = []membership{
+var stdMemberships = []xirc.Membership{
 	{'q', '~'}, // founder
 	{'a', '&'}, // protected
 	{'o', '@'}, // operator
@@ -193,55 +188,16 @@ var stdMemberships = []membership{
 	{'v', '+'}, // voice
 }
 
-// memberships always sorted by descending membership rank
-type memberships []membership
-
-func (m *memberships) Add(availableMemberships []membership, newMembership membership) {
-	l := *m
-	i := 0
-	for _, availableMembership := range availableMemberships {
-		if i >= len(l) {
-			break
-		}
-		if l[i] == availableMembership {
-			if availableMembership == newMembership {
-				// we already have this membership
-				return
-			}
-			i++
-			continue
-		}
-		if availableMembership == newMembership {
-			break
-		}
-	}
-	// insert newMembership at i
-	l = append(l, membership{})
-	copy(l[i+1:], l[i:])
-	l[i] = newMembership
-	*m = l
-}
-
-func (m *memberships) Remove(oldMembership membership) {
-	l := *m
-	for i, currentMembership := range l {
-		if currentMembership == oldMembership {
-			*m = append(l[:i], l[i+1:]...)
-			return
-		}
-	}
-}
-
-func (m memberships) Format(dc *downstreamConn) string {
+func formatMemberPrefix(ms xirc.MembershipSet, dc *downstreamConn) string {
 	if !dc.caps.IsEnabled("multi-prefix") {
-		if len(m) == 0 {
+		if len(ms) == 0 {
 			return ""
 		}
-		return string(m[0].Prefix)
+		return string(ms[0].Prefix)
 	}
-	prefixes := make([]byte, len(m))
-	for i, membership := range m {
-		prefixes[i] = membership.Prefix
+	prefixes := make([]byte, len(ms))
+	for i, m := range ms {
+		prefixes[i] = m.Prefix
 	}
 	return string(prefixes)
 }
@@ -439,12 +395,12 @@ func (cm *channelCasemapMap) Value(name string) *database.Channel {
 
 type membershipsCasemapMap struct{ casemapMap }
 
-func (cm *membershipsCasemapMap) Value(name string) *memberships {
+func (cm *membershipsCasemapMap) Value(name string) *xirc.MembershipSet {
 	entry, ok := cm.innerMap[cm.casemap(name)]
 	if !ok {
 		return nil
 	}
-	return entry.value.(*memberships)
+	return entry.value.(*xirc.MembershipSet)
 }
 
 type deliveredCasemapMap struct{ casemapMap }
