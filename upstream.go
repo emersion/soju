@@ -103,6 +103,13 @@ func (uc *upstreamChannel) updateAutoDetach(dur time.Duration) {
 	})
 }
 
+type upstreamBatch struct {
+	Type   string
+	Params []string
+	Outer  *upstreamBatch // if not-nil, this batch is nested in Outer
+	Label  string
+}
+
 type pendingUpstreamCommand struct {
 	downstreamID uint64
 	msg          *irc.Message
@@ -131,7 +138,7 @@ type upstreamConn struct {
 	modes       userModes
 	channels    upstreamChannelCasemapMap
 	caps        xirc.CapRegistry
-	batches     map[string]batch
+	batches     map[string]upstreamBatch
 	away        bool
 	account     string
 	nextLabelID uint64
@@ -250,7 +257,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		user:                  network.user,
 		channels:              upstreamChannelCasemapMap{newCasemapMap(0)},
 		caps:                  xirc.NewCapRegistry(),
-		batches:               make(map[string]batch),
+		batches:               make(map[string]upstreamBatch),
 		serverPrefix:          &irc.Prefix{Name: "*"},
 		availableChannelTypes: stdChannelTypes,
 		availableChannelModes: stdChannelModes,
@@ -435,7 +442,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		delete(msg.Tags, "label")
 	}
 
-	var msgBatch *batch
+	var msgBatch *upstreamBatch
 	if batchName, ok := msg.GetTag("batch"); ok {
 		b, ok := uc.batches[batchName]
 		if !ok {
@@ -882,7 +889,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			if label == "" && msgBatch != nil {
 				label = msgBatch.Label
 			}
-			uc.batches[tag] = batch{
+			uc.batches[tag] = upstreamBatch{
 				Type:   batchType,
 				Params: msg.Params[2:],
 				Outer:  msgBatch,

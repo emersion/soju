@@ -222,13 +222,6 @@ func copyClientTags(tags irc.Tags) irc.Tags {
 	return t
 }
 
-type batch struct {
-	Type   string
-	Params []string
-	Outer  *batch // if not-nil, this batch is nested in Outer
-	Label  string
-}
-
 type casemapping func(string) string
 
 func casemapNone(name string) string {
