@@ -641,25 +641,8 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		// <= instead of < because we need to send a final empty response if
-		// the last chunk is exactly 400 bytes long
-		for i := 0; i <= len(resp); i += maxSASLLength {
-			j := i + maxSASLLength
-			if j > len(resp) {
-				j = len(resp)
-			}
-
-			chunk := resp[i:j]
-
-			var respStr = "+"
-			if len(chunk) != 0 {
-				respStr = base64.StdEncoding.EncodeToString(chunk)
-			}
-
-			uc.SendMessage(ctx, &irc.Message{
-				Command: "AUTHENTICATE",
-				Params:  []string{respStr},
-			})
+		for _, msg := range xirc.GenerateSASL(resp) {
+			uc.SendMessage(ctx, msg)
 		}
 	case irc.RPL_LOGGEDIN:
 		var rawPrefix string

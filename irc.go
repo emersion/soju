@@ -15,8 +15,6 @@ import (
 
 // TODO: generalize and move helpers to the xirc package
 
-const maxSASLLength = 400
-
 type userModes string
 
 func (ms userModes) Has(c byte) bool {

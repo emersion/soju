@@ -1,6 +1,7 @@
 package xirc
 
 import (
+	"encoding/base64"
 	"fmt"
 	"sort"
 	"strings"
@@ -209,5 +210,30 @@ func GenerateNamesReply(prefix *irc.Prefix, nick string, channel string, status 
 		Command: irc.RPL_ENDOFNAMES,
 		Params:  []string{nick, channel, "End of /NAMES list"},
 	})
+	return msgs
+}
+
+func GenerateSASL(resp []byte) []*irc.Message {
+	// <= instead of < because we need to send a final empty response if
+	// the last chunk is exactly 400 bytes long
+	var msgs []*irc.Message
+	for i := 0; i <= len(resp); i += MaxSASLLength {
+		j := i + MaxSASLLength
+		if j > len(resp) {
+			j = len(resp)
+		}
+
+		chunk := resp[i:j]
+
+		var respStr = "+"
+		if len(chunk) != 0 {
+			respStr = base64.StdEncoding.EncodeToString(chunk)
+		}
+
+		msgs = append(msgs, &irc.Message{
+			Command: "AUTHENTICATE",
+			Params:  []string{respStr},
+		})
+	}
 	return msgs
 }

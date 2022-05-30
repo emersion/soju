@@ -14,6 +14,8 @@ const (
 	maxMessageParams = 15
 )
 
+const MaxSASLLength = 400
+
 const (
 	RPL_STATSPING     = "246"
 	RPL_LOCALUSERS    = "265"
