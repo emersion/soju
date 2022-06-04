@@ -240,6 +240,7 @@ var permanentDownstreamCaps = map[string]string{
 	"soju.im/bouncer-networks-notify": "",
 	"soju.im/no-implicit-names":       "",
 	"soju.im/read":                    "",
+	"soju.im/account-required":        "",
 }
 
 // needAllDownstreamCaps is the list of downstream capabilities that
@@ -902,6 +903,12 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 
 			if name == "cap-notify" && dc.capVersion >= 302 && !enable {
 				// cap-notify cannot be disabled with CAP version 302
+				ack = false
+				break
+			}
+
+			if name == "soju.im/account-required" {
+				// account-required is an informational cap
 				ack = false
 				break
 			}
