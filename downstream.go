@@ -1592,14 +1592,13 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	}
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
-		for _, entry := range uc.channels.innerMap {
-			ch := entry.value.(*upstreamChannel)
+		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
 			if !ch.complete {
-				continue
+				return
 			}
-			record := uc.network.channels.Value(ch.Name)
+			record := uc.network.channels.Get(ch.Name)
 			if record != nil && record.Detached {
-				continue
+				return
 			}
 
 			dc.SendMessage(&irc.Message{
@@ -1609,7 +1608,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 			})
 
 			forwardChannel(ctx, dc, ch)
-		}
+		})
 	})
 
 	dc.forEachNetwork(func(net *network) {
@@ -1667,7 +1666,7 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 		return
 	}
 
-	ch := net.channels.Value(target)
+	ch := net.channels.Get(target)
 
 	ctx, cancel := context.WithTimeout(ctx, backlogTimeout)
 	defer cancel()
@@ -1938,7 +1937,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				})
 			}
 
-			ch := uc.network.channels.Value(upstreamName)
+			ch := uc.network.channels.Get(upstreamName)
 			if ch != nil {
 				// Don't clear the channel key if there's one set
 				// TODO: add a way to unset the channel key
@@ -1951,7 +1950,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Name: upstreamName,
 					Key:  key,
 				}
-				uc.network.channels.SetValue(upstreamName, ch)
+				uc.network.channels.Set(upstreamName, ch)
 			}
 			if err := dc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
@@ -1975,7 +1974,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			if strings.EqualFold(reason, "detach") {
-				ch := uc.network.channels.Value(upstreamName)
+				ch := uc.network.channels.Get(upstreamName)
 				if ch != nil {
 					uc.network.detach(ch)
 				} else {
@@ -1983,7 +1982,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						Name:     name,
 						Detached: true,
 					}
-					uc.network.channels.SetValue(upstreamName, ch)
+					uc.network.channels.Set(upstreamName, ch)
 				}
 				if err := dc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 					dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
@@ -2119,7 +2118,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  params,
 			})
 		} else {
-			ch := uc.channels.Value(upstreamName)
+			ch := uc.channels.Get(upstreamName)
 			if ch == nil {
 				return ircError{&irc.Message{
 					Command: irc.ERR_NOSUCHCHANNEL,
@@ -2168,7 +2167,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{upstreamName, topic},
 			})
 		} else { // getting topic
-			ch := uc.channels.Value(upstreamName)
+			ch := uc.channels.Get(upstreamName)
 			if ch == nil {
 				return ircError{&irc.Message{
 					Command: irc.ERR_NOSUCHCHANNEL,
@@ -2223,7 +2222,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				return err
 			}
 
-			ch := uc.channels.Value(upstreamName)
+			ch := uc.channels.Get(upstreamName)
 			if ch != nil {
 				sendNames(dc, ch)
 			} else {
@@ -2677,7 +2676,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			for _, target := range strings.Split(targets, ",") {
 				if subcommand == "+" {
 					// Hard limit, just to avoid having downstreams fill our map
-					if len(dc.monitored.innerMap) >= 1000 {
+					if dc.monitored.Len() >= 1000 {
 						dc.SendMessage(&irc.Message{
 							Prefix:  dc.srv.prefix(),
 							Command: irc.ERR_MONLISTFULL,
@@ -2686,7 +2685,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						continue
 					}
 
-					dc.monitored.SetValue(target, nil)
+					dc.monitored.set(target, nil)
 
 					if uc.network.casemap(target) == serviceNickCM {
 						// BouncerServ is never tired
@@ -2700,7 +2699,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 					if uc.monitored.Has(target) {
 						cmd := irc.RPL_MONOFFLINE
-						if online := uc.monitored.Value(target); online {
+						if online := uc.monitored.Get(target); online {
 							cmd = irc.RPL_MONONLINE
 						}
 
@@ -2711,7 +2710,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						})
 					}
 				} else {
-					dc.monitored.Delete(target)
+					dc.monitored.Del(target)
 				}
 			}
 			uc.updateMonitor()
@@ -2721,7 +2720,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			uc.updateMonitor()
 		case "L": // list
 			// TODO: be less lazy and pack the list
-			for _, entry := range dc.monitored.innerMap {
+			for _, entry := range dc.monitored.m {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_MONLIST,
@@ -2735,11 +2734,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			})
 		case "S": // status
 			// TODO: be less lazy and pack the lists
-			for _, entry := range dc.monitored.innerMap {
+			for _, entry := range dc.monitored.m {
 				target := entry.originalKey
 
 				cmd := irc.RPL_MONOFFLINE
-				if online := uc.monitored.Value(target); online {
+				if online := uc.monitored.Get(target); online {
 					cmd = irc.RPL_MONONLINE
 				}
 
@@ -2872,7 +2871,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 			dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef irc.TagValue) {
 				for _, target := range targets {
-					if ch := network.channels.Value(target.Name); ch != nil && ch.Detached {
+					if ch := network.channels.Get(target.Name); ch != nil && ch.Detached {
 						continue
 					}
 
@@ -3329,12 +3328,10 @@ func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 	downstreamName := dc.marshalEntity(ch.conn.network, ch.Name)
 
 	var members []string
-	for _, entry := range ch.Members.innerMap {
-		nick := entry.originalKey
-		memberships := entry.value.(*xirc.MembershipSet)
+	ch.Members.ForEach(func(nick string, memberships *xirc.MembershipSet) {
 		s := formatMemberPrefix(*memberships, dc) + dc.marshalEntity(ch.conn.network, nick)
 		members = append(members, s)
-	}
+	})
 
 	msgs := xirc.GenerateNamesReply(dc.srv.prefix(), dc.nick, downstreamName, ch.Status, members)
 	for _, msg := range msgs {

@@ -292,7 +292,7 @@ func (uc *upstreamConn) downstreamByID(id uint64) *downstreamConn {
 }
 
 func (uc *upstreamConn) getChannel(name string) (*upstreamChannel, error) {
-	ch := uc.channels.Value(name)
+	ch := uc.channels.Get(name)
 	if ch == nil {
 		return nil, fmt.Errorf("unknown channel %q", name)
 	}
@@ -513,7 +513,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 			self := uc.isOurNick(msg.Prefix.Name)
 
-			ch := uc.network.channels.Value(target)
+			ch := uc.network.channels.Get(target)
 			if ch != nil && msg.Command != "TAGMSG" && !self {
 				if ch.Detached {
 					uc.handleDetachedMessage(ctx, ch, msg)
@@ -757,11 +757,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		if uc.network.channels.Len() > 0 {
 			var channels, keys []string
-			for _, entry := range uc.network.channels.innerMap {
-				ch := entry.value.(*database.Channel)
+			uc.network.channels.ForEach(func(_ string, ch *database.Channel) {
 				channels = append(channels, ch.Name)
 				keys = append(keys, ch.Key)
-			}
+			})
 
 			for _, msg := range xirc.GenerateJoin(channels, keys) {
 				uc.SendMessage(ctx, msg)
@@ -918,15 +917,14 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.nickCM = uc.network.casemap(uc.nick)
 		}
 
-		for _, entry := range uc.channels.innerMap {
-			ch := entry.value.(*upstreamChannel)
-			memberships := ch.Members.Value(msg.Prefix.Name)
+		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
+			memberships := ch.Members.Get(msg.Prefix.Name)
 			if memberships != nil {
-				ch.Members.Delete(msg.Prefix.Name)
-				ch.Members.SetValue(newNick, memberships)
+				ch.Members.Del(msg.Prefix.Name)
+				ch.Members.Set(newNick, memberships)
 				uc.appendLog(ch.Name, msg)
 			}
-		}
+		})
 
 		if !me {
 			uc.forEachDownstream(func(dc *downstreamConn) {
@@ -995,7 +993,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				uc.logger.Printf("joined channel %q", ch)
 				members := membershipsCasemapMap{newCasemapMap()}
 				members.casemap = uc.network.casemap
-				uc.channels.SetValue(ch, &upstreamChannel{
+				uc.channels.Set(ch, &upstreamChannel{
 					Name:    ch,
 					conn:    uc,
 					Members: members,
@@ -1011,7 +1009,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				if err != nil {
 					return err
 				}
-				ch.Members.SetValue(msg.Prefix.Name, &xirc.MembershipSet{})
+				ch.Members.Set(msg.Prefix.Name, &xirc.MembershipSet{})
 			}
 
 			chMsg := msg.Copy()
@@ -1027,9 +1025,8 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		for _, ch := range strings.Split(channels, ",") {
 			if uc.isOurNick(msg.Prefix.Name) {
 				uc.logger.Printf("parted channel %q", ch)
-				uch := uc.channels.Value(ch)
-				if uch != nil {
-					uc.channels.Delete(ch)
+				if uch := uc.channels.Get(ch); uch != nil {
+					uc.channels.Del(ch)
 					uch.updateAutoDetach(0)
 				}
 			} else {
@@ -1037,7 +1034,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				if err != nil {
 					return err
 				}
-				ch.Members.Delete(msg.Prefix.Name)
+				ch.Members.Del(msg.Prefix.Name)
 			}
 
 			chMsg := msg.Copy()
@@ -1052,13 +1049,13 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		if uc.isOurNick(user) {
 			uc.logger.Printf("kicked from channel %q by %s", channel, msg.Prefix.Name)
-			uc.channels.Delete(channel)
+			uc.channels.Del(channel)
 		} else {
 			ch, err := uc.getChannel(channel)
 			if err != nil {
 				return err
 			}
-			ch.Members.Delete(user)
+			ch.Members.Del(user)
 		}
 
 		uc.produce(channel, msg, 0)
@@ -1067,14 +1064,12 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.logger.Printf("quit")
 		}
 
-		for _, entry := range uc.channels.innerMap {
-			ch := entry.value.(*upstreamChannel)
+		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
 			if ch.Members.Has(msg.Prefix.Name) {
-				ch.Members.Delete(msg.Prefix.Name)
-
+				ch.Members.Del(msg.Prefix.Name)
 				uc.appendLog(ch.Name, msg)
 			}
-		}
+		})
 
 		if msg.Prefix.Name != uc.nick {
 			uc.forEachDownstream(func(dc *downstreamConn) {
@@ -1147,7 +1142,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 			uc.appendLog(ch.Name, msg)
 
-			c := uc.network.channels.Value(name)
+			c := uc.network.channels.Get(name)
 			if c == nil || !c.Detached {
 				uc.forEachDownstream(func(dc *downstreamConn) {
 					params := make([]string, len(msg.Params))
@@ -1211,7 +1206,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		c := uc.network.channels.Value(channel)
+		c := uc.network.channels.Get(channel)
 		if firstMode && (c == nil || !c.Detached) {
 			modeStr, modeParams := ch.modes.Format()
 
@@ -1240,7 +1235,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		firstCreationTime := ch.creationTime == ""
 		ch.creationTime = creationTime
 
-		c := uc.network.channels.Value(channel)
+		c := uc.network.channels.Get(channel)
 		if firstCreationTime && (c == nil || !c.Detached) {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.SendMessage(&irc.Message{
@@ -1269,7 +1264,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 		ch.TopicTime = time.Unix(sec, 0)
 
-		c := uc.network.channels.Value(channel)
+		c := uc.network.channels.Get(channel)
 		if firstTopicWhoTime && (c == nil || !c.Detached) {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				topicWho := dc.marshalUserPrefix(uc.network, ch.TopicWho)
@@ -1322,7 +1317,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		ch := uc.channels.Value(name)
+		ch := uc.channels.Get(name)
 		if ch == nil {
 			// NAMES on a channel we have not joined, forward to downstream
 			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
@@ -1351,7 +1346,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		for _, s := range splitSpace(members) {
 			memberships, nick := uc.parseMembershipPrefix(s)
-			ch.Members.SetValue(nick, memberships)
+			ch.Members.Set(nick, &memberships)
 		}
 	case irc.RPL_ENDOFNAMES:
 		var name string
@@ -1359,7 +1354,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		ch := uc.channels.Value(name)
+		ch := uc.channels.Get(name)
 		if ch == nil {
 			// NAMES on a channel we have not joined, forward to downstream
 			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
@@ -1379,7 +1374,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 		ch.complete = true
 
-		c := uc.network.channels.Value(name)
+		c := uc.network.channels.Get(name)
 		if c == nil || !c.Detached {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				forwardChannel(ctx, dc, ch)
@@ -1542,7 +1537,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		online := msg.Command == irc.RPL_MONONLINE
 		for _, target := range targets {
 			prefix := irc.ParsePrefix(target)
-			uc.monitored.SetValue(prefix.Name, online)
+			uc.monitored.Set(prefix.Name, online)
 		}
 
 		// Check if the nick we want is now free
@@ -2112,7 +2107,7 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, originID uint64
 	}
 
 	// Don't forward messages if it's a detached channel
-	ch := uc.network.channels.Value(target)
+	ch := uc.network.channels.Get(target)
 	detached := ch != nil && ch.Detached
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
@@ -2148,11 +2143,11 @@ func (uc *upstreamConn) updateAway() {
 }
 
 func (uc *upstreamConn) updateChannelAutoDetach(name string) {
-	uch := uc.channels.Value(name)
+	uch := uc.channels.Get(name)
 	if uch == nil {
 		return
 	}
-	ch := uc.network.channels.Value(name)
+	ch := uc.network.channels.Get(name)
 	if ch == nil || ch.Detached {
 		return
 	}
@@ -2170,7 +2165,7 @@ func (uc *upstreamConn) updateMonitor() {
 	var addList []string
 	seen := make(map[string]struct{})
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		for _, entry := range dc.monitored.innerMap {
+		for _, entry := range dc.monitored.m {
 			targetCM := uc.network.casemap(entry.originalKey)
 			if targetCM == serviceNickCM {
 				continue
@@ -2195,13 +2190,13 @@ func (uc *upstreamConn) updateMonitor() {
 
 	removeAll := true
 	var removeList []string
-	for targetCM, entry := range uc.monitored.innerMap {
-		if _, ok := seen[targetCM]; ok {
+	uc.monitored.ForEach(func(nick string, online bool) {
+		if _, ok := seen[uc.network.casemap(nick)]; ok {
 			removeAll = false
 		} else {
-			removeList = append(removeList, entry.originalKey)
+			removeList = append(removeList, nick)
 		}
-	}
+	})
 
 	// TODO: better handle the case where len(uc.monitored) + len(addList)
 	// exceeds the limit, probably by immediately sending ERR_MONLISTFULL?
@@ -2221,6 +2216,6 @@ func (uc *upstreamConn) updateMonitor() {
 	}
 
 	for _, target := range removeList {
-		uc.monitored.Delete(target)
+		uc.monitored.Del(target)
 	}
 }

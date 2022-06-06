@@ -85,11 +85,11 @@ func newDeliveredStore() deliveredStore {
 }
 
 func (ds deliveredStore) HasTarget(target string) bool {
-	return ds.m.Value(target) != nil
+	return ds.m.Get(target) != nil
 }
 
 func (ds deliveredStore) LoadID(target, clientName string) string {
-	clients := ds.m.Value(target)
+	clients := ds.m.Get(target)
 	if clients == nil {
 		return ""
 	}
@@ -97,28 +97,27 @@ func (ds deliveredStore) LoadID(target, clientName string) string {
 }
 
 func (ds deliveredStore) StoreID(target, clientName, msgID string) {
-	clients := ds.m.Value(target)
+	clients := ds.m.Get(target)
 	if clients == nil {
 		clients = make(deliveredClientMap)
-		ds.m.SetValue(target, clients)
+		ds.m.Set(target, clients)
 	}
 	clients[clientName] = msgID
 }
 
 func (ds deliveredStore) ForEachTarget(f func(target string)) {
-	for _, entry := range ds.m.innerMap {
-		f(entry.originalKey)
-	}
+	ds.m.ForEach(func(name string, _ deliveredClientMap) {
+		f(name)
+	})
 }
 
 func (ds deliveredStore) ForEachClient(f func(clientName string)) {
 	clients := make(map[string]struct{})
-	for _, entry := range ds.m.innerMap {
-		delivered := entry.value.(deliveredClientMap)
+	ds.m.ForEach(func(name string, delivered deliveredClientMap) {
 		for clientName := range delivered {
 			clients[clientName] = struct{}{}
 		}
-	}
+	})
 
 	for clientName := range clients {
 		f(clientName)
@@ -144,7 +143,7 @@ func newNetwork(user *user, record *database.Network, channels []database.Channe
 	m := channelCasemapMap{newCasemapMap()}
 	for _, ch := range channels {
 		ch := ch
-		m.SetValue(ch.Name, &ch)
+		m.Set(ch.Name, &ch)
 	}
 
 	return &network{
@@ -300,7 +299,7 @@ func (net *network) detach(ch *database.Channel) {
 	}
 
 	if net.conn != nil {
-		uch := net.conn.channels.Value(ch.Name)
+		uch := net.conn.channels.Get(ch.Name)
 		if uch != nil {
 			uch.updateAutoDetach(0)
 		}
@@ -328,7 +327,7 @@ func (net *network) attach(ctx context.Context, ch *database.Channel) {
 
 	var uch *upstreamChannel
 	if net.conn != nil {
-		uch = net.conn.channels.Value(ch.Name)
+		uch = net.conn.channels.Get(ch.Name)
 
 		net.conn.updateChannelAutoDetach(ch.Name)
 	}
@@ -351,12 +350,12 @@ func (net *network) attach(ctx context.Context, ch *database.Channel) {
 }
 
 func (net *network) deleteChannel(ctx context.Context, name string) error {
-	ch := net.channels.Value(name)
+	ch := net.channels.Get(name)
 	if ch == nil {
 		return fmt.Errorf("unknown channel %q", name)
 	}
 	if net.conn != nil {
-		uch := net.conn.channels.Value(ch.Name)
+		uch := net.conn.channels.Get(ch.Name)
 		if uch != nil {
 			uch.updateAutoDetach(0)
 		}
@@ -365,7 +364,7 @@ func (net *network) deleteChannel(ctx context.Context, name string) error {
 	if err := net.user.srv.db.DeleteChannel(ctx, ch.ID); err != nil {
 		return err
 	}
-	net.channels.Delete(name)
+	net.channels.Del(name)
 	return nil
 }
 
@@ -375,10 +374,9 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 	net.delivered.m.SetCasemapping(newCasemap)
 	if uc := net.conn; uc != nil {
 		uc.channels.SetCasemapping(newCasemap)
-		for _, entry := range uc.channels.innerMap {
-			uch := entry.value.(*upstreamChannel)
+		uc.channels.ForEach(func(_ string, uch *upstreamChannel) {
 			uch.Members.SetCasemapping(newCasemap)
-		}
+		})
 		uc.monitored.SetCasemapping(newCasemap)
 	}
 	net.forEachDownstream(func(dc *downstreamConn) {
@@ -623,7 +621,7 @@ func (u *user) run() {
 			}
 		case eventChannelDetach:
 			uc, name := e.uc, e.name
-			c := uc.network.channels.Value(name)
+			c := uc.network.channels.Get(name)
 			if c == nil || c.Detached {
 				continue
 			}
@@ -746,10 +744,9 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 
 	uc.abortPendingCommands()
 
-	for _, entry := range uc.channels.innerMap {
-		uch := entry.value.(*upstreamChannel)
+	uc.channels.ForEach(func(_ string, uch *upstreamChannel) {
 		uch.updateAutoDetach(0)
-	}
+	})
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		dc.updateSupportedCaps()
@@ -924,10 +921,9 @@ func (u *user) updateNetwork(ctx context.Context, record *database.Network) (*ne
 	// Most network changes require us to re-connect to the upstream server
 
 	channels := make([]database.Channel, 0, network.channels.Len())
-	for _, entry := range network.channels.innerMap {
-		ch := entry.value.(*database.Channel)
+	network.channels.ForEach(func(_ string, ch *database.Channel) {
 		channels = append(channels, *ch)
-	}
+	})
 
 	updatedNetwork := newNetwork(u, record, channels)
 

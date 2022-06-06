@@ -974,9 +974,9 @@ func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params 
 
 	sendNetwork := func(net *network) {
 		var channels []*database.Channel
-		for _, entry := range net.channels.innerMap {
-			channels = append(channels, entry.value.(*database.Channel))
-		}
+		net.channels.ForEach(func(_ string, ch *database.Channel) {
+			channels = append(channels, ch)
+		})
 
 		sort.Slice(channels, func(i, j int) bool {
 			return strings.ReplaceAll(channels[i].Name, "#", "") <
@@ -986,7 +986,7 @@ func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params 
 		for _, ch := range channels {
 			var uch *upstreamChannel
 			if net.conn != nil {
-				uch = net.conn.channels.Value(ch.Name)
+				uch = net.conn.channels.Get(ch.Name)
 			}
 
 			name := ch.Name
@@ -1109,7 +1109,7 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 		return fmt.Errorf("unknown channel %q", name)
 	}
 
-	ch := uc.network.channels.Value(upstreamName)
+	ch := uc.network.channels.Get(upstreamName)
 	if ch == nil {
 		return fmt.Errorf("unknown channel %q", name)
 	}
