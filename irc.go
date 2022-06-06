@@ -320,14 +320,6 @@ func newCasemapMap(size int) casemapMap {
 	}
 }
 
-func (cm *casemapMap) OriginalKey(name string) (key string, ok bool) {
-	entry, ok := cm.innerMap[cm.casemap(name)]
-	if !ok {
-		return "", false
-	}
-	return entry.originalKey, true
-}
-
 func (cm *casemapMap) Has(name string) bool {
 	_, ok := cm.innerMap[cm.casemap(name)]
 	return ok
