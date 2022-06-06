@@ -757,7 +757,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		if uc.network.channels.Len() > 0 {
 			var channels, keys []string
-			uc.network.channels.ForEach(func(_ string, ch *database.Channel) {
+			uc.network.channels.ForEach(func(ch *database.Channel) {
 				channels = append(channels, ch.Name)
 				keys = append(keys, ch.Key)
 			})
@@ -917,7 +917,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.nickCM = uc.network.casemap(uc.nick)
 		}
 
-		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
+		uc.channels.ForEach(func(ch *upstreamChannel) {
 			memberships := ch.Members.Get(msg.Prefix.Name)
 			if memberships != nil {
 				ch.Members.Del(msg.Prefix.Name)
@@ -993,7 +993,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				uc.logger.Printf("joined channel %q", ch)
 				members := membershipsCasemapMap{newCasemapMap()}
 				members.casemap = uc.network.casemap
-				uc.channels.Set(ch, &upstreamChannel{
+				uc.channels.Set(&upstreamChannel{
 					Name:    ch,
 					conn:    uc,
 					Members: members,
@@ -1064,7 +1064,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.logger.Printf("quit")
 		}
 
-		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
+		uc.channels.ForEach(func(ch *upstreamChannel) {
 			if ch.Members.Has(msg.Prefix.Name) {
 				ch.Members.Del(msg.Prefix.Name)
 				uc.appendLog(ch.Name, msg)

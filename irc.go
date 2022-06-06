@@ -374,13 +374,13 @@ func (cm *upstreamChannelCasemapMap) Get(name string) *upstreamChannel {
 	}
 }
 
-func (cm *upstreamChannelCasemapMap) Set(name string, uch *upstreamChannel) {
-	cm.set(name, uch)
+func (cm *upstreamChannelCasemapMap) Set(uch *upstreamChannel) {
+	cm.set(uch.Name, uch)
 }
 
-func (cm *upstreamChannelCasemapMap) ForEach(f func(string, *upstreamChannel)) {
+func (cm *upstreamChannelCasemapMap) ForEach(f func(*upstreamChannel)) {
 	for _, entry := range cm.m {
-		f(entry.originalKey, entry.value.(*upstreamChannel))
+		f(entry.value.(*upstreamChannel))
 	}
 }
 
@@ -394,13 +394,13 @@ func (cm *channelCasemapMap) Get(name string) *database.Channel {
 	}
 }
 
-func (cm *channelCasemapMap) Set(name string, ch *database.Channel) {
-	cm.set(name, ch)
+func (cm *channelCasemapMap) Set(ch *database.Channel) {
+	cm.set(ch.Name, ch)
 }
 
-func (cm *channelCasemapMap) ForEach(f func(string, *database.Channel)) {
+func (cm *channelCasemapMap) ForEach(f func(*database.Channel)) {
 	for _, entry := range cm.m {
-		f(entry.originalKey, entry.value.(*database.Channel))
+		f(entry.value.(*database.Channel))
 	}
 }
 

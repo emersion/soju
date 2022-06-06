@@ -1592,7 +1592,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	}
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
-		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
+		uc.channels.ForEach(func(ch *upstreamChannel) {
 			if !ch.complete {
 				return
 			}
@@ -1950,7 +1950,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Name: upstreamName,
 					Key:  key,
 				}
-				uc.network.channels.Set(upstreamName, ch)
+				uc.network.channels.Set(ch)
 			}
 			if err := dc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 				dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)
@@ -1979,10 +1979,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					uc.network.detach(ch)
 				} else {
 					ch = &database.Channel{
-						Name:     name,
+						Name:     upstreamName,
 						Detached: true,
 					}
-					uc.network.channels.Set(upstreamName, ch)
+					uc.network.channels.Set(ch)
 				}
 				if err := dc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 					dc.logger.Printf("failed to create or update channel %q: %v", upstreamName, err)

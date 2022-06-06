@@ -143,7 +143,7 @@ func newNetwork(user *user, record *database.Network, channels []database.Channe
 	m := channelCasemapMap{newCasemapMap()}
 	for _, ch := range channels {
 		ch := ch
-		m.Set(ch.Name, &ch)
+		m.Set(&ch)
 	}
 
 	return &network{
@@ -374,7 +374,7 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 	net.delivered.m.SetCasemapping(newCasemap)
 	if uc := net.conn; uc != nil {
 		uc.channels.SetCasemapping(newCasemap)
-		uc.channels.ForEach(func(_ string, uch *upstreamChannel) {
+		uc.channels.ForEach(func(uch *upstreamChannel) {
 			uch.Members.SetCasemapping(newCasemap)
 		})
 		uc.monitored.SetCasemapping(newCasemap)
@@ -744,7 +744,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 
 	uc.abortPendingCommands()
 
-	uc.channels.ForEach(func(_ string, uch *upstreamChannel) {
+	uc.channels.ForEach(func(uch *upstreamChannel) {
 		uch.updateAutoDetach(0)
 	})
 
@@ -921,7 +921,7 @@ func (u *user) updateNetwork(ctx context.Context, record *database.Network) (*ne
 	// Most network changes require us to re-connect to the upstream server
 
 	channels := make([]database.Channel, 0, network.channels.Len())
-	network.channels.ForEach(func(_ string, ch *database.Channel) {
+	network.channels.ForEach(func(ch *database.Channel) {
 		channels = append(channels, *ch)
 	})
 

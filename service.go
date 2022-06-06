@@ -974,7 +974,7 @@ func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params 
 
 	sendNetwork := func(net *network) {
 		var channels []*database.Channel
-		net.channels.ForEach(func(_ string, ch *database.Channel) {
+		net.channels.ForEach(func(ch *database.Channel) {
 			channels = append(channels, ch)
 		})
 
