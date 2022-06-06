@@ -348,7 +348,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		nickCM:       "*",
 		username:     "~u",
 		caps:         xirc.NewCapRegistry(),
-		monitored:    newCasemapMap(0),
+		monitored:    newCasemapMap(),
 		registration: new(downstreamRegistration),
 	}
 	dc.monitored.SetCasemapping(casemapASCII)
@@ -2716,7 +2716,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 			uc.updateMonitor()
 		case "C": // clear
-			dc.monitored = newCasemapMap(0)
+			dc.monitored = newCasemapMap()
 			dc.monitored.SetCasemapping(casemapASCII)
 			uc.updateMonitor()
 		case "L": // list

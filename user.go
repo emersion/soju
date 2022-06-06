@@ -81,7 +81,7 @@ type deliveredStore struct {
 }
 
 func newDeliveredStore() deliveredStore {
-	return deliveredStore{deliveredCasemapMap{newCasemapMap(0)}}
+	return deliveredStore{deliveredCasemapMap{newCasemapMap()}}
 }
 
 func (ds deliveredStore) HasTarget(target string) bool {
@@ -141,7 +141,7 @@ type network struct {
 func newNetwork(user *user, record *database.Network, channels []database.Channel) *network {
 	logger := &prefixLogger{user.logger, fmt.Sprintf("network %q: ", record.GetName())}
 
-	m := channelCasemapMap{newCasemapMap(0)}
+	m := channelCasemapMap{newCasemapMap()}
 	for _, ch := range channels {
 		ch := ch
 		m.SetValue(ch.Name, &ch)

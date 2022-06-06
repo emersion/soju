@@ -313,9 +313,9 @@ type casemapEntry struct {
 	value       interface{}
 }
 
-func newCasemapMap(size int) casemapMap {
+func newCasemapMap() casemapMap {
 	return casemapMap{
-		innerMap: make(map[string]casemapEntry, size),
+		innerMap: make(map[string]casemapEntry),
 		casemap:  casemapNone,
 	}
 }
