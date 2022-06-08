@@ -256,6 +256,12 @@ var needAllDownstreamCaps = map[string]string{
 	"draft/extended-monitor": "",
 }
 
+// bouncerDownstreamCaps is the list of downstream capabilities that are only
+// supported when the downstream connection isn't bound to an upstream network.
+var bouncerDownstreamCaps = map[string]string{
+	"soju.im/set-account-password": "",
+}
+
 // passthroughIsupport is the set of ISUPPORT tokens that are directly passed
 // through from the upstream server to downstream clients.
 //
@@ -1120,6 +1126,14 @@ func (dc *downstreamConn) updateSupportedCaps() {
 			dc.setSupportedCap(cap, needAllDownstreamCaps[cap])
 		} else {
 			dc.unsetSupportedCap(cap)
+		}
+	}
+
+	for k, v := range bouncerDownstreamCaps {
+		if dc.network == nil {
+			dc.setSupportedCap(k, v)
+		} else {
+			dc.unsetSupportedCap(k)
 		}
 	}
 
@@ -3064,6 +3078,34 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				msg.Tags["batch"] = batchRef
 				dc.SendMessage(dc.marshalMessage(msg, uc.network))
 			}
+		})
+	case "SETPASSWORD":
+		var newPassword string
+		if err := parseMessageParams(msg, &newPassword); err != nil {
+			return err
+		}
+
+		// copy the user record because we'll mutate it
+		record := dc.user.User
+		if err := record.SetPassword(newPassword); err != nil {
+			dc.logger.Printf("failed setting account password: %v", err)
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"SETPASSWORD", "INTERNAL_ERROR", "Internal error"},
+			}}
+		}
+
+		if err := dc.user.updateUser(ctx, &record); err != nil {
+			dc.logger.Printf("failed updating user: %v", err)
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"SETPASSWORD", "INTERNAL_ERROR", "Internal error"},
+			}}
+		}
+
+		dc.SendMessage(&irc.Message{
+			Command: "SETPASSWORD",
+			Params:  []string{"SUCCESS"},
 		})
 	case "BOUNCER":
 		var subcommand string
