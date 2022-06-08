@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/emersion/go-sasl"
-	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v3"
 
 	"git.sr.ht/~emersion/soju/database"
@@ -1304,14 +1303,8 @@ func (dc *downstreamConn) authenticate(ctx context.Context, username, password s
 		return newInvalidUsernameOrPasswordError(fmt.Errorf("user not found: %w", err))
 	}
 
-	// Password auth disabled
-	if u.Password == "" {
-		return newInvalidUsernameOrPasswordError(fmt.Errorf("password auth disabled"))
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
-	if err != nil {
-		return newInvalidUsernameOrPasswordError(fmt.Errorf("wrong password"))
+	if err := u.CheckPassword(password); err != nil {
+		return newInvalidUsernameOrPasswordError(err)
 	}
 
 	dc.user = dc.srv.getUser(username)

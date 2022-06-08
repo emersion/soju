@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Database interface {
@@ -61,6 +62,29 @@ type User struct {
 	Password string // hashed
 	Realname string
 	Admin    bool
+}
+
+func (u *User) CheckPassword(password string) error {
+	// Password auth disabled
+	if u.Password == "" {
+		return fmt.Errorf("password auth disabled")
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	if err != nil {
+		return fmt.Errorf("wrong password: %v", err)
+	}
+
+	return nil
+}
+
+func (u *User) SetPassword(password string) error {
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %v", err)
+	}
+	u.Password = string(hashed)
+	return nil
 }
 
 type SASL struct {

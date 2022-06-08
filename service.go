@@ -830,16 +830,13 @@ func handleUserCreate(ctx context.Context, dc *downstreamConn, params []string) 
 		return fmt.Errorf("flag -password is required")
 	}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("failed to hash password: %v", err)
-	}
-
 	user := &database.User{
 		Username: *username,
-		Password: string(hashed),
 		Realname: *realname,
 		Admin:    *admin,
+	}
+	if err := user.SetPassword(*password); err != nil {
+		return err
 	}
 	if _, err := dc.srv.createUser(ctx, user); err != nil {
 		return fmt.Errorf("could not create user: %v", err)
@@ -872,22 +869,22 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 		return fmt.Errorf("unexpected argument")
 	}
 
-	var hashed *string
-	if password != nil {
-		hashedBytes, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
-		if err != nil {
-			return fmt.Errorf("failed to hash password: %v", err)
-		}
-		hashedStr := string(hashedBytes)
-		hashed = &hashedStr
-	}
-
 	if username != "" && username != dc.user.Username {
 		if !dc.user.Admin {
 			return fmt.Errorf("you must be an admin to update other users")
 		}
 		if realname != nil {
 			return fmt.Errorf("cannot update -realname of other user")
+		}
+
+		var hashed *string
+		if password != nil {
+			hashedBytes, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
+			if err != nil {
+				return fmt.Errorf("failed to hash password: %v", err)
+			}
+			hashedStr := string(hashedBytes)
+			hashed = &hashedStr
 		}
 
 		u := dc.srv.getUser(username)
@@ -916,8 +913,10 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 		// copy the user record because we'll mutate it
 		record := dc.user.User
 
-		if hashed != nil {
-			record.Password = *hashed
+		if password != nil {
+			if err := record.SetPassword(*password); err != nil {
+				return err
+			}
 		}
 		if realname != nil {
 			record.Realname = *realname
