@@ -3377,7 +3377,12 @@ func (dc *downstreamConn) handleNickServPRIVMSG(ctx context.Context, uc *upstrea
 }
 
 func (dc *downstreamConn) findWebPushSubscription(ctx context.Context, endpoint string) (*database.WebPushSubscription, error) {
-	subs, err := dc.user.srv.db.ListWebPushSubscriptions(ctx, dc.network.ID)
+	var networkID int64
+	if dc.network != nil {
+		networkID = dc.network.ID
+	}
+
+	subs, err := dc.user.srv.db.ListWebPushSubscriptions(ctx, networkID)
 	if err != nil {
 		return nil, err
 	}
