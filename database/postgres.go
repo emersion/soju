@@ -98,6 +98,7 @@ CREATE TABLE "WebPushSubscription" (
 	id SERIAL PRIMARY KEY,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	"user" INTEGER REFERENCES "User"(id) ON DELETE CASCADE,
 	network INTEGER REFERENCES "Network"(id) ON DELETE CASCADE,
 	endpoint TEXT NOT NULL,
 	key_vapid TEXT,
@@ -146,6 +147,11 @@ var postgresMigrations = []string{
 			key_p256dh TEXT,
 			UNIQUE(network, endpoint)
 		);
+	`,
+	`
+		ALTER TABLE "WebPushSubscription"
+		ADD COLUMN "user" INTEGER
+		REFERENCES "User"(id) ON DELETE CASCADE
 	`,
 }
 
@@ -704,7 +710,7 @@ func (db *PostgresDB) StoreWebPushConfig(ctx context.Context, config *WebPushCon
 	return err
 }
 
-func (db *PostgresDB) ListWebPushSubscriptions(ctx context.Context, networkID int64) ([]WebPushSubscription, error) {
+func (db *PostgresDB) ListWebPushSubscriptions(ctx context.Context, userID, networkID int64) ([]WebPushSubscription, error) {
 	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
@@ -716,7 +722,7 @@ func (db *PostgresDB) ListWebPushSubscriptions(ctx context.Context, networkID in
 	rows, err := db.db.QueryContext(ctx, `
 		SELECT id, endpoint, key_auth, key_p256dh, key_vapid
 		FROM "WebPushSubscription"
-		WHERE network IS NOT DISTINCT FROM $1`, nullNetworkID)
+		WHERE "user" = $1 AND network IS NOT DISTINCT FROM $2`, userID, nullNetworkID)
 	if err != nil {
 		return nil, err
 	}
@@ -734,7 +740,7 @@ func (db *PostgresDB) ListWebPushSubscriptions(ctx context.Context, networkID in
 	return subs, rows.Err()
 }
 
-func (db *PostgresDB) StoreWebPushSubscription(ctx context.Context, networkID int64, sub *WebPushSubscription) error {
+func (db *PostgresDB) StoreWebPushSubscription(ctx context.Context, userID, networkID int64, sub *WebPushSubscription) error {
 	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
@@ -753,11 +759,11 @@ func (db *PostgresDB) StoreWebPushSubscription(ctx context.Context, networkID in
 			sub.Keys.Auth, sub.Keys.P256DH, sub.Keys.VAPID, sub.ID)
 	} else {
 		err = db.db.QueryRowContext(ctx, `
-			INSERT INTO "WebPushSubscription" (created_at, updated_at, network,
-				endpoint, key_auth, key_p256dh, key_vapid)
-			VALUES (NOW(), NOW(), $1, $2, $3, $4, $5)
+			INSERT INTO "WebPushSubscription" (created_at, updated_at, "user",
+				network, endpoint, key_auth, key_p256dh, key_vapid)
+			VALUES (NOW(), NOW(), $1, $2, $3, $4, $5, $6)
 			RETURNING id`,
-			nullNetworkID, sub.Endpoint, sub.Keys.Auth, sub.Keys.P256DH,
+			nullNetworkID, userID, sub.Endpoint, sub.Keys.Auth, sub.Keys.P256DH,
 			sub.Keys.VAPID).Scan(&sub.ID)
 	}
 

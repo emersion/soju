@@ -36,8 +36,8 @@ type Database interface {
 	ListWebPushConfigs(ctx context.Context) ([]WebPushConfig, error)
 	StoreWebPushConfig(ctx context.Context, config *WebPushConfig) error
 
-	ListWebPushSubscriptions(ctx context.Context, networkID int64) ([]WebPushSubscription, error)
-	StoreWebPushSubscription(ctx context.Context, networkID int64, sub *WebPushSubscription) error
+	ListWebPushSubscriptions(ctx context.Context, userID, networkID int64) ([]WebPushSubscription, error)
+	StoreWebPushSubscription(ctx context.Context, userID, networkID int64, sub *WebPushSubscription) error
 	DeleteWebPushSubscription(ctx context.Context, id int64) error
 }
 

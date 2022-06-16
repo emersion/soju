@@ -445,7 +445,7 @@ func (net *network) autoSaveSASLPlain(ctx context.Context, username, password st
 }
 
 func (net *network) broadcastWebPush(ctx context.Context, msg *irc.Message) {
-	subs, err := net.user.srv.db.ListWebPushSubscriptions(ctx, net.ID)
+	subs, err := net.user.srv.db.ListWebPushSubscriptions(ctx, net.user.ID, net.ID)
 	if err != nil {
 		net.logger.Printf("failed to list Web push subscriptions: %v", err)
 		return

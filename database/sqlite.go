@@ -97,11 +97,13 @@ CREATE TABLE WebPushSubscription (
 	id INTEGER PRIMARY KEY,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
+	user INTEGER NOT NULL,
 	network INTEGER,
 	endpoint TEXT NOT NULL,
 	key_vapid TEXT,
 	key_auth TEXT,
 	key_p256dh TEXT,
+	FOREIGN KEY(user) REFERENCES User(id),
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, endpoint)
 );
@@ -236,6 +238,9 @@ var sqliteMigrations = []string{
 			FOREIGN KEY(network) REFERENCES Network(id),
 			UNIQUE(network, endpoint)
 		);
+	`,
+	`
+		ALTER TABLE WebPushSubscription ADD COLUMN user INTEGER REFERENCES User(id);
 	`,
 }
 
@@ -878,7 +883,7 @@ func (db *SqliteDB) StoreWebPushConfig(ctx context.Context, config *WebPushConfi
 	return err
 }
 
-func (db *SqliteDB) ListWebPushSubscriptions(ctx context.Context, networkID int64) ([]WebPushSubscription, error) {
+func (db *SqliteDB) ListWebPushSubscriptions(ctx context.Context, userID, networkID int64) ([]WebPushSubscription, error) {
 	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
@@ -890,7 +895,7 @@ func (db *SqliteDB) ListWebPushSubscriptions(ctx context.Context, networkID int6
 	rows, err := db.db.QueryContext(ctx, `
 		SELECT id, endpoint, key_auth, key_p256dh, key_vapid
 		FROM WebPushSubscription
-		WHERE network IS ?`, nullNetworkID)
+		WHERE user = ? AND network IS ?`, userID, nullNetworkID)
 	if err != nil {
 		return nil, err
 	}
@@ -908,12 +913,13 @@ func (db *SqliteDB) ListWebPushSubscriptions(ctx context.Context, networkID int6
 	return subs, rows.Err()
 }
 
-func (db *SqliteDB) StoreWebPushSubscription(ctx context.Context, networkID int64, sub *WebPushSubscription) error {
+func (db *SqliteDB) StoreWebPushSubscription(ctx context.Context, userID, networkID int64, sub *WebPushSubscription) error {
 	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
 	args := []interface{}{
 		sql.Named("id", sub.ID),
+		sql.Named("user", userID),
 		sql.Named("network", sql.NullInt64{
 			Int64: networkID,
 			Valid: networkID != 0,
@@ -937,10 +943,10 @@ func (db *SqliteDB) StoreWebPushSubscription(ctx context.Context, networkID int6
 		var res sql.Result
 		res, err = db.db.ExecContext(ctx, `
 			INSERT INTO
-			WebPushSubscription(created_at, updated_at, network, endpoint,
+			WebPushSubscription(created_at, updated_at, user, network, endpoint,
 				key_auth, key_p256dh, key_vapid)
-			VALUES (:now, :now, :network, :endpoint, :key_auth, :key_p256dh,
-				:key_vapid)`,
+			VALUES (:now, :now, :user, :network, :endpoint, :key_auth,
+				:key_p256dh, :key_vapid)`,
 			args...)
 		if err != nil {
 			return err
