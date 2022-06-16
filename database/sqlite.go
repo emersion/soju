@@ -241,6 +241,7 @@ var sqliteMigrations = []string{
 	`,
 	`
 		ALTER TABLE WebPushSubscription ADD COLUMN user INTEGER REFERENCES User(id);
+		UPDATE WebPushSubscription AS wps SET user = (SELECT n.user FROM Network AS n WHERE n.id = wps.network);
 	`,
 }
 
