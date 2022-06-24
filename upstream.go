@@ -503,36 +503,38 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			break
 		}
 
-		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
+		if msg.Prefix.Name == uc.serverPrefix.Name || msg.Prefix.Name == "*" || strings.HasPrefix(target, "$") {
+			// This is a server message
 			uc.produce("", msg, 0)
-		} else { // regular user message
-			bufferName := target
-			if uc.isOurNick(target) {
-				bufferName = msg.Prefix.Name
+			break
+		}
+
+		bufferName := target
+		if uc.isOurNick(target) {
+			bufferName = msg.Prefix.Name
+		}
+
+		self := uc.isOurNick(msg.Prefix.Name)
+
+		ch := uc.network.channels.Get(bufferName)
+		if ch != nil && msg.Command != "TAGMSG" && !self {
+			if ch.Detached {
+				uc.handleDetachedMessage(ctx, ch, msg)
 			}
 
-			self := uc.isOurNick(msg.Prefix.Name)
-
-			ch := uc.network.channels.Get(bufferName)
-			if ch != nil && msg.Command != "TAGMSG" && !self {
-				if ch.Detached {
-					uc.handleDetachedMessage(ctx, ch, msg)
-				}
-
-				highlight := uc.network.isHighlight(msg)
-				if ch.DetachOn == database.FilterMessage || ch.DetachOn == database.FilterDefault || (ch.DetachOn == database.FilterHighlight && highlight) {
-					uc.updateChannelAutoDetach(bufferName)
-				}
-				if highlight {
-					uc.network.broadcastWebPush(ctx, msg)
-				}
+			highlight := uc.network.isHighlight(msg)
+			if ch.DetachOn == database.FilterMessage || ch.DetachOn == database.FilterDefault || (ch.DetachOn == database.FilterHighlight && highlight) {
+				uc.updateChannelAutoDetach(bufferName)
 			}
-			if ch == nil && uc.isOurNick(target) {
+			if highlight {
 				uc.network.broadcastWebPush(ctx, msg)
 			}
-
-			uc.produce(bufferName, msg, downstreamID)
 		}
+		if ch == nil && uc.isOurNick(target) {
+			uc.network.broadcastWebPush(ctx, msg)
+		}
+
+		uc.produce(bufferName, msg, downstreamID)
 	case "CAP":
 		var subCmd string
 		if err := parseMessageParams(msg, nil, &subCmd); err != nil {
