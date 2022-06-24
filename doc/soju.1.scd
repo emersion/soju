@@ -437,8 +437,10 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	  user.
 	- The _-admin_ flag is only valid when updating another user.
 
-*user delete* <username>
-	Delete a soju user. Only admins can delete accounts.
+*user delete* <username> [confirmation token]
+	Delete a soju user.
+
+	Only admins can delete other users.
 
 *server status*
 	Show some bouncer statistics. Only admins can query this information.

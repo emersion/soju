@@ -273,10 +273,9 @@ func init() {
 					handle: handleUserUpdate,
 				},
 				"delete": {
-					usage:  "<username>",
+					usage:  "<username> [confirmation token]",
 					desc:   "delete a user",
 					handle: handleUserDelete,
-					admin:  true,
 				},
 			},
 		},
@@ -945,14 +944,37 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 }
 
 func handleUserDelete(ctx context.Context, dc *downstreamConn, params []string) error {
-	if len(params) != 1 {
-		return fmt.Errorf("expected exactly one argument")
+	if len(params) != 1 && len(params) != 2 {
+		return fmt.Errorf("expected one or two arguments")
 	}
+
 	username := params[0]
+	hashBytes := sha1.Sum([]byte(username))
+	hash := fmt.Sprintf("%x", hashBytes[0:3])
+
+	self := dc.user.Username == username
+
+	if !dc.user.Admin && !self {
+		return fmt.Errorf("only admins may delete other users")
+	}
 
 	u := dc.srv.getUser(username)
 	if u == nil {
 		return fmt.Errorf("unknown username %q", username)
+	}
+
+	if len(params) < 2 {
+		sendServicePRIVMSG(dc, fmt.Sprintf(`To confirm user deletion, send "user delete %s %s"`, username, hash))
+		return nil
+	}
+
+	if token := params[1]; token != hash {
+		return fmt.Errorf("provided confirmation token doesn't match user")
+	}
+
+	if self {
+		sendServicePRIVMSG(dc, fmt.Sprintf("Goodbye %s, deleting your account. There will be no further confirmation.", username))
+		ctx = context.TODO()
 	}
 
 	u.stop()
@@ -961,7 +983,10 @@ func handleUserDelete(ctx context.Context, dc *downstreamConn, params []string) 
 		return fmt.Errorf("failed to delete user: %v", err)
 	}
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("deleted user %q", username))
+	if !self {
+		sendServicePRIVMSG(dc, fmt.Sprintf("deleted user %q", username))
+	}
+
 	return nil
 }
 
