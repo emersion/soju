@@ -513,6 +513,12 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		if uc.isOurNick(target) {
 			bufferName = msg.Prefix.Name
 		}
+		if t, ok := msg.Tags["+draft/channel-context"]; ok {
+			ch := uc.channels.Get(string(t))
+			if ch != nil && ch.Members.Has(msg.Prefix.Name) {
+				bufferName = ch.Name
+			}
+		}
 
 		self := uc.isOurNick(msg.Prefix.Name)
 
