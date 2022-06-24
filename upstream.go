@@ -483,13 +483,13 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		})
 		return nil
 	case "NOTICE", "PRIVMSG", "TAGMSG":
-		var entity, text string
+		var target, text string
 		if msg.Command != "TAGMSG" {
-			if err := parseMessageParams(msg, &entity, &text); err != nil {
+			if err := parseMessageParams(msg, &target, &text); err != nil {
 				return err
 			}
 		} else {
-			if err := parseMessageParams(msg, &entity); err != nil {
+			if err := parseMessageParams(msg, &target); err != nil {
 				return err
 			}
 		}
@@ -498,7 +498,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.logger.Printf("skipping %v from soju's service: %v", msg.Command, msg)
 			break
 		}
-		if entity == serviceNick {
+		if target == serviceNick {
 			uc.logger.Printf("skipping %v to soju's service: %v", msg.Command, msg)
 			break
 		}
@@ -506,14 +506,14 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		if msg.Prefix.User == "" && msg.Prefix.Host == "" { // server message
 			uc.produce("", msg, 0)
 		} else { // regular user message
-			target := entity
+			bufferName := target
 			if uc.isOurNick(target) {
-				target = msg.Prefix.Name
+				bufferName = msg.Prefix.Name
 			}
 
 			self := uc.isOurNick(msg.Prefix.Name)
 
-			ch := uc.network.channels.Get(target)
+			ch := uc.network.channels.Get(bufferName)
 			if ch != nil && msg.Command != "TAGMSG" && !self {
 				if ch.Detached {
 					uc.handleDetachedMessage(ctx, ch, msg)
@@ -521,17 +521,17 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 				highlight := uc.network.isHighlight(msg)
 				if ch.DetachOn == database.FilterMessage || ch.DetachOn == database.FilterDefault || (ch.DetachOn == database.FilterHighlight && highlight) {
-					uc.updateChannelAutoDetach(target)
+					uc.updateChannelAutoDetach(bufferName)
 				}
 				if highlight {
 					uc.network.broadcastWebPush(ctx, msg)
 				}
 			}
-			if ch == nil && uc.isOurNick(entity) {
+			if ch == nil && uc.isOurNick(target) {
 				uc.network.broadcastWebPush(ctx, msg)
 			}
 
-			uc.produce(target, msg, downstreamID)
+			uc.produce(bufferName, msg, downstreamID)
 		}
 	case "CAP":
 		var subCmd string
