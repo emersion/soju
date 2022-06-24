@@ -283,6 +283,13 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 
 	Options are:
 
+	*-detached* true|false
+		Attach or detach this channel.
+
+		A detached channel is joined but is hidden by the bouncer. This is
+		useful to e.g. collect logs and highlights in low-interest or
+		high-traffic channels.
+
 	*-relay-detached* <mode>
 		Set when to relay messages from detached channels to the user with a BouncerServ NOTICE.
 

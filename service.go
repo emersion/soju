@@ -288,7 +288,7 @@ func init() {
 					handle: handleServiceChannelStatus,
 				},
 				"update": {
-					usage:  "<name> [-relay-detached <default|none|highlight|message>] [-reattach-on <default|none|highlight|message>] [-detach-after <duration>] [-detach-on <default|none|highlight|message>]",
+					usage:  "<name> [-detached <true|false>] [-relay-detached <default|none|highlight|message>] [-reattach-on <default|none|highlight|message>] [-detach-after <duration>] [-detach-on <default|none|highlight|message>]",
 					desc:   "update a channel",
 					handle: handleServiceChannelUpdate,
 				},
@@ -1048,11 +1048,13 @@ func parseFilter(filter string) (database.MessageFilter, error) {
 
 type channelFlagSet struct {
 	*flag.FlagSet
+	Detached                                         *bool
 	RelayDetached, ReattachOn, DetachAfter, DetachOn *string
 }
 
 func newChannelFlagSet() *channelFlagSet {
 	fs := &channelFlagSet{FlagSet: newFlagSet()}
+	fs.Var(boolPtrFlag{&fs.Detached}, "detached", "")
 	fs.Var(stringPtrFlag{&fs.RelayDetached}, "relay-detached", "")
 	fs.Var(stringPtrFlag{&fs.ReattachOn}, "reattach-on", "")
 	fs.Var(stringPtrFlag{&fs.DetachAfter}, "detach-after", "")
@@ -1115,6 +1117,14 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 
 	if err := fs.update(ch); err != nil {
 		return err
+	}
+
+	if fs.Detached != nil && *fs.Detached != ch.Detached {
+		if *fs.Detached {
+			uc.network.detach(ch)
+		} else {
+			uc.network.attach(ctx, ch)
+		}
 	}
 
 	uc.updateChannelAutoDetach(upstreamName)
