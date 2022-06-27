@@ -2,13 +2,10 @@
 
 [![builds.sr.ht status](https://builds.sr.ht/~emersion/soju/commits/master.svg)](https://builds.sr.ht/~emersion/soju/commits/master?)
 
-A user-friendly IRC bouncer.
-
-- Multi-user
-- Support multiple clients for a single user, with proper backlog
-  synchronization
-- Support connecting to multiple upstream servers via a single IRC connection
-  to the bouncer
+soju is a user-friendly IRC bouncer. soju connects to upstream IRC servers on
+behalf of the user to provide extra functionality. soju supports many features
+such as multiple users, numerous [IRCv3] extensions, chat history playback and
+detached channels. It is well-suited for both small and large deployments.
 
 ## Usage
 
@@ -51,3 +48,4 @@ Copyright (C) 2020 The soju Contributors
 [GitHub]: https://github.com/emersion/soju
 [issue tracker]: https://todo.sr.ht/~emersion/soju
 [IRC channel]: ircs://irc.libera.chat/#soju
+[IRCv3]: https://ircv3.net/
