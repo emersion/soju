@@ -4,7 +4,7 @@ packages:
   - rsync
   - scdoc
 secrets:
-  - 5874ac5a-905e-4596-a117-fed1401c60ce # deploy SSH key
+  - 77c7956b-003e-44f7-bb5c-2944b2047654 # deploy SSH key
 sources:
   - https://git.sr.ht/~emersion/soju
 tasks:
@@ -22,7 +22,7 @@ tasks:
           --delete \
           --delete-excluded \
           --exclude .git \
-          . deploy@emersion.fr:/srv/http/soju
+          . deploy@sheeta.emersion.fr:/srv/http/soju
 triggers:
   - action: email
     condition: failure
