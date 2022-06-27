@@ -1,6 +1,6 @@
 # read
 
-This is a work-in-progress specification.
+This specification has been superseded by the IRC `draft/read-marker` extension.
 
 ## Description
 

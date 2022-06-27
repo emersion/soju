@@ -237,6 +237,8 @@ var permanentDownstreamCaps = map[string]string{
 	"server-time":   "",
 	"setname":       "",
 
+	"draft/read-marker",
+
 	"soju.im/bouncer-networks":        "",
 	"soju.im/bouncer-networks-notify": "",
 	"soju.im/no-implicit-names":       "",
@@ -591,6 +593,9 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 		return
 	}
 	if msg.Command == "ACCOUNT" && !dc.caps.IsEnabled("account-notify") {
+		return
+	}
+	if msg.Command == "MARKREAD" && !dc.caps.IsEnabled("draft/read-marker") {
 		return
 	}
 	if msg.Command == "READ" && !dc.caps.IsEnabled("soju.im/read") {
@@ -2896,12 +2901,12 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				dc.SendMessage(dc.marshalMessage(msg, network))
 			}
 		})
-	case "READ":
+	case "READ", "MARKREAD":
 		var target, criteria string
 		if err := parseMessageParams(msg, &target); err != nil {
 			return ircError{&irc.Message{
 				Command: "FAIL",
-				Params:  []string{"READ", "NEED_MORE_PARAMS", "Missing parameters"},
+				Params:  []string{msg.Command, "NEED_MORE_PARAMS", "Missing parameters"},
 			}}
 		}
 		if len(msg.Params) > 1 {
@@ -2912,7 +2917,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if casemapASCII(target) == serviceNickCM {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),
-				Command: "READ",
+				Command: msg.Command,
 				Params:  []string{target, "*"},
 			})
 			return nil
@@ -2929,7 +2934,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			dc.logger.Printf("failed to get the read receipt for %q: %v", entity, err)
 			return ircError{&irc.Message{
 				Command: "FAIL",
-				Params:  []string{"READ", "INTERNAL_ERROR", target, "Internal error"},
+				Params:  []string{msg.Command, "INTERNAL_ERROR", target, "Internal error"},
 			}}
 		} else if r == nil {
 			r = &database.ReadReceipt{
@@ -2944,7 +2949,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if len(criteriaParts) != 2 || criteriaParts[0] != "timestamp" {
 				return ircError{&irc.Message{
 					Command: "FAIL",
-					Params:  []string{"READ", "INVALID_PARAMS", criteria, "Unknown criteria"},
+					Params:  []string{msg.Command, "INVALID_PARAMS", criteria, "Unknown criteria"},
 				}}
 			}
 
@@ -2952,7 +2957,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if err != nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",
-					Params:  []string{"READ", "INVALID_PARAMS", criteria, "Invalid criteria"},
+					Params:  []string{msg.Command, "INVALID_PARAMS", criteria, "Invalid criteria"},
 				}}
 			}
 			now := time.Now()
@@ -2965,7 +2970,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					dc.logger.Printf("failed to store receipt for %q: %v", entity, err)
 					return ircError{&irc.Message{
 						Command: "FAIL",
-						Params:  []string{"READ", "INTERNAL_ERROR", target, "Internal error"},
+						Params:  []string{msg.Command, "INTERNAL_ERROR", target, "Internal error"},
 					}}
 				}
 				broadcast = true
@@ -2980,7 +2985,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if broadcast || dc.id == d.id {
 				d.SendMessage(&irc.Message{
 					Prefix:  d.prefix(),
-					Command: "READ",
+					Command: msg.Command,
 					Params:  []string{d.marshalEntity(network, entity), timestampStr},
 				})
 			}
@@ -3435,7 +3440,13 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 		sendTopic(dc, ch)
 	}
 
-	if dc.caps.IsEnabled("soju.im/read") {
+	var markReadCmd string
+	if dc.caps.IsEnabled("draft/read-marker") {
+		markReadCmd = "MARKREAD"
+	} else if dc.caps.IsEnabled("soju.im/read") {
+		markReadCmd = "READ"
+	}
+	if markReadCmd != "" {
 		channelCM := ch.conn.network.casemap(ch.Name)
 		r, err := dc.srv.db.GetReadReceipt(ctx, ch.conn.network.ID, channelCM)
 		if err != nil {
@@ -3447,7 +3458,7 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 			}
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),
-				Command: "READ",
+				Command: markReadCmd,
 				Params:  []string{dc.marshalEntity(ch.conn.network, ch.Name), timestampStr},
 			})
 		}
