@@ -237,7 +237,7 @@ var permanentDownstreamCaps = map[string]string{
 	"server-time":   "",
 	"setname":       "",
 
-	"draft/read-marker",
+	"draft/read-marker": "",
 
 	"soju.im/bouncer-networks":        "",
 	"soju.im/bouncer-networks-notify": "",
