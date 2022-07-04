@@ -18,7 +18,7 @@ in the soju configuration file). Setting up on-disk chat logs is recommended.
 If you're migrating from ZNC, a tool is available to import users, networks and
 channels from a ZNC config file:
 
-    go run ./contrib/znc-import.go <znc config file>
+    go run ./contrib/znc-import <znc config file>
 
 ## Client side
 
