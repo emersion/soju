@@ -1701,6 +1701,11 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			downstreamID = dc.id
 		}
 
+		if command == "AUTHENTICATE" {
+			uc.saslClient = nil
+			uc.saslStarted = false
+		}
+
 		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			dc.SendMessage(&irc.Message{
 				Prefix:  uc.srv.prefix(),
