@@ -72,18 +72,26 @@ type User struct {
 	Admin    bool
 }
 
-func (u *User) CheckPassword(password string) error {
+func (u *User) CheckPassword(password string) (upgraded bool, err error) {
 	// Password auth disabled
 	if u.Password == "" {
-		return fmt.Errorf("password auth disabled")
+		return false, fmt.Errorf("password auth disabled")
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	err = bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
 	if err != nil {
-		return fmt.Errorf("wrong password: %v", err)
+		return false, fmt.Errorf("wrong password: %v", err)
 	}
 
-	return nil
+	passCost, err := bcrypt.Cost([]byte(u.Password))
+	if err != nil {
+		return false, fmt.Errorf("invalid password cost: %v", err)
+	}
+
+	if passCost < bcrypt.DefaultCost {
+		return true, u.SetPassword(password)
+	}
+	return false, nil
 }
 
 func (u *User) SetPassword(password string) error {

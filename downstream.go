@@ -1312,8 +1312,15 @@ func (dc *downstreamConn) authenticate(ctx context.Context, username, password s
 		return newInvalidUsernameOrPasswordError(fmt.Errorf("user not found: %w", err))
 	}
 
-	if err := u.CheckPassword(password); err != nil {
+	upgraded, err := u.CheckPassword(password)
+	if err != nil {
 		return newInvalidUsernameOrPasswordError(err)
+	}
+
+	if upgraded {
+		if err := dc.srv.db.StoreUser(ctx, u); err != nil {
+			return err
+		}
 	}
 
 	dc.user = dc.srv.getUser(username)
