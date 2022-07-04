@@ -1691,7 +1691,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				})
 			}
 		}
-	case irc.ERR_UNKNOWNCOMMAND, irc.RPL_TRYAGAIN:
+	case xirc.ERR_UNKNOWNERROR, irc.ERR_UNKNOWNCOMMAND, irc.ERR_NEEDMOREPARAMS, irc.RPL_TRYAGAIN:
 		var command, reason string
 		if err := parseMessageParams(msg, nil, &command, &reason); err != nil {
 			return err
