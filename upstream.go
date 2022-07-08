@@ -503,7 +503,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			break
 		}
 
-		if msg.Prefix.Name == uc.serverPrefix.Name || msg.Prefix.Name == "*" || strings.HasPrefix(target, "$") {
+		if msg.Prefix.Name == uc.serverPrefix.Name || target == "*" || strings.HasPrefix(target, "$") {
 			// This is a server message
 			uc.produce("", msg, 0)
 			break
