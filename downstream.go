@@ -1872,7 +1872,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 			if uc := dc.upstream(); uc != nil && uc.caps.IsEnabled("setname") {
 				// Upstream will reply with a SETNAME message on success
-				uc.SendMessage(ctx, &irc.Message{
+				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 					Command: "SETNAME",
 					Params:  []string{realname},
 				})
