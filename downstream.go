@@ -2983,9 +2983,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 		network.forEachDownstream(func(d *downstreamConn) {
 			if broadcast || dc.id == d.id {
+				cmd := "MARKREAD"
+				if !dc.caps.IsEnabled("draft/read-marker") {
+					cmd = "READ"
+				}
 				d.SendMessage(&irc.Message{
 					Prefix:  d.prefix(),
-					Command: msg.Command,
+					Command: cmd,
 					Params:  []string{d.marshalEntity(network, entity), timestampStr},
 				})
 			}
