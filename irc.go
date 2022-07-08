@@ -464,6 +464,12 @@ func (cm *monitorCasemapMap) ForEach(f func(name string, online bool)) {
 	}
 }
 
+type casemapSet struct{ casemapMap }
+
+func (cs *casemapSet) Add(name string) {
+	cs.set(name, nil)
+}
+
 func isWordBoundary(r rune) bool {
 	switch r {
 	case '-', '_', '|': // inspired from weechat.look.highlight_regex

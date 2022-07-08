@@ -131,11 +131,12 @@ type network struct {
 	logger  Logger
 	stopped chan struct{}
 
-	conn      *upstreamConn
-	channels  channelCasemapMap
-	delivered deliveredStore
-	lastError error
-	casemap   casemapping
+	conn        *upstreamConn
+	channels    channelCasemapMap
+	delivered   deliveredStore
+	pushTargets casemapSet
+	lastError   error
+	casemap     casemapping
 }
 
 func newNetwork(user *user, record *database.Network, channels []database.Channel) *network {
@@ -148,13 +149,14 @@ func newNetwork(user *user, record *database.Network, channels []database.Channe
 	}
 
 	return &network{
-		Network:   *record,
-		user:      user,
-		logger:    logger,
-		stopped:   make(chan struct{}),
-		channels:  m,
-		delivered: newDeliveredStore(),
-		casemap:   casemapRFC1459,
+		Network:     *record,
+		user:        user,
+		logger:      logger,
+		stopped:     make(chan struct{}),
+		channels:    m,
+		delivered:   newDeliveredStore(),
+		pushTargets: casemapSet{newCasemapMap()},
+		casemap:     casemapRFC1459,
 	}
 }
 
@@ -377,6 +379,7 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 	net.casemap = newCasemap
 	net.channels.SetCasemapping(newCasemap)
 	net.delivered.m.SetCasemapping(newCasemap)
+	net.pushTargets.SetCasemapping(newCasemap)
 	if uc := net.conn; uc != nil {
 		uc.channels.SetCasemapping(newCasemap)
 		uc.channels.ForEach(func(uch *upstreamChannel) {

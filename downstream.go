@@ -2004,6 +2004,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				if err := uc.network.deleteChannel(ctx, upstreamName); err != nil {
 					dc.logger.Printf("failed to delete channel %q: %v", upstreamName, err)
 				}
+
+				uc.network.pushTargets.Del(upstreamName)
 			}
 		}
 	case "KICK":
@@ -2994,6 +2996,16 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				})
 			}
 		})
+
+		if broadcast && network.pushTargets.Has(entity) {
+			// TODO: only broadcast if draft/read-marker has been negotiated
+			// TODO: use lower priority
+			network.pushTargets.Del(entity)
+			network.broadcastWebPush(ctx, &irc.Message{
+				Command: "MARKREAD",
+				Params:  []string{entity, timestampStr},
+			})
+		}
 	case "SEARCH":
 		store, ok := dc.user.msgStore.(msgstore.SearchStore)
 		if !ok {

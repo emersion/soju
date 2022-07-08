@@ -522,21 +522,21 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		self := uc.isOurNick(msg.Prefix.Name)
 
 		ch := uc.network.channels.Get(bufferName)
+		highlight := false
 		if ch != nil && msg.Command != "TAGMSG" && !self {
 			if ch.Detached {
 				uc.handleDetachedMessage(ctx, ch, msg)
 			}
 
-			highlight := uc.network.isHighlight(msg)
+			highlight = uc.network.isHighlight(msg)
 			if ch.DetachOn == database.FilterMessage || ch.DetachOn == database.FilterDefault || (ch.DetachOn == database.FilterHighlight && highlight) {
 				uc.updateChannelAutoDetach(bufferName)
 			}
-			if highlight {
-				uc.network.broadcastWebPush(ctx, msg)
-			}
 		}
-		if ch == nil && uc.isOurNick(target) {
+
+		if highlight || uc.isOurNick(target) {
 			uc.network.broadcastWebPush(ctx, msg)
+			uc.network.pushTargets.Add(bufferName)
 		}
 
 		uc.produce(bufferName, msg, downstreamID)
