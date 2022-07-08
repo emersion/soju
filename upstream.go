@@ -131,7 +131,6 @@ type upstreamConn struct {
 
 	registered  bool
 	nick        string
-	nickCM      string
 	username    string
 	realname    string
 	hostname    string
@@ -304,7 +303,7 @@ func (uc *upstreamConn) isChannel(entity string) bool {
 }
 
 func (uc *upstreamConn) isOurNick(nick string) bool {
-	return uc.nickCM == uc.network.casemap(nick)
+	return uc.network.equalCasemap(uc.nick, nick)
 }
 
 func (uc *upstreamConn) abortPendingCommands() {
@@ -766,7 +765,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		uc.registered = true
 		uc.serverPrefix = msg.Prefix
-		uc.nickCM = uc.network.casemap(uc.nick)
 		uc.logger.Printf("connection registered with nick %q", uc.nick)
 
 		if uc.network.channels.Len() > 0 {
@@ -819,7 +817,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 					casemap = casemapRFC1459
 				}
 				uc.network.updateCasemapping(casemap)
-				uc.nickCM = uc.network.casemap(uc.nick)
 				uc.casemapIsSet = true
 			case "CHANMODES":
 				if !negate {
@@ -866,7 +863,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			// we assume it implements the old RFCs with rfc1459.
 			uc.casemapIsSet = true
 			uc.network.updateCasemapping(casemapRFC1459)
-			uc.nickCM = uc.network.casemap(uc.nick)
 		}
 
 		if !uc.gotMotd {
@@ -928,7 +924,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.logger.Printf("changed nick from %q to %q", uc.nick, newNick)
 			me = true
 			uc.nick = newNick
-			uc.nickCM = uc.network.casemap(uc.nick)
 		}
 
 		uc.channels.ForEach(func(ch *upstreamChannel) {
@@ -1560,12 +1555,11 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		// Check if the nick we want is now free
 		wantNick := database.GetNick(&uc.user.User, &uc.network.Network)
-		wantNickCM := uc.network.casemap(wantNick)
-		if !online && uc.nickCM != wantNickCM {
+		if !online && !uc.isOurNick(wantNick) {
 			found := false
 			for _, target := range targets {
 				prefix := irc.ParsePrefix(target)
-				if uc.network.casemap(prefix.Name) == wantNickCM {
+				if uc.network.equalCasemap(prefix.Name, wantNick) {
 					found = true
 					break
 				}
@@ -1770,7 +1764,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		// servers have NICKLEN=30 so let's just use that.
 		if !uc.registered && len(uc.nick)+1 < 30 {
 			uc.nick = uc.nick + "_"
-			uc.nickCM = uc.network.casemap(uc.nick)
 			uc.logger.Printf("desired nick is not available, falling back to %q", uc.nick)
 			uc.SendMessage(ctx, &irc.Message{
 				Command: "NICK",
@@ -1972,7 +1965,6 @@ func splitSpace(s string) []string {
 
 func (uc *upstreamConn) register(ctx context.Context) {
 	uc.nick = database.GetNick(&uc.user.User, &uc.network.Network)
-	uc.nickCM = uc.network.casemap(uc.nick)
 	uc.username = database.GetUsername(&uc.user.User, &uc.network.Network)
 	uc.realname = database.GetRealname(&uc.user.User, &uc.network.Network)
 

@@ -417,7 +417,7 @@ func (dc *downstreamConn) upstream() *upstreamConn {
 func isOurNick(net *network, nick string) bool {
 	// TODO: this doesn't account for nick changes
 	if net.conn != nil {
-		return net.casemap(nick) == net.conn.nickCM
+		return net.conn.isOurNick(nick)
 	}
 	// We're not currently connected to the upstream connection, so we don't
 	// know whether this name is our nickname. Best-effort: use the network's
