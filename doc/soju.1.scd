@@ -416,6 +416,10 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	*-admin* true|false
 		Make the new user an administrator.
 
+	*-nick* <nick>
+		Set the user's nickname. This is used as a fallback if there is no
+		nickname set for a network.
+
 	*-realname* <realname>
 		Set the user's realname. This is used as a fallback if there is no
 		realname set for a network.
@@ -429,7 +433,8 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	Not all flags are valid in all contexts:
 
 	- The _-username_ flag is never valid, usernames are immutable.
-	- The _-realname_ flag is only valid when updating the current user.
+	- The _-nick_ and _-realname_ flag are only valid when updating the current
+	  user.
 	- The _-admin_ flag is only valid when updating another user.
 
 *user delete* <username>

@@ -933,8 +933,11 @@ func (u *user) updateNetwork(ctx context.Context, record *database.Network) (*ne
 		panic("tried updating a new network")
 	}
 
-	// If the realname is reset to the default, just wipe the per-network
-	// setting
+	// If the nickname/realname is reset to the default, just wipe the
+	// per-network setting
+	if record.Nick == u.Nick {
+		record.Nick = ""
+	}
 	if record.Realname == u.Realname {
 		record.Realname = ""
 	}
@@ -1030,11 +1033,27 @@ func (u *user) updateUser(ctx context.Context, record *database.User) error {
 		panic("ID mismatch when updating user")
 	}
 
+	nickUpdated := u.Nick != record.Nick
 	realnameUpdated := u.Realname != record.Realname
 	if err := u.srv.db.StoreUser(ctx, record); err != nil {
 		return fmt.Errorf("failed to update user %q: %v", u.Username, err)
 	}
 	u.User = *record
+
+	if nickUpdated {
+		for _, net := range u.networks {
+			if net.Nick != "" {
+				continue
+			}
+
+			if uc := net.conn; uc != nil {
+				uc.SendMessage(ctx, &irc.Message{
+					Command: "NICK",
+					Params:  []string{database.GetNick(&u.User, &net.Network)},
+				})
+			}
+		}
+	}
 
 	if realnameUpdated {
 		// Re-connect to networks which use the default realname

@@ -1798,12 +1798,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return err
 		}
 
-		if dc.network == nil {
-			return ircError{&irc.Message{
-				Command: xirc.ERR_UNKNOWNERROR,
-				Params:  []string{dc.nick, "NICK", "Cannot change nickname on the bouncer connection"},
-			}}
-		}
 		if nick == "" || strings.ContainsAny(nick, illegalNickChars) {
 			return ircError{&irc.Message{
 				Command: irc.ERR_ERRONEUSNICKNAME,
@@ -1817,25 +1811,45 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}}
 		}
 
-		record := dc.network.Network
-		record.Nick = nick
-		if err := dc.srv.db.StoreNetwork(ctx, dc.user.ID, &record); err != nil {
-			return err
+		var err error
+		if dc.network != nil {
+			record := dc.network.Network
+			record.Nick = nick
+			err = dc.srv.db.StoreNetwork(ctx, dc.user.ID, &record)
+		} else {
+			record := dc.user.User
+			record.Nick = nick
+			err = dc.user.updateUser(ctx, &record)
+		}
+		if err != nil {
+			dc.logger.Printf("failed to update nick: %v", err)
+			return ircError{&irc.Message{
+				Command: xirc.ERR_UNKNOWNERROR,
+				Params:  []string{dc.nick, "NICK", "Failed to update nick"},
+			}}
 		}
 
-		if uc := dc.upstream(); uc != nil {
-			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
-				Command: "NICK",
-				Params:  []string{nick},
-			})
+		if dc.network != nil {
+			if uc := dc.upstream(); uc != nil {
+				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
+					Command: "NICK",
+					Params:  []string{nick},
+				})
+			} else {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.prefix(),
+					Command: "NICK",
+					Params:  []string{nick},
+				})
+				dc.nick = nick
+				dc.nickCM = casemapASCII(dc.nick)
+			}
 		} else {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.prefix(),
-				Command: "NICK",
-				Params:  []string{nick},
-			})
-			dc.nick = nick
-			dc.nickCM = casemapASCII(dc.nick)
+			for _, c := range dc.user.downstreamConns {
+				if c.network == nil {
+					c.updateNick()
+				}
+			}
 		}
 	case "SETNAME":
 		var realname string

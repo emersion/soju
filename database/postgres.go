@@ -30,6 +30,7 @@ CREATE TABLE "User" (
 	username VARCHAR(255) NOT NULL UNIQUE,
 	password VARCHAR(255),
 	admin BOOLEAN NOT NULL DEFAULT FALSE,
+	nick VARCHAR(255),
 	realname VARCHAR(255)
 );
 
@@ -153,6 +154,7 @@ var postgresMigrations = []string{
 		ADD COLUMN "user" INTEGER
 		REFERENCES "User"(id) ON DELETE CASCADE
 	`,
+	`ALTER TABLE "User" ADD COLUMN nick VARCHAR(255)`,
 }
 
 type PostgresDB struct {
@@ -282,7 +284,7 @@ func (db *PostgresDB) ListUsers(ctx context.Context) ([]User, error) {
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx,
-		`SELECT id, username, password, admin, realname FROM "User"`)
+		`SELECT id, username, password, admin, nick, realname FROM "User"`)
 	if err != nil {
 		return nil, err
 	}
@@ -291,11 +293,12 @@ func (db *PostgresDB) ListUsers(ctx context.Context) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var user User
-		var password, realname sql.NullString
-		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &realname); err != nil {
+		var password, nick, realname sql.NullString
+		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname); err != nil {
 			return nil, err
 		}
 		user.Password = password.String
+		user.Nick = nick.String
 		user.Realname = realname.String
 		users = append(users, user)
 	}
@@ -312,14 +315,15 @@ func (db *PostgresDB) GetUser(ctx context.Context, username string) (*User, erro
 
 	user := &User{Username: username}
 
-	var password, realname sql.NullString
+	var password, nick, realname sql.NullString
 	row := db.db.QueryRowContext(ctx,
-		`SELECT id, password, admin, realname FROM "User" WHERE username = $1`,
+		`SELECT id, password, admin, nick, realname FROM "User" WHERE username = $1`,
 		username)
-	if err := row.Scan(&user.ID, &password, &user.Admin, &realname); err != nil {
+	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname); err != nil {
 		return nil, err
 	}
 	user.Password = password.String
+	user.Nick = nick.String
 	user.Realname = realname.String
 	return user, nil
 }
@@ -329,21 +333,22 @@ func (db *PostgresDB) StoreUser(ctx context.Context, user *User) error {
 	defer cancel()
 
 	password := toNullString(user.Password)
+	nick := toNullString(user.Nick)
 	realname := toNullString(user.Realname)
 
 	var err error
 	if user.ID == 0 {
 		err = db.db.QueryRowContext(ctx, `
-			INSERT INTO "User" (username, password, admin, realname)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO "User" (username, password, admin, nick, realname)
+			VALUES ($1, $2, $3, $4, $5)
 			RETURNING id`,
-			user.Username, password, user.Admin, realname).Scan(&user.ID)
+			user.Username, password, user.Admin, nick, realname).Scan(&user.ID)
 	} else {
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE "User"
-			SET password = $1, admin = $2, realname = $3
-			WHERE id = $4`,
-			password, user.Admin, realname, user.ID)
+			SET password = $1, admin = $2, nick = $3, realname = $4
+			WHERE id = $5`,
+			password, user.Admin, nick, realname, user.ID)
 	}
 	return err
 }

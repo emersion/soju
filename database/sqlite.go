@@ -27,7 +27,8 @@ CREATE TABLE User (
 	username TEXT NOT NULL UNIQUE,
 	password TEXT,
 	admin INTEGER NOT NULL DEFAULT 0,
-	realname TEXT
+	realname TEXT,
+	nick TEXT
 );
 
 CREATE TABLE Network (
@@ -243,6 +244,7 @@ var sqliteMigrations = []string{
 		ALTER TABLE WebPushSubscription ADD COLUMN user INTEGER REFERENCES User(id);
 		UPDATE WebPushSubscription AS wps SET user = (SELECT n.user FROM Network AS n WHERE n.id = wps.network);
 	`,
+	"ALTER TABLE User ADD COLUMN nick TEXT;",
 }
 
 type SqliteDB struct {
@@ -349,7 +351,7 @@ func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx,
-		"SELECT id, username, password, admin, realname FROM User")
+		"SELECT id, username, password, admin, nick, realname FROM User")
 	if err != nil {
 		return nil, err
 	}
@@ -358,11 +360,12 @@ func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var user User
-		var password, realname sql.NullString
-		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &realname); err != nil {
+		var password, nick, realname sql.NullString
+		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname); err != nil {
 			return nil, err
 		}
 		user.Password = password.String
+		user.Nick = nick.String
 		user.Realname = realname.String
 		users = append(users, user)
 	}
@@ -379,14 +382,15 @@ func (db *SqliteDB) GetUser(ctx context.Context, username string) (*User, error)
 
 	user := &User{Username: username}
 
-	var password, realname sql.NullString
+	var password, nick, realname sql.NullString
 	row := db.db.QueryRowContext(ctx,
-		"SELECT id, password, admin, realname FROM User WHERE username = ?",
+		"SELECT id, password, admin, nick, realname FROM User WHERE username = ?",
 		username)
-	if err := row.Scan(&user.ID, &password, &user.Admin, &realname); err != nil {
+	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname); err != nil {
 		return nil, err
 	}
 	user.Password = password.String
+	user.Nick = nick.String
 	user.Realname = realname.String
 	return user, nil
 }
@@ -399,21 +403,22 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 		sql.Named("username", user.Username),
 		sql.Named("password", toNullString(user.Password)),
 		sql.Named("admin", user.Admin),
+		sql.Named("nick", toNullString(user.Nick)),
 		sql.Named("realname", toNullString(user.Realname)),
 	}
 
 	var err error
 	if user.ID != 0 {
 		_, err = db.db.ExecContext(ctx, `
-			UPDATE User SET password = :password, admin = :admin,
+			UPDATE User SET password = :password, admin = :admin, nick = :nick,
 				realname = :realname WHERE username = :username`,
 			args...)
 	} else {
 		var res sql.Result
 		res, err = db.db.ExecContext(ctx, `
 			INSERT INTO
-			User(username, password, admin, realname)
-			VALUES (:username, :password, :admin, :realname)`,
+			User(username, password, admin, nick, realname)
+			VALUES (:username, :password, :admin, :nick, :realname)`,
 			args...)
 		if err != nil {
 			return err

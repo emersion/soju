@@ -817,6 +817,7 @@ func handleUserCreate(ctx context.Context, dc *downstreamConn, params []string) 
 	fs := newFlagSet()
 	username := fs.String("username", "", "")
 	password := fs.String("password", "", "")
+	nick := fs.String("nick", "", "")
 	realname := fs.String("realname", "", "")
 	admin := fs.Bool("admin", false, "")
 
@@ -832,6 +833,7 @@ func handleUserCreate(ctx context.Context, dc *downstreamConn, params []string) 
 
 	user := &database.User{
 		Username: *username,
+		Nick:     *nick,
 		Realname: *realname,
 		Admin:    *admin,
 	}
@@ -854,10 +856,11 @@ func popArg(params []string) (string, []string) {
 }
 
 func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) error {
-	var password, realname *string
+	var password, nick, realname *string
 	var admin *bool
 	fs := newFlagSet()
 	fs.Var(stringPtrFlag{&password}, "password", "")
+	fs.Var(stringPtrFlag{&nick}, "nick", "")
 	fs.Var(stringPtrFlag{&realname}, "realname", "")
 	fs.Var(boolPtrFlag{&admin}, "admin", "")
 
@@ -872,6 +875,9 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 	if username != "" && username != dc.user.Username {
 		if !dc.user.Admin {
 			return fmt.Errorf("you must be an admin to update other users")
+		}
+		if nick != nil {
+			return fmt.Errorf("cannot update -nick of other user")
 		}
 		if realname != nil {
 			return fmt.Errorf("cannot update -realname of other user")
@@ -917,6 +923,9 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 			if err := record.SetPassword(*password); err != nil {
 				return err
 			}
+		}
+		if nick != nil {
+			record.Nick = *nick
 		}
 		if realname != nil {
 			record.Realname = *realname

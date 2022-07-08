@@ -67,6 +67,7 @@ type User struct {
 	ID       int64
 	Username string
 	Password string // hashed
+	Nick     string
 	Realname string
 	Admin    bool
 }
@@ -149,6 +150,9 @@ func (net *Network) URL() (*url.URL, error) {
 func GetNick(user *User, net *Network) string {
 	if net != nil && net.Nick != "" {
 		return net.Nick
+	}
+	if user.Nick != "" {
+		return user.Nick
 	}
 	return user.Username
 }
