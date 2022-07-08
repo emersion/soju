@@ -1836,13 +1836,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Params:  []string{nick},
 				})
 			} else {
-				dc.SendMessage(&irc.Message{
-					Prefix:  dc.prefix(),
-					Command: "NICK",
-					Params:  []string{nick},
-				})
-				dc.nick = nick
-				dc.nickCM = casemapASCII(dc.nick)
+				dc.updateNick()
 			}
 		} else {
 			for _, c := range dc.user.downstreamConns {
