@@ -494,16 +494,16 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		if msg.Prefix.Name == serviceNick {
+		if uc.network.equalCasemap(msg.Prefix.Name, serviceNick) {
 			uc.logger.Printf("skipping %v from soju's service: %v", msg.Command, msg)
 			break
 		}
-		if target == serviceNick {
+		if uc.network.equalCasemap(target, serviceNick) {
 			uc.logger.Printf("skipping %v to soju's service: %v", msg.Command, msg)
 			break
 		}
 
-		if msg.Prefix.Name == uc.serverPrefix.Name || target == "*" || strings.HasPrefix(target, "$") {
+		if uc.network.equalCasemap(msg.Prefix.Name, uc.serverPrefix.Name) || target == "*" || strings.HasPrefix(target, "$") {
 			// This is a server message
 			uc.produce("", msg, 0)
 			break

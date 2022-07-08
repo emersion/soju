@@ -179,6 +179,10 @@ func (net *network) isStopped() bool {
 	}
 }
 
+func (net *network) equalCasemap(a, b string) bool {
+	return net.casemap(a) == net.casemap(b)
+}
+
 func userIdent(u *database.User) string {
 	// The ident is a string we will send to upstream servers in clear-text.
 	// For privacy reasons, make sure it doesn't expose any meaningful user
