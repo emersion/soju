@@ -3309,16 +3309,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			if oldSub != nil {
-				if oldSub.Keys.VAPID == newSub.Keys.VAPID && oldSub.Keys.Auth == newSub.Keys.Auth && oldSub.Keys.P256DH == newSub.Keys.P256DH {
-					// Nothing has changed, this is a no-op
-					dc.SendMessage(&irc.Message{
-						Prefix:  dc.srv.prefix(),
-						Command: "WEBPUSH",
-						Params:  []string{"REGISTER", endpoint},
-					})
-					return nil
-				}
-
 				// Update the old subscription instead of creating a new one
 				newSub.ID = oldSub.ID
 			}
