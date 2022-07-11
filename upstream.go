@@ -1429,8 +1429,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		dc, cmd := uc.dequeueCommand("WHO")
 		if cmd == nil {
-			return fmt.Errorf("unexpected RPL_ENDOFWHO: no matching pending WHO")
+			// Some servers send RPL_TRYAGAIN followed by RPL_ENDOFWHO
+			return nil
 		} else if dc == nil {
+			// Downstream connection is gone
 			return nil
 		}
 
