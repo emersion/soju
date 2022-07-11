@@ -2140,8 +2140,10 @@ func (uc *upstreamConn) updateAway() {
 	ctx := context.TODO()
 
 	away := true
-	uc.forEachDownstream(func(*downstreamConn) {
-		away = false
+	uc.forEachDownstream(func(dc *downstreamConn) {
+		if dc.away == nil {
+			away = false
+		}
 	})
 	if away == uc.away {
 		return

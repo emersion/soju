@@ -330,6 +330,7 @@ type downstreamConn struct {
 	username string
 	hostname string
 	account  string // RPL_LOGGEDIN/OUT state
+	away     *string
 
 	capVersion   int
 	caps         xirc.CapRegistry
@@ -2666,6 +2667,28 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		uc.logger.Printf("starting %v with account name %v", msg.Command, msg.Params[0])
 		uc.enqueueCommand(dc, msg)
+	case "AWAY":
+		if len(msg.Params) > 0 {
+			dc.away = &msg.Params[0]
+		} else {
+			dc.away = nil
+		}
+
+		cmd := irc.RPL_NOWAWAY
+		desc := "You have been marked as being away"
+		if dc.away == nil {
+			cmd = irc.RPL_UNAWAY
+			desc = "You are no longer marked as being away"
+		}
+		dc.SendMessage(&irc.Message{
+			Command: cmd,
+			Params:  []string{dc.nick, desc},
+		})
+
+		uc := dc.upstream()
+		if uc != nil {
+			uc.updateAway()
+		}
 	case "MONITOR":
 		// MONITOR is unsupported in multi-upstream mode
 		uc := dc.upstream()
