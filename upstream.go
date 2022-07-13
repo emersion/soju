@@ -502,7 +502,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			break
 		}
 
-		if uc.network.equalCasemap(msg.Prefix.Name, uc.serverPrefix.Name) || target == "*" || strings.HasPrefix(target, "$") {
+		if !uc.registered || uc.network.equalCasemap(msg.Prefix.Name, uc.serverPrefix.Name) || target == "*" || strings.HasPrefix(target, "$") {
 			// This is a server message
 			uc.produce("", msg, 0)
 			break
