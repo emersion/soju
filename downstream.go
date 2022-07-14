@@ -2696,6 +2696,27 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if uc != nil {
 			uc.updateAway()
 		}
+	case "INFO":
+		if dc.network == nil {
+			dc.SendMessage(&irc.Message{
+				Command: irc.RPL_INFO,
+				Params:  []string{dc.nick, "soju <https://soju.im>"},
+			})
+			dc.SendMessage(&irc.Message{
+				Command: irc.RPL_ENDOFINFO,
+				Params:  []string{dc.nick, "End of INFO"},
+			})
+			break
+		}
+
+		if uc := dc.upstream(); uc == nil {
+			return ircError{&irc.Message{
+				Command: irc.ERR_UNKNOWNCOMMAND,
+				Params:  []string{dc.nick, msg.Command, "Disconnected from upstream network"},
+			}}
+		} else {
+			uc.SendMessageLabeled(ctx, dc.id, msg)
+		}
 	case "MONITOR":
 		// MONITOR is unsupported in multi-upstream mode
 		uc := dc.upstream()
