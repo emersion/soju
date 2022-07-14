@@ -75,6 +75,11 @@ type eventUserUpdate struct {
 	done     chan error
 }
 
+type eventTryRegainNick struct {
+	uc   *upstreamConn
+	nick string
+}
+
 type deliveredClientMap map[string]string // client name -> msg ID
 
 type deliveredStore struct {
@@ -755,6 +760,8 @@ func (u *user) run() {
 					dc.Close()
 				}
 			}
+		case eventTryRegainNick:
+			e.uc.tryRegainNick(e.nick)
 		case eventStop:
 			for _, dc := range u.downstreamConns {
 				dc.Close()
@@ -776,6 +783,7 @@ func (u *user) run() {
 func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	uc.network.conn = nil
 
+	uc.stopRegainNickTimer()
 	uc.abortPendingCommands()
 
 	uc.channels.ForEach(func(uch *upstreamChannel) {
