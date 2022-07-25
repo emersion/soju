@@ -768,7 +768,7 @@ func (db *PostgresDB) StoreWebPushSubscription(ctx context.Context, userID, netw
 				network, endpoint, key_auth, key_p256dh, key_vapid)
 			VALUES (NOW(), NOW(), $1, $2, $3, $4, $5, $6)
 			RETURNING id`,
-			nullNetworkID, userID, sub.Endpoint, sub.Keys.Auth, sub.Keys.P256DH,
+			userID, nullNetworkID, sub.Endpoint, sub.Keys.Auth, sub.Keys.P256DH,
 			sub.Keys.VAPID).Scan(&sub.ID)
 	}
 
