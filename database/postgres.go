@@ -763,7 +763,7 @@ func (db *PostgresDB) StoreWebPushSubscription(ctx context.Context, userID, netw
 
 	nullNetworkID := sql.NullInt64{
 		Int64: networkID,
-		Valid: networkID == 0,
+		Valid: networkID != 0,
 	}
 
 	var err error
