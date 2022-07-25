@@ -99,7 +99,7 @@ CREATE TABLE "WebPushSubscription" (
 	id SERIAL PRIMARY KEY,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-	"user" INTEGER REFERENCES "User"(id) ON DELETE CASCADE,
+	"user" INTEGER NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
 	network INTEGER REFERENCES "Network"(id) ON DELETE CASCADE,
 	endpoint TEXT NOT NULL,
 	key_vapid TEXT,
@@ -155,6 +155,14 @@ var postgresMigrations = []string{
 		REFERENCES "User"(id) ON DELETE CASCADE
 	`,
 	`ALTER TABLE "User" ADD COLUMN nick VARCHAR(255)`,
+	// Before this migration, a bug swapped user and network, so empty the
+	// web push subscriptions table
+	`
+		DELETE FROM "WebPushSubscription";
+		ALTER TABLE "WebPushSubscription"
+		ALTER COLUMN "user"
+		SET NOT NULL;
+	`,
 }
 
 type PostgresDB struct {
