@@ -175,6 +175,10 @@ func OpenPostgresDB(source string) (Database, error) {
 		return nil, err
 	}
 
+	// By default sql.DB doesn't have a connection limit. This can cause errors
+	// because PostgreSQL has a default of 100 max connections.
+	sqlPostgresDB.SetMaxOpenConns(25)
+
 	db := &PostgresDB{db: sqlPostgresDB}
 	if err := db.upgrade(); err != nil {
 		sqlPostgresDB.Close()
