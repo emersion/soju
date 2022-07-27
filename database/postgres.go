@@ -733,7 +733,7 @@ func (db *PostgresDB) ListWebPushSubscriptions(ctx context.Context, userID, netw
 
 	nullNetworkID := sql.NullInt64{
 		Int64: networkID,
-		Valid: networkID == 0,
+		Valid: networkID != 0,
 	}
 
 	rows, err := db.db.QueryContext(ctx, `
