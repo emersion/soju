@@ -60,7 +60,7 @@ func (l logger) Debugf(format string, v ...interface{}) {
 
 func NewLogger(out io.Writer, debug bool) Logger {
 	return logger{
-		Logger: log.New(log.Writer(), "", log.LstdFlags),
+		Logger: log.New(out, "", log.LstdFlags),
 		debug:  debug,
 	}
 }
