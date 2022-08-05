@@ -492,14 +492,6 @@ func (dc *downstreamConn) unmarshalEntity(name string) (*upstreamConn, string, e
 	return net.conn, name, nil
 }
 
-func (dc *downstreamConn) unmarshalText(uc *upstreamConn, text string) string {
-	if dc.upstream() != nil {
-		return text
-	}
-	// TODO: smarter parsing that ignores URLs
-	return strings.ReplaceAll(text, "/"+uc.network.GetName(), "")
-}
-
 func (dc *downstreamConn) ReadMessage() (*irc.Message, error) {
 	msg, err := dc.conn.ReadMessage()
 	if err != nil {
@@ -2520,14 +2512,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				dc.handleNickServPRIVMSG(ctx, uc, text)
 			}
 
-			unmarshaledText := text
-			if uc.isChannel(upstreamName) {
-				unmarshaledText = dc.unmarshalText(uc, text)
-			}
-
 			upstreamParams := []string{upstreamName}
 			if msg.Command != "TAGMSG" {
-				upstreamParams = append(upstreamParams, unmarshaledText)
+				upstreamParams = append(upstreamParams, text)
 			}
 
 			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
