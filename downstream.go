@@ -1411,14 +1411,10 @@ func (dc *downstreamConn) loadNetwork(ctx context.Context) error {
 	}
 
 	if dc.registration.networkName == "*" {
-		if !dc.srv.Config().MultiUpstream {
-			return ircError{&irc.Message{
-				Command: irc.ERR_PASSWDMISMATCH,
-				Params:  []string{dc.nick, fmt.Sprintf("Multi-upstream mode is disabled on this server")},
-			}}
-		}
-		dc.isMultiUpstream = true
-		return nil
+		return ircError{&irc.Message{
+			Command: irc.ERR_PASSWDMISMATCH,
+			Params:  []string{dc.nick, fmt.Sprintf("Multi-upstream mode is no longer supported")},
+		}}
 	}
 
 	if dc.registration.networkName == "" {
