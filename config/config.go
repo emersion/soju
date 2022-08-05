@@ -58,7 +58,6 @@ type Server struct {
 	AcceptProxyIPs IPSet
 
 	MaxUserNetworks int
-	MultiUpstream   bool
 	UpstreamUserIPs []*net.IPNet
 }
 
@@ -77,7 +76,6 @@ func Defaults() *Server {
 			Driver: "memory",
 		},
 		MaxUserNetworks: -1,
-		MultiUpstream:   true,
 	}
 }
 
@@ -159,16 +157,6 @@ func parse(cfg scfg.Block) (*Server, error) {
 			if srv.MaxUserNetworks, err = strconv.Atoi(max); err != nil {
 				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
 			}
-		case "multi-upstream-mode":
-			var str string
-			if err := d.ParseParams(&str); err != nil {
-				return nil, err
-			}
-			v, err := strconv.ParseBool(str)
-			if err != nil {
-				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
-			}
-			srv.MultiUpstream = v
 		case "upstream-user-ip":
 			if len(srv.UpstreamUserIPs) > 0 {
 				return nil, fmt.Errorf("directive %q: can only be specified once", d.Name)

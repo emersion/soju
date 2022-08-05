@@ -161,10 +161,6 @@ The following directives are supported:
 	Path to the MOTD file. The bouncer MOTD is sent to clients which aren't
 	bound to a specific network. By default, no MOTD is sent.
 
-*multi-upstream-mode* true|false
-	Globally enable or disable multi-upstream mode. By default, multi-upstream
-	mode is enabled.
-
 *upstream-user-ip* <cidr...>
 	Enable per-user IP addresses. One IPv4 range and/or one IPv6 range can be
 	specified in CIDR notation. One IP address per range will be assigned to
