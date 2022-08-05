@@ -15,35 +15,28 @@ behalf of the user to provide extra features.
 
 - Multiple separate users sharing the same bouncer, each with their own
   upstream servers
-- Clients connecting to multiple upstream servers via a single connection to
-  the bouncer
 - Sending the backlog (messages received while the user was disconnected from
   the bouncer), with per-client buffers
 
+To connect to the bouncer, use the bouncer username and password. To use a
+client which doesn't support the _soju.im/bouncer-networks_ IRC extension,
+setup one connection per server configured in soju, and indicate the network
+name in the username: "<username>/<network>". Then channels can be joined and
+parted as if you were directly connected to the upstream server.
+
+For per-client history to work, clients need to indicate their name. This can
+be done by adding a "@<client>" suffix to the username.
 When joining a channel, the channel will be saved and automatically joined on
 the next connection. When registering or authenticating with NickServ, the
 credentials will be saved and automatically used on the next connection if the
 server supports SASL. When parting a channel with the reason "detach", the
 channel will be detached instead of being left.
 
+If a network specified in the username doesn't exist, and the network name is a
+valid hostname, the network will be automatically added.
+
 When all clients are disconnected from the bouncer, the user is automatically
 marked as away.
-
-soju supports two connection modes:
-
-- Single upstream mode: one downstream connection maps to one upstream
-  connection. To enable this mode, connect to the bouncer with the username
-  "<username>/<network>". If the bouncer isn't connected to the upstream
-  server, it will get automatically added. Then channels can be joined and
-  parted as if you were directly connected to the upstream server.
-- Multiple upstream mode: one downstream connection maps to multiple upstream
-  connections. Channels and nicks are suffixed with the network name. To join
-  a channel, you need to use the suffix too: _/join #channel/network_. Same
-  applies to messages sent to users. To enable this mode, connect to the bouncer
-  with the username "<username>/\*".
-
-For per-client history to work, clients need to indicate their name. This can
-be done by adding a "@<client>" suffix to the username.
 
 soju will reload the configuration file, the TLS certificate/key and the MOTD
 file when it receives the HUP signal. The configuration options _listen_, _db_
