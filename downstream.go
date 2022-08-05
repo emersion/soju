@@ -423,25 +423,6 @@ func isOurNick(net *network, nick string) bool {
 	return net.casemap(nick) == net.casemap(database.GetNick(&net.user.User, &net.Network))
 }
 
-// marshalEntity converts an upstream entity name (ie. channel or nick) into a
-// downstream entity name.
-//
-// This involves adding a "/<network>" suffix if the entity isn't the current
-// user.
-func (dc *downstreamConn) marshalEntity(net *network, name string) string {
-	if isOurNick(net, name) {
-		return dc.nick
-	}
-	name = partialCasemap(net.casemap, name)
-	if dc.network != nil {
-		if dc.network != net {
-			panic("soju: tried to marshal an entity for another network")
-		}
-		return name
-	}
-	return name + "/" + net.GetName()
-}
-
 // unmarshalEntityNetwork converts a downstream entity name (ie. channel or
 // nick) into an upstream entity name.
 //
@@ -1524,7 +1505,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),
 				Command: "JOIN",
-				Params:  []string{dc.marshalEntity(ch.conn.network, ch.Name)},
+				Params:  []string{ch.Name},
 			})
 
 			forwardChannel(ctx, dc, ch)
@@ -1603,7 +1584,7 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 		return
 	}
 
-	dc.SendBatch("chathistory", []string{dc.marshalEntity(net, target)}, nil, func(batchRef irc.TagValue) {
+	dc.SendBatch("chathistory", []string{target}, nil, func(batchRef irc.TagValue) {
 		for _, msg := range history {
 			if ch != nil && ch.Detached {
 				if net.detachedMessageNeedsRelay(ch, msg) {
@@ -1625,9 +1606,9 @@ func (dc *downstreamConn) relayDetachedMessage(net *network, msg *irc.Message) {
 	sender := msg.Prefix.Name
 	target, text := msg.Params[0], msg.Params[1]
 	if net.isHighlight(msg) {
-		sendServiceNOTICE(dc, fmt.Sprintf("highlight in %v: <%v> %v", dc.marshalEntity(net, target), sender, text))
+		sendServiceNOTICE(dc, fmt.Sprintf("highlight in %v: <%v> %v", target, sender, text))
 	} else {
-		sendServiceNOTICE(dc, fmt.Sprintf("message in %v: <%v> %v", dc.marshalEntity(net, target), sender, text))
+		sendServiceNOTICE(dc, fmt.Sprintf("message in %v: <%v> %v", target, sender, text))
 	}
 }
 
@@ -2957,7 +2938,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				d.SendMessage(&irc.Message{
 					Prefix:  d.prefix(),
 					Command: cmd,
-					Params:  []string{d.marshalEntity(network, entity), timestampStr},
+					Params:  []string{entity, timestampStr},
 				})
 			}
 		})
@@ -3437,7 +3418,7 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),
 				Command: markReadCmd,
-				Params:  []string{dc.marshalEntity(ch.conn.network, ch.Name), timestampStr},
+				Params:  []string{ch.Name, timestampStr},
 			})
 		}
 	}
@@ -3448,41 +3429,37 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 }
 
 func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
-	downstreamName := dc.marshalEntity(ch.conn.network, ch.Name)
-
 	if ch.Topic != "" {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_TOPIC,
-			Params:  []string{dc.nick, downstreamName, ch.Topic},
+			Params:  []string{dc.nick, ch.Name, ch.Topic},
 		})
 		if ch.TopicWho != nil {
 			topicTime := strconv.FormatInt(ch.TopicTime.Unix(), 10)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: xirc.RPL_TOPICWHOTIME,
-				Params:  []string{dc.nick, downstreamName, ch.TopicWho.String(), topicTime},
+				Params:  []string{dc.nick, ch.Name, ch.TopicWho.String(), topicTime},
 			})
 		}
 	} else {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_NOTOPIC,
-			Params:  []string{dc.nick, downstreamName, "No topic is set"},
+			Params:  []string{dc.nick, ch.Name, "No topic is set"},
 		})
 	}
 }
 
 func sendNames(dc *downstreamConn, ch *upstreamChannel) {
-	downstreamName := dc.marshalEntity(ch.conn.network, ch.Name)
-
 	var members []string
 	ch.Members.ForEach(func(nick string, memberships *xirc.MembershipSet) {
-		s := formatMemberPrefix(*memberships, dc) + dc.marshalEntity(ch.conn.network, nick)
+		s := formatMemberPrefix(*memberships, dc) + nick
 		members = append(members, s)
 	})
 
-	msgs := xirc.GenerateNamesReply(dc.srv.prefix(), dc.nick, downstreamName, ch.Status, members)
+	msgs := xirc.GenerateNamesReply(dc.srv.prefix(), dc.nick, ch.Name, ch.Status, members)
 	for _, msg := range msgs {
 		dc.SendMessage(msg)
 	}
