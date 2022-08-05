@@ -442,24 +442,6 @@ func (dc *downstreamConn) marshalEntity(net *network, name string) string {
 	return name + "/" + net.GetName()
 }
 
-func (dc *downstreamConn) marshalUserPrefix(net *network, prefix *irc.Prefix) *irc.Prefix {
-	if isOurNick(net, prefix.Name) {
-		return dc.prefix()
-	}
-	prefix.Name = partialCasemap(net.casemap, prefix.Name)
-	if dc.network != nil {
-		if dc.network != net {
-			panic("soju: tried to marshal a user prefix for another network")
-		}
-		return prefix
-	}
-	return &irc.Prefix{
-		Name: prefix.Name + "/" + net.GetName(),
-		User: prefix.User,
-		Host: prefix.Host,
-	}
-}
-
 // unmarshalEntityNetwork converts a downstream entity name (ie. channel or
 // nick) into an upstream entity name.
 //
@@ -661,7 +643,6 @@ func (dc *downstreamConn) handlePong(token string) {
 // may only appear in single-upstream mode.
 func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Message {
 	msg = msg.Copy()
-	msg.Prefix = dc.marshalUserPrefix(net, msg.Prefix)
 
 	if dc.network != nil {
 		return msg
@@ -3509,12 +3490,11 @@ func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
 			Params:  []string{dc.nick, downstreamName, ch.Topic},
 		})
 		if ch.TopicWho != nil {
-			topicWho := dc.marshalUserPrefix(ch.conn.network, ch.TopicWho)
 			topicTime := strconv.FormatInt(ch.TopicTime.Unix(), 10)
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: xirc.RPL_TOPICWHOTIME,
-				Params:  []string{dc.nick, downstreamName, topicWho.String(), topicTime},
+				Params:  []string{dc.nick, downstreamName, ch.TopicWho.String(), topicTime},
 			})
 		}
 	} else {

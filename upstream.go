@@ -1197,7 +1197,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 					}
 
 					dc.SendMessage(&irc.Message{
-						Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
+						Prefix:  msg.Prefix,
 						Command: "MODE",
 						Params:  params,
 					})
@@ -1307,14 +1307,13 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		c := uc.network.channels.Get(channel)
 		if firstTopicWhoTime && (c == nil || !c.Detached) {
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				topicWho := dc.marshalUserPrefix(uc.network, ch.TopicWho)
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: xirc.RPL_TOPICWHOTIME,
 					Params: []string{
 						dc.nick,
 						dc.marshalEntity(uc.network, ch.Name),
-						topicWho.String(),
+						ch.TopicWho.String(),
 						timeStr,
 					},
 				})
@@ -1551,7 +1550,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				return
 			}
 			dc.SendMessage(&irc.Message{
-				Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
+				Prefix:  msg.Prefix,
 				Command: "INVITE",
 				Params:  []string{dc.marshalEntity(uc.network, nick), dc.marshalEntity(uc.network, channel)},
 			})
@@ -1651,11 +1650,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		})
 	case "AWAY", "ACCOUNT":
 		uc.forEachDownstream(func(dc *downstreamConn) {
-			dc.SendMessage(&irc.Message{
-				Prefix:  dc.marshalUserPrefix(uc.network, msg.Prefix),
-				Command: msg.Command,
-				Params:  msg.Params,
-			})
+			dc.SendMessage(msg)
 		})
 	case irc.RPL_BANLIST, irc.RPL_INVITELIST, irc.RPL_EXCEPTLIST:
 		var channel, mask string
