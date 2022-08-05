@@ -87,11 +87,7 @@ type channelModes map[byte]string
 // and applies the corresponding channel mode and user membership changes on that channel.
 //
 // If ch.modes is nil, channel modes are not updated.
-//
-// needMarshaling is a list of indexes of mode arguments that represent entities
-// that must be marshaled when sent downstream.
-func applyChannelModes(ch *upstreamChannel, modeStr string, arguments []string) (needMarshaling map[int]struct{}, err error) {
-	needMarshaling = make(map[int]struct{}, len(arguments))
+func applyChannelModes(ch *upstreamChannel, modeStr string, arguments []string) error {
 	nextArgument := 0
 	var plusMinus byte
 outer:
@@ -102,13 +98,13 @@ outer:
 			continue
 		}
 		if plusMinus != '+' && plusMinus != '-' {
-			return nil, fmt.Errorf("malformed modestring %q: missing plus/minus", modeStr)
+			return fmt.Errorf("malformed modestring %q: missing plus/minus", modeStr)
 		}
 
 		for _, membership := range ch.conn.availableMemberships {
 			if membership.Mode == mode {
 				if nextArgument >= len(arguments) {
-					return nil, fmt.Errorf("malformed modestring %q: missing mode argument for %c%c", modeStr, plusMinus, mode)
+					return fmt.Errorf("malformed modestring %q: missing mode argument for %c%c", modeStr, plusMinus, mode)
 				}
 				member := arguments[nextArgument]
 				m := ch.Members.Get(member)
@@ -120,7 +116,6 @@ outer:
 						m.Remove(membership)
 					}
 				}
-				needMarshaling[nextArgument] = struct{}{}
 				nextArgument++
 				continue outer
 			}
@@ -157,7 +152,7 @@ outer:
 			}
 		}
 	}
-	return needMarshaling, nil
+	return nil
 }
 
 func (cm channelModes) Format() (modeString string, parameters []string) {

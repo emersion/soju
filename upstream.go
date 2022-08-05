@@ -1175,7 +1175,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				return err
 			}
 
-			_, err = applyChannelModes(ch, modeStr, msg.Params[2:])
+			err = applyChannelModes(ch, modeStr, msg.Params[2:])
 			if err != nil {
 				return err
 			}
@@ -1227,7 +1227,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		firstMode := ch.modes == nil
 		ch.modes = make(map[byte]string)
-		if _, err := applyChannelModes(ch, modeStr, msg.Params[3:]); err != nil {
+		if err := applyChannelModes(ch, modeStr, msg.Params[3:]); err != nil {
 			return err
 		}
 
