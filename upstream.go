@@ -1480,7 +1480,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		})
 	case irc.RPL_AWAY:
-		uc.forEachDownstream(func(dc *downstreamConn) {
+		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 			dc.SendMessage(msg)
 		})
 	case "AWAY", "ACCOUNT":
