@@ -637,39 +637,6 @@ func (dc *downstreamConn) handlePong(token string) {
 	dc.ackMsgID(msgID)
 }
 
-// marshalMessage re-formats a message coming from an upstream connection so
-// that it's suitable for being sent on this downstream connection. Only
-// messages that may appear in logs are supported, except MODE messages which
-// may only appear in single-upstream mode.
-func (dc *downstreamConn) marshalMessage(msg *irc.Message, net *network) *irc.Message {
-	msg = msg.Copy()
-
-	if dc.network != nil {
-		return msg
-	}
-
-	switch msg.Command {
-	case "PRIVMSG", "NOTICE", "TAGMSG":
-		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
-	case "NICK":
-		// Nick change for another user
-		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
-	case "JOIN", "PART":
-		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
-	case "KICK":
-		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
-		msg.Params[1] = dc.marshalEntity(net, msg.Params[1])
-	case "TOPIC":
-		msg.Params[0] = dc.marshalEntity(net, msg.Params[0])
-	case "QUIT", "SETNAME", "CHGHOST":
-		// This space is intentionally left blank
-	default:
-		panic(fmt.Sprintf("unexpected %q message", msg.Command))
-	}
-
-	return msg
-}
-
 func (dc *downstreamConn) handleMessage(ctx context.Context, msg *irc.Message) error {
 	ctx, cancel := dc.conn.NewContext(ctx)
 	defer cancel()
@@ -1644,7 +1611,7 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 				}
 			} else {
 				msg.Tags["batch"] = batchRef
-				dc.SendMessage(dc.marshalMessage(msg, net))
+				dc.SendMessage(msg)
 			}
 		}
 	})
@@ -2898,7 +2865,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		dc.SendBatch("chathistory", []string{target}, nil, func(batchRef irc.TagValue) {
 			for _, msg := range history {
 				msg.Tags["batch"] = batchRef
-				dc.SendMessage(dc.marshalMessage(msg, network))
+				dc.SendMessage(msg)
 			}
 		})
 	case "READ", "MARKREAD":
@@ -3086,7 +3053,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		dc.SendBatch("soju.im/search", nil, nil, func(batchRef irc.TagValue) {
 			for _, msg := range messages {
 				msg.Tags["batch"] = batchRef
-				dc.SendMessage(dc.marshalMessage(msg, uc.network))
+				dc.SendMessage(msg)
 			}
 		})
 	case "BOUNCER":

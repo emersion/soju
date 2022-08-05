@@ -968,7 +968,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		if !me {
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(dc.marshalMessage(msg, uc.network))
+				dc.SendMessage(msg)
 			})
 		} else {
 			uc.forEachDownstream(func(dc *downstreamConn) {
@@ -993,7 +993,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			})
 		} else {
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(dc.marshalMessage(msg, uc.network))
+				dc.SendMessage(msg)
 			})
 		}
 	case "CHGHOST":
@@ -1019,7 +1019,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		} else {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				// TODO: add fallback with QUIT/JOIN/MODE messages
-				dc.SendMessage(dc.marshalMessage(msg, uc.network))
+				dc.SendMessage(msg)
 			})
 		}
 	case "JOIN":
@@ -1113,7 +1113,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		if msg.Prefix.Name != uc.nick {
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(dc.marshalMessage(msg, uc.network))
+				dc.SendMessage(msg)
 			})
 		}
 	case irc.RPL_TOPIC, irc.RPL_NOTOPIC:
@@ -2169,7 +2169,7 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, originID uint64
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		echo := dc.id == originID && msg.Prefix != nil && uc.isOurNick(msg.Prefix.Name)
 		if !detached && (!echo || dc.caps.IsEnabled("echo-message")) {
-			dc.sendMessageWithID(dc.marshalMessage(msg, uc.network), msgID)
+			dc.sendMessageWithID(msg, msgID)
 		} else {
 			dc.advanceMessageWithID(msg, msgID)
 		}
