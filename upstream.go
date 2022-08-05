@@ -1614,20 +1614,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		uc.logger.Printf("unhandled message: %v", msg)
 
 		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-			// best effort marshaling for unknown messages, replies and errors:
-			// most numerics start with the user nick, marshal it if that's the case
-			// otherwise, conservately keep the params without marshaling
-			params := msg.Params
-			if _, err := strconv.Atoi(msg.Command); err == nil { // numeric
-				if len(msg.Params) > 0 && isOurNick(uc.network, msg.Params[0]) {
-					params[0] = dc.nick
-				}
-			}
-			dc.SendMessage(&irc.Message{
-				Prefix:  uc.srv.prefix(),
-				Command: msg.Command,
-				Params:  params,
-			})
+			dc.SendMessage(msg)
 		})
 	}
 	return nil
