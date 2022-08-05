@@ -319,11 +319,10 @@ type downstreamConn struct {
 	id uint64
 
 	// These don't change after connection registration
-	registered      bool
-	user            *user
-	network         *network // can be nil
-	isMultiUpstream bool
-	clientName      string
+	registered bool
+	user       *user
+	network    *network // can be nil
+	clientName string
 
 	nick     string
 	nickCM   string
@@ -388,15 +387,11 @@ func (dc *downstreamConn) prefix() *irc.Prefix {
 func (dc *downstreamConn) forEachNetwork(f func(*network)) {
 	if dc.network != nil {
 		f(dc.network)
-	} else if dc.isMultiUpstream {
-		for _, network := range dc.user.networks {
-			f(network)
-		}
 	}
 }
 
 func (dc *downstreamConn) forEachUpstream(f func(*upstreamConn)) {
-	if dc.network == nil && !dc.isMultiUpstream {
+	if dc.network == nil {
 		return
 	}
 	dc.user.forEachUpstream(func(uc *upstreamConn) {
@@ -473,34 +468,10 @@ func (dc *downstreamConn) unmarshalEntityNetwork(name string) (*network, string,
 	if dc.network != nil {
 		return dc.network, name, nil
 	}
-	if !dc.isMultiUpstream {
-		return nil, "", ircError{&irc.Message{
-			Command: irc.ERR_NOSUCHCHANNEL,
-			Params:  []string{dc.nick, name, "Cannot interact with channels and users on the bouncer connection. Did you mean to use a specific network?"},
-		}}
-	}
-
-	var net *network
-	if i := strings.LastIndexByte(name, '/'); i >= 0 {
-		network := name[i+1:]
-		name = name[:i]
-
-		for _, n := range dc.user.networks {
-			if network == n.GetName() {
-				net = n
-				break
-			}
-		}
-	}
-
-	if net == nil {
-		return nil, "", ircError{&irc.Message{
-			Command: irc.ERR_NOSUCHCHANNEL,
-			Params:  []string{dc.nick, name, "Missing network suffix in name"},
-		}}
-	}
-
-	return net, name, nil
+	return nil, "", ircError{&irc.Message{
+		Command: irc.ERR_NOSUCHCHANNEL,
+		Params:  []string{dc.nick, name, "Cannot interact with channels and users on the bouncer connection. Did you mean to use a specific network?"},
+	}}
 }
 
 // unmarshalEntity is the same as unmarshalEntityNetwork, but returns the
@@ -1511,7 +1482,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	if title := dc.srv.Config().Title; dc.network == nil && title != "" {
 		isupport = append(isupport, "NETWORK="+title)
 	}
-	if dc.network == nil && !dc.isMultiUpstream {
+	if dc.network == nil {
 		isupport = append(isupport, "WHOX")
 	}
 	if dc.caps.IsEnabled("soju.im/webpush") {
@@ -1557,7 +1528,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 			Params:  []string{dc.nick, "+" + string(uc.modes)},
 		})
 	}
-	if dc.network == nil && !dc.isMultiUpstream && dc.user.Admin {
+	if dc.network == nil && dc.user.Admin {
 		dc.SendMessage(&irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_UMODEIS,
