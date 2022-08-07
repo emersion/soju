@@ -414,7 +414,7 @@ var lastDownstreamID uint64
 func (s *Server) handle(ic ircConn) {
 	defer func() {
 		if err := recover(); err != nil {
-			s.Logger.Printf("panic serving downstream %q: %v\n%v", ic.RemoteAddr(), err, debug.Stack())
+			s.Logger.Printf("panic serving downstream %q: %v\n%v", ic.RemoteAddr(), err, string(debug.Stack()))
 		}
 	}()
 
