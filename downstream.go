@@ -2913,8 +2913,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		var history []*irc.Message
 		switch subcommand {
-		case "BEFORE", "LATEST":
+		case "BEFORE":
 			history, err = store.LoadBeforeTime(ctx, bounds[0], time.Time{}, &options)
+		case "LATEST":
+			history, err = store.LoadBeforeTime(ctx, time.Now(), bounds[0], &options)
 		case "AFTER":
 			history, err = store.LoadAfterTime(ctx, bounds[0], time.Now(), &options)
 		case "BETWEEN":
