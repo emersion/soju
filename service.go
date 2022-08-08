@@ -1139,12 +1139,28 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 		return err
 	}
 
-	uc, upstreamName, err := dc.unmarshalEntity(name)
-	if err != nil {
-		return fmt.Errorf("unknown channel %q", name)
+	network := dc.network
+	if network == nil {
+		l := strings.SplitN(name, "/", 2)
+		if len(l) != 2 {
+			return fmt.Errorf("missing network name")
+		}
+		name = l[0]
+		netName := l[1]
+
+		for _, n := range dc.user.networks {
+			if netName == n.GetName() {
+				network = n
+				break
+			}
+		}
+
+		if network == nil {
+			return fmt.Errorf("unknown network %q", netName)
+		}
 	}
 
-	ch := uc.network.channels.Get(upstreamName)
+	ch := network.channels.Get(name)
 	if ch == nil {
 		return fmt.Errorf("unknown channel %q", name)
 	}
@@ -1155,15 +1171,17 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 
 	if fs.Detached != nil && *fs.Detached != ch.Detached {
 		if *fs.Detached {
-			uc.network.detach(ch)
+			network.detach(ch)
 		} else {
-			uc.network.attach(ctx, ch)
+			network.attach(ctx, ch)
 		}
 	}
 
-	uc.updateChannelAutoDetach(upstreamName)
+	if network.conn != nil {
+		network.conn.updateChannelAutoDetach(name)
+	}
 
-	if err := dc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
+	if err := dc.srv.db.StoreChannel(ctx, network.ID, ch); err != nil {
 		return fmt.Errorf("failed to update channel: %v", err)
 	}
 
