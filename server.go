@@ -303,12 +303,20 @@ func (s *Server) sendWebPush(ctx context.Context, sub *webpush.Subscription, vap
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
+	var urgency webpush.Urgency
+	switch msg.Command {
+	case "PRIVMSG", "NOTICE", "INVITE":
+		urgency = webpush.UrgencyHigh
+	default:
+		urgency = webpush.UrgencyNormal
+	}
+
 	options := webpush.Options{
 		VAPIDPublicKey:  s.webPush.VAPIDKeys.Public,
 		VAPIDPrivateKey: s.webPush.VAPIDKeys.Private,
 		Subscriber:      "https://soju.im",
 		TTL:             7 * 24 * 60 * 60, // seconds
-		Urgency:         webpush.UrgencyHigh,
+		Urgency:         urgency,
 		RecordSize:      2048,
 	}
 
