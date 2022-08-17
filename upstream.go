@@ -113,6 +113,7 @@ type upstreamBatch struct {
 type pendingUpstreamCommand struct {
 	downstreamID uint64
 	msg          *irc.Message
+	sentAt       time.Time
 }
 
 type upstreamConn struct {
@@ -367,8 +368,9 @@ func (uc *upstreamConn) sendNextPendingCommand(cmd string) {
 	if len(uc.pendingCmds[cmd]) == 0 {
 		return
 	}
-	pendingCmd := uc.pendingCmds[cmd][0]
+	pendingCmd := &uc.pendingCmds[cmd][0]
 	uc.SendMessageLabeled(context.TODO(), pendingCmd.downstreamID, pendingCmd.msg)
+	pendingCmd.sentAt = time.Now()
 }
 
 func (uc *upstreamConn) enqueueCommand(dc *downstreamConn, msg *irc.Message) {
@@ -383,6 +385,12 @@ func (uc *upstreamConn) enqueueCommand(dc *downstreamConn, msg *irc.Message) {
 		downstreamID: dc.id,
 		msg:          msg,
 	})
+
+	// If we didn't get a reply after a while, just give up
+	// TODO: consider sending an abort reply to downstream
+	if t := uc.pendingCmds[msg.Command][0].sentAt; !t.IsZero() && time.Since(t) > 30*time.Second {
+		copy(uc.pendingCmds[msg.Command], uc.pendingCmds[msg.Command][1:])
+	}
 
 	if len(uc.pendingCmds[msg.Command]) == 1 {
 		uc.sendNextPendingCommand(msg.Command)
