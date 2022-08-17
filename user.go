@@ -456,7 +456,14 @@ func (net *network) autoSaveSASLPlain(ctx context.Context, username, password st
 	}
 }
 
-func (net *network) broadcastWebPush(ctx context.Context, msg *irc.Message) {
+// broadcastWebPush broadcasts a Web Push message for the given IRC message.
+//
+// Broadcasting the message to all Web Push endpoints might take a while, so
+// callers should call this function in a new goroutine.
+func (net *network) broadcastWebPush(msg *irc.Message) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
 	subs, err := net.user.srv.db.ListWebPushSubscriptions(ctx, net.user.ID, net.ID)
 	if err != nil {
 		net.logger.Printf("failed to list Web push subscriptions: %v", err)

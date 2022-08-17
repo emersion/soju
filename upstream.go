@@ -547,7 +547,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 
 		if highlight || uc.isOurNick(target) {
-			uc.network.broadcastWebPush(ctx, msg)
+			go uc.network.broadcastWebPush(msg)
 			uc.network.pushTargets.Add(bufferName)
 		}
 
@@ -1551,7 +1551,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		})
 
 		if weAreInvited {
-			uc.network.broadcastWebPush(ctx, msg)
+			go uc.network.broadcastWebPush(msg)
 		}
 	case irc.RPL_INVITING:
 		var nick, channel string
