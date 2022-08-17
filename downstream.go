@@ -3336,6 +3336,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
+			if len(subs) > 25 {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"WEBPUSH", "INTERNAL_ERROR", subcommand, "Too many subscriptions"},
+				}}
+			}
+
 			oldSub := findWebPushSubscription(subs, endpoint)
 			if oldSub != nil {
 				// Update the old subscription instead of creating a new one
