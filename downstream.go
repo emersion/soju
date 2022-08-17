@@ -3327,7 +3327,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			newSub.Keys.Auth = string(authKey)
 			newSub.Keys.P256DH = string(p256dhKey)
 
-			oldSub, err := dc.findWebPushSubscription(ctx, endpoint)
+			subs, err := dc.listWebPushSubscriptions(ctx)
 			if err != nil {
 				dc.logger.Printf("failed to fetch Web push subscription: %v", err)
 				return ircError{&irc.Message{
@@ -3336,6 +3336,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
+			oldSub := findWebPushSubscription(subs, endpoint)
 			if oldSub != nil {
 				// Update the old subscription instead of creating a new one
 				newSub.ID = oldSub.ID
@@ -3381,7 +3382,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				return err
 			}
 
-			oldSub, err := dc.findWebPushSubscription(ctx, endpoint)
+			subs, err := dc.listWebPushSubscriptions(ctx)
 			if err != nil {
 				dc.logger.Printf("failed to fetch Web push subscription: %v", err)
 				return ircError{&irc.Message{
@@ -3390,6 +3391,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
+			oldSub := findWebPushSubscription(subs, endpoint)
 			if oldSub == nil {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
@@ -3446,23 +3448,22 @@ func (dc *downstreamConn) handleNickServPRIVMSG(ctx context.Context, uc *upstrea
 	}
 }
 
-func (dc *downstreamConn) findWebPushSubscription(ctx context.Context, endpoint string) (*database.WebPushSubscription, error) {
+func (dc *downstreamConn) listWebPushSubscriptions(ctx context.Context) ([]database.WebPushSubscription, error) {
 	var networkID int64
 	if dc.network != nil {
 		networkID = dc.network.ID
 	}
 
-	subs, err := dc.user.srv.db.ListWebPushSubscriptions(ctx, dc.user.ID, networkID)
-	if err != nil {
-		return nil, err
-	}
+	return dc.user.srv.db.ListWebPushSubscriptions(ctx, dc.user.ID, networkID)
+}
 
+func findWebPushSubscription(subs []database.WebPushSubscription, endpoint string) *database.WebPushSubscription {
 	for i, sub := range subs {
 		if sub.Endpoint == endpoint {
-			return &subs[i], nil
+			return &subs[i]
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 func parseNickServCredentials(text, nick string) (username, password string, ok bool) {
