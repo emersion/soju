@@ -2172,7 +2172,8 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, originID uint64
 	detached := ch != nil && ch.Detached
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		if !detached && (dc.id != originID || dc.caps.IsEnabled("echo-message")) {
+		echo := dc.id == originID && msg.Prefix != nil && uc.isOurNick(msg.Prefix.Name)
+		if !detached && (!echo || dc.caps.IsEnabled("echo-message")) {
 			dc.sendMessageWithID(dc.marshalMessage(msg, uc.network), msgID)
 		} else {
 			dc.advanceMessageWithID(msg, msgID)
