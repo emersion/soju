@@ -1838,6 +1838,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		if dc.network != nil {
+			dc.network.Network.Nick = nick
 			if uc := dc.upstream(); uc != nil {
 				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 					Command: "NICK",

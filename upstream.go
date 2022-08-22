@@ -159,6 +159,8 @@ type upstreamConn struct {
 	regainNickBackoff *backoffer
 
 	gotMotd bool
+
+	hasDesiredNick bool
 }
 
 func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, error) {
@@ -269,6 +271,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		isupport:              make(map[string]*string),
 		pendingCmds:           make(map[string][]pendingUpstreamCommand),
 		monitored:             monitorCasemapMap{newCasemapMap()},
+		hasDesiredNick:        true,
 	}
 	return uc, nil
 }
@@ -948,6 +951,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				uc.pendingRegainNick = ""
 				uc.stopRegainNickTimer()
 			}
+			wantNick := database.GetNick(&uc.user.User, &uc.network.Network)
+			if uc.network.equalCasemap(wantNick, newNick) {
+				uc.hasDesiredNick = true
+			}
 		}
 
 		uc.channels.ForEach(func(ch *upstreamChannel) {
@@ -1581,7 +1588,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		// Check if the nick we want is now free
 		wantNick := database.GetNick(&uc.user.User, &uc.network.Network)
-		if !online && !uc.isOurNick(wantNick) {
+		if !online && !uc.isOurNick(wantNick) && !uc.hasDesiredNick {
 			found := false
 			for _, target := range targets {
 				prefix := irc.ParsePrefix(target)
@@ -1790,6 +1797,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		// servers have NICKLEN=30 so let's just use that.
 		if !uc.registered && len(uc.nick)+1 < 30 {
 			uc.nick = uc.nick + "_"
+			uc.hasDesiredNick = false
 			uc.logger.Printf("desired nick is not available, falling back to %q", uc.nick)
 			uc.SendMessage(ctx, &irc.Message{
 				Command: "NICK",
@@ -2238,7 +2246,8 @@ func (uc *upstreamConn) updateMonitor() {
 
 	wantNick := database.GetNick(&uc.user.User, &uc.network.Network)
 	wantNickCM := uc.network.casemap(wantNick)
-	if _, ok := add[wantNickCM]; !ok && !uc.monitored.Has(wantNick) && !uc.isOurNick(wantNick) {
+	if _, ok := add[wantNickCM]; !ok && !uc.monitored.Has(wantNick) &&
+			!uc.isOurNick(wantNick) && !uc.hasDesiredNick {
 		addList = append(addList, wantNickCM)
 		add[wantNickCM] = struct{}{}
 	}
