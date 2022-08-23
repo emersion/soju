@@ -2246,8 +2246,7 @@ func (uc *upstreamConn) updateMonitor() {
 
 	wantNick := database.GetNick(&uc.user.User, &uc.network.Network)
 	wantNickCM := uc.network.casemap(wantNick)
-	if _, ok := add[wantNickCM]; !ok && !uc.monitored.Has(wantNick) &&
-			!uc.isOurNick(wantNick) && !uc.hasDesiredNick {
+	if _, ok := add[wantNickCM]; !ok && !uc.monitored.Has(wantNick) && !uc.isOurNick(wantNick) && !uc.hasDesiredNick {
 		addList = append(addList, wantNickCM)
 		add[wantNickCM] = struct{}{}
 	}
