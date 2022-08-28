@@ -279,6 +279,7 @@ var passthroughIsupport = map[string]bool{
 	"HOSTLEN":       true,
 	"INVEX":         true,
 	"KICKLEN":       true,
+	"LINELEN":       true,
 	"MAXLIST":       true,
 	"MAXTARGETS":    true,
 	"MODES":         true,
