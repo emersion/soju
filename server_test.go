@@ -20,6 +20,10 @@ const (
 )
 
 func createTempSqliteDB(t *testing.T) database.Database {
+	if !database.SqliteEnabled {
+		t.Skip("SQLite support is disabled")
+	}
+
 	db, err := database.OpenTempSqliteDB()
 	if err != nil {
 		t.Fatalf("failed to create temporary SQLite database: %v", err)

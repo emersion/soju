@@ -1,3 +1,5 @@
+//go:build !nosqlite
+
 package database
 
 import (
@@ -12,6 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 )
+
+const SqliteEnabled = true
 
 const sqliteQueryTimeout = 5 * time.Second
 
@@ -337,13 +341,6 @@ func (db *SqliteDB) Stats(ctx context.Context) (*DatabaseStats, error) {
 	}
 
 	return &stats, nil
-}
-
-func toNullString(s string) sql.NullString {
-	return sql.NullString{
-		String: s,
-		Valid:  s != "",
-	}
 }
 
 func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {

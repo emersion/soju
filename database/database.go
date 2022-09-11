@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/url"
 	"strings"
@@ -233,5 +234,12 @@ type WebPushSubscription struct {
 		Auth   string
 		P256DH string
 		VAPID  string
+	}
+}
+
+func toNullString(s string) sql.NullString {
+	return sql.NullString{
+		String: s,
+		Valid:  s != "",
 	}
 }
