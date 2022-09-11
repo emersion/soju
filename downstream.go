@@ -1192,20 +1192,8 @@ func unmarshalUsername(rawUsername string) (username, client, network string) {
 func (dc *downstreamConn) authenticate(ctx context.Context, username, password string) error {
 	username, clientName, networkName := unmarshalUsername(username)
 
-	u, err := dc.srv.db.GetUser(ctx, username)
-	if err != nil {
-		return newInvalidUsernameOrPasswordError(fmt.Errorf("user not found: %w", err))
-	}
-
-	upgraded, err := u.CheckPassword(password)
-	if err != nil {
+	if err := dc.srv.Config().Auth.AuthPlain(ctx, dc.srv.db, username, password); err != nil {
 		return newInvalidUsernameOrPasswordError(err)
-	}
-
-	if upgraded {
-		if err := dc.srv.db.StoreUser(ctx, u); err != nil {
-			return err
-		}
 	}
 
 	dc.user = dc.srv.getUser(username)

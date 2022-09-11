@@ -185,6 +185,14 @@ The following directives are supported:
 	This can be used together with _disable-inactive-user_ to seamlessly
 	disable and re-enable users during lengthy inactivity.
 
+*auth* <driver> ...
+	Set the authentication method. By default, internal authentication is used.
+
+	Supported drivers:
+
+	*auth internal*
+		Use internal authentication.
+
 # IRC SERVICE
 
 soju exposes an IRC service called *BouncerServ* to manage the bouncer.

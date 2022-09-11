@@ -58,6 +58,10 @@ type MsgStore struct {
 	Driver, Source string
 }
 
+type Auth struct {
+	Driver, Source string
+}
+
 type Server struct {
 	Listen   []string
 	TLS      *TLS
@@ -67,6 +71,7 @@ type Server struct {
 
 	DB       DB
 	MsgStore MsgStore
+	Auth     Auth
 
 	HTTPOrigins    []string
 	AcceptProxyIPs IPSet
@@ -90,6 +95,9 @@ func Defaults() *Server {
 		},
 		MsgStore: MsgStore{
 			Driver: "memory",
+		},
+		Auth: Auth{
+			Driver: "internal",
 		},
 		MaxUserNetworks: -1,
 	}
@@ -148,6 +156,16 @@ func parse(cfg scfg.Block) (*Server, error) {
 				}
 			default:
 				return nil, fmt.Errorf("directive %q: unknown driver %q", d.Name, srv.MsgStore.Driver)
+			}
+		case "auth":
+			if err := d.ParseParams(&srv.Auth.Driver); err != nil {
+				return nil, err
+			}
+			switch srv.Auth.Driver {
+			case "internal":
+				srv.Auth.Source = ""
+			default:
+				return nil, fmt.Errorf("directive %q: unknown driver %q", d.Name, srv.Auth.Driver)
 			}
 		case "http-origin":
 			srv.HTTPOrigins = d.Params

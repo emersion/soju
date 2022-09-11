@@ -20,6 +20,7 @@ import (
 	"gopkg.in/irc.v4"
 	"nhooyr.io/websocket"
 
+	"git.sr.ht/~emersion/soju/auth"
 	"git.sr.ht/~emersion/soju/config"
 	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/identd"
@@ -143,6 +144,7 @@ type Config struct {
 	UpstreamUserIPs           []*net.IPNet
 	DisableInactiveUsersDelay time.Duration
 	EnableUsersOnAuth         bool
+	Auth                      auth.PlainAuthenticator
 }
 
 type Server struct {
@@ -186,6 +188,7 @@ func NewServer(db database.Database) *Server {
 	srv.config.Store(&Config{
 		Hostname:        "localhost",
 		MaxUserNetworks: -1,
+		Auth:            auth.NewInternal(),
 	})
 	return srv
 }

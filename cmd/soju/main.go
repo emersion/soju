@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"git.sr.ht/~emersion/soju"
+	"git.sr.ht/~emersion/soju/auth"
 	"git.sr.ht/~emersion/soju/config"
 	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/identd"
@@ -75,6 +76,11 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		motd = strings.TrimSuffix(string(b), "\n")
 	}
 
+	auth, err := auth.New(raw.Auth.Driver, raw.Auth.Source)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create authenticator: %v", err)
+	}
+
 	if raw.TLS != nil {
 		cert, err := tls.LoadX509KeyPair(raw.TLS.CertPath, raw.TLS.KeyPath)
 		if err != nil {
@@ -94,6 +100,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		DisableInactiveUsersDelay: raw.DisableInactiveUsersDelay,
 		EnableUsersOnAuth:         raw.EnableUsersOnAuth,
 		MOTD:                      motd,
+		Auth:                      auth,
 	}
 	return raw, cfg, nil
 }
