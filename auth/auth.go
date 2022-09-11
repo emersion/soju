@@ -15,6 +15,8 @@ func New(driver, source string) (PlainAuthenticator, error) {
 	switch driver {
 	case "internal":
 		return NewInternal(), nil
+	case "oauth2":
+		return newOAuth2(source)
 	default:
 		return nil, fmt.Errorf("unknown auth driver %q", driver)
 	}

@@ -164,6 +164,10 @@ func parse(cfg scfg.Block) (*Server, error) {
 			switch srv.Auth.Driver {
 			case "internal":
 				srv.Auth.Source = ""
+			case "oauth2":
+				if err := d.ParseParams(nil, &srv.Auth.Source); err != nil {
+					return nil, err
+				}
 			default:
 				return nil, fmt.Errorf("directive %q: unknown driver %q", d.Name, srv.Auth.Driver)
 			}
