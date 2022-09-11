@@ -36,6 +36,14 @@ type TLS struct {
 	CertPath, KeyPath string
 }
 
+type DB struct {
+	Driver, Source string
+}
+
+type MsgStore struct {
+	Driver, Source string
+}
+
 type Server struct {
 	Listen   []string
 	TLS      *TLS
@@ -43,11 +51,8 @@ type Server struct {
 	Title    string
 	MOTDPath string
 
-	SQLDriver string
-	SQLSource string
-
-	MsgStoreDriver string
-	MsgStoreSource string
+	DB       DB
+	MsgStore MsgStore
 
 	HTTPOrigins    []string
 	AcceptProxyIPs IPSet
@@ -63,10 +68,14 @@ func Defaults() *Server {
 		hostname = "localhost"
 	}
 	return &Server{
-		Hostname:        hostname,
-		SQLDriver:       "sqlite3",
-		SQLSource:       "soju.db",
-		MsgStoreDriver:  "memory",
+		Hostname: hostname,
+		DB: DB{
+			Driver: "sqlite3",
+			Source: "soju.db",
+		},
+		MsgStore: MsgStore{
+			Driver: "memory",
+		},
 		MaxUserNetworks: -1,
 		MultiUpstream:   true,
 	}
@@ -109,22 +118,22 @@ func parse(cfg scfg.Block) (*Server, error) {
 			}
 			srv.TLS = tls
 		case "db":
-			if err := d.ParseParams(&srv.SQLDriver, &srv.SQLSource); err != nil {
+			if err := d.ParseParams(&srv.DB.Driver, &srv.DB.Source); err != nil {
 				return nil, err
 			}
 		case "message-store", "log":
-			if err := d.ParseParams(&srv.MsgStoreDriver); err != nil {
+			if err := d.ParseParams(&srv.MsgStore.Driver); err != nil {
 				return nil, err
 			}
-			switch srv.MsgStoreDriver {
+			switch srv.MsgStore.Driver {
 			case "memory":
-				srv.MsgStoreSource = ""
+				srv.MsgStore.Source = ""
 			case "fs":
-				if err := d.ParseParams(nil, &srv.MsgStoreSource); err != nil {
+				if err := d.ParseParams(nil, &srv.MsgStore.Source); err != nil {
 					return nil, err
 				}
 			default:
-				return nil, fmt.Errorf("directive %q: unknown driver %q", d.Name, srv.MsgStoreDriver)
+				return nil, fmt.Errorf("directive %q: unknown driver %q", d.Name, srv.MsgStore.Driver)
 			}
 		case "http-origin":
 			srv.HTTPOrigins = d.Params

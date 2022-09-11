@@ -86,7 +86,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 	cfg := &soju.Config{
 		Hostname:        raw.Hostname,
 		Title:           raw.Title,
-		LogPath:         raw.MsgStoreSource,
+		LogPath:         raw.MsgStore.Source,
 		HTTPOrigins:     raw.HTTPOrigins,
 		AcceptProxyIPs:  raw.AcceptProxyIPs,
 		MaxUserNetworks: raw.MaxUserNetworks,
@@ -118,7 +118,7 @@ func main() {
 		log.Printf("failed to bump max number of opened files: %v", err)
 	}
 
-	db, err := database.Open(cfg.SQLDriver, cfg.SQLSource)
+	db, err := database.Open(cfg.DB.Driver, cfg.DB.Source)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}

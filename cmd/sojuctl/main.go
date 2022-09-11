@@ -45,7 +45,7 @@ func main() {
 		cfg = config.Defaults()
 	}
 
-	db, err := database.Open(cfg.SQLDriver, cfg.SQLSource)
+	db, err := database.Open(cfg.DB.Driver, cfg.DB.Source)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
