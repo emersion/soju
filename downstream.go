@@ -1002,7 +1002,7 @@ func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *d
 			return nil, ircError{&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
-				Params:  []string{dc.nick, fmt.Sprintf("Unsupported SASL mechanism %q", mech)},
+				Params:  []string{dc.nick, "Unsupported SASL mechanism"},
 			}}
 		}
 
