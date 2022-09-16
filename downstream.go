@@ -2878,7 +2878,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		var bounds [2]time.Time
 		bounds[0] = parseChatHistoryBound(boundsStr[0])
 		if subcommand == "LATEST" && boundsStr[0] == "*" {
-			bounds[0] = time.Now()
+			bounds[0] = time.Time{}
 		} else if bounds[0].IsZero() {
 			return ircError{&irc.Message{
 				Command: "FAIL",
