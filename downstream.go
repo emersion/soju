@@ -3062,7 +3062,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		if broadcast && network.pushTargets.Has(entity) {
 			// TODO: only broadcast if draft/read-marker has been negotiated
-			// TODO: use lower priority
 			network.pushTargets.Del(entity)
 			go network.broadcastWebPush(&irc.Message{
 				Command: "MARKREAD",
