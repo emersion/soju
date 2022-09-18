@@ -156,6 +156,7 @@ type Server struct {
 	lock      sync.Mutex
 	listeners map[net.Listener]struct{}
 	users     map[string]*user
+	shutdown  bool
 
 	metrics struct {
 		downstreams int64Gauge
@@ -343,6 +344,7 @@ func (s *Server) sendWebPush(ctx context.Context, sub *webpush.Subscription, vap
 
 func (s *Server) Shutdown() {
 	s.lock.Lock()
+	s.shutdown = true
 	for ln := range s.listeners {
 		if err := ln.Close(); err != nil {
 			s.Logger.Printf("failed to stop listener: %v", err)
@@ -426,10 +428,19 @@ func (s *Server) handle(ic ircConn) {
 		}
 	}()
 
+	s.lock.Lock()
+	shutdown := s.shutdown
+	s.lock.Unlock()
+
 	s.metrics.downstreams.Add(1)
 	id := atomic.AddUint64(&lastDownstreamID, 1)
 	dc := newDownstreamConn(s, ic, id)
-	if err := dc.runUntilRegistered(); err != nil {
+	if shutdown {
+		dc.SendMessage(&irc.Message{
+			Command: "ERROR",
+			Params:  []string{"Server is shutting down"},
+		})
+	} else if err := dc.runUntilRegistered(); err != nil {
 		if !errors.Is(err, io.EOF) {
 			dc.logger.Printf("%v", err)
 		}
