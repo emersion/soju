@@ -343,6 +343,8 @@ func (s *Server) sendWebPush(ctx context.Context, sub *webpush.Subscription, vap
 }
 
 func (s *Server) Shutdown() {
+	s.Logger.Printf("shutting down server")
+
 	s.lock.Lock()
 	s.shutdown = true
 	for ln := range s.listeners {
@@ -355,6 +357,7 @@ func (s *Server) Shutdown() {
 	}
 	s.lock.Unlock()
 
+	s.Logger.Printf("waiting for users to finish")
 	s.stopWG.Wait()
 
 	if err := s.db.Close(); err != nil {

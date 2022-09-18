@@ -335,7 +335,6 @@ func main() {
 				srv.SetConfig(serverCfg)
 			}
 		case syscall.SIGINT, syscall.SIGTERM:
-			log.Print("shutting down server")
 			srv.Shutdown()
 			return
 		}
