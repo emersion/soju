@@ -131,6 +131,7 @@ type Network struct {
 	Pass            string
 	ConnectCommands []string
 	SASL            SASL
+	AutoAway        bool
 	Enabled         bool
 }
 
