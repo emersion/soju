@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 )
@@ -258,7 +257,7 @@ type SqliteDB struct {
 func OpenSqliteDB(source string) (Database, error) {
 	// Open the DB with cache=shared and SetMaxOpenConns(1) to allow usage from
 	// multiple goroutines
-	sqlSqliteDB, err := sql.Open("sqlite3", source+"?cache=shared")
+	sqlSqliteDB, err := sql.Open(sqliteDriver, source+"?cache=shared")
 	if err != nil {
 		return nil, err
 	}
