@@ -43,7 +43,7 @@ PRAGMA user_version = 1;
 `
 
 func TestSqliteMigrations(t *testing.T) {
-	sqlDB, err := sql.Open("sqlite3", ":memory:")
+	sqlDB, err := sql.Open(sqliteDriver, ":memory:")
 	if err != nil {
 		t.Fatalf("failed to create temporary SQLite database: %v", err)
 	}

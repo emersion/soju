@@ -31,6 +31,8 @@ For development, you can use `go run ./cmd/soju` as usual.
 To link with the system libsqlite3, set `GOFLAGS="-tags=libsqlite3"`. To disable
 SQLite support, set `GOFLAGS="-tags=nosqlite"`.
 
+To use an alternative SQLite library that does not require CGO, set `GOFLAGS="-tags=moderncsqlite"`.
+
 ## Contributing
 
 Send patches on the [mailing list] or on [GitHub], report bugs on the
