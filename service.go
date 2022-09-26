@@ -201,7 +201,7 @@ func init() {
 		"network": {
 			children: serviceCommandSet{
 				"create": {
-					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-enabled enabled] [-connect-command command]...",
+					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-auto-away auto-away] [-enabled enabled] [-connect-command command]...",
 					desc:   "add a new network",
 					handle: handleServiceNetworkCreate,
 				},
@@ -210,7 +210,7 @@ func init() {
 					handle: handleServiceNetworkStatus,
 				},
 				"update": {
-					usage:  "[name] [-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-enabled enabled] [-connect-command command]...",
+					usage:  "[name] [-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-auto-away auto-away] [-enabled enabled] [-connect-command command]...",
 					desc:   "update a network",
 					handle: handleServiceNetworkUpdate,
 				},
@@ -431,7 +431,7 @@ func getNetworkFromArg(dc *downstreamConn, params []string) (*network, []string,
 type networkFlagSet struct {
 	*flag.FlagSet
 	Addr, Name, Nick, Username, Pass, Realname *string
-	Enabled                                    *bool
+	AutoAway, Enabled                          *bool
 	ConnectCommands                            []string
 }
 
@@ -443,6 +443,7 @@ func newNetworkFlagSet() *networkFlagSet {
 	fs.Var(stringPtrFlag{&fs.Username}, "username", "")
 	fs.Var(stringPtrFlag{&fs.Pass}, "pass", "")
 	fs.Var(stringPtrFlag{&fs.Realname}, "realname", "")
+	fs.Var(boolPtrFlag{&fs.AutoAway}, "auto-away", "")
 	fs.Var(boolPtrFlag{&fs.Enabled}, "enabled", "")
 	fs.Var((*stringSliceFlag)(&fs.ConnectCommands), "connect-command", "")
 	return fs
@@ -477,6 +478,9 @@ func (fs *networkFlagSet) update(network *database.Network) error {
 	}
 	if fs.Realname != nil {
 		network.Realname = *fs.Realname
+	}
+	if fs.AutoAway != nil {
+		network.AutoAway = *fs.AutoAway
 	}
 	if fs.Enabled != nil {
 		network.Enabled = *fs.Enabled

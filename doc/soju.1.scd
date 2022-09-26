@@ -36,7 +36,7 @@ If a network specified in the username doesn't exist, and the network name is a
 valid hostname, the network will be automatically added.
 
 When all clients are disconnected from the bouncer, the user is automatically
-marked as away.
+marked as away by default.
 
 soju will reload the configuration file, the TLS certificate/key and the MOTD
 file when it receives the HUP signal. The configuration options _listen_, _db_
@@ -216,6 +216,11 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 	*-nick* <nickname>
 		Connect with the specified nickname. By default, the account's username
 		is used.
+
+	*-auto-away* true|false
+		Enable or disable the auto-away feature. If the feature is enabled, the
+		user will be marked as away when all clients are disconnected from the
+		bouncer. By default, auto-away is enabled.
 
 	*-enabled* true|false
 		Enable or disable the network. If the network is disabled, the bouncer

@@ -1958,6 +1958,10 @@ func (uc *upstreamConn) produce(target string, msg *irc.Message, originID uint64
 func (uc *upstreamConn) updateAway() {
 	ctx := context.TODO()
 
+	if !uc.network.AutoAway {
+		return
+	}
+
 	away := true
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		if dc.away == nil {
