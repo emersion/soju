@@ -19,7 +19,12 @@ type oauth2 struct {
 	clientSecret     string
 }
 
-func newOAuth2(authURL string) (PlainAuthenticator, error) {
+var (
+	_ PlainAuthenticator       = (*oauth2)(nil)
+	_ OAuthBearerAuthenticator = (*oauth2)(nil)
+)
+
+func newOAuth2(authURL string) (Authenticator, error) {
 	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 
@@ -77,14 +82,27 @@ func newOAuth2(authURL string) (PlainAuthenticator, error) {
 }
 
 func (auth *oauth2) AuthPlain(ctx context.Context, db database.Database, username, password string) error {
+	effectiveUsername, err := auth.AuthOAuthBearer(ctx, db, password)
+	if err != nil {
+		return err
+	}
+
+	if username != effectiveUsername {
+		return fmt.Errorf("username mismatch (OAuth 2.0 server returned %q)", effectiveUsername)
+	}
+
+	return nil
+}
+
+func (auth *oauth2) AuthOAuthBearer(ctx context.Context, db database.Database, token string) (username string, err error) {
 	reqValues := make(url.Values)
-	reqValues.Set("token", password)
+	reqValues.Set("token", token)
 
 	reqBody := strings.NewReader(reqValues.Encode())
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, auth.introspectionURL.String(), reqBody)
 	if err != nil {
-		return fmt.Errorf("failed to create OAuth 2.0 introspection request: %v", err)
+		return "", fmt.Errorf("failed to create OAuth 2.0 introspection request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
@@ -95,32 +113,29 @@ func (auth *oauth2) AuthPlain(ctx context.Context, db database.Database, usernam
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send OAuth 2.0 introspection request: %v", err)
+		return "", fmt.Errorf("failed to send OAuth 2.0 introspection request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("OAuth 2.0 introspection error: %v", resp.Status)
+		return "", fmt.Errorf("OAuth 2.0 introspection error: %v", resp.Status)
 	}
 
 	var data oauth2Introspection
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return fmt.Errorf("failed to decode OAuth 2.0 introspection response: %v", err)
+		return "", fmt.Errorf("failed to decode OAuth 2.0 introspection response: %v", err)
 	}
 
 	if !data.Active {
-		return fmt.Errorf("invalid access token")
+		return "", fmt.Errorf("invalid access token")
 	}
 	if data.Username == "" {
 		// We really need the username here, otherwise an OAuth 2.0 user can
 		// impersonate any other user.
-		return fmt.Errorf("missing username in OAuth 2.0 introspection response")
-	}
-	if username != data.Username {
-		return fmt.Errorf("username mismatch (OAuth 2.0 server returned %q)", data.Username)
+		return "", fmt.Errorf("missing username in OAuth 2.0 introspection response")
 	}
 
-	return nil
+	return data.Username, nil
 }
 
 type oauth2Introspection struct {

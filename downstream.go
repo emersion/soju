@@ -17,6 +17,7 @@ import (
 	"github.com/emersion/go-sasl"
 	"gopkg.in/irc.v4"
 
+	"git.sr.ht/~emersion/soju/auth"
 	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/msgstore"
 	"git.sr.ht/~emersion/soju/xirc"
@@ -310,10 +311,16 @@ var passthroughIsupport = map[string]bool{
 	"WHOX":          true,
 }
 
+type saslPlain struct {
+	Username, Password string
+}
+
 type downstreamSASL struct {
-	server                       sasl.Server
-	plainUsername, plainPassword string
-	pendingResp                  bytes.Buffer
+	server      sasl.Server
+	mechanism   string
+	plain       *saslPlain
+	oauthBearer *sasl.OAuthBearerOptions
+	pendingResp bytes.Buffer
 }
 
 type downstreamRegistration struct {
@@ -325,6 +332,17 @@ type downstreamRegistration struct {
 	networkID   int64
 
 	negotiatingCaps bool
+}
+
+func serverSASLMechanisms(srv *Server) []string {
+	var l []string
+	if _, ok := srv.Config().Auth.(auth.PlainAuthenticator); ok {
+		l = append(l, "PLAIN")
+	}
+	if _, ok := srv.Config().Auth.(auth.OAuthBearerAuthenticator); ok {
+		l = append(l, "OAUTHBEARER")
+	}
+	return l
 }
 
 type downstreamConn struct {
@@ -379,7 +397,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	for k, v := range permanentDownstreamCaps {
 		dc.caps.Available[k] = v
 	}
-	dc.caps.Available["sasl"] = "PLAIN"
+	dc.caps.Available["sasl"] = strings.Join(serverSASLMechanisms(dc.srv), ",")
 	// TODO: this is racy, we should only enable chathistory after
 	// authentication and then check that user.msgStore implements
 	// chatHistoryMessageStore
@@ -659,8 +677,52 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			break
 		}
 
-		if err := dc.authenticate(ctx, credentials.plainUsername, credentials.plainPassword); err != nil {
-			dc.logger.Printf("SASL authentication error for user %q: %v", credentials.plainUsername, err)
+		var username, clientName, networkName string
+		switch credentials.mechanism {
+		case "PLAIN":
+			username, clientName, networkName = unmarshalUsername(credentials.plain.Username)
+			password := credentials.plain.Password
+
+			auth, ok := dc.srv.Config().Auth.(auth.PlainAuthenticator)
+			if !ok {
+				err = fmt.Errorf("SASL PLAIN not supported")
+				break
+			}
+
+			if authErr := auth.AuthPlain(ctx, dc.srv.db, username, password); authErr != nil {
+				err = newInvalidUsernameOrPasswordError(authErr)
+				break
+			}
+		case "OAUTHBEARER":
+			auth, ok := dc.srv.Config().Auth.(auth.OAuthBearerAuthenticator)
+			if !ok {
+				err = fmt.Errorf("SASL OAUTHBEARER not supported")
+				break
+			}
+
+			var authErr error
+			username, authErr = auth.AuthOAuthBearer(ctx, dc.srv.db, credentials.oauthBearer.Token)
+			if authErr != nil {
+				err = newInvalidUsernameOrPasswordError(authErr)
+				break
+			}
+
+			if credentials.oauthBearer.Username != "" && credentials.oauthBearer.Username != username {
+				err = newInvalidUsernameOrPasswordError(fmt.Errorf("username mismatch (server returned %q)", username))
+			}
+		default:
+			panic(fmt.Errorf("unexpected SASL mechanism %q", credentials.mechanism))
+		}
+
+		if err == nil {
+			if username == "" {
+				panic(fmt.Errorf("username unset after SASL authentication"))
+			}
+			err = dc.setUser(username, clientName, networkName)
+		}
+
+		if err != nil {
+			dc.logger.Printf("SASL %v authentication error for nick %q: %v", credentials.mechanism, dc.nick, err)
 			dc.endSASL(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
@@ -878,8 +940,15 @@ func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *d
 		switch mech {
 		case "PLAIN":
 			server = sasl.NewPlainServer(sasl.PlainAuthenticator(func(identity, username, password string) error {
-				dc.sasl.plainUsername = username
-				dc.sasl.plainPassword = password
+				dc.sasl.plain = &saslPlain{
+					Username: username,
+					Password: password,
+				}
+				return nil
+			}))
+		case "OAUTHBEARER":
+			server = sasl.NewOAuthBearerServer(sasl.OAuthBearerAuthenticator(func(options sasl.OAuthBearerOptions) *sasl.OAuthBearerError {
+				dc.sasl.oauthBearer = &options
 				return nil
 			}))
 		default:
@@ -890,7 +959,7 @@ func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *d
 			}}
 		}
 
-		dc.sasl = &downstreamSASL{server: server}
+		dc.sasl = &downstreamSASL{server: server, mechanism: mech}
 	} else {
 		chunk := msg.Params[0]
 		if chunk == "+" {
@@ -1189,13 +1258,7 @@ func unmarshalUsername(rawUsername string) (username, client, network string) {
 	return username, client, network
 }
 
-func (dc *downstreamConn) authenticate(ctx context.Context, username, password string) error {
-	username, clientName, networkName := unmarshalUsername(username)
-
-	if err := dc.srv.Config().Auth.AuthPlain(ctx, dc.srv.db, username, password); err != nil {
-		return newInvalidUsernameOrPasswordError(err)
-	}
-
+func (dc *downstreamConn) setUser(username, clientName, networkName string) error {
 	dc.user = dc.srv.getUser(username)
 	if dc.user == nil {
 		return fmt.Errorf("user exists in the DB but hasn't been loaded by the bouncer -- a restart may help")
@@ -1203,6 +1266,21 @@ func (dc *downstreamConn) authenticate(ctx context.Context, username, password s
 	dc.clientName = clientName
 	dc.registration.networkName = networkName
 	return nil
+}
+
+func (dc *downstreamConn) authenticate(ctx context.Context, username, password string) error {
+	username, clientName, networkName := unmarshalUsername(username)
+
+	plainAuth, ok := dc.srv.Config().Auth.(auth.PlainAuthenticator)
+	if !ok {
+		return fmt.Errorf("PLAIN authentication unsupported")
+	}
+
+	if err := plainAuth.AuthPlain(ctx, dc.srv.db, username, password); err != nil {
+		return newInvalidUsernameOrPasswordError(err)
+	}
+
+	return dc.setUser(username, clientName, networkName)
 }
 
 func (dc *downstreamConn) register(ctx context.Context) error {
@@ -2420,6 +2498,15 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		if credentials != nil {
+			if credentials.mechanism != "PLAIN" {
+				dc.endSASL(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.ERR_SASLFAIL,
+					Params:  []string{dc.nick, "Unsupported SASL authentication mechanism"},
+				})
+				return nil
+			}
+
 			if uc.saslClient != nil {
 				dc.endSASL(&irc.Message{
 					Prefix:  dc.srv.prefix(),
@@ -2429,8 +2516,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				return nil
 			}
 
-			uc.logger.Printf("starting post-registration SASL PLAIN authentication with username %q", credentials.plainUsername)
-			uc.saslClient = sasl.NewPlainClient("", credentials.plainUsername, credentials.plainPassword)
+			uc.logger.Printf("starting post-registration SASL PLAIN authentication with username %q", credentials.plain.Username)
+			uc.saslClient = sasl.NewPlainClient("", credentials.plain.Username, credentials.plain.Password)
 			uc.enqueueCommand(dc, &irc.Message{
 				Command: "AUTHENTICATE",
 				Params:  []string{"PLAIN"},

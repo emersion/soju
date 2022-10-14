@@ -144,7 +144,7 @@ type Config struct {
 	UpstreamUserIPs           []*net.IPNet
 	DisableInactiveUsersDelay time.Duration
 	EnableUsersOnAuth         bool
-	Auth                      auth.PlainAuthenticator
+	Auth                      auth.Authenticator
 }
 
 type Server struct {
