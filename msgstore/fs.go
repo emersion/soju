@@ -96,6 +96,11 @@ var (
 	_ RenameNetworkStore = (*fsMessageStore)(nil)
 )
 
+func IsFSStore(store Store) bool {
+	_, ok := store.(*fsMessageStore)
+	return ok
+}
+
 func NewFSStore(root string, user *database.User) *fsMessageStore {
 	return &fsMessageStore{
 		root:  filepath.Join(root, escapeFilename(user.Username)),

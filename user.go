@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"git.sr.ht/~emersion/soju/xirc"
+
 	"github.com/SherClockHolmes/webpush-go"
 	"gopkg.in/irc.v4"
 
@@ -1112,6 +1114,15 @@ func (u *user) hasPersistentMsgStore() bool {
 		return false
 	}
 	return !msgstore.IsMemoryStore(u.msgStore)
+}
+
+func (u *user) FormatServerTime(t time.Time) string {
+	if u.msgStore != nil && msgstore.IsFSStore(u.msgStore) {
+		// The FS message store truncates message timestamps to the second,
+		// so truncate them here to get consistent timestamps.
+		t = t.Truncate(time.Second)
+	}
+	return xirc.FormatServerTime(t)
 }
 
 // localAddrForHost returns the local address to use when connecting to host.

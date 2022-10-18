@@ -2281,7 +2281,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				dc.logger.Printf("broadcasting bouncer-wide %v: %v", msg.Command, text)
 
 				broadcastTags := tags.Copy()
-				broadcastTags["time"] = xirc.FormatServerTime(time.Now())
+				broadcastTags["time"] = dc.user.FormatServerTime(time.Now())
 				broadcastMsg := &irc.Message{
 					Tags:    broadcastTags,
 					Prefix:  servicePrefix,
@@ -2307,7 +2307,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if casemapASCII(name) == serviceNickCM {
 				if dc.caps.IsEnabled("echo-message") {
 					echoTags := tags.Copy()
-					echoTags["time"] = xirc.FormatServerTime(time.Now())
+					echoTags["time"] = dc.user.FormatServerTime(time.Now())
 					dc.SendMessage(&irc.Message{
 						Tags:    echoTags,
 						Prefix:  dc.prefix(),
@@ -2351,7 +2351,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}
 
 				echoTags := tags.Copy()
-				echoTags["time"] = xirc.FormatServerTime(time.Now())
+				echoTags["time"] = dc.user.FormatServerTime(time.Now())
 				if uc.account != "" {
 					echoTags["account"] = uc.account
 				}
