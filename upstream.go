@@ -556,7 +556,9 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		if highlight || uc.isOurNick(target) {
 			go uc.network.broadcastWebPush(msg)
-			uc.network.pushTargets.Add(bufferName)
+			if timestamp, err := time.Parse(xirc.ServerTimeLayout, string(msg.Tags["time"])); err == nil {
+				uc.network.pushTargets.Set(bufferName, timestamp)
+			}
 		}
 
 		uc.produce(bufferName, msg, downstreamID)

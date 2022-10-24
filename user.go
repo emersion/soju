@@ -141,7 +141,7 @@ type network struct {
 	conn        *upstreamConn
 	channels    channelCasemapMap
 	delivered   deliveredStore
-	pushTargets casemapSet
+	pushTargets pushTargetCasemapMap
 	lastError   error
 	casemap     casemapping
 }
@@ -162,7 +162,7 @@ func newNetwork(user *user, record *database.Network, channels []database.Channe
 		stopped:     make(chan struct{}),
 		channels:    m,
 		delivered:   newDeliveredStore(),
-		pushTargets: casemapSet{newCasemapMap()},
+		pushTargets: pushTargetCasemapMap{newCasemapMap()},
 		casemap:     casemapRFC1459,
 	}
 }

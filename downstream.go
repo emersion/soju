@@ -2818,7 +2818,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		if broadcast && network.pushTargets.Has(target) {
 			// TODO: only broadcast if draft/read-marker has been negotiated
-			network.pushTargets.Del(target)
+			if !r.Timestamp.Before(network.pushTargets.Get(target)) {
+				network.pushTargets.Del(target)
+			}
 			go network.broadcastWebPush(&irc.Message{
 				Command: "MARKREAD",
 				Params:  []string{target, timestampStr},
