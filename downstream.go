@@ -256,13 +256,14 @@ var permanentDownstreamCaps = map[string]string{
 // needAllDownstreamCaps is the list of downstream capabilities that
 // require support from all upstreams to be enabled.
 var needAllDownstreamCaps = map[string]string{
-	"account-notify": "",
-	"account-tag":    "",
-	"away-notify":    "",
-	"chghost":        "",
-	"extended-join":  "",
-	"message-tags":   "",
-	"multi-prefix":   "",
+	"account-notify":   "",
+	"account-tag":      "",
+	"away-notify":      "",
+	"chghost":          "",
+	"extended-join":    "",
+	"extended-monitor": "",
+	"message-tags":     "",
+	"multi-prefix":     "",
 
 	"draft/extended-monitor": "",
 }
