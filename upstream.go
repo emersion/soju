@@ -31,6 +31,7 @@ var permanentUpstreamCaps = map[string]bool{
 	"batch":            true,
 	"chghost":          true,
 	"extended-join":    true,
+	"extended-monitor": true,
 	"invite-notify":    true,
 	"labeled-response": true,
 	"message-tags":     true,
