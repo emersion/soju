@@ -92,9 +92,12 @@ senpai should seamlessly connect to all networks configured in soju via the
 
 # [Weechat]
 
-A [Weechat script] is available to provide better integration with soju.
-The script will automatically connect to all of your networks once a
-single connection to soju is set up in Weechat.
+A [soju.py] Weechat script is available to provide better integration with soju.
+The script will automatically connect to all of your networks once a single
+connection to soju is set up in Weechat.
+
+Additionally, [read_marker.py] can be enabled to synchronize the read marker
+between multiple clients.
 
 On WeeChat 3.2-, no IRCv3 capabilities are enabled by default. To enable them:
 
@@ -109,7 +112,8 @@ See `/help cap` for more information.
 [goguma]: https://sr.ht/~emersion/goguma/
 [senpai]: https://sr.ht/~taiite/senpai/
 [Weechat]: https://weechat.org/
-[Weechat script]: https://github.com/weechat/scripts/blob/master/python/soju.py
+[soju.py]: https://weechat.org/scripts/source/soju.py.html/
+[read_marker.py]: https://weechat.org/scripts/source/read_marker.py.html/
 [Hexchat]: https://hexchat.github.io/
 [Emacs]: https://www.gnu.org/software/emacs/
 [irssi]: https://irssi.org/
