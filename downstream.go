@@ -15,7 +15,7 @@ import (
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/emersion/go-sasl"
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 
 	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/msgstore"
@@ -120,17 +120,17 @@ func fillNetworkAddrAttrs(attrs irc.Tags, network *database.Network) {
 	hasHostPort := true
 	switch u.Scheme {
 	case "ircs":
-		attrs["tls"] = irc.TagValue("1")
+		attrs["tls"] = "1"
 	case "irc+insecure":
-		attrs["tls"] = irc.TagValue("0")
+		attrs["tls"] = "0"
 	default: // e.g. unix://
 		hasHostPort = false
 	}
 	if host, port, err := net.SplitHostPort(u.Host); err == nil && hasHostPort {
-		attrs["host"] = irc.TagValue(host)
-		attrs["port"] = irc.TagValue(port)
+		attrs["host"] = host
+		attrs["port"] = port
 	} else if hasHostPort {
-		attrs["host"] = irc.TagValue(u.Host)
+		attrs["host"] = u.Host
 	}
 }
 
@@ -141,20 +141,20 @@ func getNetworkAttrs(network *network) irc.Tags {
 	}
 
 	attrs := irc.Tags{
-		"name":     irc.TagValue(network.GetName()),
-		"state":    irc.TagValue(state),
-		"nickname": irc.TagValue(database.GetNick(&network.user.User, &network.Network)),
+		"name":     network.GetName(),
+		"state":    state,
+		"nickname": database.GetNick(&network.user.User, &network.Network),
 	}
 
 	if network.Username != "" {
-		attrs["username"] = irc.TagValue(network.Username)
+		attrs["username"] = network.Username
 	}
 	if realname := database.GetRealname(&network.user.User, &network.Network); realname != "" {
-		attrs["realname"] = irc.TagValue(realname)
+		attrs["realname"] = realname
 	}
 
 	if network.lastError != nil {
-		attrs["error"] = irc.TagValue(network.lastError.Error())
+		attrs["error"] = network.lastError.Error()
 	}
 
 	fillNetworkAddrAttrs(attrs, &network.Network)
@@ -524,7 +524,7 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	dc.conn.SendMessage(context.TODO(), msg)
 }
 
-func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, f func(batchRef irc.TagValue)) {
+func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, f func(batchRef string)) {
 	dc.lastBatchRef++
 	ref := fmt.Sprintf("%v", dc.lastBatchRef)
 
@@ -537,7 +537,7 @@ func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, 
 		})
 	}
 
-	f(irc.TagValue(ref))
+	f(ref)
 
 	if dc.caps.IsEnabled("batch") {
 		dc.SendMessage(&irc.Message{
@@ -1463,7 +1463,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	}
 
 	if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-		dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef irc.TagValue) {
+		dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef string) {
 			for _, network := range dc.user.networks {
 				idStr := fmt.Sprintf("%v", network.ID)
 				attrs := getNetworkAttrs(network)
@@ -1569,7 +1569,7 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 		return
 	}
 
-	dc.SendBatch("chathistory", []string{target}, nil, func(batchRef irc.TagValue) {
+	dc.SendBatch("chathistory", []string{target}, nil, func(batchRef string) {
 		for _, msg := range history {
 			if ch != nil && ch.Detached {
 				if net.detachedMessageNeedsRelay(ch, msg) {
@@ -2281,7 +2281,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				dc.logger.Printf("broadcasting bouncer-wide %v: %v", msg.Command, text)
 
 				broadcastTags := tags.Copy()
-				broadcastTags["time"] = irc.TagValue(xirc.FormatServerTime(time.Now()))
+				broadcastTags["time"] = xirc.FormatServerTime(time.Now())
 				broadcastMsg := &irc.Message{
 					Tags:    broadcastTags,
 					Prefix:  servicePrefix,
@@ -2307,7 +2307,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if casemapASCII(name) == serviceNickCM {
 				if dc.caps.IsEnabled("echo-message") {
 					echoTags := tags.Copy()
-					echoTags["time"] = irc.TagValue(xirc.FormatServerTime(time.Now()))
+					echoTags["time"] = xirc.FormatServerTime(time.Now())
 					dc.SendMessage(&irc.Message{
 						Tags:    echoTags,
 						Prefix:  dc.prefix(),
@@ -2351,9 +2351,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}
 
 				echoTags := tags.Copy()
-				echoTags["time"] = irc.TagValue(xirc.FormatServerTime(time.Now()))
+				echoTags["time"] = xirc.FormatServerTime(time.Now())
 				if uc.account != "" {
-					echoTags["account"] = irc.TagValue(uc.account)
+					echoTags["account"] = uc.account
 				}
 				echoMsg := &irc.Message{
 					Tags: echoTags,
@@ -2591,7 +2591,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if dc.network == nil {
 				// Either an unbound bouncer network, in which case we should return no targets,
 				// or a multi-upstream downstream, but we don't support CHATHISTORY TARGETS for those yet.
-				dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef irc.TagValue) {})
+				dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef string) {})
 				return nil
 			}
 			if err := parseMessageParams(msg, nil, &boundsStr[0], &boundsStr[1], &limitStr); err != nil {
@@ -2607,7 +2607,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		// We don't save history for our service
 		if casemapASCII(target) == serviceNickCM {
-			dc.SendBatch("chathistory", []string{target}, nil, func(batchRef irc.TagValue) {})
+			dc.SendBatch("chathistory", []string{target}, nil, func(batchRef string) {})
 			return nil
 		}
 
@@ -2690,7 +2690,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
-			dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef irc.TagValue) {
+			dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef string) {
 				for _, target := range targets {
 					if ch := network.channels.Get(target.Name); ch != nil && ch.Detached {
 						continue
@@ -2712,7 +2712,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return newChatHistoryError(subcommand, target)
 		}
 
-		dc.SendBatch("chathistory", []string{target}, nil, func(batchRef irc.TagValue) {
+		dc.SendBatch("chathistory", []string{target}, nil, func(batchRef string) {
 			for _, msg := range history {
 				msg.Tags["batch"] = batchRef
 				dc.SendMessage(msg)
@@ -2903,7 +2903,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}}
 		}
 
-		dc.SendBatch("soju.im/search", nil, nil, func(batchRef irc.TagValue) {
+		dc.SendBatch("soju.im/search", nil, nil, func(batchRef string) {
 			for _, msg := range messages {
 				msg.Tags["batch"] = batchRef
 				dc.SendMessage(msg)
@@ -2922,7 +2922,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{"BOUNCER", "REGISTRATION_IS_COMPLETED", "BIND", "Cannot bind to a network after registration"},
 			}}
 		case "LISTNETWORKS":
-			dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef irc.TagValue) {
+			dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef string) {
 				for _, network := range dc.user.networks {
 					idStr := fmt.Sprintf("%v", network.ID)
 					attrs := getNetworkAttrs(network)

@@ -11,7 +11,7 @@ import (
 	"unicode"
 
 	"golang.org/x/time/rate"
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 	"nhooyr.io/websocket"
 )
 

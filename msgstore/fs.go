@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"git.sr.ht/~sircmpwn/go-bare"
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 
 	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/xirc"
@@ -395,8 +395,8 @@ func (ms *fsMessageStore) parseMessage(line string, network *database.Network, e
 	t := time.Date(year, month, day, hour, minute, second, 0, time.Local)
 
 	msg := &irc.Message{
-		Tags: map[string]irc.TagValue{
-			"time": irc.TagValue(xirc.FormatServerTime(t)),
+		Tags: map[string]string{
+			"time": xirc.FormatServerTime(t),
 		},
 		Prefix:  prefix,
 		Command: cmd,

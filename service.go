@@ -16,7 +16,7 @@ import (
 	"unicode"
 
 	"golang.org/x/crypto/bcrypt"
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 
 	"git.sr.ht/~emersion/soju/database"
 )

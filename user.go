@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 
 	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/msgstore"
@@ -641,7 +641,7 @@ func (u *user) run() {
 			}
 			net.lastError = e.err
 			u.notifyBouncerNetworkState(net.ID, irc.Tags{
-				"error": irc.TagValue(net.lastError.Error()),
+				"error": net.lastError.Error(),
 			})
 		case eventUpstreamError:
 			uc := e.uc
@@ -651,7 +651,7 @@ func (u *user) run() {
 			})
 			uc.network.lastError = e.err
 			u.notifyBouncerNetworkState(uc.network.ID, irc.Tags{
-				"error": irc.TagValue(uc.network.lastError.Error()),
+				"error": uc.network.lastError.Error(),
 			})
 		case eventUpstreamMessage:
 			msg, uc := e.msg, e.uc

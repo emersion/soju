@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 )
 
 const (

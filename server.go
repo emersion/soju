@@ -17,7 +17,7 @@ import (
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 	"nhooyr.io/websocket"
 
 	"git.sr.ht/~emersion/soju/config"

@@ -1,7 +1,7 @@
 package xirc
 
 import (
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 )
 
 // whoxFields is the list of all WHOX field letters, by order of appearance in

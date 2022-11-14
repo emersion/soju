@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 )
 
 func GenerateJoin(channels, keys []string) []*irc.Message {

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"git.sr.ht/~sircmpwn/go-bare"
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 
 	"git.sr.ht/~emersion/soju/database"
 )

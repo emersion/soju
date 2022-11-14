@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-sasl"
-	"gopkg.in/irc.v3"
+	"gopkg.in/irc.v4"
 
 	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/xirc"
@@ -452,13 +452,13 @@ func (uc *upstreamConn) parseMembershipPrefix(s string) (ms xirc.MembershipSet, 
 
 func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) error {
 	var label string
-	if l, ok := msg.GetTag("label"); ok {
+	if l, ok := msg.Tags["label"]; ok {
 		label = l
 		delete(msg.Tags, "label")
 	}
 
 	var msgBatch *upstreamBatch
-	if batchName, ok := msg.GetTag("batch"); ok {
+	if batchName, ok := msg.Tags["batch"]; ok {
 		b, ok := uc.batches[batchName]
 		if !ok {
 			return fmt.Errorf("unexpected batch reference: batch was not defined: %q", batchName)
@@ -487,7 +487,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 	}
 
 	if _, ok := msg.Tags["time"]; !ok && !isNumeric(msg.Command) {
-		msg.Tags["time"] = irc.TagValue(xirc.FormatServerTime(time.Now()))
+		msg.Tags["time"] = xirc.FormatServerTime(time.Now())
 	}
 
 	switch msg.Command {
@@ -1877,9 +1877,9 @@ func (uc *upstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 func (uc *upstreamConn) SendMessageLabeled(ctx context.Context, downstreamID uint64, msg *irc.Message) {
 	if uc.caps.IsEnabled("labeled-response") {
 		if msg.Tags == nil {
-			msg.Tags = make(map[string]irc.TagValue)
+			msg.Tags = make(irc.Tags)
 		}
-		msg.Tags["label"] = irc.TagValue(fmt.Sprintf("sd-%d-%d", downstreamID, uc.nextLabelID))
+		msg.Tags["label"] = fmt.Sprintf("sd-%d-%d", downstreamID, uc.nextLabelID)
 		uc.nextLabelID++
 	}
 	uc.SendMessage(ctx, msg)

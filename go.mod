@@ -16,7 +16,7 @@ require (
 	golang.org/x/sys v0.0.0-20220909162455-aba9fc2a8ff2 // indirect
 	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9
-	gopkg.in/irc.v3 v3.1.4
+	gopkg.in/irc.v4 v4.0.0
 	modernc.org/sqlite v1.18.2
 	nhooyr.io/websocket v1.8.7
 )
