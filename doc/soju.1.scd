@@ -227,15 +227,15 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		won't connect to it. By default, the network is enabled.
 
 	*-connect-command* <command>
-		Send the specified command as a raw IRC message right after connecting
-		to the server. This can be used to identify to an account when the
-		server doesn't support SASL.
+		Send the specified quoted string as a raw IRC command right after
+		connecting to the server. This can be used to identify to an account
+		when the server doesn't support SASL.
 
 		For instance, to identify with _NickServ_, the following command can be
 		used:
 
 		```
-		PRIVMSG NickServ :IDENTIFY <password>
+		"PRIVMSG NickServ :IDENTIFY <password>"
 		```
 
 		The flag can be specified multiple times to send multiple IRC messages.
