@@ -379,6 +379,20 @@ func (cm *upstreamChannelCasemapMap) ForEach(f func(*upstreamChannel)) {
 	}
 }
 
+type upstreamUserCasemapMap struct{ casemapMap }
+
+func (cm *upstreamUserCasemapMap) Get(name string) *upstreamUser {
+	if v := cm.get(name); v == nil {
+		return nil
+	} else {
+		return v.(*upstreamUser)
+	}
+}
+
+func (cm *upstreamUserCasemapMap) Set(u *upstreamUser) {
+	cm.set(u.Nickname, u)
+}
+
 type channelCasemapMap struct{ casemapMap }
 
 func (cm *channelCasemapMap) Get(name string) *database.Channel {

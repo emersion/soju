@@ -389,6 +389,7 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 		uc.channels.ForEach(func(uch *upstreamChannel) {
 			uch.Members.SetCasemapping(newCasemap)
 		})
+		uc.users.SetCasemapping(newCasemap)
 		uc.monitored.SetCasemapping(newCasemap)
 	}
 	net.forEachDownstream(func(dc *downstreamConn) {
