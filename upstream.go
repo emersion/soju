@@ -593,14 +593,16 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			break
 		}
 
+		directMessage := uc.isOurNick(target)
 		bufferName := target
-		if uc.isOurNick(target) {
+		if directMessage {
 			bufferName = msg.Prefix.Name
 		}
 		if t, ok := msg.Tags["+draft/channel-context"]; ok {
 			ch := uc.channels.Get(string(t))
 			if ch != nil && ch.Members.Has(msg.Prefix.Name) {
 				bufferName = ch.Name
+				directMessage = false
 			}
 		}
 
@@ -619,7 +621,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		if highlight || uc.isOurNick(target) {
+		if highlight || directMessage {
 			go uc.network.broadcastWebPush(msg)
 			if timestamp, err := time.Parse(xirc.ServerTimeLayout, string(msg.Tags["time"])); err == nil {
 				uc.network.pushTargets.Set(bufferName, timestamp)
