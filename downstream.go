@@ -231,7 +231,14 @@ func updateNetworkAttrs(record *database.Network, attrs irc.Tags, subcommand str
 //   - '$' breaks server masks in PRIVMSG/NOTICE
 //   - ',' breaks lists
 //   - '.' is reserved for server names
+//
+// See https://modern.ircdocs.horse/#clients
 const illegalNickChars = " :@!*?$,."
+
+// illegalChanChars is the list of characters forbidden in a channel name.
+//
+// See https://modern.ircdocs.horse/#channels
+const illegalChanChars = " ,\x07"
 
 // permanentDownstreamCaps is the list of always-supported downstream
 // capabilities.
@@ -1808,6 +1815,14 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				key = keys[i]
 			}
 
+			if name == "" || strings.ContainsAny(name, illegalChanChars) {
+				dc.SendMessage(&irc.Message{
+					Prefix:  dc.srv.prefix(),
+					Command: irc.ERR_NOSUCHCHANNEL,
+					Params:  []string{name, "Invalid channel name"},
+				})
+				continue
+			}
 			if !uc.isChannel(name) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
