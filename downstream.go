@@ -1818,7 +1818,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if name == "" || strings.ContainsAny(name, illegalChanChars) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
-					Command: irc.ERR_NOSUCHCHANNEL,
+					Command: irc.ERR_BADCHANMASK,
 					Params:  []string{name, "Invalid channel name"},
 				})
 				continue
