@@ -291,6 +291,11 @@ func init() {
 					desc:   "update a channel",
 					handle: handleServiceChannelUpdate,
 				},
+				"delete": {
+					usage:  "<name>",
+					desc:   "delete a channel",
+					handle: handleServiceChannelDelete,
+				},
 			},
 		},
 		"server": {
@@ -1132,6 +1137,27 @@ func (fs *channelFlagSet) update(channel *database.Channel) error {
 	return nil
 }
 
+func stripNetworkSuffix(dc *downstreamConn, name string) (string, *network, error) {
+	if dc.network != nil {
+		return name, dc.network, nil
+	}
+
+	l := strings.SplitN(name, "/", 2)
+	if len(l) != 2 {
+		return "", nil, fmt.Errorf("missing network name")
+	}
+	name = l[0]
+	netName := l[1]
+
+	for _, network := range dc.user.networks {
+		if netName == network.GetName() {
+			return name, network, nil
+		}
+	}
+
+	return "", nil, fmt.Errorf("unknown network %q", netName)
+}
+
 func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params []string) error {
 	if len(params) < 1 {
 		return fmt.Errorf("expected at least one argument")
@@ -1143,25 +1169,9 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 		return err
 	}
 
-	network := dc.network
-	if network == nil {
-		l := strings.SplitN(name, "/", 2)
-		if len(l) != 2 {
-			return fmt.Errorf("missing network name")
-		}
-		name = l[0]
-		netName := l[1]
-
-		for _, n := range dc.user.networks {
-			if netName == n.GetName() {
-				network = n
-				break
-			}
-		}
-
-		if network == nil {
-			return fmt.Errorf("unknown network %q", netName)
-		}
+	name, network, err := stripNetworkSuffix(dc, name)
+	if err != nil {
+		return err
 	}
 
 	ch := network.channels.Get(name)
@@ -1190,6 +1200,25 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 	}
 
 	sendServicePRIVMSG(dc, fmt.Sprintf("updated channel %q", name))
+	return nil
+}
+
+func handleServiceChannelDelete(ctx context.Context, dc *downstreamConn, params []string) error {
+	if len(params) < 1 {
+		return fmt.Errorf("expected at least one argument")
+	}
+	name := params[0]
+
+	name, network, err := stripNetworkSuffix(dc, name)
+	if err != nil {
+		return err
+	}
+
+	if err := network.deleteChannel(ctx, name); err != nil {
+		return fmt.Errorf("failed to delete channel: %v", err)
+	}
+
+	sendServicePRIVMSG(dc, fmt.Sprintf("deleted channel %q", name))
 	return nil
 }
 

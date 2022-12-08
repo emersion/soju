@@ -343,6 +343,9 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		*default*
 			Currently same as *message*. This is the default behaviour.
 
+*channel delete* <name>
+	Leave and forget a channel.
+
 *certfp generate* [options...]
 	Generate self-signed certificate and use it for authentication (via SASL
 	EXTERNAL).
