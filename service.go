@@ -1218,6 +1218,13 @@ func handleServiceChannelDelete(ctx context.Context, dc *downstreamConn, params 
 		return fmt.Errorf("failed to delete channel: %v", err)
 	}
 
+	if uc := network.conn; uc != nil {
+		uc.SendMessage(ctx, &irc.Message{
+			Command: "PART",
+			Params:  []string{name},
+		})
+	}
+
 	sendServicePRIVMSG(dc, fmt.Sprintf("deleted channel %q", name))
 	return nil
 }
