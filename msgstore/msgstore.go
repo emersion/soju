@@ -52,7 +52,7 @@ type ChatHistoryStore interface {
 	// end is before start.
 	// If events is false, only PRIVMSG/NOTICE messages are considered.
 	LoadBeforeTime(ctx context.Context, start, end time.Time, options *LoadMessageOptions) ([]*irc.Message, error)
-	// LoadBeforeTime loads up to limit messages after start up to end. The
+	// LoadAfterTime loads up to limit messages after start up to end. The
 	// returned messages must be between and excluding the provided bounds.
 	// end is after start.
 	// If events is false, only PRIVMSG/NOTICE messages are considered.
@@ -90,6 +90,7 @@ const (
 	msgIDNone msgIDType = iota
 	msgIDMemory
 	msgIDFS
+	msgIDDB
 )
 
 const msgIDVersion uint = 0
