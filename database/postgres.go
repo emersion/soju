@@ -44,6 +44,7 @@ CREATE TABLE "Network" (
 	nick VARCHAR(255),
 	username VARCHAR(255),
 	realname VARCHAR(255),
+	certfp TEXT,
 	pass VARCHAR(255),
 	connect_commands VARCHAR(1023),
 	sasl_mechanism sasl_mechanism,
@@ -165,6 +166,7 @@ var postgresMigrations = []string{
 		SET NOT NULL;
 	`,
 	`ALTER TABLE "Network" ADD COLUMN auto_away BOOLEAN NOT NULL DEFAULT TRUE`,
+	`ALTER TABLE "Network" ADD COLUMN certfp TEXT`,
 }
 
 type PostgresDB struct {
@@ -380,7 +382,7 @@ func (db *PostgresDB) ListNetworks(ctx context.Context, userID int64) ([]Network
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
-		SELECT id, name, addr, nick, username, realname, pass, connect_commands, sasl_mechanism,
+		SELECT id, name, addr, nick, username, realname, certfp, pass, connect_commands, sasl_mechanism,
 			sasl_plain_username, sasl_plain_password, sasl_external_cert, sasl_external_key, auto_away, enabled
 		FROM "Network"
 		WHERE "user" = $1`, userID)
@@ -392,9 +394,9 @@ func (db *PostgresDB) ListNetworks(ctx context.Context, userID int64) ([]Network
 	var networks []Network
 	for rows.Next() {
 		var net Network
-		var name, nick, username, realname, pass, connectCommands sql.NullString
+		var name, nick, username, realname, certfp, pass, connectCommands sql.NullString
 		var saslMechanism, saslPlainUsername, saslPlainPassword sql.NullString
-		err := rows.Scan(&net.ID, &name, &net.Addr, &nick, &username, &realname,
+		err := rows.Scan(&net.ID, &name, &net.Addr, &nick, &username, &realname, &certfp,
 			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword,
 			&net.SASL.External.CertBlob, &net.SASL.External.PrivKeyBlob, &net.AutoAway, &net.Enabled)
 		if err != nil {
@@ -404,6 +406,7 @@ func (db *PostgresDB) ListNetworks(ctx context.Context, userID int64) ([]Network
 		net.Nick = nick.String
 		net.Username = username.String
 		net.Realname = realname.String
+		net.CertFP = certfp.String
 		net.Pass = pass.String
 		if connectCommands.Valid {
 			net.ConnectCommands = strings.Split(connectCommands.String, "\r\n")
@@ -428,6 +431,7 @@ func (db *PostgresDB) StoreNetwork(ctx context.Context, userID int64, network *N
 	nick := toNullString(network.Nick)
 	netUsername := toNullString(network.Username)
 	realname := toNullString(network.Realname)
+	certfp := toNullString(network.CertFP)
 	pass := toNullString(network.Pass)
 	connectCommands := toNullString(strings.Join(network.ConnectCommands, "\r\n"))
 
@@ -450,23 +454,23 @@ func (db *PostgresDB) StoreNetwork(ctx context.Context, userID int64, network *N
 	var err error
 	if network.ID == 0 {
 		err = db.db.QueryRowContext(ctx, `
-			INSERT INTO "Network" ("user", name, addr, nick, username, realname, pass, connect_commands,
+			INSERT INTO "Network" ("user", name, addr, nick, username, realname, certfp, pass, connect_commands,
 				sasl_mechanism, sasl_plain_username, sasl_plain_password, sasl_external_cert,
 				sasl_external_key, auto_away, enabled)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 			RETURNING id`,
-			userID, netName, network.Addr, nick, netUsername, realname, pass, connectCommands,
+			userID, netName, network.Addr, nick, netUsername, realname, certfp, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
 			network.SASL.External.PrivKeyBlob, network.AutoAway, network.Enabled).Scan(&network.ID)
 	} else {
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE "Network"
-			SET name = $2, addr = $3, nick = $4, username = $5, realname = $6, pass = $7,
-				connect_commands = $8, sasl_mechanism = $9, sasl_plain_username = $10,
-				sasl_plain_password = $11, sasl_external_cert = $12, sasl_external_key = $13,
+			SET name = $2, addr = $3, nick = $4, username = $5, realname = $6, certfp = $7, pass = $8,
+				connect_commands = $9, sasl_mechanism = $10, sasl_plain_username = $11,
+				sasl_plain_password = $12, sasl_external_cert = $13, sasl_external_key = $14,
 				auto_away = $14, enabled = $15
 			WHERE id = $1`,
-			network.ID, netName, network.Addr, nick, netUsername, realname, pass, connectCommands,
+			network.ID, netName, network.Addr, nick, netUsername, realname, certfp, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
 			network.SASL.External.PrivKeyBlob, network.AutoAway, network.Enabled)
 	}

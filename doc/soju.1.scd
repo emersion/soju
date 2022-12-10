@@ -213,6 +213,12 @@ abbreviated form, for instance *network* can be abbreviated as *net* or just
 		Connect with the specified real name. By default, the account's realname
 		is used if set, otherwise the network's nickname is used.
 
+	*-certfp* <fingerprint>
+		Instead of using certificate authorities to check the server's TLS
+		certificate, check whether the server certificate matches the provided
+		fingerprint. This can be used to connect to servers using self-signed
+		certificates. The fingerprint format is SHA512.
+
 	*-nick* <nickname>
 		Connect with the specified nickname. By default, the account's username
 		is used.

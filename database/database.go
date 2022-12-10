@@ -130,6 +130,7 @@ type Network struct {
 	Realname        string
 	Pass            string
 	ConnectCommands []string
+	CertFP          string
 	SASL            SASL
 	AutoAway        bool
 	Enabled         bool

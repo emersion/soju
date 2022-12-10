@@ -201,7 +201,7 @@ func init() {
 		"network": {
 			children: serviceCommandSet{
 				"create": {
-					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-auto-away auto-away] [-enabled enabled] [-connect-command command]...",
+					usage:  "-addr <addr> [-name name] [-username username] [-pass pass] [-realname realname] [-certfp fingerprint] [-nick nick] [-auto-away auto-away] [-enabled enabled] [-connect-command command]...",
 					desc:   "add a new network",
 					handle: handleServiceNetworkCreate,
 				},
@@ -210,7 +210,7 @@ func init() {
 					handle: handleServiceNetworkStatus,
 				},
 				"update": {
-					usage:  "[name] [-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-nick nick] [-auto-away auto-away] [-enabled enabled] [-connect-command command]...",
+					usage:  "[name] [-addr addr] [-name name] [-username username] [-pass pass] [-realname realname] [-certfp fingerprint] [-nick nick] [-auto-away auto-away] [-enabled enabled] [-connect-command command]...",
 					desc:   "update a network",
 					handle: handleServiceNetworkUpdate,
 				},
@@ -435,9 +435,9 @@ func getNetworkFromArg(dc *downstreamConn, params []string) (*network, []string,
 
 type networkFlagSet struct {
 	*flag.FlagSet
-	Addr, Name, Nick, Username, Pass, Realname *string
-	AutoAway, Enabled                          *bool
-	ConnectCommands                            []string
+	Addr, Name, Nick, Username, Pass, Realname, CertFP *string
+	AutoAway, Enabled                                  *bool
+	ConnectCommands                                    []string
 }
 
 func newNetworkFlagSet() *networkFlagSet {
@@ -448,6 +448,7 @@ func newNetworkFlagSet() *networkFlagSet {
 	fs.Var(stringPtrFlag{&fs.Username}, "username", "")
 	fs.Var(stringPtrFlag{&fs.Pass}, "pass", "")
 	fs.Var(stringPtrFlag{&fs.Realname}, "realname", "")
+	fs.Var(stringPtrFlag{&fs.CertFP}, "fingerprint", "")
 	fs.Var(boolPtrFlag{&fs.AutoAway}, "auto-away", "")
 	fs.Var(boolPtrFlag{&fs.Enabled}, "enabled", "")
 	fs.Var((*stringSliceFlag)(&fs.ConnectCommands), "connect-command", "")
@@ -483,6 +484,19 @@ func (fs *networkFlagSet) update(network *database.Network) error {
 	}
 	if fs.Realname != nil {
 		network.Realname = *fs.Realname
+	}
+	if fs.CertFP != nil {
+		certFP := strings.ReplaceAll(*fs.CertFP, ":", "")
+		if _, err := hex.DecodeString(certFP); err != nil {
+			return fmt.Errorf("the certificate fingerprint must be hex-encoded")
+		}
+		if len(certFP) == 64 {
+			network.CertFP = "sha-256:" + certFP
+		} else if len(certFP) == 128 {
+			network.CertFP = "sha-512:" + certFP
+		} else {
+			return fmt.Errorf("the certificate fingerprint must be a SHA256 or SHA512 hash")
+		}
 	}
 	if fs.AutoAway != nil {
 		network.AutoAway = *fs.AutoAway

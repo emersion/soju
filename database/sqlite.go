@@ -42,6 +42,7 @@ CREATE TABLE Network (
 	nick TEXT,
 	username TEXT,
 	realname TEXT,
+	certfp TEXT,
 	pass TEXT,
 	connect_commands TEXT,
 	sasl_mechanism TEXT,
@@ -250,6 +251,7 @@ var sqliteMigrations = []string{
 	`,
 	"ALTER TABLE User ADD COLUMN nick TEXT;",
 	"ALTER TABLE Network ADD COLUMN auto_away INTEGER NOT NULL DEFAULT 1;",
+	"ALTER TABLE Network ADD COLUMN certfp TEXT;",
 }
 
 type SqliteDB struct {
@@ -488,7 +490,7 @@ func (db *SqliteDB) ListNetworks(ctx context.Context, userID int64) ([]Network, 
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
-		SELECT id, name, addr, nick, username, realname, pass,
+		SELECT id, name, addr, nick, username, realname, certfp, pass,
 			connect_commands, sasl_mechanism, sasl_plain_username, sasl_plain_password,
 			sasl_external_cert, sasl_external_key, auto_away, enabled
 		FROM Network
@@ -502,9 +504,9 @@ func (db *SqliteDB) ListNetworks(ctx context.Context, userID int64) ([]Network, 
 	var networks []Network
 	for rows.Next() {
 		var net Network
-		var name, nick, username, realname, pass, connectCommands sql.NullString
+		var name, nick, username, realname, certfp, pass, connectCommands sql.NullString
 		var saslMechanism, saslPlainUsername, saslPlainPassword sql.NullString
-		err := rows.Scan(&net.ID, &name, &net.Addr, &nick, &username, &realname,
+		err := rows.Scan(&net.ID, &name, &net.Addr, &nick, &username, &realname, &certfp,
 			&pass, &connectCommands, &saslMechanism, &saslPlainUsername, &saslPlainPassword,
 			&net.SASL.External.CertBlob, &net.SASL.External.PrivKeyBlob, &net.AutoAway, &net.Enabled)
 		if err != nil {
@@ -514,6 +516,7 @@ func (db *SqliteDB) ListNetworks(ctx context.Context, userID int64) ([]Network, 
 		net.Nick = nick.String
 		net.Username = username.String
 		net.Realname = realname.String
+		net.CertFP = certfp.String
 		net.Pass = pass.String
 		if connectCommands.Valid {
 			net.ConnectCommands = strings.Split(connectCommands.String, "\r\n")
@@ -556,6 +559,7 @@ func (db *SqliteDB) StoreNetwork(ctx context.Context, userID int64, network *Net
 		sql.Named("nick", toNullString(network.Nick)),
 		sql.Named("username", toNullString(network.Username)),
 		sql.Named("realname", toNullString(network.Realname)),
+		sql.Named("certfp", toNullString(network.CertFP)),
 		sql.Named("pass", toNullString(network.Pass)),
 		sql.Named("connect_commands", toNullString(strings.Join(network.ConnectCommands, "\r\n"))),
 		sql.Named("sasl_mechanism", saslMechanism),
@@ -575,7 +579,7 @@ func (db *SqliteDB) StoreNetwork(ctx context.Context, userID int64, network *Net
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE Network
 			SET name = :name, addr = :addr, nick = :nick, username = :username,
-				realname = :realname, pass = :pass, connect_commands = :connect_commands,
+				realname = :realname, certfp = :certfp, pass = :pass, connect_commands = :connect_commands,
 				sasl_mechanism = :sasl_mechanism, sasl_plain_username = :sasl_plain_username, sasl_plain_password = :sasl_plain_password,
 				sasl_external_cert = :sasl_external_cert, sasl_external_key = :sasl_external_key,
 				auto_away = :auto_away, enabled = :enabled
@@ -583,10 +587,10 @@ func (db *SqliteDB) StoreNetwork(ctx context.Context, userID int64, network *Net
 	} else {
 		var res sql.Result
 		res, err = db.db.ExecContext(ctx, `
-			INSERT INTO Network(user, name, addr, nick, username, realname, pass,
+			INSERT INTO Network(user, name, addr, nick, username, realname, certfp, pass,
 				connect_commands, sasl_mechanism, sasl_plain_username,
 				sasl_plain_password, sasl_external_cert, sasl_external_key, auto_away, enabled)
-			VALUES (:user, :name, :addr, :nick, :username, :realname, :pass,
+			VALUES (:user, :name, :addr, :nick, :username, :realname, :certfp, :pass,
 				:connect_commands, :sasl_mechanism, :sasl_plain_username,
 				:sasl_plain_password, :sasl_external_cert, :sasl_external_key, :auto_away, :enabled)`,
 			args...)

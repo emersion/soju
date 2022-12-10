@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -283,6 +285,40 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 				},
 			}
 			logger.Printf("using TLS client certificate %x", sha256.Sum256(network.SASL.External.CertBlob))
+		}
+
+		if network.CertFP != "" {
+			tlsConfig.InsecureSkipVerify = true
+			tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+				if len(rawCerts) == 0 {
+					return fmt.Errorf("the server didn't present any TLS certificate")
+				}
+
+				parts := strings.SplitN(network.CertFP, ":", 2)
+				algo, localCertFP := parts[0], parts[1]
+
+				for _, rawCert := range rawCerts {
+					var remoteCertFP string
+					switch algo {
+					case "sha-512":
+						sum := sha512.Sum512(rawCert)
+						remoteCertFP = hex.EncodeToString(sum[:])
+					case "sha-256":
+						sum := sha256.Sum256(rawCert)
+						remoteCertFP = hex.EncodeToString(sum[:])
+					}
+
+					if remoteCertFP == localCertFP {
+						return nil // fingerprints match
+					}
+				}
+
+				// Fingerprints don't match, let's give the user a fingerprint
+				// they can use to connect
+				sum := sha512.Sum512(rawCerts[0])
+				remoteCertFP := hex.EncodeToString(sum[:])
+				return fmt.Errorf("the configured TLS certificate fingerprint doesn't match the server's - %s", remoteCertFP)
+			}
 		}
 
 		netConn, err = dialer.DialContext(ctx, "tcp", addr)
