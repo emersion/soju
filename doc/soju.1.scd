@@ -137,6 +137,7 @@ The following directives are supported:
 	- _memory_ stores messages in memory.
 	- _fs_ stores messages on disk, in the same format as ZNC. _source_ is
 	  required and is the root directory path for the database.
+	- _db_ stores messages in the database.
 
 	(_log_ is a deprecated alias for this directive.)
 

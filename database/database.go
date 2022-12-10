@@ -10,7 +10,24 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/bcrypt"
+	"gopkg.in/irc.v4"
 )
+
+type MessageTarget struct {
+	Name          string
+	LatestMessage time.Time
+}
+
+type MessageOptions struct {
+	AfterID    int64
+	AfterTime  time.Time
+	BeforeTime time.Time
+	Limit      int
+	Events     bool
+	Sender     string
+	Text       string
+	TakeLast   bool
+}
 
 type Database interface {
 	Close() error
@@ -41,6 +58,11 @@ type Database interface {
 	ListWebPushSubscriptions(ctx context.Context, userID, networkID int64) ([]WebPushSubscription, error)
 	StoreWebPushSubscription(ctx context.Context, userID, networkID int64, sub *WebPushSubscription) error
 	DeleteWebPushSubscription(ctx context.Context, id int64) error
+
+	GetMessageLastID(ctx context.Context, networkID int64, name string) (int64, error)
+	StoreMessage(ctx context.Context, networkID int64, name string, msg *irc.Message) (int64, error)
+	ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTarget, error)
+	ListMessages(ctx context.Context, networkID int64, name string, options *MessageOptions) ([]*irc.Message, error)
 }
 
 type MetricsCollectorDatabase interface {

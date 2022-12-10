@@ -9,9 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"git.sr.ht/~emersion/soju/xirc"
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
+	"gopkg.in/irc.v4"
 )
 
 const postgresQueryTimeout = 5 * time.Second
@@ -112,6 +114,30 @@ CREATE TABLE "WebPushSubscription" (
 	key_p256dh TEXT,
 	UNIQUE(network, endpoint)
 );
+
+CREATE TABLE "MessageTarget" (
+	id SERIAL PRIMARY KEY,
+	network INTEGER NOT NULL REFERENCES "Network"(id) ON DELETE CASCADE,
+	target TEXT NOT NULL,
+	UNIQUE(network, target)
+);
+
+CREATE TEXT SEARCH DICTIONARY "search_simple_dictionary" (
+    TEMPLATE = pg_catalog.simple
+);
+CREATE TEXT SEARCH CONFIGURATION "search_simple" ( COPY = pg_catalog.simple );
+ALTER TEXT SEARCH CONFIGURATION "search_simple" ALTER MAPPING FOR asciiword, asciihword, hword_asciipart, hword, hword_part, word WITH "search_simple_dictionary";
+CREATE TABLE "Message" (
+	id SERIAL PRIMARY KEY,
+	target INTEGER NOT NULL REFERENCES "MessageTarget"(id) ON DELETE CASCADE,
+	raw TEXT NOT NULL,
+	time TIMESTAMP WITH TIME ZONE NOT NULL,
+	sender TEXT NOT NULL,
+	text TEXT,
+	text_search tsvector GENERATED ALWAYS AS (to_tsvector('search_simple', text)) STORED
+);
+CREATE INDEX "MessageIndex" ON "Message" (target, time);
+CREATE INDEX "MessageSearchIndex" ON "Message" USING GIN (text_search);
 `
 
 var postgresMigrations = []string{
@@ -173,6 +199,30 @@ var postgresMigrations = []string{
 	`ALTER TABLE "User" ADD COLUMN created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()`,
 	`ALTER TABLE "User" ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT TRUE`,
 	`ALTER TABLE "User" ADD COLUMN downstream_interacted_at TIMESTAMP WITH TIME ZONE`,
+	`
+		CREATE TABLE "MessageTarget" (
+			id SERIAL PRIMARY KEY,
+			network INTEGER NOT NULL REFERENCES "Network"(id) ON DELETE CASCADE,
+			target TEXT NOT NULL,
+			UNIQUE(network, target)
+		);
+		CREATE TEXT SEARCH DICTIONARY "search_simple_dictionary" (
+			TEMPLATE = pg_catalog.simple
+		);
+		CREATE TEXT SEARCH CONFIGURATION "search_simple" ( COPY = pg_catalog.simple );
+		ALTER TEXT SEARCH CONFIGURATION "search_simple" ALTER MAPPING FOR asciiword, asciihword, hword_asciipart, hword, hword_part, word WITH "search_simple_dictionary";
+		CREATE TABLE "Message" (
+			id SERIAL PRIMARY KEY,
+			target INTEGER NOT NULL REFERENCES "MessageTarget"(id) ON DELETE CASCADE,
+			raw TEXT NOT NULL,
+			time TIMESTAMP WITH TIME ZONE NOT NULL,
+			sender TEXT NOT NULL,
+			text TEXT,
+			text_search tsvector GENERATED ALWAYS AS (to_tsvector('search_simple', text)) STORED
+		);
+		CREATE INDEX "MessageIndex" ON "Message" (target, time);
+		CREATE INDEX "MessageSearchIndex" ON "Message" USING GIN (text_search);
+	`,
 }
 
 type PostgresDB struct {
@@ -845,6 +895,229 @@ func (db *PostgresDB) DeleteWebPushSubscription(ctx context.Context, id int64) e
 
 	_, err := db.db.ExecContext(ctx, `DELETE FROM "WebPushSubscription" WHERE id = $1`, id)
 	return err
+}
+
+func (db *PostgresDB) GetMessageLastID(ctx context.Context, networkID int64, name string) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	var msgID int64
+	row := db.db.QueryRowContext(ctx, `
+		SELECT m.id FROM "Message" AS m, "MessageTarget" as t
+		WHERE t.network = $1 AND t.target = $2 AND m.target = t.id
+		ORDER BY m.time DESC LIMIT 1`,
+		networkID,
+		name,
+	)
+	if err := row.Scan(&msgID); err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return msgID, nil
+}
+
+func (db *PostgresDB) StoreMessage(ctx context.Context, networkID int64, name string, msg *irc.Message) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	var t time.Time
+	if tag, ok := msg.Tags["time"]; ok {
+		var err error
+		t, err = time.Parse(xirc.ServerTimeLayout, tag)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse message time tag: %v", err)
+		}
+	} else {
+		t = time.Now()
+	}
+
+	var text sql.NullString
+	switch msg.Command {
+	case "PRIVMSG", "NOTICE":
+		if len(msg.Params) > 1 {
+			text.Valid = true
+			text.String = msg.Params[1]
+		}
+	}
+
+	_, err := db.db.ExecContext(ctx, `
+		INSERT INTO "MessageTarget" (network, target)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING`,
+		networkID,
+		name,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	var id int64
+	err = db.db.QueryRowContext(ctx, `
+		INSERT INTO "Message" (target, raw, time, sender, text)
+		SELECT id, $1, $2, $3, $4
+		FROM "MessageTarget" as t
+		WHERE network = $5 AND target = $6
+		RETURNING id`,
+		msg.String(),
+		t,
+		msg.Name,
+		text,
+		networkID,
+		name,
+	).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func (db *PostgresDB) ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTarget, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	parameters := []interface{}{
+		networkID,
+	}
+	query := `
+		SELECT t.target, MAX(m.time) AS latest
+		FROM "Message" m, "MessageTarget" t
+		WHERE m.target = t.id AND t.network = $1
+	`
+	if !options.Events {
+		query += `AND m.text IS NOT NULL `
+	}
+	query += `
+		GROUP BY t.target
+		HAVING true
+	`
+	if !options.AfterTime.IsZero() {
+		// compares time strings by lexicographical order
+		parameters = append(parameters, options.AfterTime)
+		query += fmt.Sprintf(`AND MAX(m.time) > $%d `, len(parameters))
+	}
+	if !options.BeforeTime.IsZero() {
+		// compares time strings by lexicographical order
+		parameters = append(parameters, options.BeforeTime)
+		query += fmt.Sprintf(`AND MAX(m.time) < $%d `, len(parameters))
+	}
+	if options.TakeLast {
+		query += `ORDER BY latest DESC `
+	} else {
+		query += `ORDER BY latest ASC `
+	}
+	parameters = append(parameters, options.Limit)
+	query += fmt.Sprintf(`LIMIT $%d`, len(parameters))
+
+	rows, err := db.db.QueryContext(ctx, query, parameters...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var l []MessageTarget
+	for rows.Next() {
+		var mt MessageTarget
+		if err := rows.Scan(&mt.Name, &mt.LatestMessage); err != nil {
+			return nil, err
+		}
+
+		l = append(l, mt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if options.TakeLast {
+		// We ordered by DESC to limit to the last lines.
+		// Reverse the list to order by ASC these last lines.
+		for i, j := 0, len(l)-1; i < j; i, j = i+1, j-1 {
+			l[i], l[j] = l[j], l[i]
+		}
+	}
+
+	return l, nil
+}
+
+func (db *PostgresDB) ListMessages(ctx context.Context, networkID int64, name string, options *MessageOptions) ([]*irc.Message, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	parameters := []interface{}{
+		networkID,
+		name,
+	}
+	query := `
+		SELECT m.raw
+		FROM "Message" AS m, "MessageTarget" AS t
+		WHERE m.target = t.id AND t.network = $1 AND t.target = $2 `
+	if options.AfterID > 0 {
+		parameters = append(parameters, options.AfterID)
+		query += fmt.Sprintf(`AND m.id > $%d `, len(parameters))
+	}
+	if !options.AfterTime.IsZero() {
+		// compares time strings by lexicographical order
+		parameters = append(parameters, options.AfterTime)
+		query += fmt.Sprintf(`AND m.time > $%d `, len(parameters))
+	}
+	if !options.BeforeTime.IsZero() {
+		// compares time strings by lexicographical order
+		parameters = append(parameters, options.BeforeTime)
+		query += fmt.Sprintf(`AND m.time < $%d `, len(parameters))
+	}
+	if options.Sender != "" {
+		parameters = append(parameters, options.Sender)
+		query += fmt.Sprintf(`AND m.sender = $%d `, len(parameters))
+	}
+	if options.Text != "" {
+		parameters = append(parameters, options.Text)
+		query += fmt.Sprintf(`AND text_search @@ plainto_tsquery('search_simple', $%d) `, len(parameters))
+	}
+	if !options.Events {
+		query += `AND m.text IS NOT NULL `
+	}
+	if options.TakeLast {
+		query += `ORDER BY m.time DESC `
+	} else {
+		query += `ORDER BY m.time ASC `
+	}
+	parameters = append(parameters, options.Limit)
+	query += fmt.Sprintf(`LIMIT $%d`, len(parameters))
+
+	rows, err := db.db.QueryContext(ctx, query, parameters...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var l []*irc.Message
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+
+		msg, err := irc.ParseMessage(raw)
+		if err != nil {
+			return nil, err
+		}
+
+		l = append(l, msg)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if options.TakeLast {
+		// We ordered by DESC to limit to the last lines.
+		// Reverse the list to order by ASC these last lines.
+		for i, j := 0, len(l)-1; i < j; i, j = i+1, j-1 {
+			l[i], l[j] = l[j], l[i]
+		}
+	}
+
+	return l, nil
 }
 
 var postgresNetworksTotalDesc = prometheus.NewDesc("soju_networks_total", "Number of networks", []string{"hostname"}, nil)

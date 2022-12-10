@@ -1,4 +1,5 @@
 //go:build !nosqlite
+// +build !nosqlite
 
 package database
 
@@ -11,8 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"git.sr.ht/~emersion/soju/xirc"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
+	"gopkg.in/irc.v4"
 )
 
 const SqliteEnabled = true
@@ -146,6 +149,41 @@ CREATE TABLE WebPushSubscription (
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, endpoint)
 );
+
+CREATE TABLE Message (
+	id INTEGER PRIMARY KEY,
+	target INTEGER NOT NULL,
+	raw TEXT NOT NULL,
+	time TEXT NOT NULL,
+	sender TEXT NOT NULL,
+	text TEXT,
+	FOREIGN KEY(target) REFERENCES MessageTarget(id)
+);
+CREATE INDEX MessageIndex ON Message(target, time);
+
+CREATE TABLE MessageTarget (
+	id INTEGER PRIMARY KEY,
+	network INTEGER NOT NULL,
+	target TEXT NOT NULL,
+	FOREIGN KEY(network) REFERENCES Network(id),
+	UNIQUE(network, target)
+);
+
+CREATE VIRTUAL TABLE MessageFTS USING fts5 (
+	text,
+	content=Message,
+	content_rowid=id
+);
+CREATE TRIGGER MessageFTSInsert AFTER INSERT ON Message BEGIN
+	INSERT INTO MessageFTS(rowid, text) VALUES (new.id, new.text);
+END;
+CREATE TRIGGER MessageFTSDelete AFTER DELETE ON Message BEGIN
+	INSERT INTO MessageFTS(MessageFTS, rowid, text) VALUES ('delete', old.id, old.text);
+END;
+CREATE TRIGGER MessageFTSUpdate AFTER UPDATE ON Message BEGIN
+	INSERT INTO MessageFTS(MessageFTS, rowid, text) VALUES ('delete', old.id, old.text);
+	INSERT INTO MessageFTS(rowid, text) VALUES (new.id, new.text);
+END;
 `
 
 var sqliteMigrations = []string{
@@ -293,6 +331,42 @@ var sqliteMigrations = []string{
 	`,
 	"ALTER TABLE User ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
 	"ALTER TABLE User ADD COLUMN downstream_interacted_at TEXT;",
+	`
+		CREATE TABLE Message (
+			id INTEGER PRIMARY KEY,
+			target INTEGER NOT NULL,
+			raw TEXT NOT NULL,
+			time TEXT NOT NULL,
+			sender TEXT NOT NULL,
+			text TEXT,
+			FOREIGN KEY(target) REFERENCES MessageTarget(id)
+		);
+		CREATE INDEX MessageIndex ON Message(target, time);
+
+		CREATE TABLE MessageTarget (
+			id INTEGER PRIMARY KEY,
+			network INTEGER NOT NULL,
+			target TEXT NOT NULL,
+			FOREIGN KEY(network) REFERENCES Network(id),
+			UNIQUE(network, target)
+		);
+
+		CREATE VIRTUAL TABLE MessageFTS USING fts5 (
+			text,
+			content=Message,
+			content_rowid=id
+		);
+		CREATE TRIGGER MessageFTSInsert AFTER INSERT ON Message BEGIN
+			INSERT INTO MessageFTS(rowid, text) VALUES (new.id, new.text);
+		END;
+		CREATE TRIGGER MessageFTSDelete AFTER DELETE ON Message BEGIN
+			INSERT INTO MessageFTS(MessageFTS, rowid, text) VALUES ('delete', old.id, old.text);
+		END;
+		CREATE TRIGGER MessageFTSUpdate AFTER UPDATE ON Message BEGIN
+			INSERT INTO MessageFTS(MessageFTS, rowid, text) VALUES ('delete', old.id, old.text);
+			INSERT INTO MessageFTS(rowid, text) VALUES (new.id, new.text);
+		END;
+	`,
 }
 
 type SqliteDB struct {
@@ -697,6 +771,16 @@ func (db *SqliteDB) DeleteNetwork(ctx context.Context, id int64) error {
 	}
 	defer tx.Rollback()
 
+	_, err = tx.ExecContext(ctx, "DELETE FROM Message WHERE target IN (SELECT id FROM MessageTarget WHERE network = ?)", id)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, "DELETE FROM MessageTarget WHERE network = ?", id)
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.ExecContext(ctx, "DELETE FROM WebPushSubscription WHERE network = ?", id)
 	if err != nil {
 		return err
@@ -1053,4 +1137,233 @@ func (db *SqliteDB) DeleteWebPushSubscription(ctx context.Context, id int64) err
 
 	_, err := db.db.ExecContext(ctx, "DELETE FROM WebPushSubscription WHERE id = ?", id)
 	return err
+}
+
+func (db *SqliteDB) GetMessageLastID(ctx context.Context, networkID int64, name string) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	var msgID int64
+	row := db.db.QueryRowContext(ctx, `
+		SELECT m.id FROM Message AS m, MessageTarget AS t
+		WHERE t.network = :network AND t.target = :target AND m.target = t.id
+		ORDER BY m.time DESC LIMIT 1`,
+		sql.Named("network", networkID),
+		sql.Named("target", name),
+	)
+	if err := row.Scan(&msgID); err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return msgID, nil
+}
+
+func (db *SqliteDB) StoreMessage(ctx context.Context, networkID int64, name string, msg *irc.Message) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	var t time.Time
+	if tag, ok := msg.Tags["time"]; ok {
+		var err error
+		t, err = time.Parse(xirc.ServerTimeLayout, tag)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse message time tag: %v", err)
+		}
+	} else {
+		t = time.Now()
+	}
+
+	var text sql.NullString
+	switch msg.Command {
+	case "PRIVMSG", "NOTICE":
+		if len(msg.Params) > 1 {
+			text.Valid = true
+			text.String = msg.Params[1]
+		}
+	}
+
+	res, err := db.db.ExecContext(ctx, `
+		INSERT INTO MessageTarget(network, target)
+		VALUES (:network, :target)
+		ON CONFLICT DO NOTHING`,
+		sql.Named("network", networkID),
+		sql.Named("target", name),
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	res, err = db.db.ExecContext(ctx, `
+		INSERT INTO Message(target, raw, time, sender, text)
+		SELECT id, :raw, :time, :sender, :text
+		FROM MessageTarget as t
+		WHERE network = :network AND target = :target`,
+		sql.Named("network", networkID),
+		sql.Named("target", name),
+		sql.Named("raw", msg.String()),
+		sql.Named("time", sqliteTime{t}),
+		sql.Named("sender", msg.Name),
+		sql.Named("text", text),
+	)
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func (db *SqliteDB) ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTarget, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	innerQuery := `
+		SELECT time
+		FROM Message
+		WHERE target = MessageTarget.id `
+	if !options.Events {
+		innerQuery += `AND text IS NOT NULL `
+	}
+	innerQuery += `
+		ORDER BY time DESC
+		LIMIT 1
+	`
+
+	query := `
+		SELECT target, (` + innerQuery + `) latest
+		FROM MessageTarget
+		WHERE network = :network `
+	if !options.AfterTime.IsZero() {
+		// compares time strings by lexicographical order
+		query += `AND latest > :after `
+	}
+	if !options.BeforeTime.IsZero() {
+		// compares time strings by lexicographical order
+		query += `AND latest < :before `
+	}
+	if options.TakeLast {
+		query += `ORDER BY latest DESC `
+	} else {
+		query += `ORDER BY latest ASC `
+	}
+	query += `LIMIT :limit`
+
+	rows, err := db.db.QueryContext(ctx, query,
+		sql.Named("network", networkID),
+		sql.Named("after", sqliteTime{options.AfterTime}),
+		sql.Named("before", sqliteTime{options.BeforeTime}),
+		sql.Named("limit", options.Limit),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var l []MessageTarget
+	for rows.Next() {
+		var mt MessageTarget
+		var ts sqliteTime
+		if err := rows.Scan(&mt.Name, &ts); err != nil {
+			return nil, err
+		}
+
+		mt.LatestMessage = ts.Time
+		l = append(l, mt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if options.TakeLast {
+		// We ordered by DESC to limit to the last lines.
+		// Reverse the list to order by ASC these last lines.
+		for i, j := 0, len(l)-1; i < j; i, j = i+1, j-1 {
+			l[i], l[j] = l[j], l[i]
+		}
+	}
+
+	return l, nil
+}
+
+func (db *SqliteDB) ListMessages(ctx context.Context, networkID int64, name string, options *MessageOptions) ([]*irc.Message, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	query := `
+		SELECT m.raw
+		FROM Message AS m, MessageTarget AS t
+		WHERE m.target = t.id AND t.network = :network AND t.target = :target `
+	if options.AfterID > 0 {
+		query += `AND m.id > :afterID `
+	}
+	if !options.AfterTime.IsZero() {
+		// compares time strings by lexicographical order
+		query += `AND m.time > :after `
+	}
+	if !options.BeforeTime.IsZero() {
+		// compares time strings by lexicographical order
+		query += `AND m.time < :before `
+	}
+	if options.Sender != "" {
+		query += `AND m.sender = :sender `
+	}
+	if options.Text != "" {
+		query += `AND m.id IN (SELECT ROWID FROM MessageFTS WHERE MessageFTS MATCH :text) `
+	}
+	if !options.Events {
+		query += `AND m.text IS NOT NULL `
+	}
+	if options.TakeLast {
+		query += `ORDER BY m.time DESC `
+	} else {
+		query += `ORDER BY m.time ASC `
+	}
+	query += `LIMIT :limit`
+
+	rows, err := db.db.QueryContext(ctx, query,
+		sql.Named("network", networkID),
+		sql.Named("target", name),
+		sql.Named("afterID", options.AfterID),
+		sql.Named("after", sqliteTime{options.AfterTime}),
+		sql.Named("before", sqliteTime{options.BeforeTime}),
+		sql.Named("sender", options.Sender),
+		sql.Named("text", options.Text),
+		sql.Named("limit", options.Limit),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var l []*irc.Message
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+
+		msg, err := irc.ParseMessage(raw)
+		if err != nil {
+			return nil, err
+		}
+
+		l = append(l, msg)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if options.TakeLast {
+		// We ordered by DESC to limit to the last lines.
+		// Reverse the list to order by ASC these last lines.
+		for i, j := 0, len(l)-1; i < j; i, j = i+1, j-1 {
+			l[i], l[j] = l[j], l[i]
+		}
+	}
+
+	return l, nil
 }

@@ -23,7 +23,7 @@ const (
 	fsMessageStoreMaxTries = 100
 )
 
-func escapeFilename(unsafe string) (safe string) {
+func EscapeFilename(unsafe string) (safe string) {
 	if unsafe == "." {
 		return "-"
 	} else if unsafe == ".." {
@@ -103,7 +103,7 @@ func IsFSStore(store Store) bool {
 
 func NewFSStore(root string, user *database.User) *fsMessageStore {
 	return &fsMessageStore{
-		root:  filepath.Join(root, escapeFilename(user.Username)),
+		root:  filepath.Join(root, EscapeFilename(user.Username)),
 		user:  user,
 		files: make(map[string]*fsMessageStoreFile),
 	}
@@ -112,7 +112,7 @@ func NewFSStore(root string, user *database.User) *fsMessageStore {
 func (ms *fsMessageStore) logPath(network *database.Network, entity string, t time.Time) string {
 	year, month, day := t.Date()
 	filename := fmt.Sprintf("%04d-%02d-%02d.log", year, month, day)
-	return filepath.Join(ms.root, escapeFilename(network.GetName()), escapeFilename(entity), filename)
+	return filepath.Join(ms.root, EscapeFilename(network.GetName()), EscapeFilename(entity), filename)
 }
 
 // nextMsgID queries the message ID for the next message to be written to f.
@@ -265,6 +265,10 @@ func formatMessage(msg *irc.Message) string {
 }
 
 func (ms *fsMessageStore) parseMessage(line string, network *database.Network, entity string, ref time.Time, events bool) (*irc.Message, time.Time, error) {
+	return FSParseMessage(line, ms.user, network, entity, ref, events)
+}
+
+func FSParseMessage(line string, user *database.User, network *database.Network, entity string, ref time.Time, events bool) (*irc.Message, time.Time, error) {
 	var hour, minute, second int
 	_, err := fmt.Sscanf(line, "[%02d:%02d:%02d] ", &hour, &minute, &second)
 	if err != nil {
@@ -391,7 +395,7 @@ func (ms *fsMessageStore) parseMessage(line string, network *database.Network, e
 			// our nickname in the logs, so grab it from the network settings.
 			// Not very accurate since this may not match our nick at the time
 			// the message was received, but we can't do a lot better.
-			entity = database.GetNick(ms.user, network)
+			entity = database.GetNick(user, network)
 		}
 		params = []string{entity, text}
 	}
@@ -634,7 +638,7 @@ func (ms *fsMessageStore) LoadLatestID(ctx context.Context, id string, options *
 func (ms *fsMessageStore) ListTargets(ctx context.Context, network *database.Network, start, end time.Time, limit int, events bool) ([]ChatHistoryTarget, error) {
 	start = start.In(time.Local)
 	end = end.In(time.Local)
-	rootPath := filepath.Join(ms.root, escapeFilename(network.GetName()))
+	rootPath := filepath.Join(ms.root, EscapeFilename(network.GetName()))
 	root, err := os.Open(rootPath)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -713,7 +717,7 @@ func (ms *fsMessageStore) ListTargets(ctx context.Context, network *database.Net
 func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network, opts *SearchMessageOptions) ([]*irc.Message, error) {
 	text := strings.ToLower(opts.Text)
 	selector := func(m *irc.Message) bool {
-		if opts.From != "" && m.User != opts.From {
+		if opts.From != "" && m.Name != opts.From {
 			return false
 		}
 		if text != "" && !strings.Contains(strings.ToLower(m.Params[1]), text) {
@@ -734,8 +738,8 @@ func (ms *fsMessageStore) Search(ctx context.Context, network *database.Network,
 }
 
 func (ms *fsMessageStore) RenameNetwork(oldNet, newNet *database.Network) error {
-	oldDir := filepath.Join(ms.root, escapeFilename(oldNet.GetName()))
-	newDir := filepath.Join(ms.root, escapeFilename(newNet.GetName()))
+	oldDir := filepath.Join(ms.root, EscapeFilename(oldNet.GetName()))
+	newDir := filepath.Join(ms.root, EscapeFilename(newNet.GetName()))
 	// Avoid loosing data by overwriting an existing directory
 	if _, err := os.Stat(newDir); err == nil {
 		return fmt.Errorf("destination %q already exists", newDir)
