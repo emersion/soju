@@ -44,6 +44,12 @@ var permanentUpstreamCaps = map[string]bool{
 	"draft/extended-monitor":     true,
 }
 
+// storableMessageTags is the static list of message tags that will cause
+// a TAGMSG to be stored.
+var storableMessageTags = map[string]bool{
+	"+react": true,
+}
+
 type registrationError struct {
 	*irc.Message
 }
@@ -2095,6 +2101,18 @@ func (uc *upstreamConn) SendMessageLabeled(ctx context.Context, downstreamID uin
 func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string) {
 	if uc.user.msgStore == nil {
 		return ""
+	}
+	if msg.Command == "TAGMSG" {
+		store := false
+		for tag := range storableMessageTags {
+			if _, ok := msg.Tags[tag]; ok {
+				store = true
+				break
+			}
+		}
+		if !store {
+			return ""
+		}
 	}
 
 	// Don't store messages with a server mask target
