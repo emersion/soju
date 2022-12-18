@@ -448,7 +448,7 @@ func newNetworkFlagSet() *networkFlagSet {
 	fs.Var(stringPtrFlag{&fs.Username}, "username", "")
 	fs.Var(stringPtrFlag{&fs.Pass}, "pass", "")
 	fs.Var(stringPtrFlag{&fs.Realname}, "realname", "")
-	fs.Var(stringPtrFlag{&fs.CertFP}, "fingerprint", "")
+	fs.Var(stringPtrFlag{&fs.CertFP}, "certfp", "")
 	fs.Var(boolPtrFlag{&fs.AutoAway}, "auto-away", "")
 	fs.Var(boolPtrFlag{&fs.Enabled}, "enabled", "")
 	fs.Var((*stringSliceFlag)(&fs.ConnectCommands), "connect-command", "")
