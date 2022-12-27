@@ -381,6 +381,24 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		monitored:             monitorCasemapMap{newCasemapMap()},
 		hasDesiredNick:        true,
 	}
+
+	// Build initial ISUPPORT reflecting the default values.
+	chanModes := make(map[channelModeType]string)
+	for m, t := range stdChannelModes {
+		chanModes[t] += string(m)
+	}
+	chanModeStr := fmt.Sprintf("%s,%s,%s,%s", chanModes[modeTypeA], chanModes[modeTypeB], chanModes[modeTypeC], chanModes[modeTypeD])
+	uc.isupport["CHANMODES"] = &chanModeStr
+	chanTypes := stdChannelTypes
+	uc.isupport["CHANTYPES"] = &chanTypes
+	var membershipModes, membershipPrefixes string
+	for _, m := range stdMemberships {
+		membershipModes += string(m.Mode)
+		membershipPrefixes += string(m.Prefix)
+	}
+	prefix := fmt.Sprintf("(%s)%s", membershipModes, membershipPrefixes)
+	uc.isupport["PREFIX"] = &prefix
+
 	return uc, nil
 }
 
