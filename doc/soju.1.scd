@@ -178,6 +178,10 @@ Commands can be sent via regular private messages
 abbreviated form, for instance *network* can be abbreviated as *net* or just
 *n*.
 
+Commands are parsed according the POSIX shell rules. In particular, words can
+be quoted (via double or single quotes) and a backslash escapes the next
+character.
+
 *help* [command]
 	Show a list of commands. If _command_ is specified, show a help message for
 	the command.
