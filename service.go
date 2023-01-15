@@ -306,6 +306,7 @@ func init() {
 					admin:  true,
 				},
 				"notice": {
+					usage:  "<notice>",
 					desc:   "broadcast a notice to all connected bouncer users",
 					handle: handleServiceServerNotice,
 					admin:  true,
@@ -528,6 +529,9 @@ func handleServiceNetworkCreate(ctx context.Context, dc *downstreamConn, params 
 	if err := fs.Parse(params); err != nil {
 		return err
 	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
+	}
 	if fs.Addr == nil {
 		return fmt.Errorf("flag -addr is required")
 	}
@@ -605,6 +609,9 @@ func handleServiceNetworkUpdate(ctx context.Context, dc *downstreamConn, params 
 	if err := fs.Parse(params); err != nil {
 		return err
 	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
+	}
 
 	record := net.Network // copy network record because we'll mutate it
 	if err := fs.update(&record); err != nil {
@@ -621,6 +628,9 @@ func handleServiceNetworkUpdate(ctx context.Context, dc *downstreamConn, params 
 }
 
 func handleServiceNetworkDelete(ctx context.Context, dc *downstreamConn, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
 	net, params, err := getNetworkFromArg(dc, params)
 	if err != nil {
 		return err
@@ -695,6 +705,9 @@ func handleServiceCertFPGenerate(ctx context.Context, dc *downstreamConn, params
 	if err := fs.Parse(params); err != nil {
 		return err
 	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
+	}
 
 	if *bits <= 0 || *bits > maxRSABits {
 		return fmt.Errorf("invalid value for -bits")
@@ -730,6 +743,9 @@ func handleServiceCertFPFingerprints(ctx context.Context, dc *downstreamConn, pa
 	if err := fs.Parse(params); err != nil {
 		return err
 	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
+	}
 
 	net, err := getNetworkFromFlag(dc, *netName)
 	if err != nil {
@@ -750,6 +766,9 @@ func handleServiceSASLStatus(ctx context.Context, dc *downstreamConn, params []s
 
 	if err := fs.Parse(params); err != nil {
 		return err
+	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 
 	net, err := getNetworkFromFlag(dc, *netName)
@@ -787,7 +806,7 @@ func handleServiceSASLSetPlain(ctx context.Context, dc *downstreamConn, params [
 		return err
 	}
 
-	if len(fs.Args()) != 2 {
+	if fs.NArg() != 2 {
 		return fmt.Errorf("expected exactly 2 arguments")
 	}
 
@@ -814,6 +833,9 @@ func handleServiceSASLReset(ctx context.Context, dc *downstreamConn, params []st
 
 	if err := fs.Parse(params); err != nil {
 		return err
+	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 
 	net, err := getNetworkFromFlag(dc, *netName)
@@ -845,6 +867,9 @@ func handleUserCreate(ctx context.Context, dc *downstreamConn, params []string) 
 
 	if err := fs.Parse(params); err != nil {
 		return err
+	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 	if *username == "" {
 		return fmt.Errorf("flag -username is required")
@@ -890,8 +915,8 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 	if err := fs.Parse(params); err != nil {
 		return err
 	}
-	if len(fs.Args()) > 0 {
-		return fmt.Errorf("unexpected argument")
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 
 	if username != "" && username != dc.user.Username {
@@ -1024,6 +1049,9 @@ func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params 
 
 	if err := fs.Parse(params); err != nil {
 		return err
+	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 
 	n := 0
@@ -1182,6 +1210,9 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 	if err := fs.Parse(params[1:]); err != nil {
 		return err
 	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
+	}
 
 	name, network, err := stripNetworkSuffix(dc, name)
 	if err != nil {
@@ -1218,8 +1249,8 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 }
 
 func handleServiceChannelDelete(ctx context.Context, dc *downstreamConn, params []string) error {
-	if len(params) < 1 {
-		return fmt.Errorf("expected at least one argument")
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
 	}
 	name := params[0]
 
