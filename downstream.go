@@ -1397,6 +1397,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	}
 	if dc.network == nil {
 		isupport = append(isupport, "WHOX")
+		isupport = append(isupport, "CHANTYPES=") // channels are not supported
 	}
 	if dc.caps.IsEnabled("soju.im/webpush") {
 		isupport = append(isupport, "VAPID="+dc.srv.webPush.VAPIDKeys.Public)
