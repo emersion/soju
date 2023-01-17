@@ -35,12 +35,20 @@ var servicePrefix = &irc.Prefix{
 	Host: serviceNick,
 }
 
+type serviceContext struct {
+	context.Context
+	nick    string   // optional
+	network *network // optional
+	user    *user
+	print   func(string)
+}
+
 type serviceCommandSet map[string]*serviceCommand
 
 type serviceCommand struct {
 	usage    string
 	desc     string
-	handle   func(ctx context.Context, dc *downstreamConn, params []string) error
+	handle   func(ctx *serviceContext, params []string) error
 	children serviceCommandSet
 	admin    bool
 }
@@ -114,39 +122,39 @@ func splitWords(s string) ([]string, error) {
 	return words, nil
 }
 
-func handleServicePRIVMSG(ctx context.Context, dc *downstreamConn, text string) {
+func handleServicePRIVMSG(ctx *serviceContext, text string) {
 	words, err := splitWords(text)
 	if err != nil {
-		sendServicePRIVMSG(dc, fmt.Sprintf(`error: failed to parse command: %v`, err))
+		ctx.print(fmt.Sprintf(`error: failed to parse command: %v`, err))
 		return
 	}
 
 	cmd, params, err := serviceCommands.Get(words)
 	if err != nil {
-		sendServicePRIVMSG(dc, fmt.Sprintf(`error: %v (type "help" for a list of commands)`, err))
+		ctx.print(fmt.Sprintf(`error: %v (type "help" for a list of commands)`, err))
 		return
 	}
-	if cmd.admin && !dc.user.Admin {
-		sendServicePRIVMSG(dc, "error: you must be an admin to use this command")
+	if cmd.admin && !ctx.user.Admin {
+		ctx.print("error: you must be an admin to use this command")
 		return
 	}
 
 	if cmd.handle == nil {
 		if len(cmd.children) > 0 {
 			var l []string
-			appendServiceCommandSetHelp(cmd.children, words, dc.user.Admin, &l)
-			sendServicePRIVMSG(dc, "available commands: "+strings.Join(l, ", "))
+			appendServiceCommandSetHelp(cmd.children, words, ctx.user.Admin, &l)
+			ctx.print("available commands: " + strings.Join(l, ", "))
 		} else {
 			// Pretend the command does not exist if it has neither children nor handler.
 			// This is obviously a bug but it is better to not die anyway.
-			dc.logger.Printf("command without handler and subcommands invoked:", words[0])
-			sendServicePRIVMSG(dc, fmt.Sprintf("command %q not found", words[0]))
+			ctx.user.logger.Printf("command without handler and subcommands invoked:", words[0])
+			ctx.print(fmt.Sprintf("command %q not found", words[0]))
 		}
 		return
 	}
 
-	if err := cmd.handle(ctx, dc, params); err != nil {
-		sendServicePRIVMSG(dc, fmt.Sprintf("error: %v", err))
+	if err := cmd.handle(ctx, params); err != nil {
+		ctx.print(fmt.Sprintf("error: %v", err))
 	}
 }
 
@@ -333,7 +341,7 @@ func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, admin 
 	}
 }
 
-func handleServiceHelp(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceHelp(ctx *serviceContext, params []string) error {
 	if len(params) > 0 {
 		cmd, rest, err := serviceCommands.Get(params)
 		if err != nil {
@@ -343,8 +351,8 @@ func handleServiceHelp(ctx context.Context, dc *downstreamConn, params []string)
 
 		if len(cmd.children) > 0 {
 			var l []string
-			appendServiceCommandSetHelp(cmd.children, words, dc.user.Admin, &l)
-			sendServicePRIVMSG(dc, "available commands: "+strings.Join(l, ", "))
+			appendServiceCommandSetHelp(cmd.children, words, ctx.user.Admin, &l)
+			ctx.print("available commands: " + strings.Join(l, ", "))
 		} else {
 			text := strings.Join(words, " ")
 			if cmd.usage != "" {
@@ -352,12 +360,12 @@ func handleServiceHelp(ctx context.Context, dc *downstreamConn, params []string)
 			}
 			text += ": " + cmd.desc
 
-			sendServicePRIVMSG(dc, text)
+			ctx.print(text)
 		}
 	} else {
 		var l []string
-		appendServiceCommandSetHelp(serviceCommands, nil, dc.user.Admin, &l)
-		sendServicePRIVMSG(dc, "available commands: "+strings.Join(l, ", "))
+		appendServiceCommandSetHelp(serviceCommands, nil, ctx.user.Admin, &l)
+		ctx.print("available commands: " + strings.Join(l, ", "))
 	}
 	return nil
 }
@@ -418,15 +426,15 @@ func (f boolPtrFlag) Set(s string) error {
 	return nil
 }
 
-func getNetworkFromArg(dc *downstreamConn, params []string) (*network, []string, error) {
+func getNetworkFromArg(ctx *serviceContext, params []string) (*network, []string, error) {
 	name, params := popArg(params)
 	if name == "" {
-		if dc.network == nil {
+		if ctx.network == nil {
 			return nil, params, fmt.Errorf("no network selected, a name argument is required")
 		}
-		return dc.network, params, nil
+		return ctx.network, params, nil
 	} else {
-		net := dc.user.getNetwork(name)
+		net := ctx.user.getNetwork(name)
 		if net == nil {
 			return nil, params, fmt.Errorf("unknown network %q", name)
 		}
@@ -524,7 +532,7 @@ func (fs *networkFlagSet) update(network *database.Network) error {
 	return nil
 }
 
-func handleServiceNetworkCreate(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceNetworkCreate(ctx *serviceContext, params []string) error {
 	fs := newNetworkFlagSet()
 	if err := fs.Parse(params); err != nil {
 		return err
@@ -544,22 +552,22 @@ func handleServiceNetworkCreate(ctx context.Context, dc *downstreamConn, params 
 		return err
 	}
 
-	network, err := dc.user.createNetwork(ctx, record)
+	network, err := ctx.user.createNetwork(ctx, record)
 	if err != nil {
 		return fmt.Errorf("could not create network: %v", err)
 	}
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("created network %q", network.GetName()))
+	ctx.print(fmt.Sprintf("created network %q", network.GetName()))
 	return nil
 }
 
-func handleServiceNetworkStatus(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceNetworkStatus(ctx *serviceContext, params []string) error {
 	n := 0
-	for _, net := range dc.user.networks {
+	for _, net := range ctx.user.networks {
 		var statuses []string
 		var details string
 		if uc := net.conn; uc != nil {
-			if dc.nick != uc.nick {
+			if ctx.nick != "" && ctx.nick != uc.nick {
 				statuses = append(statuses, "connected as "+uc.nick)
 			} else {
 				statuses = append(statuses, "connected")
@@ -574,7 +582,7 @@ func handleServiceNetworkStatus(ctx context.Context, dc *downstreamConn, params 
 			}
 		}
 
-		if net == dc.network {
+		if net == ctx.network {
 			statuses = append(statuses, "current")
 		}
 
@@ -587,20 +595,20 @@ func handleServiceNetworkStatus(ctx context.Context, dc *downstreamConn, params 
 		if details != "" {
 			s += ": " + details
 		}
-		sendServicePRIVMSG(dc, s)
+		ctx.print(s)
 
 		n++
 	}
 
 	if n == 0 {
-		sendServicePRIVMSG(dc, `No network configured, add one with "network create".`)
+		ctx.print(`No network configured, add one with "network create".`)
 	}
 
 	return nil
 }
 
-func handleServiceNetworkUpdate(ctx context.Context, dc *downstreamConn, params []string) error {
-	net, params, err := getNetworkFromArg(dc, params)
+func handleServiceNetworkUpdate(ctx *serviceContext, params []string) error {
+	net, params, err := getNetworkFromArg(ctx, params)
 	if err != nil {
 		return err
 	}
@@ -618,33 +626,33 @@ func handleServiceNetworkUpdate(ctx context.Context, dc *downstreamConn, params 
 		return err
 	}
 
-	network, err := dc.user.updateNetwork(ctx, &record)
+	network, err := ctx.user.updateNetwork(ctx, &record)
 	if err != nil {
 		return fmt.Errorf("could not update network: %v", err)
 	}
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("updated network %q", network.GetName()))
+	ctx.print(fmt.Sprintf("updated network %q", network.GetName()))
 	return nil
 }
 
-func handleServiceNetworkDelete(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceNetworkDelete(ctx *serviceContext, params []string) error {
 	if len(params) != 1 {
 		return fmt.Errorf("expected exactly one argument")
 	}
-	net, params, err := getNetworkFromArg(dc, params)
+	net, params, err := getNetworkFromArg(ctx, params)
 	if err != nil {
 		return err
 	}
 
-	if err := dc.user.deleteNetwork(ctx, net.ID); err != nil {
+	if err := ctx.user.deleteNetwork(ctx, net.ID); err != nil {
 		return err
 	}
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("deleted network %q", net.GetName()))
+	ctx.print(fmt.Sprintf("deleted network %q", net.GetName()))
 	return nil
 }
 
-func handleServiceNetworkQuote(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceNetworkQuote(ctx *serviceContext, params []string) error {
 	if len(params) != 1 && len(params) != 2 {
 		return fmt.Errorf("expected one or two arguments")
 	}
@@ -652,7 +660,7 @@ func handleServiceNetworkQuote(ctx context.Context, dc *downstreamConn, params [
 	raw := params[len(params)-1]
 	params = params[:len(params)-1]
 
-	net, params, err := getNetworkFromArg(dc, params)
+	net, params, err := getNetworkFromArg(ctx, params)
 	if err != nil {
 		return err
 	}
@@ -668,27 +676,27 @@ func handleServiceNetworkQuote(ctx context.Context, dc *downstreamConn, params [
 	}
 	uc.SendMessage(ctx, m)
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("sent command to %q", net.GetName()))
+	ctx.print(fmt.Sprintf("sent command to %q", net.GetName()))
 	return nil
 }
 
-func sendCertfpFingerprints(dc *downstreamConn, cert []byte) {
+func sendCertfpFingerprints(ctx *serviceContext, cert []byte) {
 	sha1Sum := sha1.Sum(cert)
-	sendServicePRIVMSG(dc, "SHA-1 fingerprint: "+hex.EncodeToString(sha1Sum[:]))
+	ctx.print("SHA-1 fingerprint: " + hex.EncodeToString(sha1Sum[:]))
 	sha256Sum := sha256.Sum256(cert)
-	sendServicePRIVMSG(dc, "SHA-256 fingerprint: "+hex.EncodeToString(sha256Sum[:]))
+	ctx.print("SHA-256 fingerprint: " + hex.EncodeToString(sha256Sum[:]))
 	sha512Sum := sha512.Sum512(cert)
-	sendServicePRIVMSG(dc, "SHA-512 fingerprint: "+hex.EncodeToString(sha512Sum[:]))
+	ctx.print("SHA-512 fingerprint: " + hex.EncodeToString(sha512Sum[:]))
 }
 
-func getNetworkFromFlag(dc *downstreamConn, name string) (*network, error) {
+func getNetworkFromFlag(ctx *serviceContext, name string) (*network, error) {
 	if name == "" {
-		if dc.network == nil {
+		if ctx.network == nil {
 			return nil, fmt.Errorf("no network selected, -network is required")
 		}
-		return dc.network, nil
+		return ctx.network, nil
 	} else {
-		net := dc.user.getNetwork(name)
+		net := ctx.user.getNetwork(name)
 		if net == nil {
 			return nil, fmt.Errorf("unknown network %q", name)
 		}
@@ -696,7 +704,7 @@ func getNetworkFromFlag(dc *downstreamConn, name string) (*network, error) {
 	}
 }
 
-func handleServiceCertFPGenerate(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceCertFPGenerate(ctx *serviceContext, params []string) error {
 	fs := newFlagSet()
 	netName := fs.String("network", "", "select a network")
 	keyType := fs.String("key-type", "rsa", "key type to generate (rsa, ecdsa, ed25519)")
@@ -713,7 +721,7 @@ func handleServiceCertFPGenerate(ctx context.Context, dc *downstreamConn, params
 		return fmt.Errorf("invalid value for -bits")
 	}
 
-	net, err := getNetworkFromFlag(dc, *netName)
+	net, err := getNetworkFromFlag(ctx, *netName)
 	if err != nil {
 		return err
 	}
@@ -727,16 +735,16 @@ func handleServiceCertFPGenerate(ctx context.Context, dc *downstreamConn, params
 	net.SASL.External.PrivKeyBlob = privKey
 	net.SASL.Mechanism = "EXTERNAL"
 
-	if err := dc.srv.db.StoreNetwork(ctx, dc.user.ID, &net.Network); err != nil {
+	if err := ctx.user.srv.db.StoreNetwork(ctx, ctx.user.ID, &net.Network); err != nil {
 		return err
 	}
 
-	sendServicePRIVMSG(dc, "certificate generated")
-	sendCertfpFingerprints(dc, cert)
+	ctx.print("certificate generated")
+	sendCertfpFingerprints(ctx, cert)
 	return nil
 }
 
-func handleServiceCertFPFingerprints(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceCertFPFingerprints(ctx *serviceContext, params []string) error {
 	fs := newFlagSet()
 	netName := fs.String("network", "", "select a network")
 
@@ -747,7 +755,7 @@ func handleServiceCertFPFingerprints(ctx context.Context, dc *downstreamConn, pa
 		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 
-	net, err := getNetworkFromFlag(dc, *netName)
+	net, err := getNetworkFromFlag(ctx, *netName)
 	if err != nil {
 		return err
 	}
@@ -756,11 +764,11 @@ func handleServiceCertFPFingerprints(ctx context.Context, dc *downstreamConn, pa
 		return fmt.Errorf("CertFP not set up")
 	}
 
-	sendCertfpFingerprints(dc, net.SASL.External.CertBlob)
+	sendCertfpFingerprints(ctx, net.SASL.External.CertBlob)
 	return nil
 }
 
-func handleServiceSASLStatus(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceSASLStatus(ctx *serviceContext, params []string) error {
 	fs := newFlagSet()
 	netName := fs.String("network", "", "select a network")
 
@@ -771,34 +779,34 @@ func handleServiceSASLStatus(ctx context.Context, dc *downstreamConn, params []s
 		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 
-	net, err := getNetworkFromFlag(dc, *netName)
+	net, err := getNetworkFromFlag(ctx, *netName)
 	if err != nil {
 		return err
 	}
 
 	switch net.SASL.Mechanism {
 	case "PLAIN":
-		sendServicePRIVMSG(dc, fmt.Sprintf("SASL PLAIN enabled with username %q", net.SASL.Plain.Username))
+		ctx.print(fmt.Sprintf("SASL PLAIN enabled with username %q", net.SASL.Plain.Username))
 	case "EXTERNAL":
-		sendServicePRIVMSG(dc, "SASL EXTERNAL (CertFP) enabled")
+		ctx.print("SASL EXTERNAL (CertFP) enabled")
 	case "":
-		sendServicePRIVMSG(dc, "SASL is disabled")
+		ctx.print("SASL is disabled")
 	}
 
 	if uc := net.conn; uc != nil {
 		if uc.account != "" {
-			sendServicePRIVMSG(dc, fmt.Sprintf("Authenticated on upstream network with account %q", uc.account))
+			ctx.print(fmt.Sprintf("Authenticated on upstream network with account %q", uc.account))
 		} else {
-			sendServicePRIVMSG(dc, "Unauthenticated on upstream network")
+			ctx.print("Unauthenticated on upstream network")
 		}
 	} else {
-		sendServicePRIVMSG(dc, "Disconnected from upstream network")
+		ctx.print("Disconnected from upstream network")
 	}
 
 	return nil
 }
 
-func handleServiceSASLSetPlain(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceSASLSetPlain(ctx *serviceContext, params []string) error {
 	fs := newFlagSet()
 	netName := fs.String("network", "", "select a network")
 
@@ -810,7 +818,7 @@ func handleServiceSASLSetPlain(ctx context.Context, dc *downstreamConn, params [
 		return fmt.Errorf("expected exactly 2 arguments")
 	}
 
-	net, err := getNetworkFromFlag(dc, *netName)
+	net, err := getNetworkFromFlag(ctx, *netName)
 	if err != nil {
 		return err
 	}
@@ -819,15 +827,15 @@ func handleServiceSASLSetPlain(ctx context.Context, dc *downstreamConn, params [
 	net.SASL.Plain.Password = fs.Arg(1)
 	net.SASL.Mechanism = "PLAIN"
 
-	if err := dc.srv.db.StoreNetwork(ctx, dc.user.ID, &net.Network); err != nil {
+	if err := ctx.user.srv.db.StoreNetwork(ctx, ctx.user.ID, &net.Network); err != nil {
 		return err
 	}
 
-	sendServicePRIVMSG(dc, "credentials saved")
+	ctx.print("credentials saved")
 	return nil
 }
 
-func handleServiceSASLReset(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceSASLReset(ctx *serviceContext, params []string) error {
 	fs := newFlagSet()
 	netName := fs.String("network", "", "select a network")
 
@@ -838,7 +846,7 @@ func handleServiceSASLReset(ctx context.Context, dc *downstreamConn, params []st
 		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 
-	net, err := getNetworkFromFlag(dc, *netName)
+	net, err := getNetworkFromFlag(ctx, *netName)
 	if err != nil {
 		return err
 	}
@@ -849,15 +857,15 @@ func handleServiceSASLReset(ctx context.Context, dc *downstreamConn, params []st
 	net.SASL.External.PrivKeyBlob = nil
 	net.SASL.Mechanism = ""
 
-	if err := dc.srv.db.StoreNetwork(ctx, dc.user.ID, &net.Network); err != nil {
+	if err := ctx.user.srv.db.StoreNetwork(ctx, ctx.user.ID, &net.Network); err != nil {
 		return err
 	}
 
-	sendServicePRIVMSG(dc, "credentials reset")
+	ctx.print("credentials reset")
 	return nil
 }
 
-func handleUserCreate(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleUserCreate(ctx *serviceContext, params []string) error {
 	fs := newFlagSet()
 	username := fs.String("username", "", "")
 	password := fs.String("password", "", "")
@@ -887,11 +895,11 @@ func handleUserCreate(ctx context.Context, dc *downstreamConn, params []string) 
 	if err := user.SetPassword(*password); err != nil {
 		return err
 	}
-	if _, err := dc.srv.createUser(ctx, user); err != nil {
+	if _, err := ctx.user.srv.createUser(ctx, user); err != nil {
 		return fmt.Errorf("could not create user: %v", err)
 	}
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("created user %q", *username))
+	ctx.print(fmt.Sprintf("created user %q", *username))
 	return nil
 }
 
@@ -902,7 +910,7 @@ func popArg(params []string) (string, []string) {
 	return "", params
 }
 
-func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleUserUpdate(ctx *serviceContext, params []string) error {
 	var password, nick, realname *string
 	var admin *bool
 	fs := newFlagSet()
@@ -919,8 +927,8 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 
-	if username != "" && username != dc.user.Username {
-		if !dc.user.Admin {
+	if username != "" && username != ctx.user.Username {
+		if !ctx.user.Admin {
 			return fmt.Errorf("you must be an admin to update other users")
 		}
 		if nick != nil {
@@ -940,7 +948,7 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 			hashed = &hashedStr
 		}
 
-		u := dc.srv.getUser(username)
+		u := ctx.user.srv.getUser(username)
 		if u == nil {
 			return fmt.Errorf("unknown username %q", username)
 		}
@@ -961,10 +969,10 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 			return err
 		}
 
-		sendServicePRIVMSG(dc, fmt.Sprintf("updated user %q", username))
+		ctx.print(fmt.Sprintf("updated user %q", username))
 	} else {
 		// copy the user record because we'll mutate it
-		record := dc.user.User
+		record := ctx.user.User
 
 		if password != nil {
 			if err := record.SetPassword(*password); err != nil {
@@ -981,17 +989,17 @@ func handleUserUpdate(ctx context.Context, dc *downstreamConn, params []string) 
 			return fmt.Errorf("cannot update -admin of own user")
 		}
 
-		if err := dc.user.updateUser(ctx, &record); err != nil {
+		if err := ctx.user.updateUser(ctx, &record); err != nil {
 			return err
 		}
 
-		sendServicePRIVMSG(dc, fmt.Sprintf("updated user %q", dc.user.Username))
+		ctx.print(fmt.Sprintf("updated user %q", ctx.user.Username))
 	}
 
 	return nil
 }
 
-func handleUserDelete(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleUserDelete(ctx *serviceContext, params []string) error {
 	if len(params) != 1 && len(params) != 2 {
 		return fmt.Errorf("expected one or two arguments")
 	}
@@ -1000,19 +1008,19 @@ func handleUserDelete(ctx context.Context, dc *downstreamConn, params []string) 
 	hashBytes := sha1.Sum([]byte(username))
 	hash := fmt.Sprintf("%x", hashBytes[0:3])
 
-	self := dc.user.Username == username
+	self := ctx.user.Username == username
 
-	if !dc.user.Admin && !self {
+	if !ctx.user.Admin && !self {
 		return fmt.Errorf("only admins may delete other users")
 	}
 
-	u := dc.srv.getUser(username)
+	u := ctx.user.srv.getUser(username)
 	if u == nil {
 		return fmt.Errorf("unknown username %q", username)
 	}
 
 	if len(params) < 2 {
-		sendServicePRIVMSG(dc, fmt.Sprintf(`To confirm user deletion, send "user delete %s %s"`, username, hash))
+		ctx.print(fmt.Sprintf(`To confirm user deletion, send "user delete %s %s"`, username, hash))
 		return nil
 	}
 
@@ -1020,28 +1028,29 @@ func handleUserDelete(ctx context.Context, dc *downstreamConn, params []string) 
 		return fmt.Errorf("provided confirmation token doesn't match user")
 	}
 
+	c := ctx.Context
 	if self {
-		sendServicePRIVMSG(dc, fmt.Sprintf("Goodbye %s, deleting your account. There will be no further confirmation.", username))
-		ctx = context.TODO()
+		ctx.print(fmt.Sprintf("Goodbye %s, deleting your account. There will be no further confirmation.", username))
+		c = context.TODO()
 	}
 
 	u.stop()
 
-	if err := dc.srv.db.DeleteUser(ctx, u.ID); err != nil {
+	if err := ctx.user.srv.db.DeleteUser(c, u.ID); err != nil {
 		return fmt.Errorf("failed to delete user: %v", err)
 	}
 
 	if !self {
-		sendServicePRIVMSG(dc, fmt.Sprintf("deleted user %q", username))
+		ctx.print(fmt.Sprintf("deleted user %q", username))
 	}
 
 	return nil
 }
 
-func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceChannelStatus(ctx *serviceContext, params []string) error {
 	var defaultNetworkName string
-	if dc.network != nil {
-		defaultNetworkName = dc.network.GetName()
+	if ctx.network != nil {
+		defaultNetworkName = ctx.network.GetName()
 	}
 
 	fs := newFlagSet()
@@ -1092,18 +1101,18 @@ func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params 
 			}
 
 			s := fmt.Sprintf("%v [%v]", name, status)
-			sendServicePRIVMSG(dc, s)
+			ctx.print(s)
 
 			n++
 		}
 	}
 
 	if *networkName == "" {
-		for _, net := range dc.user.networks {
+		for _, net := range ctx.user.networks {
 			sendNetwork(net)
 		}
 	} else {
-		net := dc.user.getNetwork(*networkName)
+		net := ctx.user.getNetwork(*networkName)
 		if net == nil {
 			return fmt.Errorf("unknown network %q", *networkName)
 		}
@@ -1111,7 +1120,7 @@ func handleServiceChannelStatus(ctx context.Context, dc *downstreamConn, params 
 	}
 
 	if n == 0 {
-		sendServicePRIVMSG(dc, "No channel configured.")
+		ctx.print("No channel configured.")
 	}
 
 	return nil
@@ -1179,9 +1188,9 @@ func (fs *channelFlagSet) update(channel *database.Channel) error {
 	return nil
 }
 
-func stripNetworkSuffix(dc *downstreamConn, name string) (string, *network, error) {
-	if dc.network != nil {
-		return name, dc.network, nil
+func stripNetworkSuffix(ctx *serviceContext, name string) (string, *network, error) {
+	if ctx.network != nil {
+		return name, ctx.network, nil
 	}
 
 	l := strings.SplitN(name, "/", 2)
@@ -1191,7 +1200,7 @@ func stripNetworkSuffix(dc *downstreamConn, name string) (string, *network, erro
 	name = l[0]
 	netName := l[1]
 
-	for _, network := range dc.user.networks {
+	for _, network := range ctx.user.networks {
 		if netName == network.GetName() {
 			return name, network, nil
 		}
@@ -1200,7 +1209,7 @@ func stripNetworkSuffix(dc *downstreamConn, name string) (string, *network, erro
 	return "", nil, fmt.Errorf("unknown network %q", netName)
 }
 
-func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceChannelUpdate(ctx *serviceContext, params []string) error {
 	if len(params) < 1 {
 		return fmt.Errorf("expected at least one argument")
 	}
@@ -1214,7 +1223,7 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
 
-	name, network, err := stripNetworkSuffix(dc, name)
+	name, network, err := stripNetworkSuffix(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -1240,21 +1249,21 @@ func handleServiceChannelUpdate(ctx context.Context, dc *downstreamConn, params 
 		network.conn.updateChannelAutoDetach(name)
 	}
 
-	if err := dc.srv.db.StoreChannel(ctx, network.ID, ch); err != nil {
+	if err := ctx.user.srv.db.StoreChannel(ctx, network.ID, ch); err != nil {
 		return fmt.Errorf("failed to update channel: %v", err)
 	}
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("updated channel %q", name))
+	ctx.print(fmt.Sprintf("updated channel %q", name))
 	return nil
 }
 
-func handleServiceChannelDelete(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceChannelDelete(ctx *serviceContext, params []string) error {
 	if len(params) != 1 {
 		return fmt.Errorf("expected exactly one argument")
 	}
 	name := params[0]
 
-	name, network, err := stripNetworkSuffix(dc, name)
+	name, network, err := stripNetworkSuffix(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -1270,37 +1279,37 @@ func handleServiceChannelDelete(ctx context.Context, dc *downstreamConn, params 
 		})
 	}
 
-	sendServicePRIVMSG(dc, fmt.Sprintf("deleted channel %q", name))
+	ctx.print(fmt.Sprintf("deleted channel %q", name))
 	return nil
 }
 
-func handleServiceServerStatus(ctx context.Context, dc *downstreamConn, params []string) error {
-	dbStats, err := dc.user.srv.db.Stats(ctx)
+func handleServiceServerStatus(ctx *serviceContext, params []string) error {
+	dbStats, err := ctx.user.srv.db.Stats(ctx)
 	if err != nil {
 		return err
 	}
-	serverStats := dc.user.srv.Stats()
-	sendServicePRIVMSG(dc, fmt.Sprintf("%v/%v users, %v downstreams, %v upstreams, %v networks, %v channels", serverStats.Users, dbStats.Users, serverStats.Downstreams, serverStats.Upstreams, dbStats.Networks, dbStats.Channels))
+	serverStats := ctx.user.srv.Stats()
+	ctx.print(fmt.Sprintf("%v/%v users, %v downstreams, %v upstreams, %v networks, %v channels", serverStats.Users, dbStats.Users, serverStats.Downstreams, serverStats.Upstreams, dbStats.Networks, dbStats.Channels))
 	return nil
 }
 
-func handleServiceServerNotice(ctx context.Context, dc *downstreamConn, params []string) error {
+func handleServiceServerNotice(ctx *serviceContext, params []string) error {
 	if len(params) != 1 {
 		return fmt.Errorf("expected exactly one argument")
 	}
 	text := params[0]
 
-	dc.logger.Printf("broadcasting bouncer-wide NOTICE: %v", text)
+	ctx.user.logger.Printf("broadcasting bouncer-wide NOTICE: %v", text)
 
 	broadcastMsg := &irc.Message{
 		Prefix:  servicePrefix,
 		Command: "NOTICE",
-		Params:  []string{"$" + dc.srv.Config().Hostname, text},
+		Params:  []string{"$" + ctx.user.srv.Config().Hostname, text},
 	}
 	var err error
 	sent := 0
 	total := 0
-	dc.srv.forEachUser(func(u *user) {
+	ctx.user.srv.forEachUser(func(u *user) {
 		total++
 		select {
 		case <-ctx.Done():
@@ -1310,8 +1319,8 @@ func handleServiceServerNotice(ctx context.Context, dc *downstreamConn, params [
 		}
 	})
 
-	dc.logger.Printf("broadcast bouncer-wide NOTICE to %v/%v downstreams", sent, total)
-	sendServicePRIVMSG(dc, fmt.Sprintf("sent to %v/%v downstream connections", sent, total))
+	ctx.user.logger.Printf("broadcast bouncer-wide NOTICE to %v/%v downstreams", sent, total)
+	ctx.print(fmt.Sprintf("sent to %v/%v downstream connections", sent, total))
 
 	return err
 }
