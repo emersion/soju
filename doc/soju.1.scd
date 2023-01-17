@@ -407,6 +407,9 @@ character.
 	*-network* <name>
 		Select a network. By default, the current network is selected, if any.
 
+*user status*
+	Show a list of users on this server. Only admins can query this information.
+
 *user create* -username <username> -password <password> [options...]
 	Create a new soju user. Only admin users can create new accounts.
 	The _-username_ and _-password_ flags are mandatory.
