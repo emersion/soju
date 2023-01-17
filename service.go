@@ -128,7 +128,10 @@ func handleServicePRIVMSG(ctx *serviceContext, text string) {
 		ctx.print(fmt.Sprintf(`error: failed to parse command: %v`, err))
 		return
 	}
+	handleServiceCommand(ctx, words)
+}
 
+func handleServiceCommand(ctx *serviceContext, words []string) {
 	cmd, params, err := serviceCommands.Get(words)
 	if err != nil {
 		ctx.print(fmt.Sprintf(`error: %v (type "help" for a list of commands)`, err))
@@ -284,6 +287,12 @@ func init() {
 					usage:  "<username> [confirmation token]",
 					desc:   "delete a user",
 					handle: handleUserDelete,
+				},
+				"run": {
+					usage:  "<username> <command>",
+					desc:   "run a command as another user",
+					handle: handleUserRun,
+					admin:  true,
 				},
 			},
 		},
@@ -1045,6 +1054,57 @@ func handleUserDelete(ctx *serviceContext, params []string) error {
 	}
 
 	return nil
+}
+
+func handleUserRun(ctx *serviceContext, params []string) error {
+	if !ctx.user.Admin {
+		return fmt.Errorf("only admins may run command as other users")
+	}
+	if len(params) < 2 {
+		return fmt.Errorf("expected at least two arguments")
+	}
+
+	username := params[0]
+	params = params[1:]
+	if username == ctx.user.Username {
+		handleServiceCommand(ctx, params)
+		return nil
+	}
+
+	u := ctx.user.srv.getUser(username)
+	if u == nil {
+		return fmt.Errorf("unknown username %q", username)
+	}
+
+	printCh := make(chan string, 1)
+	ev := eventUserRun{
+		params: params,
+		print:  printCh,
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case u.events <- ev:
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			// This handles a possible race condition:
+			// - we send ev to u.events
+			// - the user goroutine for u stops (because of a crash or user deletion)
+			// - we would block on printCh
+			// Quitting on ctx.Done() prevents us from blocking indefinitely
+			// in case the event is never processed.
+			// TODO: Properly fix this condition by flushing the u.events queue
+			//       and running close(ev.print) in a defer
+			return nil
+		case text, ok := <-printCh:
+			if !ok {
+				return nil
+			}
+			ctx.print(text)
+		}
+	}
 }
 
 func handleServiceChannelStatus(ctx *serviceContext, params []string) error {
