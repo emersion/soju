@@ -2346,7 +2346,15 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					})
 				}
 				if msg.Command == "PRIVMSG" {
-					handleServicePRIVMSG(ctx, dc, text)
+					handleServicePRIVMSG(&serviceContext{
+						Context: ctx,
+						nick:    dc.nick,
+						network: dc.network,
+						user:    dc.user,
+						print: func(text string) {
+							sendServicePRIVMSG(dc, text)
+						},
+					}, text)
 				}
 				continue
 			}
