@@ -272,6 +272,11 @@ func init() {
 		},
 		"user": {
 			children: serviceCommandSet{
+				"status": {
+					desc:   "show a list of users and their current status",
+					handle: handleUserStatus,
+					admin:  true,
+				},
 				"create": {
 					usage:  "-username <username> -password <password> [-realname <realname>] [-admin]",
 					desc:   "create a new soju user",
@@ -871,6 +876,40 @@ func handleServiceSASLReset(ctx *serviceContext, params []string) error {
 	}
 
 	ctx.print("credentials reset")
+	return nil
+}
+
+func handleUserStatus(ctx *serviceContext, params []string) error {
+	// Limit to a small amount of users to avoid sending
+	// thousands of messages on large instances.
+	users := make([]database.User, 0, 50)
+
+	ctx.user.srv.lock.Lock()
+	n := len(ctx.user.srv.users)
+	for _, user := range ctx.user.srv.users {
+		if len(users) == cap(users) {
+			break
+		}
+		users = append(users, user.User)
+	}
+	ctx.user.srv.lock.Unlock()
+
+	for _, user := range users {
+		line := user.Username
+		if user.Admin {
+			line += " (admin)"
+		}
+		networks, err := ctx.user.srv.db.ListNetworks(ctx, user.ID)
+		if err != nil {
+			return fmt.Errorf("could not get networks of user %q: %v", user.Username, err)
+		}
+		line += fmt.Sprintf(": %d networks", len(networks))
+		ctx.print(line)
+	}
+	if n > len(users) {
+		ctx.print(fmt.Sprintf("(%d more users omitted)", n-len(users)))
+	}
+
 	return nil
 }
 
