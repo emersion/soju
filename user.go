@@ -82,6 +82,11 @@ type eventTryRegainNick struct {
 	nick string
 }
 
+type eventUserRun struct {
+	params []string
+	print  chan string
+}
+
 type deliveredClientMap map[string]string // client name -> msg ID
 
 type deliveredStore struct {
@@ -769,6 +774,22 @@ func (u *user) run() {
 			}
 		case eventTryRegainNick:
 			e.uc.tryRegainNick(e.nick)
+		case eventUserRun:
+			ctx := context.TODO()
+			handleServiceCommand(&serviceContext{
+				Context: ctx,
+				user:    u,
+				print: func(text string) {
+					// Avoid blocking on e.print in case our context is canceled.
+					// This is a no-op right now because we use context.TODO(),
+					// but might be useful later when we add timeouts.
+					select {
+					case <-ctx.Done():
+					case e.print <- text:
+					}
+				},
+			}, e.params)
+			close(e.print)
 		case eventStop:
 			for _, dc := range u.downstreamConns {
 				dc.Close()
