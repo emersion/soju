@@ -1057,9 +1057,6 @@ func handleUserDelete(ctx *serviceContext, params []string) error {
 }
 
 func handleUserRun(ctx *serviceContext, params []string) error {
-	if !ctx.user.Admin {
-		return fmt.Errorf("only admins may run command as other users")
-	}
 	if len(params) < 2 {
 		return fmt.Errorf("expected at least two arguments")
 	}
