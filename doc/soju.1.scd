@@ -449,6 +449,11 @@ character.
 
 	Only admins can delete other users.
 
+*user run* <username> <command...>
+	Execute a command as another user.
+
+	Only admins can use this command.
+
 *server status*
 	Show some bouncer statistics. Only admins can query this information.
 
