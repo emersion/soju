@@ -39,7 +39,8 @@ type serviceContext struct {
 	context.Context
 	nick    string   // optional
 	network *network // optional
-	user    *user
+	user    *user    // optional
+	srv     *Server
 	admin   bool
 	print   func(string)
 }
@@ -142,16 +143,26 @@ func handleServiceCommand(ctx *serviceContext, words []string) {
 		ctx.print("error: you must be an admin to use this command")
 		return
 	}
+	if !cmd.admin && ctx.user == nil {
+		ctx.print("error: this command must be run as a user (try running with user run)")
+		return
+	}
 
 	if cmd.handle == nil {
 		if len(cmd.children) > 0 {
 			var l []string
-			appendServiceCommandSetHelp(cmd.children, words, ctx.admin, &l)
+			appendServiceCommandSetHelp(cmd.children, words, ctx.admin, ctx.user == nil, &l)
 			ctx.print("available commands: " + strings.Join(l, ", "))
 		} else {
 			// Pretend the command does not exist if it has neither children nor handler.
 			// This is obviously a bug but it is better to not die anyway.
-			ctx.user.logger.Printf("command without handler and subcommands invoked:", words[0])
+			var logger Logger
+			if ctx.user != nil {
+				logger = ctx.user.logger
+			} else {
+				logger = ctx.srv.Logger
+			}
+			logger.Printf("command without handler and subcommands invoked:", words[0])
 			ctx.print(fmt.Sprintf("command %q not found", words[0]))
 		}
 		return
@@ -340,10 +351,13 @@ func init() {
 	}
 }
 
-func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, admin bool, l *[]string) {
+func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, admin bool, global bool, l *[]string) {
 	for _, name := range cmds.Names() {
 		cmd := cmds[name]
 		if cmd.admin && !admin {
+			continue
+		}
+		if !cmd.admin && global {
 			continue
 		}
 		words := append(prefix, name)
@@ -351,7 +365,7 @@ func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, admin 
 			s := strings.Join(words, " ")
 			*l = append(*l, s)
 		} else {
-			appendServiceCommandSetHelp(cmd.children, words, admin, l)
+			appendServiceCommandSetHelp(cmd.children, words, admin, global, l)
 		}
 	}
 }
@@ -366,7 +380,7 @@ func handleServiceHelp(ctx *serviceContext, params []string) error {
 
 		if len(cmd.children) > 0 {
 			var l []string
-			appendServiceCommandSetHelp(cmd.children, words, ctx.admin, &l)
+			appendServiceCommandSetHelp(cmd.children, words, ctx.admin, ctx.user == nil, &l)
 			ctx.print("available commands: " + strings.Join(l, ", "))
 		} else {
 			text := strings.Join(words, " ")
@@ -379,7 +393,7 @@ func handleServiceHelp(ctx *serviceContext, params []string) error {
 		}
 	} else {
 		var l []string
-		appendServiceCommandSetHelp(serviceCommands, nil, ctx.admin, &l)
+		appendServiceCommandSetHelp(serviceCommands, nil, ctx.admin, ctx.user == nil, &l)
 		ctx.print("available commands: " + strings.Join(l, ", "))
 	}
 	return nil
@@ -750,7 +764,7 @@ func handleServiceCertFPGenerate(ctx *serviceContext, params []string) error {
 	net.SASL.External.PrivKeyBlob = privKey
 	net.SASL.Mechanism = "EXTERNAL"
 
-	if err := ctx.user.srv.db.StoreNetwork(ctx, ctx.user.ID, &net.Network); err != nil {
+	if err := ctx.srv.db.StoreNetwork(ctx, ctx.user.ID, &net.Network); err != nil {
 		return err
 	}
 
@@ -842,7 +856,7 @@ func handleServiceSASLSetPlain(ctx *serviceContext, params []string) error {
 	net.SASL.Plain.Password = fs.Arg(1)
 	net.SASL.Mechanism = "PLAIN"
 
-	if err := ctx.user.srv.db.StoreNetwork(ctx, ctx.user.ID, &net.Network); err != nil {
+	if err := ctx.srv.db.StoreNetwork(ctx, ctx.user.ID, &net.Network); err != nil {
 		return err
 	}
 
@@ -872,7 +886,7 @@ func handleServiceSASLReset(ctx *serviceContext, params []string) error {
 	net.SASL.External.PrivKeyBlob = nil
 	net.SASL.Mechanism = ""
 
-	if err := ctx.user.srv.db.StoreNetwork(ctx, ctx.user.ID, &net.Network); err != nil {
+	if err := ctx.srv.db.StoreNetwork(ctx, ctx.user.ID, &net.Network); err != nil {
 		return err
 	}
 
@@ -885,15 +899,15 @@ func handleUserStatus(ctx *serviceContext, params []string) error {
 	// thousands of messages on large instances.
 	users := make([]database.User, 0, 50)
 
-	ctx.user.srv.lock.Lock()
-	n := len(ctx.user.srv.users)
-	for _, user := range ctx.user.srv.users {
+	ctx.srv.lock.Lock()
+	n := len(ctx.srv.users)
+	for _, user := range ctx.srv.users {
 		if len(users) == cap(users) {
 			break
 		}
 		users = append(users, user.User)
 	}
-	ctx.user.srv.lock.Unlock()
+	ctx.srv.lock.Unlock()
 
 	for _, user := range users {
 		var attrs []string
@@ -908,7 +922,7 @@ func handleUserStatus(ctx *serviceContext, params []string) error {
 		if len(attrs) > 0 {
 			line += " (" + strings.Join(attrs, ", ") + ")"
 		}
-		networks, err := ctx.user.srv.db.ListNetworks(ctx, user.ID)
+		networks, err := ctx.srv.db.ListNetworks(ctx, user.ID)
 		if err != nil {
 			return fmt.Errorf("could not get networks of user %q: %v", user.Username, err)
 		}
@@ -960,7 +974,7 @@ func handleUserCreate(ctx *serviceContext, params []string) error {
 			return err
 		}
 	}
-	if _, err := ctx.user.srv.createUser(ctx, user); err != nil {
+	if _, err := ctx.srv.createUser(ctx, user); err != nil {
 		return fmt.Errorf("could not create user: %v", err)
 	}
 
@@ -994,12 +1008,15 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 	if fs.NArg() > 0 {
 		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
+	if username == "" && ctx.user == nil {
+		return fmt.Errorf("cannot determine the user to update")
+	}
 
 	if password != nil && disablePassword {
 		return fmt.Errorf("flags -password and -disable-password are mutually exclusive")
 	}
 
-	if username != "" && username != ctx.user.Username {
+	if username != "" && (ctx.user == nil || username != ctx.user.Username) {
 		if !ctx.admin {
 			return fmt.Errorf("you must be an admin to update other users")
 		}
@@ -1024,7 +1041,7 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 			hashed = &hashedStr
 		}
 
-		u := ctx.user.srv.getUser(username)
+		u := ctx.srv.getUser(username)
 		if u == nil {
 			return fmt.Errorf("unknown username %q", username)
 		}
@@ -1091,13 +1108,13 @@ func handleUserDelete(ctx *serviceContext, params []string) error {
 	hashBytes := sha1.Sum([]byte(username))
 	hash := fmt.Sprintf("%x", hashBytes[0:3])
 
-	self := ctx.user.Username == username
+	self := ctx.user != nil && ctx.user.Username == username
 
 	if !ctx.admin && !self {
 		return fmt.Errorf("only admins may delete other users")
 	}
 
-	u := ctx.user.srv.getUser(username)
+	u := ctx.srv.getUser(username)
 	if u == nil {
 		return fmt.Errorf("unknown username %q", username)
 	}
@@ -1123,7 +1140,7 @@ func handleUserDelete(ctx *serviceContext, params []string) error {
 		return fmt.Errorf("failed to stop user: %v", err)
 	}
 
-	if err := ctx.user.srv.db.DeleteUser(deleteCtx, u.ID); err != nil {
+	if err := ctx.srv.db.DeleteUser(deleteCtx, u.ID); err != nil {
 		return fmt.Errorf("failed to delete user: %v", err)
 	}
 
@@ -1141,12 +1158,12 @@ func handleUserRun(ctx *serviceContext, params []string) error {
 
 	username := params[0]
 	params = params[1:]
-	if username == ctx.user.Username {
+	if ctx.user != nil && username == ctx.user.Username {
 		handleServiceCommand(ctx, params)
 		return nil
 	}
 
-	u := ctx.user.srv.getUser(username)
+	u := ctx.srv.getUser(username)
 	if u == nil {
 		return fmt.Errorf("unknown username %q", username)
 	}
@@ -1384,7 +1401,7 @@ func handleServiceChannelUpdate(ctx *serviceContext, params []string) error {
 		network.conn.updateChannelAutoDetach(name)
 	}
 
-	if err := ctx.user.srv.db.StoreChannel(ctx, network.ID, ch); err != nil {
+	if err := ctx.srv.db.StoreChannel(ctx, network.ID, ch); err != nil {
 		return fmt.Errorf("failed to update channel: %v", err)
 	}
 
@@ -1419,11 +1436,11 @@ func handleServiceChannelDelete(ctx *serviceContext, params []string) error {
 }
 
 func handleServiceServerStatus(ctx *serviceContext, params []string) error {
-	dbStats, err := ctx.user.srv.db.Stats(ctx)
+	dbStats, err := ctx.srv.db.Stats(ctx)
 	if err != nil {
 		return err
 	}
-	serverStats := ctx.user.srv.Stats()
+	serverStats := ctx.srv.Stats()
 	ctx.print(fmt.Sprintf("%v/%v users, %v downstreams, %v upstreams, %v networks, %v channels", serverStats.Users, dbStats.Users, serverStats.Downstreams, serverStats.Upstreams, dbStats.Networks, dbStats.Channels))
 	return nil
 }
@@ -1434,17 +1451,23 @@ func handleServiceServerNotice(ctx *serviceContext, params []string) error {
 	}
 	text := params[0]
 
-	ctx.user.logger.Printf("broadcasting bouncer-wide NOTICE: %v", text)
+	var logger Logger
+	if ctx.user != nil {
+		logger = ctx.user.logger
+	} else {
+		logger = ctx.srv.Logger
+	}
+	logger.Printf("broadcasting bouncer-wide NOTICE: %v", text)
 
 	broadcastMsg := &irc.Message{
 		Prefix:  servicePrefix,
 		Command: "NOTICE",
-		Params:  []string{"$" + ctx.user.srv.Config().Hostname, text},
+		Params:  []string{"$" + ctx.srv.Config().Hostname, text},
 	}
 	var err error
 	sent := 0
 	total := 0
-	ctx.user.srv.forEachUser(func(u *user) {
+	ctx.srv.forEachUser(func(u *user) {
 		total++
 		select {
 		case <-ctx.Done():
@@ -1454,7 +1477,7 @@ func handleServiceServerNotice(ctx *serviceContext, params []string) error {
 		}
 	})
 
-	ctx.user.logger.Printf("broadcast bouncer-wide NOTICE to %v/%v downstreams", sent, total)
+	logger.Printf("broadcast bouncer-wide NOTICE to %v/%v downstreams", sent, total)
 	ctx.print(fmt.Sprintf("sent to %v/%v downstream connections", sent, total))
 
 	return err
