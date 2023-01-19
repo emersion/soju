@@ -811,6 +811,7 @@ func (u *user) run() {
 			handleServiceCommand(&serviceContext{
 				Context: ctx,
 				user:    u,
+				srv:     u.srv,
 				admin:   u.Admin,
 				print: func(text string) {
 					// Avoid blocking on e.print in case our context is canceled.
