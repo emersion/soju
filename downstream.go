@@ -2433,6 +2433,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						nick:    dc.nick,
 						network: dc.network,
 						user:    dc.user,
+						admin:   dc.user.Admin,
 						print: func(text string) {
 							sendServicePRIVMSG(dc, text)
 						},

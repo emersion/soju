@@ -40,6 +40,7 @@ type serviceContext struct {
 	nick    string   // optional
 	network *network // optional
 	user    *user
+	admin   bool
 	print   func(string)
 }
 
@@ -137,7 +138,7 @@ func handleServiceCommand(ctx *serviceContext, words []string) {
 		ctx.print(fmt.Sprintf(`error: %v (type "help" for a list of commands)`, err))
 		return
 	}
-	if cmd.admin && !ctx.user.Admin {
+	if cmd.admin && !ctx.admin {
 		ctx.print("error: you must be an admin to use this command")
 		return
 	}
@@ -145,7 +146,7 @@ func handleServiceCommand(ctx *serviceContext, words []string) {
 	if cmd.handle == nil {
 		if len(cmd.children) > 0 {
 			var l []string
-			appendServiceCommandSetHelp(cmd.children, words, ctx.user.Admin, &l)
+			appendServiceCommandSetHelp(cmd.children, words, ctx.admin, &l)
 			ctx.print("available commands: " + strings.Join(l, ", "))
 		} else {
 			// Pretend the command does not exist if it has neither children nor handler.
@@ -365,7 +366,7 @@ func handleServiceHelp(ctx *serviceContext, params []string) error {
 
 		if len(cmd.children) > 0 {
 			var l []string
-			appendServiceCommandSetHelp(cmd.children, words, ctx.user.Admin, &l)
+			appendServiceCommandSetHelp(cmd.children, words, ctx.admin, &l)
 			ctx.print("available commands: " + strings.Join(l, ", "))
 		} else {
 			text := strings.Join(words, " ")
@@ -378,7 +379,7 @@ func handleServiceHelp(ctx *serviceContext, params []string) error {
 		}
 	} else {
 		var l []string
-		appendServiceCommandSetHelp(serviceCommands, nil, ctx.user.Admin, &l)
+		appendServiceCommandSetHelp(serviceCommands, nil, ctx.admin, &l)
 		ctx.print("available commands: " + strings.Join(l, ", "))
 	}
 	return nil
@@ -999,7 +1000,7 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 	}
 
 	if username != "" && username != ctx.user.Username {
-		if !ctx.user.Admin {
+		if !ctx.admin {
 			return fmt.Errorf("you must be an admin to update other users")
 		}
 		if nick != nil {
@@ -1092,7 +1093,7 @@ func handleUserDelete(ctx *serviceContext, params []string) error {
 
 	self := ctx.user.Username == username
 
-	if !ctx.user.Admin && !self {
+	if !ctx.admin && !self {
 		return fmt.Errorf("only admins may delete other users")
 	}
 
