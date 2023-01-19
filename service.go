@@ -53,6 +53,7 @@ type serviceCommand struct {
 	handle   func(ctx *serviceContext, params []string) error
 	children serviceCommandSet
 	admin    bool
+	global   bool
 }
 
 func sendServiceNOTICE(dc *downstreamConn, text string) {
@@ -143,7 +144,7 @@ func handleServiceCommand(ctx *serviceContext, words []string) {
 		ctx.print("error: you must be an admin to use this command")
 		return
 	}
-	if !cmd.admin && ctx.user == nil {
+	if !cmd.global && ctx.user == nil {
 		ctx.print("error: this command must be run as a user (try running with user run)")
 		return
 	}
@@ -220,6 +221,7 @@ func init() {
 			usage:  "[command]",
 			desc:   "print help message",
 			handle: handleServiceHelp,
+			global: true,
 		},
 		"network": {
 			children: serviceCommandSet{
@@ -288,30 +290,36 @@ func init() {
 					desc:   "show a list of users and their current status",
 					handle: handleUserStatus,
 					admin:  true,
+					global: true,
 				},
 				"create": {
 					usage:  "-username <username> -password <password> [-disable-password] [-admin true|false] [-nick <nick>] [-realname <realname>] [-enabled true|false]",
 					desc:   "create a new soju user",
 					handle: handleUserCreate,
 					admin:  true,
+					global: true,
 				},
 				"update": {
 					usage:  "[username] [-password <password>] [-disable-password] [-admin true|false] [-nick <nick>] [-realname <realname>] [-enabled true|false]",
 					desc:   "update a user",
 					handle: handleUserUpdate,
+					global: true,
 				},
 				"delete": {
 					usage:  "<username> [confirmation token]",
 					desc:   "delete a user",
 					handle: handleUserDelete,
+					global: true,
 				},
 				"run": {
 					usage:  "<username> <command>",
 					desc:   "run a command as another user",
 					handle: handleUserRun,
 					admin:  true,
+					global: true,
 				},
 			},
+			global: true,
 		},
 		"channel": {
 			children: serviceCommandSet{
@@ -338,12 +346,14 @@ func init() {
 					desc:   "show server statistics",
 					handle: handleServiceServerStatus,
 					admin:  true,
+					global: true,
 				},
 				"notice": {
 					usage:  "<notice>",
 					desc:   "broadcast a notice to all connected bouncer users",
 					handle: handleServiceServerNotice,
 					admin:  true,
+					global: true,
 				},
 			},
 			admin: true,
@@ -357,7 +367,7 @@ func appendServiceCommandSetHelp(cmds serviceCommandSet, prefix []string, admin 
 		if cmd.admin && !admin {
 			continue
 		}
-		if !cmd.admin && global {
+		if !cmd.global && global {
 			continue
 		}
 		words := append(prefix, name)
