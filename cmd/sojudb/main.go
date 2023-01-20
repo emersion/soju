@@ -16,7 +16,7 @@ import (
 	"git.sr.ht/~emersion/soju/database"
 )
 
-const usage = `usage: sojuctl [-config path] <action> [options...]
+const usage = `usage: sojudb [-config path] <action> [options...]
 
   create-user <username> [-admin]  Create a new user
   change-password <username>       Change password for a user
