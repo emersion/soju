@@ -87,6 +87,7 @@ type eventTryRegainNick struct {
 type eventUserRun struct {
 	params []string
 	print  chan string
+	ret    chan error
 }
 
 type deliveredClientMap map[string]string // client name -> msg ID
@@ -808,7 +809,7 @@ func (u *user) run() {
 			e.uc.tryRegainNick(e.nick)
 		case eventUserRun:
 			ctx := context.TODO()
-			handleServiceCommand(&serviceContext{
+			err := handleServiceCommand(&serviceContext{
 				Context: ctx,
 				user:    u,
 				srv:     u.srv,
@@ -823,7 +824,10 @@ func (u *user) run() {
 					}
 				},
 			}, e.params)
-			close(e.print)
+			select {
+			case <-ctx.Done():
+			case e.ret <- err:
+			}
 		case eventStop:
 			for _, dc := range u.downstreamConns {
 				dc.Close()

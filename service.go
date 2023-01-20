@@ -125,28 +125,24 @@ func splitWords(s string) ([]string, error) {
 	return words, nil
 }
 
-func handleServicePRIVMSG(ctx *serviceContext, text string) {
+func handleServicePRIVMSG(ctx *serviceContext, text string) error {
 	words, err := splitWords(text)
 	if err != nil {
-		ctx.print(fmt.Sprintf(`error: failed to parse command: %v`, err))
-		return
+		return fmt.Errorf(`failed to parse command: %v`, err)
 	}
-	handleServiceCommand(ctx, words)
+	return handleServiceCommand(ctx, words)
 }
 
-func handleServiceCommand(ctx *serviceContext, words []string) {
+func handleServiceCommand(ctx *serviceContext, words []string) error {
 	cmd, params, err := serviceCommands.Get(words)
 	if err != nil {
-		ctx.print(fmt.Sprintf(`error: %v (type "help" for a list of commands)`, err))
-		return
+		return fmt.Errorf(`%v (type "help" for a list of commands)`, err)
 	}
 	if cmd.admin && !ctx.admin {
-		ctx.print("error: you must be an admin to use this command")
-		return
+		return fmt.Errorf("you must be an admin to use this command")
 	}
 	if !cmd.global && ctx.user == nil {
-		ctx.print("error: this command must be run as a user (try running with user run)")
-		return
+		return fmt.Errorf("this command must be run as a user (try running with user run)")
 	}
 
 	if cmd.handle == nil {
@@ -154,24 +150,21 @@ func handleServiceCommand(ctx *serviceContext, words []string) {
 			var l []string
 			appendServiceCommandSetHelp(cmd.children, words, ctx.admin, ctx.user == nil, &l)
 			ctx.print("available commands: " + strings.Join(l, ", "))
-		} else {
-			// Pretend the command does not exist if it has neither children nor handler.
-			// This is obviously a bug but it is better to not die anyway.
-			var logger Logger
-			if ctx.user != nil {
-				logger = ctx.user.logger
-			} else {
-				logger = ctx.srv.Logger
-			}
-			logger.Printf("command without handler and subcommands invoked:", words[0])
-			ctx.print(fmt.Sprintf("command %q not found", words[0]))
+			return nil
 		}
-		return
+		// Pretend the command does not exist if it has neither children nor handler.
+		// This is obviously a bug but it is better to not die anyway.
+		var logger Logger
+		if ctx.user != nil {
+			logger = ctx.user.logger
+		} else {
+			logger = ctx.srv.Logger
+		}
+		logger.Printf("command without handler and subcommands invoked:", words[0])
+		return fmt.Errorf("command %q not found", words[0])
 	}
 
-	if err := cmd.handle(ctx, params); err != nil {
-		ctx.print(fmt.Sprintf("error: %v", err))
-	}
+	return cmd.handle(ctx, params)
 }
 
 func (cmds serviceCommandSet) Get(params []string) (*serviceCommand, []string, error) {
@@ -1169,8 +1162,7 @@ func handleUserRun(ctx *serviceContext, params []string) error {
 	username := params[0]
 	params = params[1:]
 	if ctx.user != nil && username == ctx.user.Username {
-		handleServiceCommand(ctx, params)
-		return nil
+		return handleServiceCommand(ctx, params)
 	}
 
 	u := ctx.srv.getUser(username)
@@ -1179,9 +1171,11 @@ func handleUserRun(ctx *serviceContext, params []string) error {
 	}
 
 	printCh := make(chan string, 1)
+	retCh := make(chan error, 1)
 	ev := eventUserRun{
 		params: params,
 		print:  printCh,
+		ret:    retCh,
 	}
 	select {
 	case <-ctx.Done():
@@ -1199,12 +1193,13 @@ func handleUserRun(ctx *serviceContext, params []string) error {
 			// in case the event is never processed.
 			// TODO: Properly fix this condition by flushing the u.events queue
 			//       and running close(ev.print) in a defer
-			return nil
+			return fmt.Errorf("timeout executing command")
 		case text, ok := <-printCh:
-			if !ok {
-				return nil
+			if ok {
+				ctx.print(text)
 			}
-			ctx.print(text)
+		case ret := <-retCh:
+			return ret
 		}
 	}
 }
