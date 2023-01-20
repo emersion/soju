@@ -2428,7 +2428,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					})
 				}
 				if msg.Command == "PRIVMSG" {
-					handleServicePRIVMSG(&serviceContext{
+					if err := handleServicePRIVMSG(&serviceContext{
 						Context: ctx,
 						nick:    dc.nick,
 						network: dc.network,
@@ -2438,7 +2438,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						print: func(text string) {
 							sendServicePRIVMSG(dc, text)
 						},
-					}, text)
+					}, text); err != nil {
+						sendServicePRIVMSG(dc, fmt.Sprintf("error: %v", err))
+					}
 				}
 				continue
 			}
