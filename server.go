@@ -26,6 +26,8 @@ import (
 	"git.sr.ht/~emersion/soju/identd"
 )
 
+var DefaultUnixAdminPath = "/run/soju/admin"
+
 // TODO: make configurable
 var retryConnectMinDelay = time.Minute
 var retryConnectMaxDelay = 10 * time.Minute
@@ -437,7 +439,7 @@ func (s *Server) addUserLocked(user *database.User) *user {
 
 var lastDownstreamID uint64
 
-func (s *Server) handle(ic ircConn) {
+func (s *Server) Handle(ic ircConn) {
 	defer func() {
 		if err := recover(); err != nil {
 			s.Logger.Printf("panic serving downstream %q: %v\n%v", ic.RemoteAddr(), err, string(debug.Stack()))
@@ -471,7 +473,91 @@ func (s *Server) handle(ic ircConn) {
 	s.metrics.downstreams.Add(-1)
 }
 
-func (s *Server) Serve(ln net.Listener) error {
+func (s *Server) HandleAdmin(ic ircConn) {
+	defer func() {
+		if err := recover(); err != nil {
+			s.Logger.Printf("panic serving admin client %q: %v\n%v", ic.RemoteAddr(), err, string(debug.Stack()))
+		}
+	}()
+
+	s.lock.Lock()
+	shutdown := s.shutdown
+	s.lock.Unlock()
+
+	ctx := context.TODO()
+	remoteAddr := ic.RemoteAddr().String()
+	logger := &prefixLogger{s.Logger, fmt.Sprintf("admin %q: ", remoteAddr)}
+	c := newConn(s, ic, &connOptions{Logger: logger})
+	defer c.Close()
+
+	if shutdown {
+		c.SendMessage(ctx, &irc.Message{
+			Command: "ERROR",
+			Params:  []string{"Server is shutting down"},
+		})
+		return
+	}
+	for {
+		msg, err := c.ReadMessage()
+		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			logger.Printf("failed to read IRC command: %v", err)
+			break
+		}
+		switch msg.Command {
+		case "BOUNCERSERV":
+			if len(msg.Params) < 1 {
+				c.SendMessage(ctx, &irc.Message{
+					Command: irc.ERR_NEEDMOREPARAMS,
+					Params: []string{
+						"*",
+						msg.Command,
+						"Not enough parameters",
+					},
+				})
+				break
+			}
+			err := handleServicePRIVMSG(&serviceContext{
+				Context: ctx,
+				srv:     s,
+				admin:   true,
+				print: func(text string) {
+					c.SendMessage(ctx, &irc.Message{
+						Prefix:  s.prefix(),
+						Command: "PRIVMSG",
+						Params:  []string{"*", text},
+					})
+				},
+			}, msg.Params[0])
+			if err != nil {
+				c.SendMessage(ctx, &irc.Message{
+					Prefix:  s.prefix(),
+					Command: "FAIL",
+					Params:  []string{msg.Command, err.Error()},
+				})
+			} else {
+				c.SendMessage(ctx, &irc.Message{
+					Prefix:  s.prefix(),
+					Command: msg.Command,
+					Params:  []string{"OK"},
+				})
+			}
+		default:
+			c.SendMessage(ctx, &irc.Message{
+				Prefix:  s.prefix(),
+				Command: irc.ERR_UNKNOWNCOMMAND,
+				Params: []string{
+					"*",
+					msg.Command,
+					"Unknown command",
+				},
+			})
+		}
+	}
+}
+
+func (s *Server) Serve(ln net.Listener, handler func(ircConn)) error {
 	ln = &retryListener{
 		Listener: ln,
 		Logger:   &prefixLogger{logger: s.Logger, prefix: fmt.Sprintf("listener %v: ", ln.Addr())},
@@ -499,7 +585,7 @@ func (s *Server) Serve(ln net.Listener) error {
 			return fmt.Errorf("failed to accept connection: %v", err)
 		}
 
-		go s.handle(newNetIRCConn(conn))
+		go handler(newNetIRCConn(conn))
 	}
 }
 
@@ -530,7 +616,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	s.handle(newWebsocketIRCConn(conn, remoteAddr))
+	s.Handle(newWebsocketIRCConn(conn, remoteAddr))
 }
 
 func parseForwarded(h http.Header) map[string]string {
