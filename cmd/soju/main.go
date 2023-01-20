@@ -177,7 +177,7 @@ func main() {
 			ln := tls.NewListener(l, ircsTLSCfg)
 			ln = proxyProtoListener(ln, srv)
 			go func() {
-				if err := srv.Serve(ln); err != nil {
+				if err := srv.Serve(ln, srv.Handle); err != nil {
 					log.Printf("serving %q: %v", listen, err)
 				}
 			}()
@@ -195,7 +195,7 @@ func main() {
 			}
 			ln = proxyProtoListener(ln, srv)
 			go func() {
-				if err := srv.Serve(ln); err != nil {
+				if err := srv.Serve(ln, srv.Handle); err != nil {
 					log.Printf("serving %q: %v", listen, err)
 				}
 			}()
@@ -206,7 +206,22 @@ func main() {
 			}
 			ln = proxyProtoListener(ln, srv)
 			go func() {
-				if err := srv.Serve(ln); err != nil {
+				if err := srv.Serve(ln, srv.Handle); err != nil {
+					log.Printf("serving %q: %v", listen, err)
+				}
+			}()
+		case "unix+admin":
+			path := u.Path
+			if path == "" {
+				path = soju.DefaultUnixAdminPath
+			}
+			ln, err := net.Listen("unix", path)
+			if err != nil {
+				log.Fatalf("failed to start listener on %q: %v", listen, err)
+			}
+			ln = proxyProtoListener(ln, srv)
+			go func() {
+				if err := srv.Serve(ln, srv.HandleAdmin); err != nil {
 					log.Printf("serving %q: %v", listen, err)
 				}
 			}()

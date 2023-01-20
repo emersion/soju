@@ -61,7 +61,7 @@ func createTestUser(t *testing.T, db database.Database) *database.User {
 
 func createTestDownstream(t *testing.T, srv *Server) ircConn {
 	c1, c2 := net.Pipe()
-	go srv.handle(newNetIRCConn(c1))
+	go srv.Handle(newNetIRCConn(c1))
 	return newNetIRCConn(c2)
 }
 

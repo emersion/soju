@@ -85,7 +85,7 @@ The following directives are supported:
 	  omitted: 6697)
 	- _irc+insecure://[host][:port]_ listens with plain-text over TCP (default
 	  port if omitted: 6667)
-	- _unix:///<path>_ listens on a Unix domain socket
+	- _unix://<path>_ listens on a Unix domain socket
 	- _wss://[host][:port]_ listens for WebSocket connections over TLS (default
 	  port: 443)
 	- _ws+insecure://[host][:port]_ listens for plain-text WebSocket
@@ -97,6 +97,8 @@ The following directives are supported:
 	- _http+pprof://localhost:<port>_ listens for plain-text HTTP connections
 	  and serves pprof runtime profiling data (host must be "localhost"). For
 	  more information, see: <https://pkg.go.dev/net/http/pprof>.
+	- _unix+admin://[path]_ listens on a Unix domain socket for administrative
+	  connections, such as sojuctl (default path: /run/soju/admin)
 
 	If the scheme is omitted, "ircs" is assumed. If multiple *listen*
 	directives are specified, soju will listen on each of them.
