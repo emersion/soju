@@ -33,7 +33,14 @@ func (info *WHOXInfo) get(k byte) string {
 	case 'i':
 		return "255.255.255.255"
 	case 'h':
-		return info.Hostname
+		hostname := info.Hostname
+		if strings.HasPrefix(info.Hostname, ":") {
+			// The hostname cannot start with a colon as this would get parsed
+			// as a trailing parameter. IPv6 addresses such as "::1" are
+			// prefixed with a zero to ensure this.
+			hostname = "0" + hostname
+		}
+		return hostname
 	case 's':
 		return info.Server
 	case 'n':
@@ -81,10 +88,18 @@ func (info *WHOXInfo) set(k byte, v string) {
 
 func GenerateWHOXReply(prefix *irc.Prefix, nick, fields string, info *WHOXInfo) *irc.Message {
 	if fields == "" {
+		hostname := info.Hostname
+		if strings.HasPrefix(info.Hostname, ":") {
+			// The hostname cannot start with a colon as this would get parsed
+			// as a trailing parameter. IPv6 addresses such as "::1" are
+			// prefixed with a zero to ensure this.
+			hostname = "0" + hostname
+		}
+
 		return &irc.Message{
 			Prefix:  prefix,
 			Command: irc.RPL_WHOREPLY,
-			Params:  []string{nick, "*", info.Username, info.Hostname, info.Server, info.Nickname, info.Flags, "0 " + info.Realname},
+			Params:  []string{nick, "*", info.Username, hostname, info.Server, info.Nickname, info.Flags, "0 " + info.Realname},
 		}
 	}
 
