@@ -71,6 +71,12 @@ outgoing messages:
     /set irc_reconnect_rejoin off
     /set net_throttle off
 
+Older Hexchat versions (without the [hexchat password length fix]) do not
+support long passwords, which include personal access tokens from sourcehut with
+limited scope. To work around this issue for sourcehut, [generate a sourcehut
+personal access token] without limiting the grant (by not selecting any
+permissions).
+
 # [irssi]
 
 Assuming you want to connect irssi to your soju instance for one network
@@ -115,5 +121,7 @@ See `/help cap` for more information.
 [soju.py]: https://weechat.org/scripts/source/soju.py.html/
 [read_marker.py]: https://weechat.org/scripts/source/read_marker.py.html/
 [Hexchat]: https://hexchat.github.io/
+[hexchat password length fix]: https://github.com/hexchat/hexchat/commit/778047bc65e529804c3342ee0f3a8d5d7550fde5
+[generate a sourcehut personal access token]: https://meta.sr.ht/oauth2/personal-token
 [Emacs]: https://www.gnu.org/software/emacs/
 [irssi]: https://irssi.org/
