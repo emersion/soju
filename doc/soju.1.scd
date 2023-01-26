@@ -434,6 +434,11 @@ character.
 		Set the user's realname. This is used as a fallback if there is no
 		realname set for a network.
 
+	*-enabled* true|false
+		Enable or disable the user. If the user is disabled, the bouncer will
+		not connect to any of their networks, and downstream connections will
+		be immediately closed. By default, users are enabled.
+
 *user update* [username] [options...]
 	Update a user. The options are the same as the _user create_ command.
 
@@ -445,7 +450,8 @@ character.
 	- The _-username_ flag is never valid, usernames are immutable.
 	- The _-nick_ and _-realname_ flag are only valid when updating the current
 	  user.
-	- The _-admin_ flag is only valid when updating another user.
+	- The _-admin_ and _-enabled_ flags are only valid when updating another
+	  user.
 
 *user delete* <username> [confirmation token]
 	Delete a soju user.

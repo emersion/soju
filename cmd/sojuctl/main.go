@@ -78,6 +78,7 @@ func main() {
 			Username: username,
 			Password: string(hashed),
 			Admin:    *admin,
+			Enabled:  true,
 		}
 		if err := db.StoreUser(ctx, &user); err != nil {
 			log.Fatalf("failed to create user: %v", err)

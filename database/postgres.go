@@ -32,7 +32,8 @@ CREATE TABLE "User" (
 	admin BOOLEAN NOT NULL DEFAULT FALSE,
 	nick VARCHAR(255),
 	realname VARCHAR(255),
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+	enabled BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TYPE sasl_mechanism AS ENUM ('PLAIN', 'EXTERNAL');
@@ -169,6 +170,7 @@ var postgresMigrations = []string{
 	`ALTER TABLE "Network" ADD COLUMN auto_away BOOLEAN NOT NULL DEFAULT TRUE`,
 	`ALTER TABLE "Network" ADD COLUMN certfp TEXT`,
 	`ALTER TABLE "User" ADD COLUMN created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()`,
+	`ALTER TABLE "User" ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT TRUE`,
 }
 
 type PostgresDB struct {
@@ -302,7 +304,8 @@ func (db *PostgresDB) ListUsers(ctx context.Context) ([]User, error) {
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx,
-		`SELECT id, username, password, admin, nick, realname FROM "User"`)
+		`SELECT id, username, password, admin, nick, realname, enabled
+		FROM "User"`)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +315,7 @@ func (db *PostgresDB) ListUsers(ctx context.Context) ([]User, error) {
 	for rows.Next() {
 		var user User
 		var password, nick, realname sql.NullString
-		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname); err != nil {
+		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled); err != nil {
 			return nil, err
 		}
 		user.Password = password.String
@@ -335,9 +338,11 @@ func (db *PostgresDB) GetUser(ctx context.Context, username string) (*User, erro
 
 	var password, nick, realname sql.NullString
 	row := db.db.QueryRowContext(ctx,
-		`SELECT id, password, admin, nick, realname FROM "User" WHERE username = $1`,
+		`SELECT id, password, admin, nick, realname, enabled
+		FROM "User"
+		WHERE username = $1`,
 		username)
-	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname); err != nil {
+	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled); err != nil {
 		return nil, err
 	}
 	user.Password = password.String
@@ -357,16 +362,16 @@ func (db *PostgresDB) StoreUser(ctx context.Context, user *User) error {
 	var err error
 	if user.ID == 0 {
 		err = db.db.QueryRowContext(ctx, `
-			INSERT INTO "User" (username, password, admin, nick, realname)
-			VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO "User" (username, password, admin, nick, realname, enabled)
+			VALUES ($1, $2, $3, $4, $5, $6)
 			RETURNING id`,
-			user.Username, password, user.Admin, nick, realname).Scan(&user.ID)
+			user.Username, password, user.Admin, nick, realname, user.Enabled).Scan(&user.ID)
 	} else {
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE "User"
-			SET password = $1, admin = $2, nick = $3, realname = $4
-			WHERE id = $5`,
-			password, user.Admin, nick, realname, user.ID)
+			SET password = $1, admin = $2, nick = $3, realname = $4, enabled = $5
+			WHERE id = $6`,
+			password, user.Admin, nick, realname, user.Enabled, user.ID)
 	}
 	return err
 }

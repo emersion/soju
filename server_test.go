@@ -51,7 +51,11 @@ func createTestUser(t *testing.T, db database.Database) *database.User {
 		t.Fatalf("failed to generate bcrypt hash: %v", err)
 	}
 
-	record := &database.User{Username: testUsername, Password: string(hashed)}
+	record := &database.User{
+		Username: testUsername,
+		Password: string(hashed),
+		Enabled:  true,
+	}
 	if err := db.StoreUser(context.Background(), record); err != nil {
 		t.Fatalf("failed to store test user: %v", err)
 	}

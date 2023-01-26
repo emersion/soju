@@ -62,7 +62,8 @@ CREATE TABLE User (
 	admin INTEGER NOT NULL DEFAULT 0,
 	realname TEXT,
 	nick TEXT,
-	created_at TEXT NOT NULL
+	created_at TEXT NOT NULL,
+	enabled INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE Network (
@@ -289,6 +290,7 @@ var sqliteMigrations = []string{
 		ALTER TABLE User ADD COLUMN created_at TEXT NOT NULL DEFAULT '';
 		UPDATE User SET created_at = strftime('` + sqliteTimeFormat + `', 'now');
 	`,
+	"ALTER TABLE User ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
 }
 
 type SqliteDB struct {
@@ -388,7 +390,8 @@ func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx,
-		"SELECT id, username, password, admin, nick, realname FROM User")
+		`SELECT id, username, password, admin, nick, realname, enabled
+		FROM User`)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +401,7 @@ func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {
 	for rows.Next() {
 		var user User
 		var password, nick, realname sql.NullString
-		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname); err != nil {
+		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled); err != nil {
 			return nil, err
 		}
 		user.Password = password.String
@@ -421,9 +424,11 @@ func (db *SqliteDB) GetUser(ctx context.Context, username string) (*User, error)
 
 	var password, nick, realname sql.NullString
 	row := db.db.QueryRowContext(ctx,
-		"SELECT id, password, admin, nick, realname FROM User WHERE username = ?",
+		`SELECT id, password, admin, nick, realname, enabled
+		FROM User
+		WHERE username = ?`,
 		username)
-	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname); err != nil {
+	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled); err != nil {
 		return nil, err
 	}
 	user.Password = password.String
@@ -442,21 +447,26 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 		sql.Named("admin", user.Admin),
 		sql.Named("nick", toNullString(user.Nick)),
 		sql.Named("realname", toNullString(user.Realname)),
+		sql.Named("enabled", user.Enabled),
 		sql.Named("now", sqliteTime{time.Now()}),
 	}
 
 	var err error
 	if user.ID != 0 {
 		_, err = db.db.ExecContext(ctx, `
-			UPDATE User SET password = :password, admin = :admin, nick = :nick,
-				realname = :realname WHERE username = :username`,
+			UPDATE User
+			SET password = :password, admin = :admin, nick = :nick,
+				realname = :realname, enabled = :enabled
+			WHERE username = :username`,
 			args...)
 	} else {
 		var res sql.Result
 		res, err = db.db.ExecContext(ctx, `
 			INSERT INTO
-			User(username, password, admin, nick, realname, created_at)
-			VALUES (:username, :password, :admin, :nick, :realname, :now)`,
+			User(username, password, admin, nick, realname, created_at,
+				enabled)
+			VALUES (:username, :password, :admin, :nick, :realname, :now,
+				:enabled)`,
 			args...)
 		if err != nil {
 			return err

@@ -74,6 +74,7 @@ type eventStop struct{}
 type eventUserUpdate struct {
 	password *string
 	admin    *bool
+	enabled  *bool
 	done     chan error
 }
 
@@ -246,7 +247,7 @@ func (net *network) runConn(ctx context.Context) error {
 }
 
 func (net *network) run() {
-	if !net.Enabled {
+	if !net.user.Enabled || !net.Enabled {
 		return
 	}
 
@@ -687,6 +688,15 @@ func (u *user) run() {
 				dc.monitored.SetCasemapping(dc.network.casemap)
 			}
 
+			if !u.Enabled {
+				dc.SendMessage(&irc.Message{
+					Command: "ERROR",
+					Params:  []string{"This bouncer account is disabled"},
+				})
+				// TODO: close dc after the error message is sent
+				break
+			}
+
 			if err := dc.welcome(context.TODO()); err != nil {
 				if ircErr, ok := err.(ircError); ok {
 					msg := ircErr.Message.Copy()
@@ -761,6 +771,9 @@ func (u *user) run() {
 			}
 			if e.admin != nil {
 				record.Admin = *e.admin
+			}
+			if e.enabled != nil {
+				record.Enabled = *e.enabled
 			}
 
 			e.done <- u.updateUser(context.TODO(), &record)
@@ -1071,6 +1084,7 @@ func (u *user) updateUser(ctx context.Context, record *database.User) error {
 
 	nickUpdated := u.Nick != record.Nick
 	realnameUpdated := u.Realname != record.Realname
+	enabledUpdated := u.Enabled != record.Enabled
 	if err := u.srv.db.StoreUser(ctx, record); err != nil {
 		return fmt.Errorf("failed to update user %q: %v", u.Username, err)
 	}
@@ -1091,22 +1105,28 @@ func (u *user) updateUser(ctx context.Context, record *database.User) error {
 		}
 	}
 
-	if realnameUpdated {
+	if realnameUpdated || enabledUpdated {
 		// Re-connect to networks which use the default realname
 		var needUpdate []database.Network
 		for _, net := range u.networks {
-			if net.Realname != "" {
-				continue
-			}
+			// If only the realname was updated, maybe we can skip the
+			// re-connect
+			if realnameUpdated && !enabledUpdated {
+				// If this network has a custom realname set, no need to
+				// re-connect: the user-wide realname remains unused
+				if net.Realname != "" {
+					continue
+				}
 
-			// We only need to call updateNetwork for upstreams that don't
-			// support setname
-			if uc := net.conn; uc != nil && uc.caps.IsEnabled("setname") {
-				uc.SendMessage(ctx, &irc.Message{
-					Command: "SETNAME",
-					Params:  []string{database.GetRealname(&u.User, &net.Network)},
-				})
-				continue
+				// We only need to call updateNetwork for upstreams that don't
+				// support setname
+				if uc := net.conn; uc != nil && uc.caps.IsEnabled("setname") {
+					uc.SendMessage(ctx, &irc.Message{
+						Command: "SETNAME",
+						Params:  []string{database.GetRealname(&u.User, &net.Network)},
+					})
+					continue
+				}
 			}
 
 			needUpdate = append(needUpdate, net.Network)
@@ -1120,6 +1140,13 @@ func (u *user) updateUser(ctx context.Context, record *database.User) error {
 		}
 		if netErr != nil {
 			return netErr
+		}
+	}
+
+	if !u.Enabled {
+		// TODO: send an error message before disconnecting
+		for _, dc := range u.downstreamConns {
+			dc.Close()
 		}
 	}
 

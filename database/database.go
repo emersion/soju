@@ -71,6 +71,7 @@ type User struct {
 	Nick     string
 	Realname string
 	Admin    bool
+	Enabled  bool
 }
 
 func (u *User) CheckPassword(password string) (upgraded bool, err error) {

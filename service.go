@@ -920,6 +920,7 @@ func handleUserCreate(ctx *serviceContext, params []string) error {
 	nick := fs.String("nick", "", "")
 	realname := fs.String("realname", "", "")
 	admin := fs.Bool("admin", false, "")
+	enabled := fs.Bool("enabled", true, "")
 
 	if err := fs.Parse(params); err != nil {
 		return err
@@ -939,6 +940,7 @@ func handleUserCreate(ctx *serviceContext, params []string) error {
 		Nick:     *nick,
 		Realname: *realname,
 		Admin:    *admin,
+		Enabled:  *enabled,
 	}
 	if err := user.SetPassword(*password); err != nil {
 		return err
@@ -960,12 +962,13 @@ func popArg(params []string) (string, []string) {
 
 func handleUserUpdate(ctx *serviceContext, params []string) error {
 	var password, nick, realname *string
-	var admin *bool
+	var admin, enabled *bool
 	fs := newFlagSet()
 	fs.Var(stringPtrFlag{&password}, "password", "")
 	fs.Var(stringPtrFlag{&nick}, "nick", "")
 	fs.Var(stringPtrFlag{&realname}, "realname", "")
 	fs.Var(boolPtrFlag{&admin}, "admin", "")
+	fs.Var(boolPtrFlag{&enabled}, "enabled", "")
 
 	username, params := popArg(params)
 	if err := fs.Parse(params); err != nil {
@@ -1005,6 +1008,7 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 		event := eventUserUpdate{
 			password: hashed,
 			admin:    admin,
+			enabled:  enabled,
 			done:     done,
 		}
 		select {
@@ -1035,6 +1039,9 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 		}
 		if admin != nil {
 			return fmt.Errorf("cannot update -admin of own user")
+		}
+		if enabled != nil {
+			return fmt.Errorf("cannot update -enabled of own user")
 		}
 
 		if err := ctx.user.updateUser(ctx, &record); err != nil {
