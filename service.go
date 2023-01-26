@@ -925,6 +925,7 @@ func handleUserCreate(ctx *serviceContext, params []string) error {
 	fs := newFlagSet()
 	username := fs.String("username", "", "")
 	password := fs.String("password", "", "")
+	disablePassword := fs.Bool("disable-password", false, "")
 	nick := fs.String("nick", "", "")
 	realname := fs.String("realname", "", "")
 	admin := fs.Bool("admin", false, "")
@@ -939,7 +940,10 @@ func handleUserCreate(ctx *serviceContext, params []string) error {
 	if *username == "" {
 		return fmt.Errorf("flag -username is required")
 	}
-	if *password == "" {
+	if *password != "" && *disablePassword {
+		return fmt.Errorf("flags -password and -disable-password are mutually exclusive")
+	}
+	if *password == "" && !*disablePassword {
 		return fmt.Errorf("flag -password is required")
 	}
 
@@ -950,8 +954,10 @@ func handleUserCreate(ctx *serviceContext, params []string) error {
 		Admin:    *admin,
 		Enabled:  *enabled,
 	}
-	if err := user.SetPassword(*password); err != nil {
-		return err
+	if !*disablePassword {
+		if err := user.SetPassword(*password); err != nil {
+			return err
+		}
 	}
 	if _, err := ctx.user.srv.createUser(ctx, user); err != nil {
 		return fmt.Errorf("could not create user: %v", err)
@@ -971,8 +977,10 @@ func popArg(params []string) (string, []string) {
 func handleUserUpdate(ctx *serviceContext, params []string) error {
 	var password, nick, realname *string
 	var admin, enabled *bool
+	var disablePassword bool
 	fs := newFlagSet()
 	fs.Var(stringPtrFlag{&password}, "password", "")
+	fs.BoolVar(&disablePassword, "disable-password", false, "")
 	fs.Var(stringPtrFlag{&nick}, "nick", "")
 	fs.Var(stringPtrFlag{&realname}, "realname", "")
 	fs.Var(boolPtrFlag{&admin}, "admin", "")
@@ -984,6 +992,10 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 	}
 	if fs.NArg() > 0 {
 		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
+	}
+
+	if password != nil && disablePassword {
+		return fmt.Errorf("flags -password and -disable-password are mutually exclusive")
 	}
 
 	if username != "" && username != ctx.user.Username {
@@ -1004,6 +1016,10 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 				return fmt.Errorf("failed to hash password: %v", err)
 			}
 			hashedStr := string(hashedBytes)
+			hashed = &hashedStr
+		}
+		if disablePassword {
+			hashedStr := ""
 			hashed = &hashedStr
 		}
 
@@ -1038,6 +1054,9 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 			if err := record.SetPassword(*password); err != nil {
 				return err
 			}
+		}
+		if disablePassword {
+			record.Password = ""
 		}
 		if nick != nil {
 			record.Nick = *nick

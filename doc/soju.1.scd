@@ -438,6 +438,9 @@ character.
 	*-password* <password>
 		The bouncer password.
 
+	*-disable-password*
+		Disable password authentication. The user will be unable to login.
+
 	*-admin* true|false
 		Make the new user an administrator.
 
