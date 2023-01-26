@@ -185,6 +185,9 @@ The following directives are supported:
 	This can be used together with _disable-inactive-user_ to seamlessly
 	disable and re-enable users during lengthy inactivity.
 
+	When external authentication is used (e.g. _auth oauth2_), bouncer users
+	are automatically created after successfull authentication.
+
 *auth* <driver> ...
 	Set the authentication method. By default, internal authentication is used.
 
