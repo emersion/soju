@@ -63,7 +63,8 @@ CREATE TABLE User (
 	realname TEXT,
 	nick TEXT,
 	created_at TEXT NOT NULL,
-	enabled INTEGER NOT NULL DEFAULT 1
+	enabled INTEGER NOT NULL DEFAULT 1,
+	downstream_interacted_at TEXT
 );
 
 CREATE TABLE Network (
@@ -291,6 +292,7 @@ var sqliteMigrations = []string{
 		UPDATE User SET created_at = strftime('` + sqliteTimeFormat + `', 'now');
 	`,
 	"ALTER TABLE User ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
+	"ALTER TABLE User ADD COLUMN downstream_interacted_at TEXT;",
 }
 
 type SqliteDB struct {
@@ -390,7 +392,8 @@ func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx,
-		`SELECT id, username, password, admin, nick, realname, enabled
+		`SELECT id, username, password, admin, nick, realname, enabled,
+			downstream_interacted_at
 		FROM User`)
 	if err != nil {
 		return nil, err
@@ -401,12 +404,14 @@ func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {
 	for rows.Next() {
 		var user User
 		var password, nick, realname sql.NullString
-		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled); err != nil {
+		var downstreamInteractedAt sqliteTime
+		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt); err != nil {
 			return nil, err
 		}
 		user.Password = password.String
 		user.Nick = nick.String
 		user.Realname = realname.String
+		user.DownstreamInteractedAt = downstreamInteractedAt.Time
 		users = append(users, user)
 	}
 	if err := rows.Err(); err != nil {
@@ -423,17 +428,20 @@ func (db *SqliteDB) GetUser(ctx context.Context, username string) (*User, error)
 	user := &User{Username: username}
 
 	var password, nick, realname sql.NullString
+	var downstreamInteractedAt sqliteTime
 	row := db.db.QueryRowContext(ctx,
-		`SELECT id, password, admin, nick, realname, enabled
+		`SELECT id, password, admin, nick, realname, enabled,
+			downstream_interacted_at
 		FROM User
 		WHERE username = ?`,
 		username)
-	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled); err != nil {
+	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt); err != nil {
 		return nil, err
 	}
 	user.Password = password.String
 	user.Nick = nick.String
 	user.Realname = realname.String
+	user.DownstreamInteractedAt = downstreamInteractedAt.Time
 	return user, nil
 }
 
@@ -449,6 +457,7 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 		sql.Named("realname", toNullString(user.Realname)),
 		sql.Named("enabled", user.Enabled),
 		sql.Named("now", sqliteTime{time.Now()}),
+		sql.Named("downstream_interacted_at", sqliteTime{user.DownstreamInteractedAt}),
 	}
 
 	var err error
@@ -456,7 +465,8 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE User
 			SET password = :password, admin = :admin, nick = :nick,
-				realname = :realname, enabled = :enabled
+				realname = :realname, enabled = :enabled,
+				downstream_interacted_at = :downstream_interacted_at
 			WHERE username = :username`,
 			args...)
 	} else {
@@ -464,9 +474,9 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 		res, err = db.db.ExecContext(ctx, `
 			INSERT INTO
 			User(username, password, admin, nick, realname, created_at,
-				enabled)
+				enabled, downstream_interacted_at)
 			VALUES (:username, :password, :admin, :nick, :realname, :now,
-				:enabled)`,
+				:enabled, :downstream_interacted_at)`,
 			args...)
 		if err != nil {
 			return err

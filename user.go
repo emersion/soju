@@ -683,6 +683,7 @@ func (u *user) run() {
 			}
 		case eventDownstreamConnected:
 			dc := e.dc
+			ctx := context.TODO()
 
 			if dc.network != nil {
 				dc.monitored.SetCasemapping(dc.network.casemap)
@@ -697,7 +698,7 @@ func (u *user) run() {
 				break
 			}
 
-			if err := dc.welcome(context.TODO()); err != nil {
+			if err := dc.welcome(ctx); err != nil {
 				if ircErr, ok := err.(ircError); ok {
 					msg := ircErr.Message.Copy()
 					msg.Prefix = dc.srv.prefix()
@@ -724,8 +725,11 @@ func (u *user) run() {
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
 			})
+
+			u.bumpDownstreamInteractionTime(ctx)
 		case eventDownstreamDisconnected:
 			dc := e.dc
+			ctx := context.TODO()
 
 			for i := range u.downstreamConns {
 				if u.downstreamConns[i] == dc {
@@ -735,7 +739,7 @@ func (u *user) run() {
 			}
 
 			dc.forEachNetwork(func(net *network) {
-				net.storeClientDeliveryReceipts(context.TODO(), dc.clientName)
+				net.storeClientDeliveryReceipts(ctx, dc.clientName)
 			})
 
 			u.forEachUpstream(func(uc *upstreamConn) {
@@ -743,6 +747,8 @@ func (u *user) run() {
 				uc.updateAway()
 				uc.updateMonitor()
 			})
+
+			u.bumpDownstreamInteractionTime(ctx)
 		case eventDownstreamMessage:
 			msg, dc := e.msg, e.dc
 			if dc.isClosed() {
@@ -1228,4 +1234,12 @@ func (u *user) localTCPAddrForHost(ctx context.Context, host string) (*net.TCPAd
 	}
 
 	return &net.TCPAddr{IP: ip}, nil
+}
+
+func (u *user) bumpDownstreamInteractionTime(ctx context.Context) {
+	record := u.User
+	record.DownstreamInteractedAt = time.Now()
+	if err := u.updateUser(ctx, &record); err != nil {
+		u.logger.Printf("failed to bump downstream interaction time: %v", err)
+	}
 }

@@ -65,13 +65,14 @@ type DatabaseStats struct {
 }
 
 type User struct {
-	ID       int64
-	Username string
-	Password string // hashed
-	Nick     string
-	Realname string
-	Admin    bool
-	Enabled  bool
+	ID                     int64
+	Username               string
+	Password               string // hashed
+	Nick                   string
+	Realname               string
+	Admin                  bool
+	Enabled                bool
+	DownstreamInteractedAt time.Time
 }
 
 func (u *User) CheckPassword(password string) (upgraded bool, err error) {
