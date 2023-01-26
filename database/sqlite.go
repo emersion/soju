@@ -20,6 +20,7 @@ const SqliteEnabled = true
 const sqliteQueryTimeout = 5 * time.Second
 
 const sqliteTimeLayout = "2006-01-02T15:04:05.000Z"
+const sqliteTimeFormat = "%Y-%m-%dT%H:%M:%fZ"
 
 type sqliteTime struct {
 	time.Time
@@ -60,7 +61,8 @@ CREATE TABLE User (
 	password TEXT,
 	admin INTEGER NOT NULL DEFAULT 0,
 	realname TEXT,
-	nick TEXT
+	nick TEXT,
+	created_at TEXT NOT NULL
 );
 
 CREATE TABLE Network (
@@ -281,6 +283,12 @@ var sqliteMigrations = []string{
 	"ALTER TABLE User ADD COLUMN nick TEXT;",
 	"ALTER TABLE Network ADD COLUMN auto_away INTEGER NOT NULL DEFAULT 1;",
 	"ALTER TABLE Network ADD COLUMN certfp TEXT;",
+	// SQLite doesn't support non-constant default values, so use an empty
+	// string as default and update all columns in a separate statement
+	`
+		ALTER TABLE User ADD COLUMN created_at TEXT NOT NULL DEFAULT '';
+		UPDATE User SET created_at = strftime('` + sqliteTimeFormat + `', 'now');
+	`,
 }
 
 type SqliteDB struct {
@@ -434,6 +442,7 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 		sql.Named("admin", user.Admin),
 		sql.Named("nick", toNullString(user.Nick)),
 		sql.Named("realname", toNullString(user.Realname)),
+		sql.Named("now", sqliteTime{time.Now()}),
 	}
 
 	var err error
@@ -446,8 +455,8 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 		var res sql.Result
 		res, err = db.db.ExecContext(ctx, `
 			INSERT INTO
-			User(username, password, admin, nick, realname)
-			VALUES (:username, :password, :admin, :nick, :realname)`,
+			User(username, password, admin, nick, realname, created_at)
+			VALUES (:username, :password, :admin, :nick, :realname, :now)`,
 			args...)
 		if err != nil {
 			return err

@@ -31,7 +31,8 @@ CREATE TABLE "User" (
 	password VARCHAR(255),
 	admin BOOLEAN NOT NULL DEFAULT FALSE,
 	nick VARCHAR(255),
-	realname VARCHAR(255)
+	realname VARCHAR(255),
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE TYPE sasl_mechanism AS ENUM ('PLAIN', 'EXTERNAL');
@@ -167,6 +168,7 @@ var postgresMigrations = []string{
 	`,
 	`ALTER TABLE "Network" ADD COLUMN auto_away BOOLEAN NOT NULL DEFAULT TRUE`,
 	`ALTER TABLE "Network" ADD COLUMN certfp TEXT`,
+	`ALTER TABLE "User" ADD COLUMN created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()`,
 }
 
 type PostgresDB struct {
