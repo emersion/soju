@@ -354,6 +354,33 @@ func (db *PostgresDB) GetUser(ctx context.Context, username string) (*User, erro
 	return user, nil
 }
 
+func (db *PostgresDB) ListInactiveUsernames(ctx context.Context, limit time.Time) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx,
+		`SELECT username FROM "User" WHERE COALESCE(downstream_interacted_at, created_at) < $1`,
+		limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var usernames []string
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			return nil, err
+		}
+		usernames = append(usernames, username)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return usernames, nil
+}
+
 func (db *PostgresDB) StoreUser(ctx context.Context, user *User) error {
 	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()

@@ -84,14 +84,15 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 	}
 
 	cfg := &soju.Config{
-		Hostname:        raw.Hostname,
-		Title:           raw.Title,
-		LogPath:         raw.MsgStore.Source,
-		HTTPOrigins:     raw.HTTPOrigins,
-		AcceptProxyIPs:  raw.AcceptProxyIPs,
-		MaxUserNetworks: raw.MaxUserNetworks,
-		UpstreamUserIPs: raw.UpstreamUserIPs,
-		MOTD:            motd,
+		Hostname:                  raw.Hostname,
+		Title:                     raw.Title,
+		LogPath:                   raw.MsgStore.Source,
+		HTTPOrigins:               raw.HTTPOrigins,
+		AcceptProxyIPs:            raw.AcceptProxyIPs,
+		MaxUserNetworks:           raw.MaxUserNetworks,
+		UpstreamUserIPs:           raw.UpstreamUserIPs,
+		DisableInactiveUsersDelay: raw.DisableInactiveUsersDelay,
+		MOTD:                      motd,
 	}
 	return raw, cfg, nil
 }

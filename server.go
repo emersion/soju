@@ -133,14 +133,15 @@ func (ln *retryListener) Accept() (net.Conn, error) {
 }
 
 type Config struct {
-	Hostname        string
-	Title           string
-	LogPath         string
-	HTTPOrigins     []string
-	AcceptProxyIPs  config.IPSet
-	MaxUserNetworks int
-	MOTD            string
-	UpstreamUserIPs []*net.IPNet
+	Hostname                  string
+	Title                     string
+	LogPath                   string
+	HTTPOrigins               []string
+	AcceptProxyIPs            config.IPSet
+	MaxUserNetworks           int
+	MOTD                      string
+	UpstreamUserIPs           []*net.IPNet
+	DisableInactiveUsersDelay time.Duration
 }
 
 type Server struct {
@@ -151,6 +152,7 @@ type Server struct {
 	config atomic.Value // *Config
 	db     database.Database
 	stopWG sync.WaitGroup
+	stopCh chan struct{}
 
 	lock      sync.Mutex
 	listeners map[net.Listener]struct{}
@@ -178,6 +180,7 @@ func NewServer(db database.Database) *Server {
 		db:        db,
 		listeners: make(map[net.Listener]struct{}),
 		users:     make(map[string]*user),
+		stopCh:    make(chan struct{}),
 	}
 	srv.config.Store(&Config{
 		Hostname:        "localhost",
@@ -215,6 +218,12 @@ func (s *Server) Start() error {
 		s.addUserLocked(&users[i])
 	}
 	s.lock.Unlock()
+
+	s.stopWG.Add(1)
+	go func() {
+		defer s.stopWG.Done()
+		s.disableInactiveUsersLoop()
+	}()
 
 	return nil
 }
@@ -342,6 +351,8 @@ func (s *Server) sendWebPush(ctx context.Context, sub *webpush.Subscription, vap
 
 func (s *Server) Shutdown() {
 	s.Logger.Printf("shutting down server")
+
+	close(s.stopCh)
 
 	s.lock.Lock()
 	s.shutdown = true
@@ -546,4 +557,89 @@ func (s *Server) Stats() *ServerStats {
 	stats.Downstreams = s.metrics.downstreams.Value()
 	stats.Upstreams = s.metrics.upstreams.Value()
 	return &stats
+}
+
+func (s *Server) disableInactiveUsersLoop() {
+	ticker := time.NewTicker(4 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case <-ticker.C:
+		}
+
+		if err := s.disableInactiveUsers(context.TODO()); err != nil {
+			s.Logger.Printf("failed to disable inactive users: %v", err)
+		}
+	}
+}
+
+func (s *Server) disableInactiveUsers(ctx context.Context) error {
+	delay := s.Config().DisableInactiveUsersDelay
+	if delay == 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	usernames, err := s.db.ListInactiveUsernames(ctx, time.Now().Add(-delay))
+	if err != nil {
+		return fmt.Errorf("failed to list inactive users: %v", err)
+	} else if len(usernames) == 0 {
+		return nil
+	}
+
+	// Filter out users with active downstream connections
+	var users []*user
+	s.lock.Lock()
+	for _, username := range usernames {
+		u := s.users[username]
+		if u == nil {
+			// TODO: disable the user in the DB
+			continue
+		}
+
+		if n := u.numDownstreamConns.Load(); n > 0 {
+			continue
+		}
+
+		users = append(users, u)
+	}
+	s.lock.Unlock()
+
+	if len(users) == 0 {
+		return nil
+	}
+
+	s.Logger.Printf("found %v inactive users", len(users))
+	for _, u := range users {
+		done := make(chan error, 1)
+		enabled := false
+		event := eventUserUpdate{
+			enabled: &enabled,
+			done:    done,
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case u.events <- event:
+			// Event was sent, let's wait for the reply
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-done:
+			if err != nil {
+				return err
+			} else {
+				s.Logger.Printf("deleted inactive user %q", u.Username)
+			}
+		}
+	}
+
+	return nil
 }

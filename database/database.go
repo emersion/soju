@@ -20,6 +20,7 @@ type Database interface {
 	GetUser(ctx context.Context, username string) (*User, error)
 	StoreUser(ctx context.Context, user *User) error
 	DeleteUser(ctx context.Context, id int64) error
+	ListInactiveUsernames(ctx context.Context, limit time.Time) ([]string, error)
 
 	ListNetworks(ctx context.Context, userID int64) ([]Network, error)
 	StoreNetwork(ctx context.Context, userID int64, network *Network) error

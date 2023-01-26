@@ -170,6 +170,15 @@ The following directives are supported:
 	This can be useful to avoid having the whole bouncer banned from an upstream
 	network because of one malicious user.
 
+*disable-inactive-user* <duration>
+	Disable inactive users after the specified duration.
+
+	A user is inactive when the last downstream connection is closed.
+
+	The duration is a positive decimal number followed by the unit "d" (days).
+	For instance, "30d" disables users 30 days after they last disconnect from
+	the bouncer.
+
 # IRC SERVICE
 
 soju exposes an IRC service called *BouncerServ* to manage the bouncer.

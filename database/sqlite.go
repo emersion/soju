@@ -445,6 +445,33 @@ func (db *SqliteDB) GetUser(ctx context.Context, username string) (*User, error)
 	return user, nil
 }
 
+func (db *SqliteDB) ListInactiveUsernames(ctx context.Context, limit time.Time) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx,
+		"SELECT username FROM User WHERE coalesce(downstream_interacted_at, created_at) < ?",
+		sqliteTime{limit})
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var usernames []string
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			return nil, err
+		}
+		usernames = append(usernames, username)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return usernames, nil
+}
+
 func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()

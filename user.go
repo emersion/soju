@@ -11,6 +11,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"git.sr.ht/~emersion/soju/xirc"
@@ -503,6 +504,8 @@ type user struct {
 	events chan event
 	done   chan struct{}
 
+	numDownstreamConns atomic.Int64
+
 	networks        []*network
 	downstreamConns []*downstreamConn
 	msgStore        msgstore.Store
@@ -715,6 +718,7 @@ func (u *user) run() {
 			}
 
 			u.downstreamConns = append(u.downstreamConns, dc)
+			u.numDownstreamConns.Add(1)
 
 			dc.forEachNetwork(func(network *network) {
 				if network.lastError != nil {
@@ -734,6 +738,7 @@ func (u *user) run() {
 			for i := range u.downstreamConns {
 				if u.downstreamConns[i] == dc {
 					u.downstreamConns = append(u.downstreamConns[:i], u.downstreamConns[i+1:]...)
+					u.numDownstreamConns.Add(-1)
 					break
 				}
 			}

@@ -5,6 +5,8 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"git.sr.ht/~emersion/go-scfg"
 )
@@ -32,6 +34,18 @@ var loopbackIPs = IPSet{
 	},
 }
 
+func parseDuration(s string) (time.Duration, error) {
+	if !strings.HasSuffix(s, "d") {
+		return 0, fmt.Errorf("missing 'd' suffix in duration")
+	}
+	s = strings.TrimSuffix(s, "d")
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration: %v", err)
+	}
+	return time.Duration(v * 24 * float64(time.Hour)), nil
+}
+
 type TLS struct {
 	CertPath, KeyPath string
 }
@@ -57,8 +71,9 @@ type Server struct {
 	HTTPOrigins    []string
 	AcceptProxyIPs IPSet
 
-	MaxUserNetworks int
-	UpstreamUserIPs []*net.IPNet
+	MaxUserNetworks           int
+	UpstreamUserIPs           []*net.IPNet
+	DisableInactiveUsersDelay time.Duration
 }
 
 func Defaults() *Server {
@@ -180,6 +195,18 @@ func parse(cfg scfg.Block) (*Server, error) {
 				}
 				srv.UpstreamUserIPs = append(srv.UpstreamUserIPs, n)
 			}
+		case "disable-inactive-user":
+			var durStr string
+			if err := d.ParseParams(&durStr); err != nil {
+				return nil, err
+			}
+			dur, err := parseDuration(durStr)
+			if err != nil {
+				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
+			} else if dur < 0 {
+				return nil, fmt.Errorf("directive %q: duration must be positive", d.Name)
+			}
+			srv.DisableInactiveUsersDelay = dur
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)
 		}
