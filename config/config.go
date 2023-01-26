@@ -74,6 +74,7 @@ type Server struct {
 	MaxUserNetworks           int
 	UpstreamUserIPs           []*net.IPNet
 	DisableInactiveUsersDelay time.Duration
+	EnableUsersOnAuth         bool
 }
 
 func Defaults() *Server {
@@ -207,6 +208,16 @@ func parse(cfg scfg.Block) (*Server, error) {
 				return nil, fmt.Errorf("directive %q: duration must be positive", d.Name)
 			}
 			srv.DisableInactiveUsersDelay = dur
+		case "enable-user-on-auth":
+			var s string
+			if err := d.ParseParams(&s); err != nil {
+				return nil, err
+			}
+			b, err := strconv.ParseBool(s)
+			if err != nil {
+				return nil, fmt.Errorf("directive %q: %v", d.Name, err)
+			}
+			srv.EnableUsersOnAuth = b
 		default:
 			return nil, fmt.Errorf("unknown directive %q", d.Name)
 		}

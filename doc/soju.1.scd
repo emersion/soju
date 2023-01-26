@@ -179,6 +179,12 @@ The following directives are supported:
 	For instance, "30d" disables users 30 days after they last disconnect from
 	the bouncer.
 
+*enable-user-on-auth* true|false
+	Enable users when they successfully authenticate.
+
+	This can be used together with _disable-inactive-user_ to seamlessly
+	disable and re-enable users during lengthy inactivity.
+
 # IRC SERVICE
 
 soju exposes an IRC service called *BouncerServ* to manage the bouncer.

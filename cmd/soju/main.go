@@ -92,6 +92,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		MaxUserNetworks:           raw.MaxUserNetworks,
 		UpstreamUserIPs:           raw.UpstreamUserIPs,
 		DisableInactiveUsersDelay: raw.DisableInactiveUsersDelay,
+		EnableUsersOnAuth:         raw.EnableUsersOnAuth,
 		MOTD:                      motd,
 	}
 	return raw, cfg, nil

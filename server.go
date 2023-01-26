@@ -142,6 +142,7 @@ type Config struct {
 	MOTD                      string
 	UpstreamUserIPs           []*net.IPNet
 	DisableInactiveUsersDelay time.Duration
+	EnableUsersOnAuth         bool
 }
 
 type Server struct {

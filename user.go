@@ -692,6 +692,14 @@ func (u *user) run() {
 				dc.monitored.SetCasemapping(dc.network.casemap)
 			}
 
+			if !u.Enabled && u.srv.Config().EnableUsersOnAuth {
+				record := u.User
+				record.Enabled = true
+				if err := u.updateUser(ctx, &record); err != nil {
+					dc.logger.Printf("failed to enable user after successful authentication: %v", err)
+				}
+			}
+
 			if !u.Enabled {
 				dc.SendMessage(&irc.Message{
 					Command: "ERROR",
