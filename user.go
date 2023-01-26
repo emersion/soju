@@ -1126,9 +1126,22 @@ func (u *user) updateUser(ctx context.Context, record *database.User) error {
 	return nil
 }
 
-func (u *user) stop() {
-	u.events <- eventStop{}
-	<-u.done
+func (u *user) stop(ctx context.Context) error {
+	select {
+	case <-u.done:
+		return nil // already stopped
+	case u.events <- eventStop{}:
+		// we've requested to stop, let's wait for the user goroutine to exit
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	select {
+	case <-u.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (u *user) hasPersistentMsgStore() bool {

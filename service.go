@@ -1076,15 +1076,19 @@ func handleUserDelete(ctx *serviceContext, params []string) error {
 		return fmt.Errorf("provided confirmation token doesn't match user")
 	}
 
-	c := ctx.Context
+	var deleteCtx context.Context = ctx
 	if self {
 		ctx.print(fmt.Sprintf("Goodbye %s, deleting your account. There will be no further confirmation.", username))
-		c = context.TODO()
+		// We can't use ctx here, because it'll be cancelled once we close the
+		// downstream connection
+		deleteCtx = context.TODO()
 	}
 
-	u.stop()
+	if err := u.stop(deleteCtx); err != nil {
+		return fmt.Errorf("failed to stop user: %v", err)
+	}
 
-	if err := ctx.user.srv.db.DeleteUser(c, u.ID); err != nil {
+	if err := ctx.user.srv.db.DeleteUser(deleteCtx, u.ID); err != nil {
 		return fmt.Errorf("failed to delete user: %v", err)
 	}
 
