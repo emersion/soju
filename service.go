@@ -895,9 +895,17 @@ func handleUserStatus(ctx *serviceContext, params []string) error {
 	ctx.user.srv.lock.Unlock()
 
 	for _, user := range users {
-		line := user.Username
+		var attrs []string
 		if user.Admin {
-			line += " (admin)"
+			attrs = append(attrs, "admin")
+		}
+		if !user.Enabled {
+			attrs = append(attrs, "disabled")
+		}
+
+		line := user.Username
+		if len(attrs) > 0 {
+			line += " (" + strings.Join(attrs, ", ") + ")"
 		}
 		networks, err := ctx.user.srv.db.ListNetworks(ctx, user.ID)
 		if err != nil {
