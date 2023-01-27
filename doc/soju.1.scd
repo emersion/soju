@@ -201,6 +201,8 @@ The following directives are supported:
 		and password in the URL. The authorization server must support OAuth 2.0
 		Authorization Server Metadata (RFC 8414) and OAuth 2.0 Token
 		Introspection (RFC 7662).
+	*auth pam*
+		Use PAM authentication.
 
 # IRC SERVICE
 

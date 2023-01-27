@@ -23,6 +23,8 @@ func New(driver, source string) (Authenticator, error) {
 		return NewInternal(), nil
 	case "oauth2":
 		return newOAuth2(source)
+	case "pam":
+		return newPAM()
 	default:
 		return nil, fmt.Errorf("unknown auth driver %q", driver)
 	}
