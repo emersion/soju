@@ -162,7 +162,7 @@ func parse(cfg scfg.Block) (*Server, error) {
 				return nil, err
 			}
 			switch srv.Auth.Driver {
-			case "internal":
+			case "internal", "pam":
 				srv.Auth.Source = ""
 			case "oauth2":
 				if err := d.ParseParams(nil, &srv.Auth.Source); err != nil {
