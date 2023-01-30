@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v4"
 
 	"git.sr.ht/~emersion/soju/database"
@@ -46,15 +45,12 @@ func createTempPostgresDB(t *testing.T) database.Database {
 }
 
 func createTestUser(t *testing.T, db database.Database) *database.User {
-	hashed, err := bcrypt.GenerateFromPassword([]byte(testPassword), bcrypt.DefaultCost)
-	if err != nil {
-		t.Fatalf("failed to generate bcrypt hash: %v", err)
-	}
-
 	record := &database.User{
 		Username: testUsername,
-		Password: string(hashed),
 		Enabled:  true,
+	}
+	if err := record.SetPassword(testPassword); err != nil {
+		t.Fatalf("failed to generate bcrypt hash: %v", err)
 	}
 	if err := db.StoreUser(context.Background(), record); err != nil {
 		t.Fatalf("failed to store test user: %v", err)
