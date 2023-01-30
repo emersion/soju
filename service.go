@@ -278,14 +278,14 @@ func init() {
 					admin:  true,
 				},
 				"create": {
-					usage:  "-username <username> -password <password> [-realname <realname>] [-admin]",
+					usage:  "-username <username> -password <password> [-disable-password] [-admin true|false] [-nick <nick>] [-realname <realname>] [-enabled true|false]",
 					desc:   "create a new soju user",
 					handle: handleUserCreate,
 					admin:  true,
 				},
 				"update": {
-					usage:  "[-password <password>] [-realname <realname>]",
-					desc:   "update the current user",
+					usage:  "[username] [-password <password>] [-disable-password] [-admin true|false] [-nick <nick>] [-realname <realname>] [-enabled true|false]",
+					desc:   "update a user",
 					handle: handleUserUpdate,
 				},
 				"delete": {
