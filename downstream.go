@@ -1463,7 +1463,6 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	dc.nickCM = casemapASCII(dc.nick)
 
 	isupport := []string{
-		fmt.Sprintf("CHATHISTORY=%v", chatHistoryLimit),
 		"CASEMAPPING=ascii",
 	}
 
@@ -1478,6 +1477,9 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	if dc.network == nil {
 		isupport = append(isupport, "WHOX")
 		isupport = append(isupport, "CHANTYPES=") // channels are not supported
+	}
+	if _, ok := dc.user.msgStore.(msgstore.ChatHistoryStore); ok && dc.network != nil {
+		isupport = append(isupport, fmt.Sprintf("CHATHISTORY=%v", chatHistoryLimit))
 	}
 	if dc.caps.IsEnabled("soju.im/webpush") {
 		isupport = append(isupport, "VAPID="+dc.srv.webPush.VAPIDKeys.Public)
