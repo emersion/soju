@@ -278,3 +278,16 @@ func isNumeric(cmd string) bool {
 	}
 	return true
 }
+
+func generateAwayReply(away bool) *irc.Message {
+	cmd := irc.RPL_NOWAWAY
+	desc := "You have been marked as being away"
+	if !away {
+		cmd = irc.RPL_UNAWAY
+		desc = "You are no longer marked as being away"
+	}
+	return &irc.Message{
+		Command: cmd,
+		Params:  []string{"*", desc},
+	}
+}
