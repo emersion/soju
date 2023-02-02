@@ -1480,6 +1480,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	}
 	if _, ok := dc.user.msgStore.(msgstore.ChatHistoryStore); ok && dc.network != nil {
 		isupport = append(isupport, fmt.Sprintf("CHATHISTORY=%v", chatHistoryLimit))
+		isupport = append(isupport, "MSGREFTYPES=timestamp")
 	}
 	if dc.caps.IsEnabled("soju.im/webpush") {
 		isupport = append(isupport, "VAPID="+dc.srv.webPush.VAPIDKeys.Public)
