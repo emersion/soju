@@ -31,7 +31,7 @@ func init() {
 
 func main() {
 	var configPath string
-	flag.StringVar(&configPath, "config", "", "path to configuration file")
+	flag.StringVar(&configPath, "config", config.DefaultPath, "path to configuration file")
 	flag.Parse()
 
 	var cfg *config.Server

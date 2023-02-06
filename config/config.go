@@ -11,6 +11,8 @@ import (
 	"git.sr.ht/~emersion/go-scfg"
 )
 
+var DefaultPath string
+
 type IPSet []*net.IPNet
 
 func (set IPSet) Contains(ip net.IP) bool {

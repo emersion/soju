@@ -108,7 +108,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 func main() {
 	var listen []string
 	flag.Var((*stringSliceFlag)(&listen), "listen", "listening address")
-	flag.StringVar(&configPath, "config", "", "path to configuration file")
+	flag.StringVar(&configPath, "config", config.DefaultPath, "path to configuration file")
 	flag.BoolVar(&debug, "debug", false, "enable debug logging")
 	flag.Parse()
 
