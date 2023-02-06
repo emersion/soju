@@ -5,9 +5,10 @@ GOFLAGS ?=
 PREFIX ?= /usr/local
 BINDIR ?= bin
 MANDIR ?= share/man
-SYSCONFDIR ?= etc
+SYSCONFDIR ?= /etc
 
-config_path := $(DESTDIR)/$(SYSCONFDIR)/soju/config
+sharedstatedir := /var/lib
+config_path := $(DESTDIR)$(SYSCONFDIR)/soju/config
 goflags := $(GOFLAGS) \
 	-ldflags="-X 'git.sr.ht/~emersion/soju/config.DefaultPath=$(config_path)'"
 
@@ -27,8 +28,8 @@ clean:
 install:
 	mkdir -p $(DESTDIR)$(PREFIX)/$(BINDIR)
 	mkdir -p $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
-	mkdir -p $(DESTDIR)/$(SYSCONFDIR)/soju
-	mkdir -p $(DESTDIR)/var/lib/soju
+	mkdir -p $(DESTDIR)$(SYSCONFDIR)/soju
+	mkdir -p $(DESTDIR)$(sharedstatedir)/soju
 	cp -f soju sojudb sojuctl $(DESTDIR)$(PREFIX)/$(BINDIR)
 	cp -f doc/soju.1 $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
 	[ -f $(config_path) ] || cp -f config.in $(config_path)
