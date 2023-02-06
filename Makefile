@@ -6,11 +6,14 @@ PREFIX ?= /usr/local
 BINDIR ?= bin
 MANDIR ?= share/man
 SYSCONFDIR ?= /etc
+RUNDIR ?= /run
 
 sharedstatedir := /var/lib
 config_path := $(DESTDIR)$(SYSCONFDIR)/soju/config
-goflags := $(GOFLAGS) \
-	-ldflags="-X 'git.sr.ht/~emersion/soju/config.DefaultPath=$(config_path)'"
+admin_socket_path := $(RUNDIR)/soju/admin
+goflags := $(GOFLAGS) -ldflags=" \
+	-X 'git.sr.ht/~emersion/soju/config.DefaultPath=$(config_path)' \
+	-X 'git.sr.ht/~emersion/soju.DefaultUnixAdminPath=$(admin_socket_path)'"
 
 all: soju sojudb sojuctl doc/soju.1
 
