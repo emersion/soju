@@ -9,7 +9,7 @@ SYSCONFDIR ?= /etc
 RUNDIR ?= /run
 
 sharedstatedir := /var/lib
-config_path := $(DESTDIR)$(SYSCONFDIR)/soju/config
+config_path := $(SYSCONFDIR)/soju/config
 admin_socket_path := $(RUNDIR)/soju/admin
 goflags := $(GOFLAGS) -ldflags=" \
 	-X 'git.sr.ht/~emersion/soju/config.DefaultPath=$(config_path)' \
@@ -35,6 +35,6 @@ install:
 	mkdir -p $(DESTDIR)$(sharedstatedir)/soju
 	cp -f soju sojudb sojuctl $(DESTDIR)$(PREFIX)/$(BINDIR)
 	cp -f doc/soju.1 $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
-	[ -f $(config_path) ] || cp -f config.in $(config_path)
+	[ -f $(DESTDIR)$(config_path) ] || cp -f config.in $(DESTDIR)$(config_path)
 
 .PHONY: soju sojudb sojuctl clean install
