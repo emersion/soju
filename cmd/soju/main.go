@@ -220,6 +220,10 @@ func main() {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
 			ln = proxyProtoListener(ln, srv)
+			// TODO: this is racy
+			if err := os.Chmod(path, 0600); err != nil {
+				log.Fatalf("failed to chmod Unix admin socket: %v", err)
+			}
 			go func() {
 				if err := srv.Serve(ln, srv.HandleAdmin); err != nil {
 					log.Printf("serving %q: %v", listen, err)
