@@ -78,12 +78,12 @@ func TestPostgresMigrations(t *testing.T) {
 		t.Fatalf("openTempPostgresDB() failed: %v", err)
 	}
 
-	if _, err := sqlDB.Exec(postgresV0Schema); err != nil {
+	db := &PostgresDB{db: sqlDB, temp: true}
+	defer db.Close()
+
+	if _, err := db.db.Exec(postgresV0Schema); err != nil {
 		t.Fatalf("DB.Exec() failed for v0 schema: %v", err)
 	}
-
-	db := &PostgresDB{db: sqlDB}
-	defer db.Close()
 
 	if err := db.upgrade(); err != nil {
 		t.Fatalf("PostgresDB.Upgrade() failed: %v", err)
