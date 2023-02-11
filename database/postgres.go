@@ -122,11 +122,11 @@ CREATE TABLE "MessageTarget" (
 	UNIQUE(network, target)
 );
 
-CREATE TEXT SEARCH DICTIONARY "search_simple_dictionary" (
+CREATE TEXT SEARCH DICTIONARY search_simple_dictionary (
     TEMPLATE = pg_catalog.simple
 );
-CREATE TEXT SEARCH CONFIGURATION "search_simple" ( COPY = pg_catalog.simple );
-ALTER TEXT SEARCH CONFIGURATION "search_simple" ALTER MAPPING FOR asciiword, asciihword, hword_asciipart, hword, hword_part, word WITH "search_simple_dictionary";
+CREATE TEXT SEARCH CONFIGURATION @SCHEMA_PREFIX@search_simple ( COPY = pg_catalog.simple );
+ALTER TEXT SEARCH CONFIGURATION @SCHEMA_PREFIX@search_simple ALTER MAPPING FOR asciiword, asciihword, hword_asciipart, hword, hword_part, word WITH @SCHEMA_PREFIX@search_simple_dictionary;
 CREATE TABLE "Message" (
 	id SERIAL PRIMARY KEY,
 	target INTEGER NOT NULL REFERENCES "MessageTarget"(id) ON DELETE CASCADE,
@@ -134,7 +134,7 @@ CREATE TABLE "Message" (
 	time TIMESTAMP WITH TIME ZONE NOT NULL,
 	sender TEXT NOT NULL,
 	text TEXT,
-	text_search tsvector GENERATED ALWAYS AS (to_tsvector('search_simple', text)) STORED
+	text_search tsvector GENERATED ALWAYS AS (to_tsvector('@SCHEMA_PREFIX@search_simple', text)) STORED
 );
 CREATE INDEX "MessageIndex" ON "Message" (target, time);
 CREATE INDEX "MessageSearchIndex" ON "Message" USING GIN (text_search);
@@ -206,11 +206,11 @@ var postgresMigrations = []string{
 			target TEXT NOT NULL,
 			UNIQUE(network, target)
 		);
-		CREATE TEXT SEARCH DICTIONARY "search_simple_dictionary" (
+		CREATE TEXT SEARCH DICTIONARY search_simple_dictionary (
 			TEMPLATE = pg_catalog.simple
 		);
-		CREATE TEXT SEARCH CONFIGURATION "search_simple" ( COPY = pg_catalog.simple );
-		ALTER TEXT SEARCH CONFIGURATION "search_simple" ALTER MAPPING FOR asciiword, asciihword, hword_asciipart, hword, hword_part, word WITH "search_simple_dictionary";
+		CREATE TEXT SEARCH CONFIGURATION @SCHEMA_PREFIX@search_simple ( COPY = pg_catalog.simple );
+		ALTER TEXT SEARCH CONFIGURATION @SCHEMA_PREFIX@search_simple ALTER MAPPING FOR asciiword, asciihword, hword_asciipart, hword, hword_part, word WITH @SCHEMA_PREFIX@search_simple_dictionary;
 		CREATE TABLE "Message" (
 			id SERIAL PRIMARY KEY,
 			target INTEGER NOT NULL REFERENCES "MessageTarget"(id) ON DELETE CASCADE,
@@ -218,7 +218,7 @@ var postgresMigrations = []string{
 			time TIMESTAMP WITH TIME ZONE NOT NULL,
 			sender TEXT NOT NULL,
 			text TEXT,
-			text_search tsvector GENERATED ALWAYS AS (to_tsvector('search_simple', text)) STORED
+			text_search tsvector GENERATED ALWAYS AS (to_tsvector('@SCHEMA_PREFIX@search_simple', text)) STORED
 		);
 		CREATE INDEX "MessageIndex" ON "Message" (target, time);
 		CREATE INDEX "MessageSearchIndex" ON "Message" USING GIN (text_search);
@@ -226,7 +226,8 @@ var postgresMigrations = []string{
 }
 
 type PostgresDB struct {
-	db *sql.DB
+	db   *sql.DB
+	temp bool
 }
 
 func OpenPostgresDB(source string) (Database, error) {
@@ -270,13 +271,22 @@ func OpenTempPostgresDB(source string) (Database, error) {
 		return nil, err
 	}
 
-	db := &PostgresDB{db: sqlPostgresDB}
+	db := &PostgresDB{db: sqlPostgresDB, temp: true}
 	if err := db.upgrade(); err != nil {
 		sqlPostgresDB.Close()
 		return nil, err
 	}
 
 	return db, nil
+}
+
+func (db *PostgresDB) template(t string) string {
+	// Hack to convince postgres to lookup text search configurations in
+	// pg_temp
+	if db.temp {
+		return strings.ReplaceAll(t, "@SCHEMA_PREFIX@", "pg_temp.")
+	}
+	return strings.ReplaceAll(t, "@SCHEMA_PREFIX@", "")
 }
 
 func (db *PostgresDB) upgrade() error {
@@ -304,12 +314,12 @@ func (db *PostgresDB) upgrade() error {
 	}
 
 	if version == 0 {
-		if _, err := tx.Exec(postgresSchema); err != nil {
+		if _, err := tx.Exec(db.template(postgresSchema)); err != nil {
 			return fmt.Errorf("failed to initialize schema: %s", err)
 		}
 	} else {
 		for i := version; i < len(postgresMigrations); i++ {
-			if _, err := tx.Exec(postgresMigrations[i]); err != nil {
+			if _, err := tx.Exec(db.template(postgresMigrations[i])); err != nil {
 				return fmt.Errorf("failed to execute migration #%v: %v", i, err)
 			}
 		}
