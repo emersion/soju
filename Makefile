@@ -18,7 +18,7 @@ goflags := $(GOFLAGS) -ldflags=" \
 all: soju sojudb sojuctl doc/soju.1
 
 soju:
-	$(GO) build $(goflags) ./cmd/soju ./cmd/sojudb ./cmd/sojuctl
+	$(GO) build $(goflags) -o . ./cmd/soju ./cmd/sojudb ./cmd/sojuctl
 sojudb sojuctl: soju
 doc/soju.1: doc/soju.1.scd
 	$(SCDOC) <doc/soju.1.scd >doc/soju.1
