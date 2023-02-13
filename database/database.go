@@ -248,3 +248,10 @@ func toNullString(s string) sql.NullString {
 		Valid:  s != "",
 	}
 }
+
+func toNullTime(t time.Time) sql.NullTime {
+	return sql.NullTime{
+		Time:  t,
+		Valid: !t.IsZero(),
+	}
+}

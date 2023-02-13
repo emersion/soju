@@ -318,12 +318,14 @@ func (db *PostgresDB) ListUsers(ctx context.Context) ([]User, error) {
 	for rows.Next() {
 		var user User
 		var password, nick, realname sql.NullString
-		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled, &user.DownstreamInteractedAt); err != nil {
+		var downstreamInteractedAt sql.NullTime
+		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt); err != nil {
 			return nil, err
 		}
 		user.Password = password.String
 		user.Nick = nick.String
 		user.Realname = realname.String
+		user.DownstreamInteractedAt = downstreamInteractedAt.Time
 		users = append(users, user)
 	}
 	if err := rows.Err(); err != nil {
@@ -340,17 +342,19 @@ func (db *PostgresDB) GetUser(ctx context.Context, username string) (*User, erro
 	user := &User{Username: username}
 
 	var password, nick, realname sql.NullString
+	var downstreamInteractedAt sql.NullTime
 	row := db.db.QueryRowContext(ctx,
 		`SELECT id, password, admin, nick, realname, enabled, downstream_interacted_at
 		FROM "User"
 		WHERE username = $1`,
 		username)
-	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled, &user.DownstreamInteractedAt); err != nil {
+	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt); err != nil {
 		return nil, err
 	}
 	user.Password = password.String
 	user.Nick = nick.String
 	user.Realname = realname.String
+	user.DownstreamInteractedAt = downstreamInteractedAt.Time
 	return user, nil
 }
 
@@ -388,6 +392,7 @@ func (db *PostgresDB) StoreUser(ctx context.Context, user *User) error {
 	password := toNullString(user.Password)
 	nick := toNullString(user.Nick)
 	realname := toNullString(user.Realname)
+	downstreamInteractedAt := toNullTime(user.DownstreamInteractedAt)
 
 	var err error
 	if user.ID == 0 {
@@ -397,7 +402,7 @@ func (db *PostgresDB) StoreUser(ctx context.Context, user *User) error {
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
 			RETURNING id`,
 			user.Username, password, user.Admin, nick, realname, user.Enabled,
-			user.DownstreamInteractedAt).Scan(&user.ID)
+			downstreamInteractedAt).Scan(&user.ID)
 	} else {
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE "User"
@@ -405,7 +410,7 @@ func (db *PostgresDB) StoreUser(ctx context.Context, user *User) error {
 				enabled = $5, downstream_interacted_at = $6
 			WHERE id = $7`,
 			password, user.Admin, nick, realname, user.Enabled,
-			user.DownstreamInteractedAt, user.ID)
+			downstreamInteractedAt, user.ID)
 	}
 	return err
 }
