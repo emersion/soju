@@ -14,6 +14,7 @@ import (
 
 	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/msgstore"
+	"git.sr.ht/~emersion/soju/msgstore/znclog"
 )
 
 const usage = `usage: migrate-logs <source logs> <destination database>
@@ -88,7 +89,7 @@ func migrateNetwork(ctx context.Context, db database.Database, user *database.Us
 			}
 			sc := bufio.NewScanner(entry)
 			for sc.Scan() {
-				msg, _, err := msgstore.FSParseMessage(sc.Text(), user, network, target, ref, true)
+				msg, _, err := znclog.UnmarshalLine(sc.Text(), user, network, target, ref, true)
 				if err != nil {
 					return fmt.Errorf("unable to parse entry: %s: %s", entryPath, sc.Text())
 				} else if msg == nil {
