@@ -1067,7 +1067,7 @@ func (db *SqliteDB) ListWebPushSubscriptions(ctx context.Context, userID, networ
 	}
 
 	rows, err := db.db.QueryContext(ctx, `
-		SELECT id, endpoint, key_auth, key_p256dh, key_vapid
+		SELECT id, endpoint, created_at, updated_at, key_auth, key_p256dh, key_vapid
 		FROM WebPushSubscription
 		WHERE user = ? AND network IS ?`, userID, nullNetworkID)
 	if err != nil {
@@ -1078,9 +1078,12 @@ func (db *SqliteDB) ListWebPushSubscriptions(ctx context.Context, userID, networ
 	var subs []WebPushSubscription
 	for rows.Next() {
 		var sub WebPushSubscription
-		if err := rows.Scan(&sub.ID, &sub.Endpoint, &sub.Keys.Auth, &sub.Keys.P256DH, &sub.Keys.VAPID); err != nil {
+		var createdAt, updatedAt sqliteTime
+		if err := rows.Scan(&sub.ID, &sub.Endpoint, &createdAt, &updatedAt, &sub.Keys.Auth, &sub.Keys.P256DH, &sub.Keys.VAPID); err != nil {
 			return nil, err
 		}
+		sub.CreatedAt = createdAt.Time
+		sub.UpdatedAt = updatedAt.Time
 		subs = append(subs, sub)
 	}
 

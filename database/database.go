@@ -255,9 +255,11 @@ type WebPushConfig struct {
 }
 
 type WebPushSubscription struct {
-	ID       int64
-	Endpoint string
-	Keys     struct {
+	ID                   int64
+	Endpoint             string
+	CreatedAt, UpdatedAt time.Time // read-only
+
+	Keys struct {
 		Auth   string
 		P256DH string
 		VAPID  string

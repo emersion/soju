@@ -3230,10 +3230,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
+			updateSub := true
 			oldSub := findWebPushSubscription(subs, endpoint)
 			if oldSub != nil {
 				// Update the old subscription instead of creating a new one
 				newSub.ID = oldSub.ID
+				// Rate-limit subscription checks
+				updateSub = time.Since(oldSub.UpdatedAt) > webpushCheckSubscriptionDelay || oldSub.Keys != newSub.Keys
 			}
 
 			var networkID int64
@@ -3242,32 +3245,34 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			// Send a test Web Push message, to make sure the endpoint is valid
-			err = dc.srv.sendWebPush(ctx, &webpush.Subscription{
-				Endpoint: newSub.Endpoint,
-				Keys: webpush.Keys{
-					Auth:   newSub.Keys.Auth,
-					P256dh: newSub.Keys.P256DH,
-				},
-			}, newSub.Keys.VAPID, &irc.Message{
-				Command: "NOTE",
-				Params:  []string{"WEBPUSH", "REGISTERED", "Push notifications enabled"},
-			})
-			if err != nil {
-				dc.logger.Printf("failed to send Web push notification to endpoint %q: %v", newSub.Endpoint, err)
-				return ircError{&irc.Message{
-					Command: "FAIL",
-					Params:  []string{"WEBPUSH", "INVALID_PARAMS", subcommand, "Invalid endpoint"},
-				}}
-			}
+			if updateSub {
+				err = dc.srv.sendWebPush(ctx, &webpush.Subscription{
+					Endpoint: newSub.Endpoint,
+					Keys: webpush.Keys{
+						Auth:   newSub.Keys.Auth,
+						P256dh: newSub.Keys.P256DH,
+					},
+				}, newSub.Keys.VAPID, &irc.Message{
+					Command: "NOTE",
+					Params:  []string{"WEBPUSH", "REGISTERED", "Push notifications enabled"},
+				})
+				if err != nil {
+					dc.logger.Printf("failed to send Web push notification to endpoint %q: %v", newSub.Endpoint, err)
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"WEBPUSH", "INVALID_PARAMS", subcommand, "Invalid endpoint"},
+					}}
+				}
 
-			// TODO: limit max number of subscriptions, prune old ones
+				// TODO: limit max number of subscriptions, prune old ones
 
-			if err := dc.user.srv.db.StoreWebPushSubscription(ctx, dc.user.ID, networkID, &newSub); err != nil {
-				dc.logger.Printf("failed to store Web push subscription: %v", err)
-				return ircError{&irc.Message{
-					Command: "FAIL",
-					Params:  []string{"WEBPUSH", "INTERNAL_ERROR", subcommand, "Internal error"},
-				}}
+				if err := dc.user.srv.db.StoreWebPushSubscription(ctx, dc.user.ID, networkID, &newSub); err != nil {
+					dc.logger.Printf("failed to store Web push subscription: %v", err)
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"WEBPUSH", "INTERNAL_ERROR", subcommand, "Internal error"},
+					}}
+				}
 			}
 
 			dc.SendMessage(&irc.Message{

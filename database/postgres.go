@@ -849,7 +849,7 @@ func (db *PostgresDB) ListWebPushSubscriptions(ctx context.Context, userID, netw
 	}
 
 	rows, err := db.db.QueryContext(ctx, `
-		SELECT id, endpoint, key_auth, key_p256dh, key_vapid
+		SELECT id, endpoint, created_at, updated_at, key_auth, key_p256dh, key_vapid
 		FROM "WebPushSubscription"
 		WHERE "user" = $1 AND network IS NOT DISTINCT FROM $2`, userID, nullNetworkID)
 	if err != nil {
@@ -860,7 +860,7 @@ func (db *PostgresDB) ListWebPushSubscriptions(ctx context.Context, userID, netw
 	var subs []WebPushSubscription
 	for rows.Next() {
 		var sub WebPushSubscription
-		if err := rows.Scan(&sub.ID, &sub.Endpoint, &sub.Keys.Auth, &sub.Keys.P256DH, &sub.Keys.VAPID); err != nil {
+		if err := rows.Scan(&sub.ID, &sub.Endpoint, &sub.CreatedAt, &sub.UpdatedAt, &sub.Keys.Auth, &sub.Keys.P256DH, &sub.Keys.VAPID); err != nil {
 			return nil, err
 		}
 		subs = append(subs, sub)
