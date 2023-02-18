@@ -574,7 +574,7 @@ func (db *PostgresDB) StoreNetwork(ctx context.Context, userID int64, network *N
 			SET name = $2, addr = $3, nick = $4, username = $5, realname = $6, certfp = $7, pass = $8,
 				connect_commands = $9, sasl_mechanism = $10, sasl_plain_username = $11,
 				sasl_plain_password = $12, sasl_external_cert = $13, sasl_external_key = $14,
-				auto_away = $14, enabled = $15
+				auto_away = $15, enabled = $16
 			WHERE id = $1`,
 			network.ID, netName, network.Addr, nick, netUsername, realname, certfp, pass, connectCommands,
 			saslMechanism, saslPlainUsername, saslPlainPassword, network.SASL.External.CertBlob,
