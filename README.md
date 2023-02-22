@@ -29,10 +29,9 @@ For end users, a `Makefile` is provided:
 For development, you can use `go run ./cmd/soju` as usual.
 
 To link with the system libsqlite3, set `GOFLAGS="-tags=libsqlite3"`. To disable
-SQLite support, set `GOFLAGS="-tags=nosqlite"`. To build with PAM authentication
-support, set `GOFLAGS="-tags=pam"`.
-
-To use an alternative SQLite library that does not require CGO, set `GOFLAGS="-tags=moderncsqlite"`.
+SQLite support, set `GOFLAGS="-tags=nosqlite"`. To use an alternative SQLite
+library that does not require CGO, set `GOFLAGS="-tags=moderncsqlite"`. To
+build with PAM authentication support, set `GOFLAGS="-tags=pam"`.
 
 ## Contributing
 
