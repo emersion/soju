@@ -129,7 +129,10 @@ func (s *Identd) handle(c net.Conn) {
 			break
 		}
 
-		fmt.Fprintf(c, "%s : USERID : OTHER : %s\r\n", l, ident)
+		// The "OTHER" operating system may be rejected by IRC servers, because
+		// it may be used when the ident string isn't stable. Use "UNKNOWN"
+		// from RFC 1340 instead.
+		fmt.Fprintf(c, "%s : USERID : UNKNOWN : %s\r\n", l, ident)
 	}
 }
 
