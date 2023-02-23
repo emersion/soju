@@ -1,3 +1,6 @@
+// Package identd implements an Identification Protocol server.
+//
+// The Identification Protocol is defined in RFC 1413.
 package identd
 
 import (
