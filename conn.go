@@ -2,6 +2,7 @@ package soju
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -163,7 +164,7 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 				break
 			}
 		}
-		if err := c.conn.Close(); err != nil && !isErrClosed(err) {
+		if err := c.conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			c.logger.Printf("failed to close connection: %v", err)
 		} else {
 			c.logger.Debugf("connection closed")
@@ -202,7 +203,7 @@ func (c *conn) Close() error {
 
 func (c *conn) ReadMessage() (*irc.Message, error) {
 	msg, err := c.conn.ReadMessage()
-	if isErrClosed(err) {
+	if errors.Is(err, net.ErrClosed) {
 		return nil, io.EOF
 	} else if err != nil {
 		return nil, err

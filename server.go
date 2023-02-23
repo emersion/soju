@@ -581,7 +581,7 @@ func (s *Server) Serve(ln net.Listener, handler func(ircConn)) error {
 
 	for {
 		conn, err := ln.Accept()
-		if isErrClosed(err) {
+		if errors.Is(err, net.ErrClosed) {
 			return nil
 		} else if err != nil {
 			return fmt.Errorf("failed to accept connection: %v", err)
