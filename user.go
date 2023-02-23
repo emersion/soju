@@ -486,13 +486,13 @@ func (net *network) broadcastWebPush(msg *irc.Message) {
 				P256dh: sub.Keys.P256DH,
 			},
 		}, sub.Keys.VAPID, msg)
-		if err != nil {
-			net.logger.Printf("failed to send Web push notification to endpoint %q: %v", sub.Endpoint, err)
-		}
 		if err == errWebPushSubscriptionExpired {
 			if err := net.user.srv.db.DeleteWebPushSubscription(ctx, sub.ID); err != nil {
 				net.logger.Printf("failed to delete expired Web Push subscription: %v", err)
 			}
+			net.logger.Debugf("deleted expired Web Push subscription %q", sub.Endpoint)
+		} else if err != nil {
+			net.logger.Printf("failed to send Web push notification to endpoint %q: %v", sub.Endpoint, err)
 		}
 	}
 }
