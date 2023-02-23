@@ -37,7 +37,7 @@ func (pamAuth) AuthPlain(ctx context.Context, db database.Database, username, pa
 	}
 
 	if err := t.Authenticate(0); err != nil {
-		return fmt.Errorf("PAM auth error: %v", err)
+		return newInvalidCredentialsError(fmt.Errorf("PAM auth error: %v", err))
 	}
 
 	if err := t.AcctMgmt(0); err != nil {

@@ -67,37 +67,13 @@ func newChatHistoryError(subcommand string, target string) ircError {
 	}}
 }
 
-// authError is an authentication error.
-type authError struct {
-	// Internal error cause. This will not be revealed to the user.
-	err error
-	// Error cause which can safely be sent to the user without compromising
-	// security.
-	reason string
-}
-
-func (err *authError) Error() string {
-	return err.err.Error()
-}
-
-func (err *authError) Unwrap() error {
-	return err.err
-}
-
 // authErrorReason returns the user-friendly reason of an authentication
 // failure.
 func authErrorReason(err error) string {
-	if authErr, ok := err.(*authError); ok {
-		return authErr.reason
+	if authErr, ok := err.(*auth.Error); ok {
+		return authErr.ExternalMsg
 	} else {
 		return "Authentication failed"
-	}
-}
-
-func newInvalidUsernameOrPasswordError(err error) error {
-	return &authError{
-		err:    err,
-		reason: "Invalid username or password",
 	}
 }
 
@@ -690,8 +666,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 				break
 			}
 
-			if authErr := auth.AuthPlain(ctx, dc.srv.db, username, password); authErr != nil {
-				err = newInvalidUsernameOrPasswordError(authErr)
+			if err = auth.AuthPlain(ctx, dc.srv.db, username, password); err != nil {
 				break
 			}
 		case "OAUTHBEARER":
@@ -701,15 +676,14 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 				break
 			}
 
-			var authErr error
-			username, authErr = auth.AuthOAuthBearer(ctx, dc.srv.db, credentials.oauthBearer.Token)
-			if authErr != nil {
-				err = newInvalidUsernameOrPasswordError(authErr)
+			username, err = auth.AuthOAuthBearer(ctx, dc.srv.db, credentials.oauthBearer.Token)
+			if err != nil {
 				break
 			}
 
 			if credentials.oauthBearer.Username != "" && credentials.oauthBearer.Username != username {
-				err = newInvalidUsernameOrPasswordError(fmt.Errorf("username mismatch (server returned %q)", username))
+				err = fmt.Errorf("username mismatch (server returned %q)", username)
+				break
 			}
 		default:
 			panic(fmt.Errorf("unexpected SASL mechanism %q", credentials.mechanism))
@@ -1292,7 +1266,7 @@ func (dc *downstreamConn) authenticate(ctx context.Context, username, password s
 	}
 
 	if err := plainAuth.AuthPlain(ctx, dc.srv.db, username, password); err != nil {
-		return newInvalidUsernameOrPasswordError(err)
+		return err
 	}
 
 	return dc.setUser(username, clientName, networkName)

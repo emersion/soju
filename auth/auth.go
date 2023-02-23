@@ -29,3 +29,29 @@ func New(driver, source string) (Authenticator, error) {
 		return nil, fmt.Errorf("unknown auth driver %q", driver)
 	}
 }
+
+// Error is an authentication error.
+type Error struct {
+	// Internal error cause. This will not be revealed to the user.
+	InternalErr error
+	// Message which can safely be sent to the user without compromising
+	// security.
+	ExternalMsg string
+}
+
+func (err *Error) Error() string {
+	return err.InternalErr.Error()
+}
+
+func (err *Error) Unwrap() error {
+	return err.InternalErr
+}
+
+// newInvalidCredentialsError wraps the provided error into an Error and
+// indicates to the user that the provided credentials were invalid.
+func newInvalidCredentialsError(err error) *Error {
+	return &Error{
+		InternalErr: err,
+		ExternalMsg: "Invalid credentials",
+	}
+}

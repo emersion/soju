@@ -88,7 +88,7 @@ func (auth *oauth2) AuthPlain(ctx context.Context, db database.Database, usernam
 	}
 
 	if username != effectiveUsername {
-		return fmt.Errorf("username mismatch (OAuth 2.0 server returned %q)", effectiveUsername)
+		return newInvalidCredentialsError(fmt.Errorf("username mismatch (OAuth 2.0 server returned %q)", effectiveUsername))
 	}
 
 	return nil
@@ -127,7 +127,7 @@ func (auth *oauth2) AuthOAuthBearer(ctx context.Context, db database.Database, t
 	}
 
 	if !data.Active {
-		return "", fmt.Errorf("invalid access token")
+		return "", newInvalidCredentialsError(fmt.Errorf("invalid access token"))
 	}
 	if data.Username == "" {
 		// We really need the username here, otherwise an OAuth 2.0 user can

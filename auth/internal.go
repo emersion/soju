@@ -16,12 +16,12 @@ func NewInternal() PlainAuthenticator {
 func (internal) AuthPlain(ctx context.Context, db database.Database, username, password string) error {
 	u, err := db.GetUser(ctx, username)
 	if err != nil {
-		return fmt.Errorf("user not found: %w", err)
+		return newInvalidCredentialsError(fmt.Errorf("user not found: %w", err))
 	}
 
 	upgraded, err := u.CheckPassword(password)
 	if err != nil {
-		return err
+		return newInvalidCredentialsError(err)
 	}
 
 	if upgraded {
