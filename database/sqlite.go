@@ -1,5 +1,4 @@
 //go:build !nosqlite
-// +build !nosqlite
 
 package database
 
