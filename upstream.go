@@ -929,6 +929,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				value = token[i+1:]
 				hasValue = true
 			}
+			parameter = strings.ToUpper(parameter)
 
 			if hasValue {
 				uc.isupport[parameter] = &value
