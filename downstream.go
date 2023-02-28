@@ -2643,7 +2643,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			uc.updateMonitor()
 		case "C": // clear
 			dc.monitored = newCasemapMap()
-			dc.monitored.SetCasemapping(casemapASCII)
+			dc.monitored.SetCasemapping(uc.network.casemap)
 			uc.updateMonitor()
 		case "L": // list
 			// TODO: be less lazy and pack the list
