@@ -220,8 +220,6 @@ type upstreamConn struct {
 	saslClient  sasl.Client
 	saslStarted bool
 
-	casemapIsSet bool
-
 	// Queue of commands in progress, indexed by type. The first entry has been
 	// sent to the server and is awaiting reply. The following entries have not
 	// been sent yet.
@@ -948,7 +946,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 					casemap = casemapRFC1459
 				}
 				uc.network.updateCasemapping(casemap)
-				uc.casemapIsSet = true
 			case "CHANMODES":
 				if !negate {
 					err = uc.handleChanModes(value)
@@ -989,17 +986,16 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		})
 	case irc.ERR_NOMOTD, irc.RPL_ENDOFMOTD:
-		if !uc.casemapIsSet {
-			// upstream did not send any CASEMAPPING token, thus
-			// we assume it implements the old RFCs with rfc1459.
-			uc.casemapIsSet = true
-			uc.network.updateCasemapping(casemapRFC1459)
-		}
-
 		if !uc.gotMotd {
 			// Ignore the initial MOTD upon connection, but forward
 			// subsequent MOTD messages downstream
 			uc.gotMotd = true
+
+			// If upstream did not send any CASEMAPPING token, assume it
+			// implements the old RFCs with rfc1459.
+			if uc.isupport["CASEMAPPING"] == nil {
+				uc.network.updateCasemapping(casemapRFC1459)
+			}
 
 			// If the server doesn't support MONITOR, periodically try to
 			// regain our desired nick
