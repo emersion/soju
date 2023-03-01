@@ -89,7 +89,7 @@ type upstreamChannel struct {
 	Status       xirc.ChannelStatus
 	modes        channelModes
 	creationTime string
-	Members      casemapMap[*xirc.MembershipSet]
+	Members      xirc.CaseMappingMap[*xirc.MembershipSet]
 	complete     bool
 	detachTimer  *time.Timer
 }
@@ -208,14 +208,14 @@ type upstreamConn struct {
 	realname    string
 	hostname    string
 	modes       userModes
-	channels    casemapMap[*upstreamChannel]
-	users       casemapMap[*upstreamUser]
+	channels    xirc.CaseMappingMap[*upstreamChannel]
+	users       xirc.CaseMappingMap[*upstreamUser]
 	caps        xirc.CapRegistry
 	batches     map[string]upstreamBatch
 	away        bool
 	account     string
 	nextLabelID uint64
-	monitored   casemapMap[bool]
+	monitored   xirc.CaseMappingMap[bool]
 
 	saslClient  sasl.Client
 	saslStarted bool
@@ -367,8 +367,8 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		conn:                  *newConn(network.user.srv, newNetIRCConn(netConn), &options),
 		network:               network,
 		user:                  network.user,
-		channels:              newCasemapMap[*upstreamChannel](cm),
-		users:                 newCasemapMap[*upstreamUser](cm),
+		channels:              xirc.NewCaseMappingMap[*upstreamChannel](cm),
+		users:                 xirc.NewCaseMappingMap[*upstreamUser](cm),
 		caps:                  xirc.NewCapRegistry(),
 		batches:               make(map[string]upstreamBatch),
 		serverPrefix:          &irc.Prefix{Name: "*"},
@@ -377,7 +377,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		availableMemberships:  stdMemberships,
 		isupport:              make(map[string]*string),
 		pendingCmds:           make(map[string][]pendingUpstreamCommand),
-		monitored:             newCasemapMap[bool](cm),
+		monitored:             xirc.NewCaseMappingMap[bool](cm),
 		hasDesiredNick:        true,
 	}
 	return uc, nil
@@ -1174,7 +1174,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		for _, ch := range strings.Split(channels, ",") {
 			if uc.isOurNick(msg.Prefix.Name) {
 				uc.logger.Printf("joined channel %q", ch)
-				members := newCasemapMap[*xirc.MembershipSet](uc.network.casemap)
+				members := xirc.NewCaseMappingMap[*xirc.MembershipSet](uc.network.casemap)
 				uc.channels.Set(ch, &upstreamChannel{
 					Name:    ch,
 					conn:    uc,
@@ -2259,10 +2259,10 @@ func (uc *upstreamConn) updateMonitor() {
 	var addList []string
 	seen := make(map[string]struct{})
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		for _, entry := range dc.monitored.m {
-			targetCM := uc.network.casemap(entry.originalKey)
+		dc.monitored.ForEach(func(target string, _ struct{}) {
+			targetCM := uc.network.casemap(target)
 			if targetCM == serviceNickCM {
-				continue
+				return
 			}
 			if !uc.monitored.Has(targetCM) {
 				if _, ok := add[targetCM]; !ok {
@@ -2272,7 +2272,7 @@ func (uc *upstreamConn) updateMonitor() {
 			} else {
 				seen[targetCM] = struct{}{}
 			}
-		}
+		})
 	})
 
 	wantNick := database.GetNick(&uc.user.User, &uc.network.Network)

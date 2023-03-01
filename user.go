@@ -93,11 +93,11 @@ type eventUserRun struct {
 type deliveredClientMap map[string]string // client name -> msg ID
 
 type deliveredStore struct {
-	m casemapMap[deliveredClientMap]
+	m xirc.CaseMappingMap[deliveredClientMap]
 }
 
 func newDeliveredStore(cm xirc.CaseMapping) deliveredStore {
-	return deliveredStore{newCasemapMap[deliveredClientMap](cm)}
+	return deliveredStore{xirc.NewCaseMappingMap[deliveredClientMap](cm)}
 }
 
 func (ds deliveredStore) HasTarget(target string) bool {
@@ -147,9 +147,9 @@ type network struct {
 	stopped chan struct{}
 
 	conn        *upstreamConn
-	channels    casemapMap[*database.Channel]
+	channels    xirc.CaseMappingMap[*database.Channel]
 	delivered   deliveredStore
-	pushTargets casemapMap[time.Time]
+	pushTargets xirc.CaseMappingMap[time.Time]
 	lastError   error
 	casemap     xirc.CaseMapping
 }
@@ -161,7 +161,7 @@ func newNetwork(user *user, record *database.Network, channels []database.Channe
 	// don't know which case-mapping will be used by the upstream server yet
 	cm := xirc.CaseMappingNone
 
-	m := newCasemapMap[*database.Channel](cm)
+	m := xirc.NewCaseMappingMap[*database.Channel](cm)
 	for _, ch := range channels {
 		ch := ch
 		m.Set(ch.Name, &ch)
@@ -174,7 +174,7 @@ func newNetwork(user *user, record *database.Network, channels []database.Channe
 		stopped:     make(chan struct{}),
 		channels:    m,
 		delivered:   newDeliveredStore(cm),
-		pushTargets: newCasemapMap[time.Time](cm),
+		pushTargets: xirc.NewCaseMappingMap[time.Time](cm),
 		casemap:     stdCaseMapping,
 	}
 }

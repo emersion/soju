@@ -348,7 +348,7 @@ type downstreamConn struct {
 
 	lastBatchRef uint64
 
-	monitored casemapMap[struct{}]
+	monitored xirc.CaseMappingMap[struct{}]
 }
 
 func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
@@ -362,7 +362,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		nickCM:       "*",
 		username:     "~u",
 		caps:         xirc.NewCapRegistry(),
-		monitored:    newCasemapMap[struct{}](xirc.CaseMappingASCII),
+		monitored:    xirc.NewCaseMappingMap[struct{}](xirc.CaseMappingASCII),
 		registration: new(downstreamRegistration),
 	}
 	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
@@ -2650,17 +2650,17 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 			uc.updateMonitor()
 		case "C": // clear
-			dc.monitored = newCasemapMap[struct{}](uc.network.casemap)
+			dc.monitored = xirc.NewCaseMappingMap[struct{}](uc.network.casemap)
 			uc.updateMonitor()
 		case "L": // list
 			// TODO: be less lazy and pack the list
-			for _, entry := range dc.monitored.m {
+			dc.monitored.ForEach(func(name string, _ struct{}) {
 				dc.SendMessage(&irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_MONLIST,
-					Params:  []string{dc.nick, entry.originalKey},
+					Params:  []string{dc.nick, name},
 				})
-			}
+			})
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFMONLIST,
@@ -2668,9 +2668,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			})
 		case "S": // status
 			// TODO: be less lazy and pack the lists
-			for _, entry := range dc.monitored.m {
-				target := entry.originalKey
-
+			dc.monitored.ForEach(func(target string, _ struct{}) {
 				cmd := irc.RPL_MONOFFLINE
 				if online := uc.monitored.Get(target); online {
 					cmd = irc.RPL_MONONLINE
@@ -2685,7 +2683,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Command: cmd,
 					Params:  []string{dc.nick, target},
 				})
-			}
+			})
 		}
 	case "CHATHISTORY":
 		var subcommand string

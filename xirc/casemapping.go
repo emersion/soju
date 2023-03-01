@@ -75,3 +75,71 @@ func ParseCaseMapping(s string) CaseMapping {
 	}
 	return cm
 }
+
+type CaseMappingMap[V interface{}] struct {
+	m       map[string]caseMappingEntry[V]
+	casemap CaseMapping
+}
+
+type caseMappingEntry[V interface{}] struct {
+	originalKey string
+	value       V
+}
+
+func NewCaseMappingMap[V interface{}](cm CaseMapping) CaseMappingMap[V] {
+	return CaseMappingMap[V]{
+		m:       make(map[string]caseMappingEntry[V]),
+		casemap: cm,
+	}
+}
+
+func (cmm *CaseMappingMap[V]) Has(name string) bool {
+	_, ok := cmm.m[cmm.casemap(name)]
+	return ok
+}
+
+func (cmm *CaseMappingMap[V]) Len() int {
+	return len(cmm.m)
+}
+
+func (cmm *CaseMappingMap[V]) Get(name string) V {
+	entry, ok := cmm.m[cmm.casemap(name)]
+	if !ok {
+		var v V
+		return v
+	}
+	return entry.value
+}
+
+func (cmm *CaseMappingMap[V]) Set(name string, value V) {
+	nameCM := cmm.casemap(name)
+	entry, ok := cmm.m[nameCM]
+	if !ok {
+		cmm.m[nameCM] = caseMappingEntry[V]{
+			originalKey: name,
+			value:       value,
+		}
+		return
+	}
+	entry.value = value
+	cmm.m[nameCM] = entry
+}
+
+func (cmm *CaseMappingMap[V]) Del(name string) {
+	delete(cmm.m, cmm.casemap(name))
+}
+
+func (cmm *CaseMappingMap[V]) ForEach(f func(string, V)) {
+	for _, entry := range cmm.m {
+		f(entry.originalKey, entry.value)
+	}
+}
+
+func (cmm *CaseMappingMap[V]) SetCaseMapping(newCasemap CaseMapping) {
+	cmm.casemap = newCasemap
+	m := make(map[string]caseMappingEntry[V], len(cmm.m))
+	for _, entry := range cmm.m {
+		m[cmm.casemap(entry.originalKey)] = entry
+	}
+	cmm.m = m
+}
