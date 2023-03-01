@@ -1066,23 +1066,6 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 
 		ctx.print(fmt.Sprintf("updated user %q", username))
 	} else {
-		// copy the user record because we'll mutate it
-		record := ctx.user.User
-
-		if password != nil {
-			if err := record.SetPassword(*password); err != nil {
-				return err
-			}
-		}
-		if disablePassword {
-			record.Password = ""
-		}
-		if nick != nil {
-			record.Nick = *nick
-		}
-		if realname != nil {
-			record.Realname = *realname
-		}
 		if admin != nil {
 			return fmt.Errorf("cannot update -admin of own user")
 		}
@@ -1090,7 +1073,24 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 			return fmt.Errorf("cannot update -enabled of own user")
 		}
 
-		if err := ctx.user.updateUser(ctx, &record); err != nil {
+		err := ctx.user.updateUser(ctx, func(record *database.User) error {
+			if password != nil {
+				if err := record.SetPassword(*password); err != nil {
+					return err
+				}
+			}
+			if disablePassword {
+				record.Password = ""
+			}
+			if nick != nil {
+				record.Nick = *nick
+			}
+			if realname != nil {
+				record.Realname = *realname
+			}
+			return nil
+		})
+		if err != nil {
 			return err
 		}
 

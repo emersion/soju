@@ -1773,9 +1773,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			record.Nick = nick
 			err = dc.srv.db.StoreNetwork(ctx, dc.user.ID, &record)
 		} else {
-			record := dc.user.User
-			record.Nick = nick
-			err = dc.user.updateUser(ctx, &record)
+			err = dc.user.updateUser(ctx, func(record *database.User) error {
+				record.Nick = nick
+				return nil
+			})
 		}
 		if err != nil {
 			dc.logger.Printf("failed to update nick: %v", err)
@@ -1840,9 +1841,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				_, err = dc.user.updateNetwork(ctx, &record)
 			}
 		} else {
-			record := dc.user.User
-			record.Realname = realname
-			err = dc.user.updateUser(ctx, &record)
+			err = dc.user.updateUser(ctx, func(record *database.User) error {
+				record.Realname = realname
+				return nil
+			})
 		}
 
 		if err != nil {
