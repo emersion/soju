@@ -157,9 +157,9 @@ type network struct {
 func newNetwork(user *user, record *database.Network, channels []database.Channel) *network {
 	logger := &prefixLogger{user.logger, fmt.Sprintf("network %q: ", record.GetName())}
 
-	// Initialize maps with the no-op case-mapping to avoid collisions: we
-	// don't know which case-mapping will be used by the upstream server yet
-	cm := xirc.CaseMappingNone
+	// Initialize maps with the most strict case-mapping to avoid collisions:
+	// we don't know which case-mapping will be used by the upstream server yet
+	cm := xirc.CaseMappingASCII
 
 	m := xirc.NewCaseMappingMap[*database.Channel](cm)
 	for _, ch := range channels {

@@ -1,9 +1,5 @@
 package xirc
 
-func casemapNone(name string) string {
-	return name
-}
-
 // CasemapASCII of name is the canonical representation of name according to the
 // ascii casemapping.
 func casemapASCII(name string) string {
@@ -57,7 +53,6 @@ func casemapRFC1459Strict(name string) string {
 type CaseMapping func(string) string
 
 var (
-	CaseMappingNone          CaseMapping = casemapNone
 	CaseMappingASCII         CaseMapping = casemapASCII
 	CaseMappingRFC1459       CaseMapping = casemapRFC1459
 	CaseMappingRFC1459Strict CaseMapping = casemapRFC1459Strict
