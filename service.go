@@ -15,7 +15,6 @@ import (
 	"time"
 	"unicode"
 
-	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/irc.v4"
 
 	"git.sr.ht/~emersion/soju/database"
@@ -1032,12 +1031,11 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 
 		var hashed *string
 		if password != nil {
-			hashedBytes, err := bcrypt.GenerateFromPassword([]byte(*password), bcrypt.DefaultCost)
-			if err != nil {
-				return fmt.Errorf("failed to hash password: %v", err)
+			var passwordRecord database.User
+			if err := passwordRecord.SetPassword(*password); err != nil {
+				return err
 			}
-			hashedStr := string(hashedBytes)
-			hashed = &hashedStr
+			hashed = &passwordRecord.Password
 		}
 		if disablePassword {
 			hashedStr := ""
