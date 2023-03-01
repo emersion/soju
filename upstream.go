@@ -942,9 +942,9 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			var err error
 			switch parameter {
 			case "CASEMAPPING":
-				casemap, ok := parseCasemappingToken(value)
-				if !ok {
-					casemap = casemapRFC1459
+				casemap := xirc.ParseCaseMapping(value)
+				if casemap == nil {
+					casemap = xirc.CaseMappingRFC1459
 				}
 				uc.network.updateCasemapping(casemap)
 			case "CHANMODES":
@@ -992,7 +992,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			// If upstream did not send any CASEMAPPING token, assume it
 			// implements the old RFCs with rfc1459.
 			if uc.isupport["CASEMAPPING"] == nil {
-				uc.network.updateCasemapping(casemapRFC1459)
+				uc.network.updateCasemapping(stdCaseMapping)
 			}
 
 			// If the server doesn't support MONITOR, periodically try to

@@ -216,79 +216,11 @@ func copyClientTags(tags irc.Tags) irc.Tags {
 	return t
 }
 
-type casemapping func(string) string
-
-func casemapNone(name string) string {
-	return name
-}
-
-// CasemapASCII of name is the canonical representation of name according to the
-// ascii casemapping.
-func casemapASCII(name string) string {
-	nameBytes := []byte(name)
-	for i, r := range nameBytes {
-		if 'A' <= r && r <= 'Z' {
-			nameBytes[i] = r + 'a' - 'A'
-		}
-	}
-	return string(nameBytes)
-}
-
-// casemapRFC1459 of name is the canonical representation of name according to the
-// rfc1459 casemapping.
-func casemapRFC1459(name string) string {
-	nameBytes := []byte(name)
-	for i, r := range nameBytes {
-		if 'A' <= r && r <= 'Z' {
-			nameBytes[i] = r + 'a' - 'A'
-		} else if r == '{' {
-			nameBytes[i] = '['
-		} else if r == '}' {
-			nameBytes[i] = ']'
-		} else if r == '\\' {
-			nameBytes[i] = '|'
-		} else if r == '~' {
-			nameBytes[i] = '^'
-		}
-	}
-	return string(nameBytes)
-}
-
-// casemapRFC1459Strict of name is the canonical representation of name
-// according to the rfc1459-strict casemapping.
-func casemapRFC1459Strict(name string) string {
-	nameBytes := []byte(name)
-	for i, r := range nameBytes {
-		if 'A' <= r && r <= 'Z' {
-			nameBytes[i] = r + 'a' - 'A'
-		} else if r == '{' {
-			nameBytes[i] = '['
-		} else if r == '}' {
-			nameBytes[i] = ']'
-		} else if r == '\\' {
-			nameBytes[i] = '|'
-		}
-	}
-	return string(nameBytes)
-}
-
-func parseCasemappingToken(tokenValue string) (casemap casemapping, ok bool) {
-	switch tokenValue {
-	case "ascii":
-		casemap = casemapASCII
-	case "rfc1459":
-		casemap = casemapRFC1459
-	case "rfc1459-strict":
-		casemap = casemapRFC1459Strict
-	default:
-		return nil, false
-	}
-	return casemap, true
-}
+var stdCaseMapping = xirc.CaseMappingRFC1459
 
 type casemapMap[V interface{}] struct {
 	m       map[string]casemapEntry[V]
-	casemap casemapping
+	casemap xirc.CaseMapping
 }
 
 type casemapEntry[V interface{}] struct {
@@ -299,7 +231,7 @@ type casemapEntry[V interface{}] struct {
 func newCasemapMap[V interface{}]() casemapMap[V] {
 	return casemapMap[V]{
 		m:       make(map[string]casemapEntry[V]),
-		casemap: casemapNone,
+		casemap: xirc.CaseMappingNone,
 	}
 }
 
@@ -345,7 +277,7 @@ func (cm *casemapMap[V]) ForEach(f func(string, V)) {
 	}
 }
 
-func (cm *casemapMap[V]) SetCasemapping(newCasemap casemapping) {
+func (cm *casemapMap[V]) SetCasemapping(newCasemap xirc.CaseMapping) {
 	cm.casemap = newCasemap
 	m := make(map[string]casemapEntry[V], len(cm.m))
 	for _, entry := range cm.m {

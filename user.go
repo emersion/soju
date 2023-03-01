@@ -151,7 +151,7 @@ type network struct {
 	delivered   deliveredStore
 	pushTargets casemapMap[time.Time]
 	lastError   error
-	casemap     casemapping
+	casemap     xirc.CaseMapping
 }
 
 func newNetwork(user *user, record *database.Network, channels []database.Channel) *network {
@@ -171,7 +171,7 @@ func newNetwork(user *user, record *database.Network, channels []database.Channe
 		channels:    m,
 		delivered:   newDeliveredStore(),
 		pushTargets: newCasemapMap[time.Time](),
-		casemap:     casemapRFC1459,
+		casemap:     stdCaseMapping,
 	}
 }
 
@@ -387,7 +387,7 @@ func (net *network) deleteChannel(ctx context.Context, name string) error {
 	return nil
 }
 
-func (net *network) updateCasemapping(newCasemap casemapping) {
+func (net *network) updateCasemapping(newCasemap xirc.CaseMapping) {
 	net.casemap = newCasemap
 	net.channels.SetCasemapping(newCasemap)
 	net.delivered.m.SetCasemapping(newCasemap)
