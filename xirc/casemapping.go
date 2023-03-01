@@ -1,7 +1,5 @@
 package xirc
 
-// CasemapASCII of name is the canonical representation of name according to the
-// ascii casemapping.
 func casemapASCII(name string) string {
 	nameBytes := []byte(name)
 	for i, r := range nameBytes {
@@ -12,8 +10,6 @@ func casemapASCII(name string) string {
 	return string(nameBytes)
 }
 
-// casemapRFC1459 of name is the canonical representation of name according to the
-// rfc1459 casemapping.
 func casemapRFC1459(name string) string {
 	nameBytes := []byte(name)
 	for i, r := range nameBytes {
@@ -32,8 +28,6 @@ func casemapRFC1459(name string) string {
 	return string(nameBytes)
 }
 
-// casemapRFC1459Strict of name is the canonical representation of name
-// according to the rfc1459-strict casemapping.
 func casemapRFC1459Strict(name string) string {
 	nameBytes := []byte(name)
 	for i, r := range nameBytes {
@@ -50,6 +44,8 @@ func casemapRFC1459Strict(name string) string {
 	return string(nameBytes)
 }
 
+// CaseMapping returns the canonical representation of a name according to an
+// IRC case-mapping.
 type CaseMapping func(string) string
 
 var (
