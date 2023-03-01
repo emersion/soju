@@ -978,9 +978,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		uc.updateMonitor()
 
 		uc.forEachDownstream(func(dc *downstreamConn) {
-			if dc.network == nil {
-				return
-			}
 			msgs := xirc.GenerateIsupport(dc.srv.prefix(), dc.nick, downstreamIsupport)
 			for _, msg := range msgs {
 				dc.SendMessage(msg)
