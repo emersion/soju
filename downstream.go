@@ -1195,6 +1195,16 @@ func (dc *downstreamConn) updateAccount() {
 	dc.account = account
 }
 
+func (dc *downstreamConn) updateCasemapping() {
+	cm := casemapASCII
+	if dc.network != nil {
+		cm = dc.network.casemap
+	}
+
+	dc.nickCM = cm(dc.nick)
+	dc.monitored.SetCasemapping(cm)
+}
+
 func sanityCheckServer(ctx context.Context, addr string) error {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -1511,6 +1521,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	dc.updateHost()
 	dc.updateRealname()
 	dc.updateAccount()
+	dc.updateCasemapping()
 
 	if motd := dc.user.srv.Config().MOTD; motd != "" && dc.network == nil {
 		for _, msg := range xirc.GenerateMOTD(dc.srv.prefix(), dc.nick, motd) {

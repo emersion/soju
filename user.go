@@ -401,7 +401,7 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 		uc.monitored.SetCasemapping(newCasemap)
 	}
 	net.forEachDownstream(func(dc *downstreamConn) {
-		dc.monitored.SetCasemapping(newCasemap)
+		dc.updateCasemapping()
 	})
 }
 
@@ -632,6 +632,7 @@ func (u *user) run() {
 				dc.updateHost()
 				dc.updateRealname()
 				dc.updateAccount()
+				dc.updateCasemapping()
 			})
 			u.notifyBouncerNetworkState(uc.network.ID, irc.Tags{
 				"state": "connected",
