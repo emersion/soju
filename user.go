@@ -389,16 +389,16 @@ func (net *network) deleteChannel(ctx context.Context, name string) error {
 
 func (net *network) updateCasemapping(newCasemap xirc.CaseMapping) {
 	net.casemap = newCasemap
-	net.channels.SetCasemapping(newCasemap)
-	net.delivered.m.SetCasemapping(newCasemap)
-	net.pushTargets.SetCasemapping(newCasemap)
+	net.channels.SetCaseMapping(newCasemap)
+	net.delivered.m.SetCaseMapping(newCasemap)
+	net.pushTargets.SetCaseMapping(newCasemap)
 	if uc := net.conn; uc != nil {
-		uc.channels.SetCasemapping(newCasemap)
+		uc.channels.SetCaseMapping(newCasemap)
 		uc.channels.ForEach(func(_ string, uch *upstreamChannel) {
-			uch.Members.SetCasemapping(newCasemap)
+			uch.Members.SetCaseMapping(newCasemap)
 		})
-		uc.users.SetCasemapping(newCasemap)
-		uc.monitored.SetCasemapping(newCasemap)
+		uc.users.SetCaseMapping(newCasemap)
+		uc.monitored.SetCaseMapping(newCasemap)
 	}
 	net.forEachDownstream(func(dc *downstreamConn) {
 		dc.updateCasemapping()
@@ -694,7 +694,7 @@ func (u *user) run() {
 			ctx := context.TODO()
 
 			if dc.network != nil {
-				dc.monitored.SetCasemapping(dc.network.casemap)
+				dc.monitored.SetCaseMapping(dc.network.casemap)
 			}
 
 			if !u.Enabled && u.srv.Config().EnableUsersOnAuth {

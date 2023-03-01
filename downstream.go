@@ -365,7 +365,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		monitored:    newCasemapMap[struct{}](),
 		registration: new(downstreamRegistration),
 	}
-	dc.monitored.SetCasemapping(xirc.CaseMappingASCII)
+	dc.monitored.SetCaseMapping(xirc.CaseMappingASCII)
 	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
 		dc.hostname = host
 	} else {
@@ -1203,7 +1203,7 @@ func (dc *downstreamConn) updateCasemapping() {
 	}
 
 	dc.nickCM = cm(dc.nick)
-	dc.monitored.SetCasemapping(cm)
+	dc.monitored.SetCaseMapping(cm)
 }
 
 func sanityCheckServer(ctx context.Context, addr string) error {
@@ -2652,7 +2652,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			uc.updateMonitor()
 		case "C": // clear
 			dc.monitored = newCasemapMap[struct{}]()
-			dc.monitored.SetCasemapping(uc.network.casemap)
+			dc.monitored.SetCaseMapping(uc.network.casemap)
 			uc.updateMonitor()
 		case "L": // list
 			// TODO: be less lazy and pack the list

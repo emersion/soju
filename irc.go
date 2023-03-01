@@ -277,7 +277,7 @@ func (cm *casemapMap[V]) ForEach(f func(string, V)) {
 	}
 }
 
-func (cm *casemapMap[V]) SetCasemapping(newCasemap xirc.CaseMapping) {
+func (cm *casemapMap[V]) SetCaseMapping(newCasemap xirc.CaseMapping) {
 	cm.casemap = newCasemap
 	m := make(map[string]casemapEntry[V], len(cm.m))
 	for _, entry := range cm.m {
