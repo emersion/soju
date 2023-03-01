@@ -348,6 +348,7 @@ type downstreamConn struct {
 
 	lastBatchRef uint64
 
+	casemap   xirc.CaseMapping
 	monitored xirc.CaseMappingMap[struct{}]
 }
 
@@ -355,6 +356,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	remoteAddr := ic.RemoteAddr().String()
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", remoteAddr)}
 	options := connOptions{Logger: logger}
+	cm := xirc.CaseMappingASCII
 	dc := &downstreamConn{
 		conn:         *newConn(srv, ic, &options),
 		id:           id,
@@ -362,7 +364,8 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		nickCM:       "*",
 		username:     "~u",
 		caps:         xirc.NewCapRegistry(),
-		monitored:    xirc.NewCaseMappingMap[struct{}](xirc.CaseMappingASCII),
+		casemap:      cm,
+		monitored:    xirc.NewCaseMappingMap[struct{}](cm),
 		registration: new(downstreamRegistration),
 	}
 	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
@@ -1109,7 +1112,7 @@ func (dc *downstreamConn) updateNick() {
 		Params:  []string{nick},
 	})
 	dc.nick = nick
-	dc.nickCM = xirc.CaseMappingASCII(dc.nick)
+	dc.nickCM = dc.casemap(dc.nick)
 }
 
 func (dc *downstreamConn) updateHost() {
@@ -1201,6 +1204,7 @@ func (dc *downstreamConn) updateCasemapping() {
 		cm = dc.network.casemap
 	}
 
+	dc.casemap = cm
 	dc.nickCM = cm(dc.nick)
 	dc.monitored.SetCaseMapping(cm)
 }
@@ -1445,7 +1449,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	} else {
 		dc.nick = dc.user.Username
 	}
-	dc.nickCM = xirc.CaseMappingASCII(dc.nick)
+	dc.nickCM = dc.casemap(dc.nick)
 
 	var isupport []string
 	if dc.network != nil {
@@ -1760,7 +1764,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{dc.nick, nick, "Nickname contains illegal characters"},
 			}}
 		}
-		if xirc.CaseMappingASCII(nick) == serviceNickCM {
+		if dc.casemap(nick) == serviceNickCM {
 			return ircError{&irc.Message{
 				Command: irc.ERR_NICKNAMEINUSE,
 				Params:  []string{dc.nick, nick, "Nickname reserved for bouncer service"},
@@ -2001,7 +2005,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			modeStr = msg.Params[1]
 		}
 
-		if xirc.CaseMappingASCII(name) == dc.nickCM {
+		if dc.casemap(name) == dc.nickCM {
 			if modeStr != "" {
 				if uc := dc.upstream(); uc != nil {
 					uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
@@ -2166,7 +2170,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		fields, whoxToken := xirc.ParseWHOXOptions(options)
 
 		// TODO: support mixed bouncer/upstream WHO queries
-		maskCM := xirc.CaseMappingASCII(mask)
+		maskCM := dc.casemap(mask)
 		if dc.network == nil && maskCM == dc.nickCM {
 			// TODO: support AWAY (H/G) in self WHO reply
 			flags := "H"
@@ -2275,7 +2279,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			mask = mask[:i]
 		}
 
-		if dc.network == nil && xirc.CaseMappingASCII(mask) == dc.nickCM {
+		if dc.network == nil && dc.casemap(mask) == dc.nickCM {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISUSER,
@@ -2305,7 +2309,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			})
 			return nil
 		}
-		if xirc.CaseMappingASCII(mask) == serviceNickCM {
+		if dc.casemap(mask) == serviceNickCM {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISUSER,
@@ -2392,7 +2396,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				continue
 			}
 
-			if dc.network == nil && xirc.CaseMappingASCII(name) == dc.nickCM {
+			if dc.network == nil && dc.casemap(name) == dc.nickCM {
 				dc.SendMessage(&irc.Message{
 					Tags:    msg.Tags.Copy(),
 					Prefix:  dc.prefix(),
@@ -2402,7 +2406,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				continue
 			}
 
-			if xirc.CaseMappingASCII(name) == serviceNickCM {
+			if dc.casemap(name) == serviceNickCM {
 				if dc.caps.IsEnabled("echo-message") {
 					echoTags := tags.Copy()
 					echoTags["time"] = dc.user.FormatServerTime(time.Now())
@@ -2722,7 +2726,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		// We don't save history for our service
-		if xirc.CaseMappingASCII(target) == serviceNickCM {
+		if dc.casemap(target) == serviceNickCM {
 			dc.SendBatch("chathistory", []string{target}, nil, func(batchRef string) {})
 			return nil
 		}
@@ -2847,7 +2851,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		// We don't save read receipts for our service
-		if xirc.CaseMappingASCII(target) == serviceNickCM {
+		if dc.casemap(target) == serviceNickCM {
 			dc.SendMessage(&irc.Message{
 				Prefix:  dc.prefix(),
 				Command: msg.Command,
