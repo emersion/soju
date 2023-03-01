@@ -287,17 +287,6 @@ func parseCasemappingToken(tokenValue string) (casemap casemapping, ok bool) {
 	return casemap, true
 }
 
-func partialCasemap(higher casemapping, name string) string {
-	nameFullyCM := []byte(higher(name))
-	nameBytes := []byte(name)
-	for i, r := range nameBytes {
-		if !('A' <= r && r <= 'Z') && !('a' <= r && r <= 'z') {
-			nameBytes[i] = nameFullyCM[i]
-		}
-	}
-	return string(nameBytes)
-}
-
 type casemapMap struct {
 	m       map[string]casemapEntry
 	casemap casemapping
