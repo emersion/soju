@@ -9,7 +9,6 @@ import (
 
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/xirc"
 )
 
@@ -287,45 +286,46 @@ func parseCasemappingToken(tokenValue string) (casemap casemapping, ok bool) {
 	return casemap, true
 }
 
-type casemapMap struct {
-	m       map[string]casemapEntry
+type casemapMap[V interface{}] struct {
+	m       map[string]casemapEntry[V]
 	casemap casemapping
 }
 
-type casemapEntry struct {
+type casemapEntry[V interface{}] struct {
 	originalKey string
-	value       interface{}
+	value       V
 }
 
-func newCasemapMap() casemapMap {
-	return casemapMap{
-		m:       make(map[string]casemapEntry),
+func newCasemapMap[V interface{}]() casemapMap[V] {
+	return casemapMap[V]{
+		m:       make(map[string]casemapEntry[V]),
 		casemap: casemapNone,
 	}
 }
 
-func (cm *casemapMap) Has(name string) bool {
+func (cm *casemapMap[V]) Has(name string) bool {
 	_, ok := cm.m[cm.casemap(name)]
 	return ok
 }
 
-func (cm *casemapMap) Len() int {
+func (cm *casemapMap[V]) Len() int {
 	return len(cm.m)
 }
 
-func (cm *casemapMap) get(name string) interface{} {
+func (cm *casemapMap[V]) Get(name string) V {
 	entry, ok := cm.m[cm.casemap(name)]
 	if !ok {
-		return nil
+		var v V
+		return v
 	}
 	return entry.value
 }
 
-func (cm *casemapMap) set(name string, value interface{}) {
+func (cm *casemapMap[V]) Set(name string, value V) {
 	nameCM := cm.casemap(name)
 	entry, ok := cm.m[nameCM]
 	if !ok {
-		cm.m[nameCM] = casemapEntry{
+		cm.m[nameCM] = casemapEntry[V]{
 			originalKey: name,
 			value:       value,
 		}
@@ -335,145 +335,23 @@ func (cm *casemapMap) set(name string, value interface{}) {
 	cm.m[nameCM] = entry
 }
 
-func (cm *casemapMap) Del(name string) {
+func (cm *casemapMap[V]) Del(name string) {
 	delete(cm.m, cm.casemap(name))
 }
 
-func (cm *casemapMap) SetCasemapping(newCasemap casemapping) {
+func (cm *casemapMap[V]) ForEach(f func(string, V)) {
+	for _, entry := range cm.m {
+		f(entry.originalKey, entry.value)
+	}
+}
+
+func (cm *casemapMap[V]) SetCasemapping(newCasemap casemapping) {
 	cm.casemap = newCasemap
-	m := make(map[string]casemapEntry, len(cm.m))
+	m := make(map[string]casemapEntry[V], len(cm.m))
 	for _, entry := range cm.m {
 		m[cm.casemap(entry.originalKey)] = entry
 	}
 	cm.m = m
-}
-
-type upstreamChannelCasemapMap struct{ casemapMap }
-
-func (cm *upstreamChannelCasemapMap) Get(name string) *upstreamChannel {
-	if v := cm.get(name); v == nil {
-		return nil
-	} else {
-		return v.(*upstreamChannel)
-	}
-}
-
-func (cm *upstreamChannelCasemapMap) Set(uch *upstreamChannel) {
-	cm.set(uch.Name, uch)
-}
-
-func (cm *upstreamChannelCasemapMap) ForEach(f func(*upstreamChannel)) {
-	for _, entry := range cm.m {
-		f(entry.value.(*upstreamChannel))
-	}
-}
-
-type upstreamUserCasemapMap struct{ casemapMap }
-
-func (cm *upstreamUserCasemapMap) Get(name string) *upstreamUser {
-	if v := cm.get(name); v == nil {
-		return nil
-	} else {
-		return v.(*upstreamUser)
-	}
-}
-
-func (cm *upstreamUserCasemapMap) Set(u *upstreamUser) {
-	cm.set(u.Nickname, u)
-}
-
-type channelCasemapMap struct{ casemapMap }
-
-func (cm *channelCasemapMap) Get(name string) *database.Channel {
-	if v := cm.get(name); v == nil {
-		return nil
-	} else {
-		return v.(*database.Channel)
-	}
-}
-
-func (cm *channelCasemapMap) Set(ch *database.Channel) {
-	cm.set(ch.Name, ch)
-}
-
-func (cm *channelCasemapMap) ForEach(f func(*database.Channel)) {
-	for _, entry := range cm.m {
-		f(entry.value.(*database.Channel))
-	}
-}
-
-type membershipsCasemapMap struct{ casemapMap }
-
-func (cm *membershipsCasemapMap) Get(name string) *xirc.MembershipSet {
-	if v := cm.get(name); v == nil {
-		return nil
-	} else {
-		return v.(*xirc.MembershipSet)
-	}
-}
-
-func (cm *membershipsCasemapMap) Set(name string, ms *xirc.MembershipSet) {
-	cm.set(name, ms)
-}
-
-func (cm *membershipsCasemapMap) ForEach(f func(string, *xirc.MembershipSet)) {
-	for _, entry := range cm.m {
-		f(entry.originalKey, entry.value.(*xirc.MembershipSet))
-	}
-}
-
-type deliveredCasemapMap struct{ casemapMap }
-
-func (cm *deliveredCasemapMap) Get(name string) deliveredClientMap {
-	if v := cm.get(name); v == nil {
-		return nil
-	} else {
-		return v.(deliveredClientMap)
-	}
-}
-
-func (cm *deliveredCasemapMap) Set(name string, m deliveredClientMap) {
-	cm.set(name, m)
-}
-
-func (cm *deliveredCasemapMap) ForEach(f func(string, deliveredClientMap)) {
-	for _, entry := range cm.m {
-		f(entry.originalKey, entry.value.(deliveredClientMap))
-	}
-}
-
-type monitorCasemapMap struct{ casemapMap }
-
-func (cm *monitorCasemapMap) Get(name string) (online bool) {
-	if v := cm.get(name); v == nil {
-		return false
-	} else {
-		return v.(bool)
-	}
-}
-
-func (cm *monitorCasemapMap) Set(name string, online bool) {
-	cm.set(name, online)
-}
-
-func (cm *monitorCasemapMap) ForEach(f func(name string, online bool)) {
-	for _, entry := range cm.m {
-		f(entry.originalKey, entry.value.(bool))
-	}
-}
-
-type pushTargetCasemapMap struct{ casemapMap }
-
-func (cm *pushTargetCasemapMap) Get(name string) (last time.Time) {
-	if v := cm.get(name); v == nil {
-		return time.Time{}
-	} else {
-		return v.(time.Time)
-	}
-}
-
-func (cm *pushTargetCasemapMap) Set(name string, last time.Time) {
-	cm.set(name, last)
 }
 
 func isWordBoundary(r rune) bool {

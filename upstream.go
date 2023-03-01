@@ -89,7 +89,7 @@ type upstreamChannel struct {
 	Status       xirc.ChannelStatus
 	modes        channelModes
 	creationTime string
-	Members      membershipsCasemapMap
+	Members      casemapMap[*xirc.MembershipSet]
 	complete     bool
 	detachTimer  *time.Timer
 }
@@ -208,14 +208,14 @@ type upstreamConn struct {
 	realname    string
 	hostname    string
 	modes       userModes
-	channels    upstreamChannelCasemapMap
-	users       upstreamUserCasemapMap
+	channels    casemapMap[*upstreamChannel]
+	users       casemapMap[*upstreamUser]
 	caps        xirc.CapRegistry
 	batches     map[string]upstreamBatch
 	away        bool
 	account     string
 	nextLabelID uint64
-	monitored   monitorCasemapMap
+	monitored   casemapMap[bool]
 
 	saslClient  sasl.Client
 	saslStarted bool
@@ -366,8 +366,8 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		conn:                  *newConn(network.user.srv, newNetIRCConn(netConn), &options),
 		network:               network,
 		user:                  network.user,
-		channels:              upstreamChannelCasemapMap{newCasemapMap()},
-		users:                 upstreamUserCasemapMap{newCasemapMap()},
+		channels:              newCasemapMap[*upstreamChannel](),
+		users:                 newCasemapMap[*upstreamUser](),
 		caps:                  xirc.NewCapRegistry(),
 		batches:               make(map[string]upstreamBatch),
 		serverPrefix:          &irc.Prefix{Name: "*"},
@@ -376,7 +376,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		availableMemberships:  stdMemberships,
 		isupport:              make(map[string]*string),
 		pendingCmds:           make(map[string][]pendingUpstreamCommand),
-		monitored:             monitorCasemapMap{newCasemapMap()},
+		monitored:             newCasemapMap[bool](),
 		hasDesiredNick:        true,
 	}
 	return uc, nil
@@ -898,7 +898,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		if uc.network.channels.Len() > 0 {
 			var channels, keys []string
-			uc.network.channels.ForEach(func(ch *database.Channel) {
+			uc.network.channels.ForEach(func(_ string, ch *database.Channel) {
 				channels = append(channels, ch.Name)
 				keys = append(keys, ch.Key)
 			})
@@ -1067,7 +1067,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		uc.channels.ForEach(func(ch *upstreamChannel) {
+		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
 			memberships := ch.Members.Get(msg.Prefix.Name)
 			if memberships != nil {
 				ch.Members.Del(msg.Prefix.Name)
@@ -1173,9 +1173,9 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		for _, ch := range strings.Split(channels, ",") {
 			if uc.isOurNick(msg.Prefix.Name) {
 				uc.logger.Printf("joined channel %q", ch)
-				members := membershipsCasemapMap{newCasemapMap()}
+				members := newCasemapMap[*xirc.MembershipSet]()
 				members.casemap = uc.network.casemap
-				uc.channels.Set(&upstreamChannel{
+				uc.channels.Set(ch, &upstreamChannel{
 					Name:    ch,
 					conn:    uc,
 					Members: members,
@@ -1264,7 +1264,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.logger.Printf("quit")
 		}
 
-		uc.channels.ForEach(func(ch *upstreamChannel) {
+		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
 			if ch.Members.Has(msg.Prefix.Name) {
 				ch.Members.Del(msg.Prefix.Name)
 				uc.appendLog(ch.Name, msg)
@@ -2440,12 +2440,12 @@ func (uc *upstreamConn) cacheUserInfo(nick string, info *upstreamUser) {
 		} else {
 			info.Nickname = nick
 		}
-		uc.users.Set(info)
+		uc.users.Set(info.Nickname, info)
 	} else {
 		uu.updateFrom(info)
 		if info.Nickname != "" && nick != info.Nickname {
 			uc.users.Del(nick)
-			uc.users.Set(uu)
+			uc.users.Set(uu.Nickname, uu)
 		}
 	}
 }
@@ -2459,7 +2459,7 @@ func (uc *upstreamConn) shouldCacheUserInfo(nick string) bool {
 		return true
 	}
 	found := false
-	uc.channels.ForEach(func(ch *upstreamChannel) {
+	uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
 		found = found || ch.Members.Has(nick)
 	})
 	return found

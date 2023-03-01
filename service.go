@@ -1224,7 +1224,7 @@ func handleServiceChannelStatus(ctx *serviceContext, params []string) error {
 
 	sendNetwork := func(net *network) {
 		var channels []*database.Channel
-		net.channels.ForEach(func(ch *database.Channel) {
+		net.channels.ForEach(func(_ string, ch *database.Channel) {
 			channels = append(channels, ch)
 		})
 

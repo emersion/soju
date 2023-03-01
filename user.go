@@ -93,11 +93,11 @@ type eventUserRun struct {
 type deliveredClientMap map[string]string // client name -> msg ID
 
 type deliveredStore struct {
-	m deliveredCasemapMap
+	m casemapMap[deliveredClientMap]
 }
 
 func newDeliveredStore() deliveredStore {
-	return deliveredStore{deliveredCasemapMap{newCasemapMap()}}
+	return deliveredStore{newCasemapMap[deliveredClientMap]()}
 }
 
 func (ds deliveredStore) HasTarget(target string) bool {
@@ -147,9 +147,9 @@ type network struct {
 	stopped chan struct{}
 
 	conn        *upstreamConn
-	channels    channelCasemapMap
+	channels    casemapMap[*database.Channel]
 	delivered   deliveredStore
-	pushTargets pushTargetCasemapMap
+	pushTargets casemapMap[time.Time]
 	lastError   error
 	casemap     casemapping
 }
@@ -157,10 +157,10 @@ type network struct {
 func newNetwork(user *user, record *database.Network, channels []database.Channel) *network {
 	logger := &prefixLogger{user.logger, fmt.Sprintf("network %q: ", record.GetName())}
 
-	m := channelCasemapMap{newCasemapMap()}
+	m := newCasemapMap[*database.Channel]()
 	for _, ch := range channels {
 		ch := ch
-		m.Set(&ch)
+		m.Set(ch.Name, &ch)
 	}
 
 	return &network{
@@ -170,7 +170,7 @@ func newNetwork(user *user, record *database.Network, channels []database.Channe
 		stopped:     make(chan struct{}),
 		channels:    m,
 		delivered:   newDeliveredStore(),
-		pushTargets: pushTargetCasemapMap{newCasemapMap()},
+		pushTargets: newCasemapMap[time.Time](),
 		casemap:     casemapRFC1459,
 	}
 }
@@ -394,7 +394,7 @@ func (net *network) updateCasemapping(newCasemap casemapping) {
 	net.pushTargets.SetCasemapping(newCasemap)
 	if uc := net.conn; uc != nil {
 		uc.channels.SetCasemapping(newCasemap)
-		uc.channels.ForEach(func(uch *upstreamChannel) {
+		uc.channels.ForEach(func(_ string, uch *upstreamChannel) {
 			uch.Members.SetCasemapping(newCasemap)
 		})
 		uc.users.SetCasemapping(newCasemap)
@@ -856,7 +856,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	uc.stopRegainNickTimer()
 	uc.abortPendingCommands()
 
-	uc.channels.ForEach(func(uch *upstreamChannel) {
+	uc.channels.ForEach(func(_ string, uch *upstreamChannel) {
 		uch.updateAutoDetach(0)
 	})
 
@@ -1036,7 +1036,7 @@ func (u *user) updateNetwork(ctx context.Context, record *database.Network) (*ne
 	// Most network changes require us to re-connect to the upstream server
 
 	channels := make([]database.Channel, 0, network.channels.Len())
-	network.channels.ForEach(func(ch *database.Channel) {
+	network.channels.ForEach(func(_ string, ch *database.Channel) {
 		channels = append(channels, *ch)
 	})
 

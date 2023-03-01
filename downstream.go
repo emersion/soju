@@ -348,7 +348,7 @@ type downstreamConn struct {
 
 	lastBatchRef uint64
 
-	monitored casemapMap
+	monitored casemapMap[struct{}]
 }
 
 func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
@@ -362,7 +362,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		nickCM:       "*",
 		username:     "~u",
 		caps:         xirc.NewCapRegistry(),
-		monitored:    newCasemapMap(),
+		monitored:    newCasemapMap[struct{}](),
 		registration: new(downstreamRegistration),
 	}
 	dc.monitored.SetCasemapping(casemapASCII)
@@ -1553,7 +1553,7 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	}
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
-		uc.channels.ForEach(func(ch *upstreamChannel) {
+		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
 			if !ch.complete {
 				return
 			}
@@ -1928,7 +1928,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Name: name,
 					Key:  key,
 				}
-				uc.network.channels.Set(ch)
+				uc.network.channels.Set(ch.Name, ch)
 			}
 			if err := dc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 				dc.logger.Printf("failed to create or update channel %q: %v", name, err)
@@ -1960,7 +1960,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						Name:     name,
 						Detached: true,
 					}
-					uc.network.channels.Set(ch)
+					uc.network.channels.Set(ch.Name, ch)
 				}
 				if err := dc.srv.db.StoreChannel(ctx, uc.network.ID, ch); err != nil {
 					dc.logger.Printf("failed to create or update channel %q: %v", name, err)
@@ -2621,7 +2621,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						continue
 					}
 
-					dc.monitored.set(target, nil)
+					dc.monitored.Set(target, struct{}{})
 
 					if uc.network.casemap(target) == serviceNickCM {
 						// BouncerServ is never tired
@@ -2651,7 +2651,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 			uc.updateMonitor()
 		case "C": // clear
-			dc.monitored = newCasemapMap()
+			dc.monitored = newCasemapMap[struct{}]()
 			dc.monitored.SetCasemapping(uc.network.casemap)
 			uc.updateMonitor()
 		case "L": // list
