@@ -362,12 +362,13 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		RateLimitBurst: upstreamMessageBurst,
 	}
 
+	cm := stdCaseMapping
 	uc := &upstreamConn{
 		conn:                  *newConn(network.user.srv, newNetIRCConn(netConn), &options),
 		network:               network,
 		user:                  network.user,
-		channels:              newCasemapMap[*upstreamChannel](),
-		users:                 newCasemapMap[*upstreamUser](),
+		channels:              newCasemapMap[*upstreamChannel](cm),
+		users:                 newCasemapMap[*upstreamUser](cm),
 		caps:                  xirc.NewCapRegistry(),
 		batches:               make(map[string]upstreamBatch),
 		serverPrefix:          &irc.Prefix{Name: "*"},
@@ -376,7 +377,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		availableMemberships:  stdMemberships,
 		isupport:              make(map[string]*string),
 		pendingCmds:           make(map[string][]pendingUpstreamCommand),
-		monitored:             newCasemapMap[bool](),
+		monitored:             newCasemapMap[bool](cm),
 		hasDesiredNick:        true,
 	}
 	return uc, nil
@@ -1173,8 +1174,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		for _, ch := range strings.Split(channels, ",") {
 			if uc.isOurNick(msg.Prefix.Name) {
 				uc.logger.Printf("joined channel %q", ch)
-				members := newCasemapMap[*xirc.MembershipSet]()
-				members.casemap = uc.network.casemap
+				members := newCasemapMap[*xirc.MembershipSet](uc.network.casemap)
 				uc.channels.Set(ch, &upstreamChannel{
 					Name:    ch,
 					conn:    uc,

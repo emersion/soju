@@ -96,8 +96,8 @@ type deliveredStore struct {
 	m casemapMap[deliveredClientMap]
 }
 
-func newDeliveredStore() deliveredStore {
-	return deliveredStore{newCasemapMap[deliveredClientMap]()}
+func newDeliveredStore(cm xirc.CaseMapping) deliveredStore {
+	return deliveredStore{newCasemapMap[deliveredClientMap](cm)}
 }
 
 func (ds deliveredStore) HasTarget(target string) bool {
@@ -157,7 +157,11 @@ type network struct {
 func newNetwork(user *user, record *database.Network, channels []database.Channel) *network {
 	logger := &prefixLogger{user.logger, fmt.Sprintf("network %q: ", record.GetName())}
 
-	m := newCasemapMap[*database.Channel]()
+	// Initialize maps with the no-op case-mapping to avoid collisions: we
+	// don't know which case-mapping will be used by the upstream server yet
+	cm := xirc.CaseMappingNone
+
+	m := newCasemapMap[*database.Channel](cm)
 	for _, ch := range channels {
 		ch := ch
 		m.Set(ch.Name, &ch)
@@ -169,8 +173,8 @@ func newNetwork(user *user, record *database.Network, channels []database.Channe
 		logger:      logger,
 		stopped:     make(chan struct{}),
 		channels:    m,
-		delivered:   newDeliveredStore(),
-		pushTargets: newCasemapMap[time.Time](),
+		delivered:   newDeliveredStore(cm),
+		pushTargets: newCasemapMap[time.Time](cm),
 		casemap:     stdCaseMapping,
 	}
 }

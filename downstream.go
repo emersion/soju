@@ -362,10 +362,9 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		nickCM:       "*",
 		username:     "~u",
 		caps:         xirc.NewCapRegistry(),
-		monitored:    newCasemapMap[struct{}](),
+		monitored:    newCasemapMap[struct{}](xirc.CaseMappingASCII),
 		registration: new(downstreamRegistration),
 	}
-	dc.monitored.SetCaseMapping(xirc.CaseMappingASCII)
 	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
 		dc.hostname = host
 	} else {
@@ -2651,8 +2650,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 			uc.updateMonitor()
 		case "C": // clear
-			dc.monitored = newCasemapMap[struct{}]()
-			dc.monitored.SetCaseMapping(uc.network.casemap)
+			dc.monitored = newCasemapMap[struct{}](uc.network.casemap)
 			uc.updateMonitor()
 		case "L": // list
 			// TODO: be less lazy and pack the list

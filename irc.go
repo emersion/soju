@@ -228,10 +228,10 @@ type casemapEntry[V interface{}] struct {
 	value       V
 }
 
-func newCasemapMap[V interface{}]() casemapMap[V] {
+func newCasemapMap[V interface{}](cm xirc.CaseMapping) casemapMap[V] {
 	return casemapMap[V]{
 		m:       make(map[string]casemapEntry[V]),
-		casemap: xirc.CaseMappingNone,
+		casemap: cm,
 	}
 }
 
