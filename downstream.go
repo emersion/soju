@@ -259,6 +259,7 @@ var needAllDownstreamCaps = map[string]string{
 var passthroughIsupport = map[string]bool{
 	"AWAYLEN":       true,
 	"BOT":           true,
+	"CASEMAPPING":   true,
 	"CHANLIMIT":     true,
 	"CHANMODES":     true,
 	"CHANNELLEN":    true,
@@ -1447,14 +1448,11 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	}
 	dc.nickCM = casemapASCII(dc.nick)
 
-	isupport := []string{
-		"CASEMAPPING=ascii",
-	}
-
+	var isupport []string
 	if dc.network != nil {
 		isupport = append(isupport, fmt.Sprintf("BOUNCER_NETID=%v", dc.network.ID))
 	} else {
-		isupport = append(isupport, "BOT=B")
+		isupport = append(isupport, "BOT=B", "CASEMAPPING=ascii")
 	}
 	if title := dc.srv.Config().Title; dc.network == nil && title != "" {
 		isupport = append(isupport, "NETWORK="+title)
