@@ -145,6 +145,9 @@ func main() {
 	srv.SetConfig(serverCfg)
 	srv.Logger = soju.NewLogger(log.Writer(), debug)
 
+	httpMux := http.NewServeMux()
+	httpMux.Handle("/socket", srv)
+
 	for _, listen := range cfg.Listen {
 		listen := listen // copy
 		listenURI := listen
@@ -326,6 +329,38 @@ func main() {
 			httpSrv := http.Server{
 				Addr:    u.Host,
 				Handler: http.DefaultServeMux,
+			}
+			go func() {
+				if err := httpSrv.ListenAndServe(); err != nil {
+					log.Fatalf("serving %q: %v", listen, err)
+				}
+			}()
+		case "https":
+			if tlsCfg == nil {
+				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
+			}
+			addr := u.Host
+			if _, _, err := net.SplitHostPort(addr); err != nil {
+				addr = addr + ":https"
+			}
+			httpSrv := http.Server{
+				Addr:      addr,
+				TLSConfig: tlsCfg,
+				Handler:   httpMux,
+			}
+			go func() {
+				if err := httpSrv.ListenAndServeTLS("", ""); err != nil {
+					log.Fatalf("serving %q: %v", listen, err)
+				}
+			}()
+		case "http+insecure":
+			addr := u.Host
+			if _, _, err := net.SplitHostPort(addr); err != nil {
+				addr = addr + ":http"
+			}
+			httpSrv := http.Server{
+				Addr:    addr,
+				Handler: httpMux,
 			}
 			go func() {
 				if err := httpSrv.ListenAndServe(); err != nil {

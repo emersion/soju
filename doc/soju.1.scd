@@ -88,6 +88,10 @@ The following directives are supported:
 	- _irc+insecure://[host][:port]_ listens with plain-text over TCP (default
 	  port if omitted: 6667)
 	- _unix://<path>_ listens on a Unix domain socket
+	- _https://[host][:port]_ listens for HTTPS connections (default port: 443)
+	  and handles WebSocket requests at endpoint _/socket_
+	- _http+insecure://[host][:port]_ listens for plain-text HTTP connections
+	  (default port: 80) and handles WebSocket requests at endpoint _/socket_
 	- _wss://[host][:port]_ listens for WebSocket connections over TLS (default
 	  port: 443)
 	- _ws+insecure://[host][:port]_ listens for plain-text WebSocket
