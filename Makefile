@@ -14,9 +14,10 @@ admin_socket_path := $(RUNDIR)/soju/admin
 goflags := $(GOFLAGS) -ldflags=" \
 	-X 'git.sr.ht/~emersion/soju/config.DefaultPath=$(config_path)' \
 	-X 'git.sr.ht/~emersion/soju/config.DefaultUnixAdminPath=$(admin_socket_path)'"
+commands := soju sojuctl sojudb
 man_pages := doc/soju.1 doc/sojuctl.1
 
-all: soju sojudb sojuctl $(man_pages)
+all: $(commands) $(man_pages)
 
 soju:
 	$(GO) build $(goflags) -o . ./cmd/soju ./cmd/sojudb ./cmd/sojuctl
@@ -27,13 +28,13 @@ doc/sojuctl.1: doc/sojuctl.1.scd
 	$(SCDOC) <doc/sojuctl.1.scd >doc/sojuctl.1
 
 clean:
-	$(RM) -f soju sojudb sojuctl doc/soju.1
+	$(RM) -f $(commands) doc/soju.1
 install:
 	mkdir -p $(DESTDIR)$(PREFIX)/$(BINDIR)
 	mkdir -p $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
 	mkdir -p $(DESTDIR)$(SYSCONFDIR)/soju
 	mkdir -p $(DESTDIR)$(sharedstatedir)/soju
-	cp -f soju sojudb sojuctl $(DESTDIR)$(PREFIX)/$(BINDIR)
+	cp -f $(commands) $(DESTDIR)$(PREFIX)/$(BINDIR)
 	cp -f $(man_pages) $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
 	[ -f $(DESTDIR)$(config_path) ] || cp -f config.in $(DESTDIR)$(config_path)
 
