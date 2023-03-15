@@ -214,7 +214,7 @@ func main() {
 		case "unix+admin":
 			path := u.Path
 			if path == "" {
-				path = soju.DefaultUnixAdminPath
+				path = config.DefaultUnixAdminPath
 			}
 			ln, err := net.Listen("unix", path)
 			if err != nil {

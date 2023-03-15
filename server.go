@@ -26,8 +26,6 @@ import (
 	"git.sr.ht/~emersion/soju/identd"
 )
 
-var DefaultUnixAdminPath = "/run/soju/admin"
-
 // TODO: make configurable
 var retryConnectMinDelay = time.Minute
 var retryConnectMaxDelay = 10 * time.Minute

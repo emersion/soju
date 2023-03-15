@@ -11,7 +11,10 @@ import (
 	"git.sr.ht/~emersion/go-scfg"
 )
 
-var DefaultPath string
+var (
+	DefaultPath          string
+	DefaultUnixAdminPath = "/run/soju/admin"
+)
 
 type IPSet []*net.IPNet
 

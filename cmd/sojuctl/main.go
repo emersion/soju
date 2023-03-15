@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"git.sr.ht/~emersion/soju"
 	"gopkg.in/irc.v4"
 	"log"
 	"net"
@@ -37,7 +36,7 @@ func run(ctx context.Context, cfg *config.Server, words []string) error {
 		if u.Path != "" {
 			path = u.Path
 		} else {
-			path = soju.DefaultUnixAdminPath
+			path = config.DefaultUnixAdminPath
 		}
 		break
 	}
