@@ -1249,7 +1249,7 @@ func unmarshalUsername(rawUsername string) (username, client, network string) {
 
 func (dc *downstreamConn) setUser(username, clientName, networkName string) error {
 	dc.user = dc.srv.getUser(username)
-	if dc.user == nil && dc.user.srv.Config().EnableUsersOnAuth {
+	if dc.user == nil && dc.srv.Config().EnableUsersOnAuth {
 		ctx := context.TODO()
 		if _, err := dc.user.srv.db.GetUser(ctx, username); err != nil {
 			// Can't find the user in the DB -- try to create it
