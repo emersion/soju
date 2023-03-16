@@ -326,6 +326,9 @@ func (s *Server) sendWebPush(ctx context.Context, sub *webpush.Subscription, vap
 	}
 
 	options := webpush.Options{
+		HTTPClient: &http.Client{
+			Transport: userAgentHTTPTransport("soju"),
+		},
 		VAPIDPublicKey:  s.webPush.VAPIDKeys.Public,
 		VAPIDPrivateKey: s.webPush.VAPIDKeys.Private,
 		Subscriber:      "https://soju.im",
@@ -732,4 +735,11 @@ func (s *Server) disableInactiveUsers(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+type userAgentHTTPTransport string
+
+func (ua userAgentHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", string(ua))
+	return http.DefaultTransport.RoundTrip(req)
 }
