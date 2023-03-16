@@ -516,6 +516,11 @@ func (net *network) broadcastWebPush(msg *irc.Message) {
 			}
 		} else if err != nil {
 			net.logger.Printf("failed to send Web push notification to endpoint %q: %v", sub.Endpoint, err)
+		} else {
+			// On success, bump the subscription's update time
+			if err := net.user.srv.db.StoreWebPushSubscription(ctx, net.user.ID, net.ID, &sub); err != nil {
+				net.logger.Printf("failed to store Web push subscription: %v", err)
+			}
 		}
 	}
 }
