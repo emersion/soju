@@ -3249,8 +3249,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					}}
 				}
 
-				// TODO: limit max number of subscriptions, prune old ones
-
 				if err := dc.user.srv.db.StoreWebPushSubscription(ctx, dc.user.ID, networkID, &newSub); err != nil {
 					dc.logger.Printf("failed to store Web push subscription: %v", err)
 					return ircError{&irc.Message{

@@ -484,7 +484,23 @@ func (net *network) broadcastWebPush(msg *irc.Message) {
 		return
 	}
 
+	// First, prune old subscriptions
+	var active []database.WebPushSubscription
 	for _, sub := range subs {
+		if time.Since(sub.UpdatedAt) <= webpushPruneSubscriptionDelay {
+			active = append(active, sub)
+			continue
+		}
+
+		if err := net.user.srv.db.DeleteWebPushSubscription(ctx, sub.ID); err != nil {
+			net.logger.Printf("failed to delete pruned Web Push subscription %q: %v", sub.Endpoint, err)
+		} else {
+			net.logger.Debugf("deleted pruned Web Push subscription %q", sub.Endpoint)
+		}
+	}
+
+	// Then broadcast the message
+	for _, sub := range active {
 		err := net.user.srv.sendWebPush(ctx, &webpush.Subscription{
 			Endpoint: sub.Endpoint,
 			Keys: webpush.Keys{
@@ -494,9 +510,10 @@ func (net *network) broadcastWebPush(msg *irc.Message) {
 		}, sub.Keys.VAPID, msg)
 		if err == errWebPushSubscriptionExpired {
 			if err := net.user.srv.db.DeleteWebPushSubscription(ctx, sub.ID); err != nil {
-				net.logger.Printf("failed to delete expired Web Push subscription: %v", err)
+				net.logger.Printf("failed to delete expired Web Push subscription %q: %v", sub.Endpoint, err)
+			} else {
+				net.logger.Debugf("deleted expired Web Push subscription %q", sub.Endpoint)
 			}
-			net.logger.Debugf("deleted expired Web Push subscription %q", sub.Endpoint)
 		} else if err != nil {
 			net.logger.Printf("failed to send Web push notification to endpoint %q: %v", sub.Endpoint, err)
 		}
