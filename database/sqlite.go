@@ -619,6 +619,35 @@ func (db *SqliteDB) DeleteUser(ctx context.Context, id int64) error {
 		return err
 	}
 
+	_, err = tx.ExecContext(ctx, `DELETE FROM Message
+		WHERE id IN (
+			SELECT Message.id
+			FROM Message, MessageTarget, Network
+			WHERE Message.target = MessageTarget.id
+			AND MessageTarget.network = Network.id
+			AND Network.user = ?
+		)`, id)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, `DELETE FROM MessageTarget
+		WHERE id IN (
+			SELECT MessageTarget.id
+			FROM MessageTarget, Network
+			WHERE MessageTarget.network = Network.id
+			AND Network.user = ?
+		)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, `DELETE FROM WebPushSubscription
+		WHERE user = ?`, id)
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.ExecContext(ctx, `DELETE FROM Channel
 		WHERE id IN (
 			SELECT Channel.id
