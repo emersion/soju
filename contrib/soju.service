@@ -1,0 +1,21 @@
+[Unit]
+Description=soju IRC bouncer service
+Documentation=https://soju.im/
+Documentation=man:soju(1) man:sojuctl(1)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=soju
+Group=soju
+DynamicUser=yes
+StateDirectory=soju
+ConfigurationDirectory=soju
+RuntimeDirectory=soju
+ExecStart=/usr/bin/soju
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
