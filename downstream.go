@@ -1251,13 +1251,13 @@ func (dc *downstreamConn) setUser(username, clientName, networkName string) erro
 	dc.user = dc.srv.getUser(username)
 	if dc.user == nil && dc.srv.Config().EnableUsersOnAuth {
 		ctx := context.TODO()
-		if _, err := dc.user.srv.db.GetUser(ctx, username); err != nil {
+		if _, err := dc.srv.db.GetUser(ctx, username); err != nil {
 			// Can't find the user in the DB -- try to create it
 			record := database.User{
 				Username: username,
 				Enabled:  true,
 			}
-			dc.user, err = dc.user.srv.createUser(ctx, &record)
+			dc.user, err = dc.srv.createUser(ctx, &record)
 			if err != nil {
 				return fmt.Errorf("failed to automatically create user %q after successful authentication: %v", username, err)
 			}
