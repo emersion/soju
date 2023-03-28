@@ -1473,6 +1473,12 @@ func (dc *downstreamConn) welcome(ctx context.Context) error {
 	}
 
 	if uc := dc.upstream(); uc != nil {
+		// If upstream doesn't support message-tags, indicate that we'll drop
+		// all of them
+		if _, ok := uc.isupport["CLIENTTAGDENY"]; !ok && !uc.caps.IsEnabled("message-tags") {
+			isupport = append(isupport, "CLIENTTAGDENY=*")
+		}
+
 		for k := range passthroughIsupport {
 			v, ok := uc.isupport[k]
 			if !ok {
