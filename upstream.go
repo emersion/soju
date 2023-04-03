@@ -1734,6 +1734,8 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			if dc != nil {
 				dc.SendMessage(msg)
 			}
+		} else {
+			uc.forwardMsgByID(downstreamID, msg)
 		}
 	case xirc.ERR_UNKNOWNERROR, irc.ERR_UNKNOWNCOMMAND, irc.ERR_NEEDMOREPARAMS, irc.RPL_TRYAGAIN:
 		var command, reason string
