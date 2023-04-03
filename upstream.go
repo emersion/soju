@@ -1827,7 +1827,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		if !uc.registered {
 			return registrationError{msg}
 		}
-		fallthrough
+		uc.forwardMsgByID(downstreamID, msg)
 	default:
 		uc.logger.Printf("unhandled message: %v", msg)
 		uc.forwardMsgByID(downstreamID, msg)
