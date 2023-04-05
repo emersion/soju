@@ -1274,21 +1274,6 @@ func (dc *downstreamConn) setUser(username, clientName, networkName string) erro
 	return nil
 }
 
-func (dc *downstreamConn) authenticate(ctx context.Context, username, password string) error {
-	username, clientName, networkName := unmarshalUsername(username)
-
-	plainAuth, ok := dc.srv.Config().Auth.(auth.PlainAuthenticator)
-	if !ok {
-		return fmt.Errorf("PLAIN authentication unsupported")
-	}
-
-	if err := plainAuth.AuthPlain(ctx, dc.srv.db, username, password); err != nil {
-		return err
-	}
-
-	return dc.setUser(username, clientName, networkName)
-}
-
 func (dc *downstreamConn) register(ctx context.Context) error {
 	if dc.registered {
 		panic("tried to register twice")
@@ -1319,12 +1304,25 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 			}
 		}
 
-		if err := dc.authenticate(ctx, dc.registration.username, password); err != nil {
+		plainAuth, ok := dc.srv.Config().Auth.(auth.PlainAuthenticator)
+		if !ok {
+			return ircError{&irc.Message{
+				Command: irc.ERR_PASSWDMISMATCH,
+				Params:  []string{dc.nick, "PASS authentication disabled"},
+			}}
+		}
+
+		username, clientName, networkName := unmarshalUsername(dc.registration.username)
+		if err := plainAuth.AuthPlain(ctx, dc.srv.db, username, password); err != nil {
 			dc.logger.Printf("PASS authentication error for user %q: %v", dc.registration.username, err)
 			return ircError{&irc.Message{
 				Command: irc.ERR_PASSWDMISMATCH,
 				Params:  []string{dc.nick, authErrorReason(err)},
 			}}
+		}
+
+		if err := dc.setUser(username, clientName, networkName); err != nil {
+			return err
 		}
 	}
 
