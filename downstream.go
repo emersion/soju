@@ -2255,6 +2255,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Account:  uu.Account,
 					Realname: uu.Realname,
 				}
+				if uc.isChannel(mask) {
+					info.Channel = mask
+				}
 				dc.SendMessage(xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
 			}
 			dc.SendMessage(&irc.Message{
