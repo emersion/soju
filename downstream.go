@@ -744,9 +744,6 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		dc.logger.Printf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
-	if dc.registration.nick != "" && dc.registration.username != "" && !dc.registration.negotiatingCaps {
-		return dc.register(ctx)
-	}
 	return nil
 }
 
@@ -1711,6 +1708,10 @@ func (dc *downstreamConn) runUntilRegistered() error {
 			dc.SendMessage(ircErr.Message)
 		} else if err != nil {
 			return fmt.Errorf("failed to handle IRC command %q: %v", msg, err)
+		}
+
+		if dc.registration.nick != "" && dc.registration.username != "" && !dc.registration.negotiatingCaps {
+			return dc.register(ctx)
 		}
 	}
 
