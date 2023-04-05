@@ -13,6 +13,7 @@ var whoxFields = []byte("tcuihsnfdlaor")
 
 type WHOXInfo struct {
 	Token    string
+	Channel  string
 	Username string
 	Hostname string
 	Server   string
@@ -27,7 +28,11 @@ func (info *WHOXInfo) get(k byte) string {
 	case 't':
 		return info.Token
 	case 'c':
-		return "*"
+		channel := info.Channel
+		if channel == "" {
+			channel = "*"
+		}
+		return channel
 	case 'u':
 		return info.Username
 	case 'i':
@@ -69,6 +74,8 @@ func (info *WHOXInfo) set(k byte, v string) {
 	switch k {
 	case 't':
 		info.Token = v
+	case 'c':
+		info.Channel = v
 	case 'u':
 		info.Username = v
 	case 'h':
@@ -96,10 +103,15 @@ func GenerateWHOXReply(prefix *irc.Prefix, nick, fields string, info *WHOXInfo) 
 			hostname = "0" + hostname
 		}
 
+		channel := info.Channel
+		if channel == "" {
+			channel = "*"
+		}
+
 		return &irc.Message{
 			Prefix:  prefix,
 			Command: irc.RPL_WHOREPLY,
-			Params:  []string{nick, "*", info.Username, hostname, info.Server, info.Nickname, info.Flags, "0 " + info.Realname},
+			Params:  []string{nick, channel, info.Username, hostname, info.Server, info.Nickname, info.Flags, "0 " + info.Realname},
 		}
 	}
 
