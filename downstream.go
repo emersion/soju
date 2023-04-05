@@ -303,7 +303,7 @@ type downstreamSASL struct {
 type downstreamRegistration struct {
 	nick     string
 	username string
-	password string // from PASS
+	pass     string
 
 	networkName string
 	networkID   int64
@@ -640,7 +640,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			return err
 		}
 	case "PASS":
-		if err := parseMessageParams(msg, &dc.registration.password); err != nil {
+		if err := parseMessageParams(msg, &dc.registration.pass); err != nil {
 			return err
 		}
 	case "CAP":
@@ -1266,8 +1266,8 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 		})
 	}
 
-	password := dc.registration.password
-	dc.registration.password = ""
+	password := dc.registration.pass
+	dc.registration.pass = ""
 	if dc.registration.authUsername == "" {
 		if password == "" {
 			if dc.caps.IsEnabled("sasl") {
