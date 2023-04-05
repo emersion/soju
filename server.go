@@ -455,26 +455,32 @@ func (s *Server) Handle(ic ircConn) {
 	s.lock.Unlock()
 
 	s.metrics.downstreams.Add(1)
+	defer s.metrics.downstreams.Add(-1)
+
 	id := atomic.AddUint64(&lastDownstreamID, 1)
 	dc := newDownstreamConn(s, ic, id)
+	defer dc.Close()
+
 	if shutdown {
 		dc.SendMessage(&irc.Message{
 			Command: "ERROR",
 			Params:  []string{"Server is shutting down"},
 		})
-	} else if err := dc.runUntilRegistered(); err != nil {
+		return
+	}
+
+	if err := dc.runUntilRegistered(); err != nil {
 		if !errors.Is(err, io.EOF) {
 			dc.logger.Printf("%v", err)
 		}
-	} else {
-		dc.user.events <- eventDownstreamConnected{dc}
-		if err := dc.readMessages(dc.user.events); err != nil {
-			dc.logger.Printf("%v", err)
-		}
-		dc.user.events <- eventDownstreamDisconnected{dc}
+		return
 	}
-	dc.Close()
-	s.metrics.downstreams.Add(-1)
+
+	dc.user.events <- eventDownstreamConnected{dc}
+	if err := dc.readMessages(dc.user.events); err != nil {
+		dc.logger.Printf("%v", err)
+	}
+	dc.user.events <- eventDownstreamDisconnected{dc}
 }
 
 func (s *Server) HandleAdmin(ic ircConn) {
