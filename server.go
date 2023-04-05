@@ -476,11 +476,46 @@ func (s *Server) Handle(ic ircConn) {
 		return
 	}
 
-	dc.user.events <- eventDownstreamConnected{dc}
-	if err := dc.readMessages(dc.user.events); err != nil {
+	user, err := s.getOrCreateUser(context.TODO(), dc.registration.authUsername)
+	if err != nil {
+		dc.SendMessage(&irc.Message{
+			Command: "ERROR",
+			Params:  []string{"Internal server error"},
+		})
+		return
+	}
+
+	user.events <- eventDownstreamConnected{dc}
+	if err := dc.readMessages(user.events); err != nil {
 		dc.logger.Printf("%v", err)
 	}
-	dc.user.events <- eventDownstreamDisconnected{dc}
+	user.events <- eventDownstreamDisconnected{dc}
+}
+
+func (s *Server) getOrCreateUser(ctx context.Context, username string) (*user, error) {
+	user := s.getUser(username)
+	if user != nil {
+		return user, nil
+	}
+
+	if _, err := s.db.GetUser(ctx, username); err == nil {
+		return nil, fmt.Errorf("user %q exists in the DB but hasn't been loaded by the bouncer -- a restart may help", username)
+	}
+
+	if !s.Config().EnableUsersOnAuth {
+		return nil, fmt.Errorf("cannot find user %q in the DB", username)
+	}
+
+	// Can't find the user in the DB -- try to create it
+	record := database.User{
+		Username: username,
+		Enabled:  true,
+	}
+	user, err := s.createUser(ctx, &record)
+	if err != nil {
+		return nil, fmt.Errorf("failed to automatically create user %q after successful authentication: %v", username, err)
+	}
+	return user, nil
 }
 
 func (s *Server) HandleAdmin(ic ircConn) {

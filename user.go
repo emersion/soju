@@ -737,7 +737,7 @@ func (u *user) run() {
 				break
 			}
 
-			if err := dc.welcome(ctx); err != nil {
+			if err := dc.welcome(ctx, u); err != nil {
 				if ircErr, ok := err.(ircError); ok {
 					msg := ircErr.Message.Copy()
 					msg.Prefix = dc.srv.prefix()
