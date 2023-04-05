@@ -227,6 +227,12 @@ func (net *network) runConn(ctx context.Context) error {
 	}
 	defer uc.Close()
 
+	// The context is cancelled by the caller when the network is stopped.
+	go func() {
+		<-ctx.Done()
+		uc.Close()
+	}()
+
 	if net.user.srv.Identd != nil {
 		net.user.srv.Identd.Store(uc.RemoteAddr().String(), uc.LocalAddr().String(), userIdent(&net.user.User))
 		defer net.user.srv.Identd.Delete(uc.RemoteAddr().String(), uc.LocalAddr().String())
@@ -239,9 +245,6 @@ func (net *network) runConn(ctx context.Context) error {
 		return fmt.Errorf("failed to register: %w", err)
 	}
 
-	// TODO: this is racy with net.stopped. If the network is stopped
-	// before the user goroutine receives eventUpstreamConnected, the
-	// connection won't be closed.
 	net.user.events <- eventUpstreamConnected{uc}
 	defer func() {
 		net.user.events <- eventUpstreamDisconnected{uc}
@@ -259,6 +262,12 @@ func (net *network) run() {
 		return
 	}
 
+	ctx, cancel := context.WithCancel(context.TODO())
+	go func() {
+		<-net.stopped
+		cancel()
+	}()
+
 	var lastTry time.Time
 	backoff := newBackoffer(retryConnectMinDelay, retryConnectMaxDelay, retryConnectJitter)
 	for {
@@ -273,7 +282,7 @@ func (net *network) run() {
 		}
 		lastTry = time.Now()
 
-		if err := net.runConn(context.TODO()); err != nil {
+		if err := net.runConn(ctx); err != nil {
 			text := err.Error()
 			temp := true
 			var regErr registrationError
@@ -298,10 +307,6 @@ func (net *network) run() {
 func (net *network) stop() {
 	if !net.isStopped() {
 		close(net.stopped)
-	}
-
-	if net.conn != nil {
-		net.conn.Close()
 	}
 }
 
