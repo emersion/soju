@@ -218,6 +218,7 @@ func (net *network) runConn(ctx context.Context) error {
 	net.user.srv.metrics.upstreams.Add(1)
 	defer net.user.srv.metrics.upstreams.Add(-1)
 
+	done := ctx.Done()
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
@@ -229,7 +230,7 @@ func (net *network) runConn(ctx context.Context) error {
 
 	// The context is cancelled by the caller when the network is stopped.
 	go func() {
-		<-ctx.Done()
+		<-done
 		uc.Close()
 	}()
 
