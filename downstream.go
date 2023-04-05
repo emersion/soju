@@ -642,15 +642,9 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			return err
 		}
 	case "CAP":
-		var subCmd string
-		if err := parseMessageParams(msg, &subCmd); err != nil {
-			return err
-		}
-		if err := dc.handleCapCommand(subCmd, msg.Params[1:]); err != nil {
-			return err
-		}
+		return dc.handleCap(msg)
 	case "AUTHENTICATE":
-		credentials, err := dc.handleAuthenticateCommand(msg)
+		credentials, err := dc.handleAuthenticate(msg)
 		if err != nil {
 			return err
 		} else if credentials == nil {
@@ -756,10 +750,14 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 	return nil
 }
 
-func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
-	cmd = strings.ToUpper(cmd)
+func (dc *downstreamConn) handleCap(msg *irc.Message) error {
+	var cmd string
+	if err := parseMessageParams(msg, &cmd); err != nil {
+		return err
+	}
+	args := msg.Params[1:]
 
-	switch cmd {
+	switch cmd = strings.ToUpper(cmd); cmd {
 	case "LS":
 		if len(args) > 0 {
 			var err error
@@ -887,7 +885,7 @@ func (dc *downstreamConn) handleCapCommand(cmd string, args []string) error {
 	return nil
 }
 
-func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *downstreamSASL, err error) {
+func (dc *downstreamConn) handleAuthenticate(msg *irc.Message) (result *downstreamSASL, err error) {
 	defer func() {
 		if err != nil {
 			dc.sasl = nil
@@ -1724,13 +1722,7 @@ func (dc *downstreamConn) runUntilRegistered() error {
 func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.Message) error {
 	switch msg.Command {
 	case "CAP":
-		var subCmd string
-		if err := parseMessageParams(msg, &subCmd); err != nil {
-			return err
-		}
-		if err := dc.handleCapCommand(subCmd, msg.Params[1:]); err != nil {
-			return err
-		}
+		return dc.handleCap(msg)
 	case "PING":
 		var source, destination string
 		if err := parseMessageParams(msg, &source); err != nil {
@@ -2516,7 +2508,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}}
 		}
 
-		credentials, err := dc.handleAuthenticateCommand(msg)
+		credentials, err := dc.handleAuthenticate(msg)
 		if err != nil {
 			return err
 		}
