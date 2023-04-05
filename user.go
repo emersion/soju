@@ -1064,8 +1064,8 @@ func (u *user) updateNetwork(ctx context.Context, record *database.Network) (*ne
 
 	// If we're currently connected, disconnect and perform the necessary
 	// bookkeeping
+	network.stop()
 	if network.conn != nil {
-		network.stop()
 		// Note: this will set network.conn to nil
 		u.handleUpstreamDisconnected(network.conn)
 	}
