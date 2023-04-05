@@ -740,6 +740,11 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			}
 
 			dc.registration.networkID = id
+		default:
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"BOUNCER", "UNKNOWN_COMMAND", subcommand, "Unknown subcommand"},
+			}}
 		}
 	default:
 		dc.logger.Printf("unhandled message: %v", msg)
