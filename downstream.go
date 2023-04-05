@@ -685,7 +685,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 				break
 			}
 		default:
-			panic(fmt.Errorf("unexpected SASL mechanism %q", credentials.mechanism))
+			err = fmt.Errorf("unsupported SASL mechanism")
 		}
 
 		if err != nil {
@@ -929,6 +929,10 @@ func (dc *downstreamConn) handleAuthenticate(msg *irc.Message) (result *downstre
 				dc.sasl.oauthBearer = &options
 				return nil
 			}))
+		case "ANONYMOUS":
+			server = sasl.NewAnonymousServer(func(trace string) error {
+				return nil
+			})
 		default:
 			return nil, ircError{&irc.Message{
 				Prefix:  dc.srv.prefix(),
@@ -1065,7 +1069,7 @@ func (dc *downstreamConn) updateSupportedCaps() {
 	}
 
 	if uc := dc.upstream(); uc != nil && uc.supportsSASL("PLAIN") {
-		dc.setSupportedCap("sasl", "PLAIN")
+		dc.setSupportedCap("sasl", "PLAIN,ANONYMOUS")
 	} else if dc.network != nil {
 		dc.unsetSupportedCap("sasl")
 	}
@@ -2495,32 +2499,52 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		credentials, err := dc.handleAuthenticate(msg)
 		if err != nil {
 			return err
+		} else if credentials == nil {
+			break
 		}
 
-		if credentials != nil {
-			if credentials.mechanism != "PLAIN" {
-				dc.endSASL(&irc.Message{
-					Prefix:  dc.srv.prefix(),
-					Command: irc.ERR_SASLFAIL,
-					Params:  []string{dc.nick, "Unsupported SASL authentication mechanism"},
-				})
-				return nil
-			}
+		if uc.saslClient != nil {
+			dc.endSASL(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.ERR_SASLFAIL,
+				Params:  []string{dc.nick, "Another authentication attempt is already in progress"},
+			})
+			break
+		}
 
-			if uc.saslClient != nil {
-				dc.endSASL(&irc.Message{
-					Prefix:  dc.srv.prefix(),
-					Command: irc.ERR_SASLFAIL,
-					Params:  []string{dc.nick, "Another authentication attempt is already in progress"},
-				})
-				return nil
-			}
-
+		switch credentials.mechanism {
+		case "PLAIN":
 			uc.logger.Printf("starting post-registration SASL PLAIN authentication with username %q", credentials.plain.Username)
 			uc.saslClient = sasl.NewPlainClient("", credentials.plain.Username, credentials.plain.Password)
 			uc.enqueueCommand(dc, &irc.Message{
 				Command: "AUTHENTICATE",
 				Params:  []string{"PLAIN"},
+			})
+		case "ANONYMOUS":
+			if uc.network.SASL.Mechanism != "" {
+				record := uc.network.Network // copy network record because we'll mutate it
+				record.SASL.Plain.Username = ""
+				record.SASL.Plain.Password = ""
+				record.SASL.External.CertBlob = nil
+				record.SASL.External.PrivKeyBlob = nil
+				record.SASL.Mechanism = ""
+				_, err := dc.user.updateNetwork(ctx, &record)
+				if err != nil {
+					dc.logger.Printf("failed to clear SASL credentials")
+					dc.endSASL(&irc.Message{
+						Prefix:  dc.srv.prefix(),
+						Command: irc.ERR_SASLFAIL,
+						Params:  []string{dc.nick, "Internal server error"},
+					})
+					break
+				}
+			}
+			dc.endSASL(nil)
+		default:
+			dc.endSASL(&irc.Message{
+				Prefix:  dc.srv.prefix(),
+				Command: irc.ERR_SASLFAIL,
+				Params:  []string{dc.nick, "Unsupported SASL authentication mechanism"},
 			})
 		}
 	case "REGISTER", "VERIFY":
