@@ -923,6 +923,9 @@ func (dc *downstreamConn) handleAuthenticateCommand(msg *irc.Message) (result *d
 		switch mech {
 		case "PLAIN":
 			server = sasl.NewPlainServer(sasl.PlainAuthenticator(func(identity, username, password string) error {
+				if identity != "" && identity != username {
+					return fmt.Errorf("SASL PLAIN identity not supported")
+				}
 				dc.sasl.plain = &saslPlain{
 					Username: username,
 					Password: password,
