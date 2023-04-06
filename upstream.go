@@ -421,6 +421,12 @@ func (uc *upstreamConn) isOurNick(nick string) bool {
 	return uc.network.equalCasemap(uc.nick, nick)
 }
 
+func (uc *upstreamConn) forwardMessage(msg *irc.Message) {
+	uc.forEachDownstream(func(dc *downstreamConn) {
+		dc.SendMessage(msg)
+	})
+}
+
 func (uc *upstreamConn) forwardMsgByID(id uint64, msg *irc.Message) {
 	uc.forEachDownstreamByID(id, func(dc *downstreamConn) {
 		dc.SendMessage(msg)
@@ -1082,9 +1088,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		})
 
 		if !me {
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(msg)
-			})
+			uc.forwardMessage(msg)
 		} else {
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateNick()
@@ -1111,9 +1115,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				dc.updateRealname()
 			})
 		} else {
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(msg)
-			})
+			uc.forwardMessage(msg)
 		}
 	case "CHGHOST":
 		var newUsername, newHostname string
@@ -1136,10 +1138,8 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				dc.updateHost()
 			})
 		} else {
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				// TODO: add fallback with QUIT/JOIN/MODE messages
-				dc.SendMessage(msg)
-			})
+			// TODO: add fallback with QUIT/JOIN/MODE messages
+			uc.forwardMessage(msg)
 		}
 	case "JOIN":
 		var channels string
@@ -1274,9 +1274,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		uc.users.Del(msg.Prefix.Name)
 
 		if msg.Prefix.Name != uc.nick {
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(msg)
-			})
+			uc.forwardMessage(msg)
 		}
 	case irc.RPL_TOPIC, irc.RPL_NOTOPIC:
 		var name, topic string
@@ -1324,13 +1322,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				return err
 			}
 
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				if dc.upstream() == nil {
-					return
-				}
-
-				dc.SendMessage(msg)
-			})
+			uc.forwardMessage(msg)
 		} else { // channel mode change
 			ch, err := uc.getChannel(name)
 			if err != nil {
@@ -1346,9 +1338,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 			c := uc.network.channels.Get(name)
 			if c == nil || !c.Detached {
-				uc.forEachDownstream(func(dc *downstreamConn) {
-					dc.SendMessage(msg)
-				})
+				uc.forwardMessage(msg)
 			}
 		}
 	case irc.RPL_UMODEIS:
@@ -1365,13 +1355,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			if dc.upstream() == nil {
-				return
-			}
-
-			dc.SendMessage(msg)
-		})
+		uc.forwardMessage(msg)
 	case irc.RPL_CHANNELMODEIS:
 		var channel string
 		if err := parseMessageParams(msg, nil, &channel); err != nil {
@@ -1395,9 +1379,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		c := uc.network.channels.Get(channel)
 		if firstMode && (c == nil || !c.Detached) {
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(msg)
-			})
+			uc.forwardMessage(msg)
 		}
 	case xirc.RPL_CREATIONTIME:
 		var channel, creationTime string
@@ -1415,9 +1397,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		c := uc.network.channels.Get(channel)
 		if firstCreationTime && (c == nil || !c.Detached) {
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(msg)
-			})
+			uc.forwardMessage(msg)
 		}
 	case xirc.RPL_TOPICWHOTIME:
 		var channel, who, timeStr string
@@ -1440,9 +1420,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		c := uc.network.channels.Get(channel)
 		if firstTopicWhoTime && (c == nil || !c.Detached) {
-			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.SendMessage(msg)
-			})
+			uc.forwardMessage(msg)
 		}
 	case irc.RPL_LIST:
 		dc, cmd := uc.currentPendingCommand("LIST")
@@ -1705,9 +1683,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			})
 		}
 
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			dc.SendMessage(msg)
-		})
+		uc.forwardMessage(msg)
 	case "ACCOUNT":
 		var account string
 		if err := parseMessageParams(msg, &account); err != nil {
@@ -1716,9 +1692,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		uc.cacheUserInfo(msg.Prefix.Name, &upstreamUser{
 			Account: account,
 		})
-		uc.forEachDownstream(func(dc *downstreamConn) {
-			dc.SendMessage(msg)
-		})
+		uc.forwardMessage(msg)
 	case irc.RPL_BANLIST, irc.RPL_INVITELIST, irc.RPL_EXCEPTLIST, irc.RPL_ENDOFBANLIST, irc.RPL_ENDOFINVITELIST, irc.RPL_ENDOFEXCEPTLIST:
 		uc.forwardMsgByID(downstreamID, msg)
 	case irc.ERR_NOSUCHNICK:
