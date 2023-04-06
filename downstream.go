@@ -474,7 +474,7 @@ func (dc *downstreamConn) readMessages(ch chan<- event) error {
 // SendMessage sends an outgoing message.
 //
 // This can only called from the user goroutine.
-func (dc *downstreamConn) SendMessage(msg *irc.Message) {
+func (dc *downstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 	if !dc.caps.IsEnabled("message-tags") {
 		if msg.Command == "TAGMSG" {
 			return
@@ -528,15 +528,15 @@ func (dc *downstreamConn) SendMessage(msg *irc.Message) {
 	}
 
 	dc.srv.metrics.downstreamOutMessagesTotal.Inc()
-	dc.conn.SendMessage(context.TODO(), msg)
+	dc.conn.SendMessage(ctx, msg)
 }
 
-func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, f func(batchRef string)) {
+func (dc *downstreamConn) SendBatch(ctx context.Context, typ string, params []string, tags irc.Tags, f func(batchRef string)) {
 	dc.lastBatchRef++
 	ref := fmt.Sprintf("%v", dc.lastBatchRef)
 
 	if dc.caps.IsEnabled("batch") {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Tags:    tags,
 			Prefix:  dc.srv.prefix(),
 			Command: "BATCH",
@@ -547,7 +547,7 @@ func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, 
 	f(ref)
 
 	if dc.caps.IsEnabled("batch") {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "BATCH",
 			Params:  []string{"-" + ref},
@@ -556,25 +556,25 @@ func (dc *downstreamConn) SendBatch(typ string, params []string, tags irc.Tags, 
 }
 
 // sendMessageWithID sends an outgoing message with the specified internal ID.
-func (dc *downstreamConn) sendMessageWithID(msg *irc.Message, id string) {
-	dc.SendMessage(msg)
+func (dc *downstreamConn) sendMessageWithID(ctx context.Context, msg *irc.Message, id string) {
+	dc.SendMessage(ctx, msg)
 
 	if id == "" || !dc.messageSupportsBacklog(msg) || dc.caps.IsEnabled("draft/chathistory") {
 		return
 	}
 
-	dc.sendPing(id)
+	dc.sendPing(ctx, id)
 }
 
 // advanceMessageWithID advances history to the specified message ID without
 // sending a message. This is useful e.g. for self-messages when echo-message
 // isn't enabled.
-func (dc *downstreamConn) advanceMessageWithID(msg *irc.Message, id string) {
+func (dc *downstreamConn) advanceMessageWithID(ctx context.Context, msg *irc.Message, id string) {
 	if id == "" || !dc.messageSupportsBacklog(msg) || dc.caps.IsEnabled("draft/chathistory") {
 		return
 	}
 
-	dc.sendPing(id)
+	dc.sendPing(ctx, id)
 }
 
 // ackMsgID acknowledges that a message has been received.
@@ -593,9 +593,9 @@ func (dc *downstreamConn) ackMsgID(id string) {
 	network.delivered.StoreID(entity, dc.clientName, id)
 }
 
-func (dc *downstreamConn) sendPing(msgID string) {
+func (dc *downstreamConn) sendPing(ctx context.Context, msgID string) {
 	token := "soju-msgid-" + msgID
-	dc.SendMessage(&irc.Message{
+	dc.SendMessage(ctx, &irc.Message{
 		Command: "PING",
 		Params:  []string{token},
 	})
@@ -644,9 +644,9 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			return err
 		}
 	case "CAP":
-		return dc.handleCap(msg)
+		return dc.handleCap(ctx, msg)
 	case "AUTHENTICATE":
-		credentials, err := dc.handleAuthenticate(msg)
+		credentials, err := dc.handleAuthenticate(ctx, msg)
 		if err != nil {
 			return err
 		} else if credentials == nil {
@@ -690,7 +690,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 
 		if err != nil {
 			dc.logger.Printf("SASL %v authentication error for nick %q: %v", credentials.mechanism, dc.nick, err)
-			dc.endSASL(&irc.Message{
+			dc.endSASL(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
 				Params:  []string{dc.nick, authErrorReason(err)},
@@ -707,7 +707,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		// RPL_LOGGEDIN to mirror the upstream connection status. Let's
 		// see how many clients that breaks. See:
 		// https://github.com/ircv3/ircv3-specifications/pull/476
-		dc.endSASL(nil)
+		dc.endSASL(ctx, nil)
 	case "BOUNCER":
 		var subcommand string
 		if err := parseMessageParams(msg, &subcommand); err != nil {
@@ -747,7 +747,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 	return nil
 }
 
-func (dc *downstreamConn) handleCap(msg *irc.Message) error {
+func (dc *downstreamConn) handleCap(ctx context.Context, msg *irc.Message) error {
 	var cmd string
 	if err := parseMessageParams(msg, &cmd); err != nil {
 		return err
@@ -781,7 +781,7 @@ func (dc *downstreamConn) handleCap(msg *irc.Message) error {
 		}
 
 		// TODO: multi-line replies
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
 			Params:  []string{dc.nick, "LS", strings.Join(caps, " ")},
@@ -802,7 +802,7 @@ func (dc *downstreamConn) handleCap(msg *irc.Message) error {
 		}
 
 		// TODO: multi-line replies
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
 			Params:  []string{dc.nick, "LIST", strings.Join(caps, " ")},
@@ -860,7 +860,7 @@ func (dc *downstreamConn) handleCap(msg *irc.Message) error {
 		if ack {
 			reply = "ACK"
 		}
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
 			Params:  []string{dc.nick, reply, args[0]},
@@ -882,7 +882,7 @@ func (dc *downstreamConn) handleCap(msg *irc.Message) error {
 	return nil
 }
 
-func (dc *downstreamConn) handleAuthenticate(msg *irc.Message) (result *downstreamSASL, err error) {
+func (dc *downstreamConn) handleAuthenticate(ctx context.Context, msg *irc.Message) (result *downstreamSASL, err error) {
 	defer func() {
 		if err != nil {
 			dc.sasl = nil
@@ -989,7 +989,7 @@ func (dc *downstreamConn) handleAuthenticate(msg *irc.Message) (result *downstre
 		}
 
 		// TODO: multi-line messages
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "AUTHENTICATE",
 			Params:  []string{challengeStr},
@@ -998,7 +998,7 @@ func (dc *downstreamConn) handleAuthenticate(msg *irc.Message) (result *downstre
 	}
 }
 
-func (dc *downstreamConn) endSASL(msg *irc.Message) {
+func (dc *downstreamConn) endSASL(ctx context.Context, msg *irc.Message) {
 	if dc.sasl == nil {
 		return
 	}
@@ -1006,9 +1006,9 @@ func (dc *downstreamConn) endSASL(msg *irc.Message) {
 	dc.sasl = nil
 
 	if msg != nil {
-		dc.SendMessage(msg)
+		dc.SendMessage(ctx, msg)
 	} else {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_SASLSUCCESS,
 			Params:  []string{dc.nick, "SASL authentication successful"},
@@ -1016,7 +1016,7 @@ func (dc *downstreamConn) endSASL(msg *irc.Message) {
 	}
 }
 
-func (dc *downstreamConn) setSupportedCap(name, value string) {
+func (dc *downstreamConn) setSupportedCap(ctx context.Context, name, value string) {
 	prevValue, hasPrev := dc.caps.Available[name]
 	changed := !hasPrev || prevValue != value
 	dc.caps.Available[name] = value
@@ -1030,14 +1030,14 @@ func (dc *downstreamConn) setSupportedCap(name, value string) {
 		cap = name + "=" + value
 	}
 
-	dc.SendMessage(&irc.Message{
+	dc.SendMessage(ctx, &irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: "CAP",
 		Params:  []string{dc.nick, "NEW", cap},
 	})
 }
 
-func (dc *downstreamConn) unsetSupportedCap(name string) {
+func (dc *downstreamConn) unsetSupportedCap(ctx context.Context, name string) {
 	hasPrev := dc.caps.IsAvailable(name)
 	dc.caps.Del(name)
 
@@ -1045,14 +1045,14 @@ func (dc *downstreamConn) unsetSupportedCap(name string) {
 		return
 	}
 
-	dc.SendMessage(&irc.Message{
+	dc.SendMessage(ctx, &irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: "CAP",
 		Params:  []string{dc.nick, "DEL", name},
 	})
 }
 
-func (dc *downstreamConn) updateSupportedCaps() {
+func (dc *downstreamConn) updateSupportedCaps(ctx context.Context) {
 	supportedCaps := make(map[string]bool)
 	for cap := range needAllDownstreamCaps {
 		supportedCaps[cap] = true
@@ -1065,16 +1065,16 @@ func (dc *downstreamConn) updateSupportedCaps() {
 
 	for cap, supported := range supportedCaps {
 		if supported {
-			dc.setSupportedCap(cap, needAllDownstreamCaps[cap])
+			dc.setSupportedCap(ctx, cap, needAllDownstreamCaps[cap])
 		} else {
-			dc.unsetSupportedCap(cap)
+			dc.unsetSupportedCap(ctx, cap)
 		}
 	}
 
 	if uc := dc.upstream(); uc != nil && uc.supportsSASL("PLAIN") {
-		dc.setSupportedCap("sasl", "PLAIN,ANONYMOUS")
+		dc.setSupportedCap(ctx, "sasl", "PLAIN,ANONYMOUS")
 	} else if dc.network != nil {
-		dc.unsetSupportedCap("sasl")
+		dc.unsetSupportedCap(ctx, "sasl")
 	}
 
 	if uc := dc.upstream(); uc != nil && uc.caps.IsEnabled("draft/account-registration") {
@@ -1087,19 +1087,19 @@ func (dc *downstreamConn) updateSupportedCaps() {
 				break
 			}
 		}
-		dc.setSupportedCap("draft/account-registration", strings.Join(values, ","))
+		dc.setSupportedCap(ctx, "draft/account-registration", strings.Join(values, ","))
 	} else {
-		dc.unsetSupportedCap("draft/account-registration")
+		dc.unsetSupportedCap(ctx, "draft/account-registration")
 	}
 
 	if _, ok := dc.user.msgStore.(msgstore.ChatHistoryStore); ok && dc.network != nil {
-		dc.setSupportedCap("draft/event-playback", "")
+		dc.setSupportedCap(ctx, "draft/event-playback", "")
 	} else {
-		dc.unsetSupportedCap("draft/event-playback")
+		dc.unsetSupportedCap(ctx, "draft/event-playback")
 	}
 }
 
-func (dc *downstreamConn) updateNick() {
+func (dc *downstreamConn) updateNick(ctx context.Context) {
 	var nick string
 	if uc := dc.upstream(); uc != nil {
 		nick = uc.nick
@@ -1113,7 +1113,7 @@ func (dc *downstreamConn) updateNick() {
 		return
 	}
 
-	dc.SendMessage(&irc.Message{
+	dc.SendMessage(ctx, &irc.Message{
 		Prefix:  dc.prefix(),
 		Command: "NICK",
 		Params:  []string{nick},
@@ -1122,7 +1122,7 @@ func (dc *downstreamConn) updateNick() {
 	dc.nickCM = dc.casemap(dc.nick)
 }
 
-func (dc *downstreamConn) updateHost() {
+func (dc *downstreamConn) updateHost(ctx context.Context) {
 	uc := dc.upstream()
 	if uc == nil || uc.hostname == "" {
 		return
@@ -1133,13 +1133,13 @@ func (dc *downstreamConn) updateHost() {
 	}
 
 	if dc.caps.IsEnabled("chghost") {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.prefix(),
 			Command: "CHGHOST",
 			Params:  []string{uc.username, uc.hostname},
 		})
 	} else if uc.hostname != dc.hostname {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.prefix(),
 			Command: xirc.RPL_VISIBLEHOST,
 			Params:  []string{dc.nick, uc.hostname, "is now your visible host"},
@@ -1150,7 +1150,7 @@ func (dc *downstreamConn) updateHost() {
 	dc.username = uc.username
 }
 
-func (dc *downstreamConn) updateRealname() {
+func (dc *downstreamConn) updateRealname(ctx context.Context) {
 	if !dc.caps.IsEnabled("setname") {
 		return
 	}
@@ -1165,7 +1165,7 @@ func (dc *downstreamConn) updateRealname() {
 	}
 
 	if realname != dc.realname {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.prefix(),
 			Command: "SETNAME",
 			Params:  []string{realname},
@@ -1174,7 +1174,7 @@ func (dc *downstreamConn) updateRealname() {
 	}
 }
 
-func (dc *downstreamConn) updateAccount() {
+func (dc *downstreamConn) updateAccount(ctx context.Context) {
 	var account string
 	if dc.network == nil {
 		account = dc.user.Username
@@ -1189,13 +1189,13 @@ func (dc *downstreamConn) updateAccount() {
 	}
 
 	if account != "" {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_LOGGEDIN,
 			Params:  []string{dc.nick, dc.prefix().String(), account, "You are logged in as " + account},
 		})
 	} else {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_LOGGEDOUT,
 			Params:  []string{dc.nick, dc.prefix().String(), "You are logged out"},
@@ -1266,7 +1266,7 @@ func (dc *downstreamConn) register(ctx context.Context) error {
 	}
 
 	if dc.sasl != nil {
-		dc.endSASL(&irc.Message{
+		dc.endSASL(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.ERR_SASLABORTED,
 			Params:  []string{dc.nick, "SASL authentication aborted"},
@@ -1430,7 +1430,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 
 	dc.registration = nil
 
-	dc.updateSupportedCaps()
+	dc.updateSupportedCaps(ctx)
 
 	if uc := dc.upstream(); uc != nil {
 		dc.nick = uc.nick
@@ -1482,54 +1482,54 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 		}
 	}
 
-	dc.SendMessage(&irc.Message{
+	dc.SendMessage(ctx, &irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_WELCOME,
 		Params:  []string{dc.nick, "Welcome to soju, " + dc.nick},
 	})
-	dc.SendMessage(&irc.Message{
+	dc.SendMessage(ctx, &irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_YOURHOST,
 		Params:  []string{dc.nick, "Your host is " + dc.srv.Config().Hostname},
 	})
-	dc.SendMessage(&irc.Message{
+	dc.SendMessage(ctx, &irc.Message{
 		Prefix:  dc.srv.prefix(),
 		Command: irc.RPL_MYINFO,
 		Params:  []string{dc.nick, dc.srv.Config().Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
 	for _, msg := range xirc.GenerateIsupport(dc.srv.prefix(), dc.nick, isupport) {
-		dc.SendMessage(msg)
+		dc.SendMessage(ctx, msg)
 	}
 	if uc := dc.upstream(); uc != nil {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_UMODEIS,
 			Params:  []string{dc.nick, "+" + string(uc.modes)},
 		})
 	}
 	if dc.network == nil && dc.user.Admin {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_UMODEIS,
 			Params:  []string{dc.nick, "+o"},
 		})
 	}
 
-	dc.updateHost()
-	dc.updateRealname()
-	dc.updateAccount()
+	dc.updateHost(ctx)
+	dc.updateRealname(ctx)
+	dc.updateAccount(ctx)
 	dc.updateCasemapping()
 
 	if motd := dc.user.srv.Config().MOTD; motd != "" && dc.network == nil {
 		for _, msg := range xirc.GenerateMOTD(dc.srv.prefix(), dc.nick, motd) {
-			dc.SendMessage(msg)
+			dc.SendMessage(ctx, msg)
 		}
 	} else {
 		motdHint := "No MOTD"
 		if dc.network != nil {
 			motdHint = "Use /motd to read the message of the day"
 		}
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.ERR_NOMOTD,
 			Params:  []string{dc.nick, motdHint},
@@ -1537,11 +1537,11 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	}
 
 	if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-		dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef string) {
+		dc.SendBatch(ctx, "soju.im/bouncer-networks", nil, nil, func(batchRef string) {
 			for _, network := range dc.user.networks {
 				idStr := fmt.Sprintf("%v", network.ID)
 				attrs := getNetworkAttrs(network)
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Tags:    irc.Tags{"batch": batchRef},
 					Prefix:  dc.srv.prefix(),
 					Command: "BOUNCER",
@@ -1561,7 +1561,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 				return
 			}
 
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.prefix(),
 				Command: "JOIN",
 				Params:  []string{ch.Name},
@@ -1643,7 +1643,7 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 		return
 	}
 
-	dc.SendBatch("chathistory", []string{target}, nil, func(batchRef string) {
+	dc.SendBatch(ctx, "chathistory", []string{target}, nil, func(batchRef string) {
 		for _, msg := range history {
 			if ch != nil && ch.Detached {
 				if net.detachedMessageNeedsRelay(ch, msg) {
@@ -1651,7 +1651,7 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 				}
 			} else {
 				msg.Tags["batch"] = batchRef
-				dc.SendMessage(msg)
+				dc.SendMessage(ctx, msg)
 			}
 		}
 	})
@@ -1679,7 +1679,7 @@ func (dc *downstreamConn) runUntilRegistered() error {
 	go func() {
 		<-ctx.Done()
 		if err := ctx.Err(); err == context.DeadlineExceeded {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "ERROR",
 				Params:  []string{"Connection registration timed out"},
@@ -1697,7 +1697,7 @@ func (dc *downstreamConn) runUntilRegistered() error {
 		err = dc.handleMessage(ctx, msg)
 		if ircErr, ok := err.(ircError); ok {
 			ircErr.Message.Prefix = dc.srv.prefix()
-			dc.SendMessage(ircErr.Message)
+			dc.SendMessage(ctx, ircErr.Message)
 		} else if err != nil {
 			return fmt.Errorf("failed to handle IRC command %q: %v", msg, err)
 		}
@@ -1713,7 +1713,7 @@ func (dc *downstreamConn) runUntilRegistered() error {
 func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.Message) error {
 	switch msg.Command {
 	case "CAP":
-		return dc.handleCap(msg)
+		return dc.handleCap(ctx, msg)
 	case "PING":
 		var source, destination string
 		if err := parseMessageParams(msg, &source); err != nil {
@@ -1729,7 +1729,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{dc.nick, destination, "No such server"},
 			}}
 		}
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: "PONG",
 			Params:  []string{hostname, source},
@@ -1792,12 +1792,12 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Params:  []string{nick},
 				})
 			} else {
-				dc.updateNick()
+				dc.updateNick(ctx)
 			}
 		} else {
 			for _, c := range dc.user.downstreamConns {
 				if c.network == nil {
-					c.updateNick()
+					c.updateNick(ctx)
 				}
 			}
 		}
@@ -1808,7 +1808,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		if dc.realname == realname {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.prefix(),
 				Command: "SETNAME",
 				Params:  []string{realname},
@@ -1856,7 +1856,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if dc.network == nil {
 			for _, c := range dc.user.downstreamConns {
 				if c.network == nil {
-					c.updateRealname()
+					c.updateRealname(ctx)
 				}
 			}
 		}
@@ -1883,7 +1883,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			if name == "" || strings.ContainsAny(name, illegalChanChars) {
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.ERR_BADCHANMASK,
 					Params:  []string{name, "Invalid channel name"},
@@ -1891,7 +1891,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				continue
 			}
 			if !uc.isChannel(name) {
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.ERR_NOSUCHCHANNEL,
 					Params:  []string{name, "Not a channel name"},
@@ -2007,7 +2007,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						Params:  []string{uc.nick, modeStr},
 					})
 				} else {
-					dc.SendMessage(&irc.Message{
+					dc.SendMessage(ctx, &irc.Message{
 						Prefix:  dc.srv.prefix(),
 						Command: irc.ERR_UMODEUNKNOWNFLAG,
 						Params:  []string{dc.nick, "Cannot change user mode on bouncer connection"},
@@ -2019,7 +2019,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					userMode = string(uc.modes)
 				}
 
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_UMODEIS,
 					Params:  []string{dc.nick, "+" + userMode},
@@ -2066,13 +2066,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			params := []string{dc.nick, name, modeStr}
 			params = append(params, modeParams...)
 
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_CHANNELMODEIS,
 				Params:  params,
 			})
 			if ch.creationTime != "" {
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: xirc.RPL_CREATIONTIME,
 					Params:  []string{dc.nick, name, ch.creationTime},
@@ -2104,7 +2104,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Params:  []string{dc.nick, name, "No such channel"},
 				}}
 			}
-			sendTopic(dc, ch)
+			sendTopic(ctx, dc, ch)
 		}
 	case "LIST":
 		uc, err := dc.upstreamForCommand(msg.Command)
@@ -2120,7 +2120,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		if len(msg.Params) == 0 {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFNAMES,
 				Params:  []string{dc.nick, "*", "End of /NAMES list"},
@@ -2132,7 +2132,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		for _, name := range channels {
 			ch := uc.channels.Get(name)
 			if ch != nil {
-				sendNames(dc, ch)
+				sendNames(ctx, dc, ch)
 			} else {
 				// NAMES on a channel we have not joined, ask upstream
 				uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
@@ -2143,7 +2143,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 	case "WHO":
 		if len(msg.Params) == 0 {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
 				Params:  []string{dc.nick, "*", "End of /WHO list"},
@@ -2181,8 +2181,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Account:  dc.user.Username,
 				Realname: dc.realname,
 			}
-			dc.SendMessage(xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
 				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
@@ -2208,8 +2208,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Account:  serviceNick,
 				Realname: serviceRealname,
 			}
-			dc.SendMessage(xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
 				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
@@ -2217,7 +2217,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return nil
 		}
 		if dc.network == nil {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
 				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
@@ -2246,9 +2246,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				if uc.isChannel(mask) {
 					info.Channel = mask
 				}
-				dc.SendMessage(xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
+				dc.SendMessage(ctx, xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
 			}
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
 				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
@@ -2277,29 +2277,29 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		if dc.network == nil && dc.casemap(mask) == dc.nickCM {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISUSER,
 				Params:  []string{dc.nick, dc.nick, dc.user.Username, dc.hostname, "*", dc.realname},
 			})
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISSERVER,
 				Params:  []string{dc.nick, dc.nick, dc.srv.Config().Hostname, "soju"},
 			})
 			if dc.user.Admin {
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_WHOISOPERATOR,
 					Params:  []string{dc.nick, dc.nick, "is a bouncer administrator"},
 				})
 			}
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: xirc.RPL_WHOISACCOUNT,
 				Params:  []string{dc.nick, dc.nick, dc.user.Username, "is logged in as"},
 			})
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHOIS,
 				Params:  []string{dc.nick, dc.nick, "End of /WHOIS list"},
@@ -2307,32 +2307,32 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return nil
 		}
 		if dc.casemap(mask) == serviceNickCM {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISUSER,
 				Params:  []string{dc.nick, serviceNick, servicePrefix.User, servicePrefix.Host, "*", serviceRealname},
 			})
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISSERVER,
 				Params:  []string{dc.nick, serviceNick, dc.srv.Config().Hostname, "soju"},
 			})
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_WHOISOPERATOR,
 				Params:  []string{dc.nick, serviceNick, "is the bouncer service"},
 			})
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: xirc.RPL_WHOISACCOUNT,
 				Params:  []string{dc.nick, serviceNick, serviceNick, "is logged in as"},
 			})
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: xirc.RPL_WHOISBOT,
 				Params:  []string{dc.nick, serviceNick, "is a bot"},
 			})
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHOIS,
 				Params:  []string{dc.nick, serviceNick, "End of /WHOIS list"},
@@ -2394,7 +2394,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			if dc.network == nil && dc.casemap(name) == dc.nickCM {
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Tags:    msg.Tags.Copy(),
 					Prefix:  dc.prefix(),
 					Command: msg.Command,
@@ -2407,7 +2407,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				if dc.caps.IsEnabled("echo-message") {
 					echoTags := tags.Copy()
 					echoTags["time"] = dc.user.FormatServerTime(time.Now())
-					dc.SendMessage(&irc.Message{
+					dc.SendMessage(ctx, &irc.Message{
 						Tags:    echoTags,
 						Prefix:  dc.prefix(),
 						Command: msg.Command,
@@ -2499,7 +2499,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}}
 		}
 
-		credentials, err := dc.handleAuthenticate(msg)
+		credentials, err := dc.handleAuthenticate(ctx, msg)
 		if err != nil {
 			return err
 		} else if credentials == nil {
@@ -2507,7 +2507,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		if uc.saslClient != nil {
-			dc.endSASL(&irc.Message{
+			dc.endSASL(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
 				Params:  []string{dc.nick, "Another authentication attempt is already in progress"},
@@ -2534,7 +2534,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				_, err := dc.user.updateNetwork(ctx, &record)
 				if err != nil {
 					dc.logger.Printf("failed to clear SASL credentials")
-					dc.endSASL(&irc.Message{
+					dc.endSASL(ctx, &irc.Message{
 						Prefix:  dc.srv.prefix(),
 						Command: irc.ERR_SASLFAIL,
 						Params:  []string{dc.nick, "Internal server error"},
@@ -2542,9 +2542,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					break
 				}
 			}
-			dc.endSASL(nil)
+			dc.endSASL(ctx, nil)
 		default:
-			dc.endSASL(&irc.Message{
+			dc.endSASL(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
 				Params:  []string{dc.nick, "Unsupported SASL authentication mechanism"},
@@ -2580,7 +2580,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			cmd = irc.RPL_UNAWAY
 			desc = "You are no longer marked as being away"
 		}
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Command: cmd,
 			Params:  []string{dc.nick, desc},
 		})
@@ -2591,11 +2591,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 	case "INFO":
 		if dc.network == nil {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Command: irc.RPL_INFO,
 				Params:  []string{dc.nick, "soju <https://soju.im>"},
 			})
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Command: irc.RPL_ENDOFINFO,
 				Params:  []string{dc.nick, "End of INFO"},
 			})
@@ -2635,7 +2635,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				if subcommand == "+" {
 					// Hard limit, just to avoid having downstreams fill our map
 					if dc.monitored.Len() >= 1000 {
-						dc.SendMessage(&irc.Message{
+						dc.SendMessage(ctx, &irc.Message{
 							Prefix:  dc.srv.prefix(),
 							Command: irc.ERR_MONLISTFULL,
 							Params:  []string{dc.nick, "1000", target, "Bouncer monitor list is full"},
@@ -2647,7 +2647,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 					if uc.network.casemap(target) == serviceNickCM {
 						// BouncerServ is never tired
-						dc.SendMessage(&irc.Message{
+						dc.SendMessage(ctx, &irc.Message{
 							Prefix:  dc.srv.prefix(),
 							Command: irc.RPL_MONONLINE,
 							Params:  []string{dc.nick, target},
@@ -2661,7 +2661,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 							cmd = irc.RPL_MONONLINE
 						}
 
-						dc.SendMessage(&irc.Message{
+						dc.SendMessage(ctx, &irc.Message{
 							Prefix:  dc.srv.prefix(),
 							Command: cmd,
 							Params:  []string{dc.nick, target},
@@ -2678,13 +2678,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		case "L": // list
 			// TODO: be less lazy and pack the list
 			dc.monitored.ForEach(func(name string, _ struct{}) {
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_MONLIST,
 					Params:  []string{dc.nick, name},
 				})
 			})
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFMONLIST,
 				Params:  []string{dc.nick, "End of MONITOR list"},
@@ -2701,7 +2701,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					cmd = irc.RPL_MONONLINE
 				}
 
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: cmd,
 					Params:  []string{dc.nick, target},
@@ -2728,7 +2728,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if dc.network == nil {
 				// Either an unbound bouncer network, in which case we should return no targets,
 				// or a multi-upstream downstream, but we don't support CHATHISTORY TARGETS for those yet.
-				dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef string) {})
+				dc.SendBatch(ctx, "draft/chathistory-targets", nil, nil, func(batchRef string) {})
 				return nil
 			}
 			if err := parseMessageParams(msg, nil, &boundsStr[0], &boundsStr[1], &limitStr); err != nil {
@@ -2744,7 +2744,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		// We don't save history for our service
 		if dc.casemap(target) == serviceNickCM {
-			dc.SendBatch("chathistory", []string{target}, nil, func(batchRef string) {})
+			dc.SendBatch(ctx, "chathistory", []string{target}, nil, func(batchRef string) {})
 			return nil
 		}
 
@@ -2827,13 +2827,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
-			dc.SendBatch("draft/chathistory-targets", nil, nil, func(batchRef string) {
+			dc.SendBatch(ctx, "draft/chathistory-targets", nil, nil, func(batchRef string) {
 				for _, target := range targets {
 					if ch := network.channels.Get(target.Name); ch != nil && ch.Detached {
 						continue
 					}
 
-					dc.SendMessage(&irc.Message{
+					dc.SendMessage(ctx, &irc.Message{
 						Tags:    irc.Tags{"batch": batchRef},
 						Prefix:  dc.srv.prefix(),
 						Command: "CHATHISTORY",
@@ -2849,10 +2849,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return newChatHistoryError(subcommand, target)
 		}
 
-		dc.SendBatch("chathistory", []string{target}, nil, func(batchRef string) {
+		dc.SendBatch(ctx, "chathistory", []string{target}, nil, func(batchRef string) {
 			for _, msg := range history {
 				msg.Tags["batch"] = batchRef
-				dc.SendMessage(msg)
+				dc.SendMessage(ctx, msg)
 			}
 		})
 	case "READ", "MARKREAD":
@@ -2869,7 +2869,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		// We don't save read receipts for our service
 		if dc.casemap(target) == serviceNickCM {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.prefix(),
 				Command: msg.Command,
 				Params:  []string{target, "*"},
@@ -2945,7 +2945,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				if !d.caps.IsEnabled("draft/read-marker") {
 					cmd = "READ"
 				}
-				d.SendMessage(&irc.Message{
+				d.SendMessage(ctx, &irc.Message{
 					Prefix:  d.prefix(),
 					Command: cmd,
 					Params:  []string{target, timestampStr},
@@ -3042,10 +3042,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}}
 		}
 
-		dc.SendBatch("soju.im/search", nil, nil, func(batchRef string) {
+		dc.SendBatch(ctx, "soju.im/search", nil, nil, func(batchRef string) {
 			for _, msg := range messages {
 				msg.Tags["batch"] = batchRef
-				dc.SendMessage(msg)
+				dc.SendMessage(ctx, msg)
 			}
 		})
 	case "BOUNCER":
@@ -3061,11 +3061,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{"BOUNCER", "REGISTRATION_IS_COMPLETED", "BIND", "Cannot bind to a network after registration"},
 			}}
 		case "LISTNETWORKS":
-			dc.SendBatch("soju.im/bouncer-networks", nil, nil, func(batchRef string) {
+			dc.SendBatch(ctx, "soju.im/bouncer-networks", nil, nil, func(batchRef string) {
 				for _, network := range dc.user.networks {
 					idStr := fmt.Sprintf("%v", network.ID)
 					attrs := getNetworkAttrs(network)
-					dc.SendMessage(&irc.Message{
+					dc.SendMessage(ctx, &irc.Message{
 						Tags:    irc.Tags{"batch": batchRef},
 						Prefix:  dc.srv.prefix(),
 						Command: "BOUNCER",
@@ -3100,7 +3100,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"ADDNETWORK", fmt.Sprintf("%v", network.ID)},
@@ -3144,7 +3144,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"CHANGENETWORK", idStr},
@@ -3171,7 +3171,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				return err
 			}
 
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"DELNETWORK", idStr},
@@ -3275,7 +3275,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}
 			}
 
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "WEBPUSH",
 				Params:  []string{"REGISTER", endpoint},
@@ -3297,7 +3297,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 			oldSub := findWebPushSubscription(subs, endpoint)
 			if oldSub == nil {
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Prefix:  dc.srv.prefix(),
 					Command: "WEBPUSH",
 					Params:  []string{"UNREGISTER", endpoint},
@@ -3313,7 +3313,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "WEBPUSH",
 				Params:  []string{"UNREGISTER", endpoint},
@@ -3407,7 +3407,7 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 
 	// RPL_NOTOPIC shouldn't be sent on JOIN
 	if ch.Topic != "" {
-		sendTopic(dc, ch)
+		sendTopic(ctx, dc, ch)
 	}
 
 	var markReadCmd string
@@ -3426,7 +3426,7 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 			if r != nil {
 				timestampStr = fmt.Sprintf("timestamp=%s", xirc.FormatServerTime(r.Timestamp))
 			}
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.prefix(),
 				Command: markReadCmd,
 				Params:  []string{ch.Name, timestampStr},
@@ -3435,27 +3435,27 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 	}
 
 	if !dc.caps.IsEnabled("soju.im/no-implicit-names") {
-		sendNames(dc, ch)
+		sendNames(ctx, dc, ch)
 	}
 }
 
-func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
+func sendTopic(ctx context.Context, dc *downstreamConn, ch *upstreamChannel) {
 	if ch.Topic != "" {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_TOPIC,
 			Params:  []string{dc.nick, ch.Name, ch.Topic},
 		})
 		if ch.TopicWho != nil {
 			topicTime := strconv.FormatInt(ch.TopicTime.Unix(), 10)
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: xirc.RPL_TOPICWHOTIME,
 				Params:  []string{dc.nick, ch.Name, ch.TopicWho.String(), topicTime},
 			})
 		}
 	} else {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.srv.prefix(),
 			Command: irc.RPL_NOTOPIC,
 			Params:  []string{dc.nick, ch.Name, "No topic is set"},
@@ -3463,7 +3463,7 @@ func sendTopic(dc *downstreamConn, ch *upstreamChannel) {
 	}
 }
 
-func sendNames(dc *downstreamConn, ch *upstreamChannel) {
+func sendNames(ctx context.Context, dc *downstreamConn, ch *upstreamChannel) {
 	var members []string
 	ch.Members.ForEach(func(nick string, memberships *xirc.MembershipSet) {
 		s := formatMemberPrefix(*memberships, dc) + nick
@@ -3472,6 +3472,6 @@ func sendNames(dc *downstreamConn, ch *upstreamChannel) {
 
 	msgs := xirc.GenerateNamesReply(dc.srv.prefix(), dc.nick, ch.Name, ch.Status, members)
 	for _, msg := range msgs {
-		dc.SendMessage(msg)
+		dc.SendMessage(ctx, msg)
 	}
 }

@@ -462,7 +462,7 @@ func (s *Server) Handle(ic ircConn) {
 	defer dc.Close()
 
 	if shutdown {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(context.TODO(), &irc.Message{
 			Command: "ERROR",
 			Params:  []string{"Server is shutting down"},
 		})
@@ -478,7 +478,7 @@ func (s *Server) Handle(ic ircConn) {
 
 	user, err := s.getOrCreateUser(context.TODO(), dc.registration.authUsername)
 	if err != nil {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(context.TODO(), &irc.Message{
 			Command: "ERROR",
 			Params:  []string{"Internal server error"},
 		})

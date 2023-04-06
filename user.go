@@ -337,7 +337,7 @@ func (net *network) detach(ch *database.Channel) {
 	}
 
 	net.forEachDownstream(func(dc *downstreamConn) {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(context.TODO(), &irc.Message{
 			Prefix:  dc.prefix(),
 			Command: "PART",
 			Params:  []string{ch.Name, "Detach"},
@@ -364,7 +364,7 @@ func (net *network) attach(ctx context.Context, ch *database.Channel) {
 	}
 
 	net.forEachDownstream(func(dc *downstreamConn) {
-		dc.SendMessage(&irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.prefix(),
 			Command: "JOIN",
 			Params:  []string{ch.Name},
@@ -642,17 +642,18 @@ func (u *user) run() {
 			uc.updateAway()
 			uc.updateMonitor()
 
+			ctx := context.TODO()
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				dc.updateSupportedCaps()
+				dc.updateSupportedCaps(ctx)
 
 				if !dc.caps.IsEnabled("soju.im/bouncer-networks") {
 					sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
 				}
 
-				dc.updateNick()
-				dc.updateHost()
-				dc.updateRealname()
-				dc.updateAccount()
+				dc.updateNick(ctx)
+				dc.updateHost(ctx)
+				dc.updateRealname(ctx)
+				dc.updateAccount(ctx)
 				dc.updateCasemapping()
 			})
 			u.notifyBouncerNetworkState(uc.network.ID, irc.Tags{
@@ -729,7 +730,7 @@ func (u *user) run() {
 			}
 
 			if !u.Enabled {
-				dc.SendMessage(&irc.Message{
+				dc.SendMessage(ctx, &irc.Message{
 					Command: "ERROR",
 					Params:  []string{"This bouncer account is disabled"},
 				})
@@ -741,9 +742,9 @@ func (u *user) run() {
 				if ircErr, ok := err.(ircError); ok {
 					msg := ircErr.Message.Copy()
 					msg.Prefix = dc.srv.prefix()
-					dc.SendMessage(msg)
+					dc.SendMessage(ctx, msg)
 				} else {
-					dc.SendMessage(&irc.Message{
+					dc.SendMessage(ctx, &irc.Message{
 						Command: "ERROR",
 						Params:  []string{"Internal server error"},
 					})
@@ -799,7 +800,7 @@ func (u *user) run() {
 			err := dc.handleMessage(context.TODO(), msg)
 			if ircErr, ok := err.(ircError); ok {
 				ircErr.Message.Prefix = dc.srv.prefix()
-				dc.SendMessage(ircErr.Message)
+				dc.SendMessage(context.TODO(), ircErr.Message)
 			} else if err != nil {
 				dc.logger.Printf("failed to handle message %q: %v", msg, err)
 				dc.Close()
@@ -807,7 +808,7 @@ func (u *user) run() {
 		case eventBroadcast:
 			msg := e.msg
 			for _, dc := range u.downstreamConns {
-				dc.SendMessage(msg)
+				dc.SendMessage(context.TODO(), msg)
 			}
 		case eventUserUpdate:
 			e.done <- u.updateUser(context.TODO(), func(record *database.User) error {
@@ -882,7 +883,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	})
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		dc.updateSupportedCaps()
+		dc.updateSupportedCaps(context.TODO())
 	})
 
 	// If the network has been removed, don't send a state change notification
@@ -912,7 +913,7 @@ func (u *user) notifyBouncerNetworkState(netID int64, attrs irc.Tags) {
 	netIDStr := fmt.Sprintf("%v", netID)
 	for _, dc := range u.downstreamConns {
 		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(context.TODO(), &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"NETWORK", netIDStr, attrs.String()},
@@ -1116,7 +1117,7 @@ func (u *user) deleteNetwork(ctx context.Context, id int64) error {
 	idStr := fmt.Sprintf("%v", network.ID)
 	for _, dc := range u.downstreamConns {
 		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
-			dc.SendMessage(&irc.Message{
+			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"NETWORK", idStr, "*"},

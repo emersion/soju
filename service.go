@@ -56,7 +56,7 @@ type serviceCommand struct {
 }
 
 func sendServiceNOTICE(dc *downstreamConn, text string) {
-	dc.SendMessage(&irc.Message{
+	dc.SendMessage(context.TODO(), &irc.Message{
 		Prefix:  servicePrefix,
 		Command: "NOTICE",
 		Params:  []string{dc.nick, text},
@@ -64,7 +64,7 @@ func sendServiceNOTICE(dc *downstreamConn, text string) {
 }
 
 func sendServicePRIVMSG(dc *downstreamConn, text string) {
-	dc.SendMessage(&irc.Message{
+	dc.SendMessage(context.TODO(), &irc.Message{
 		Prefix:  servicePrefix,
 		Command: "PRIVMSG",
 		Params:  []string{dc.nick, text},
