@@ -13,6 +13,7 @@ DynamicUser=yes
 StateDirectory=soju
 ConfigurationDirectory=soju
 RuntimeDirectory=soju
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 ExecStart=/usr/bin/soju
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
