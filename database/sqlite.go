@@ -637,7 +637,7 @@ func (db *SqliteDB) DeleteUser(ctx context.Context, id int64) error {
 			FROM MessageTarget, Network
 			WHERE MessageTarget.network = Network.id
 			AND Network.user = ?
-		)`)
+		)`, id)
 	if err != nil {
 		return err
 	}
