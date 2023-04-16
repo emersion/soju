@@ -446,7 +446,7 @@ func (net *network) isHighlight(msg *irc.Message) bool {
 
 	text := msg.Params[1]
 
-	nick := net.Nick
+	nick := database.GetNick(&net.user.User, &net.Network)
 	if net.conn != nil {
 		nick = net.conn.nick
 	}
