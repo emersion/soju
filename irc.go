@@ -228,6 +228,10 @@ func isWordBoundary(r rune) bool {
 }
 
 func isHighlight(text, nick string) bool {
+	if len(nick) == 0 {
+		panic("isHighlight called with empty nick")
+	}
+
 	for {
 		i := strings.Index(text, nick)
 		if i < 0 {
