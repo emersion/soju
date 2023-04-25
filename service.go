@@ -593,6 +593,10 @@ func handleServiceNetworkCreate(ctx *serviceContext, params []string) error {
 }
 
 func handleServiceNetworkStatus(ctx *serviceContext, params []string) error {
+	if len(params) != 0 {
+		return fmt.Errorf("expected no argument")
+	}
+
 	n := 0
 	for _, net := range ctx.user.networks {
 		var statuses []string
@@ -897,6 +901,10 @@ func handleServiceSASLReset(ctx *serviceContext, params []string) error {
 }
 
 func handleUserStatus(ctx *serviceContext, params []string) error {
+	if len(params) != 0 {
+		return fmt.Errorf("expected no argument")
+	}
+
 	// Limit to a small amount of users to avoid sending
 	// thousands of messages on large instances.
 	users := make([]database.User, 0, 50)
@@ -1439,6 +1447,10 @@ func handleServiceChannelDelete(ctx *serviceContext, params []string) error {
 }
 
 func handleServiceServerStatus(ctx *serviceContext, params []string) error {
+	if len(params) != 0 {
+		return fmt.Errorf("expected no argument")
+	}
+
 	dbStats, err := ctx.srv.db.Stats(ctx)
 	if err != nil {
 		return err
