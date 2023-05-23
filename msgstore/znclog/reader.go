@@ -11,13 +11,15 @@ import (
 	"git.sr.ht/~emersion/soju/xirc"
 )
 
+var timestampPrefixLen = len("[01:02:03] ")
+
 func UnmarshalLine(line string, user *database.User, network *database.Network, entity string, ref time.Time, events bool) (*irc.Message, time.Time, error) {
 	var hour, minute, second int
 	_, err := fmt.Sscanf(line, "[%02d:%02d:%02d] ", &hour, &minute, &second)
-	if err != nil {
+	if err != nil || len(line) < timestampPrefixLen {
 		return nil, time.Time{}, fmt.Errorf("malformed timestamp prefix: %v", err)
 	}
-	line = line[11:]
+	line = line[timestampPrefixLen:]
 
 	var cmd string
 	var prefix *irc.Prefix
