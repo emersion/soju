@@ -4,11 +4,14 @@ import (
 	"context"
 	"net"
 	"os"
+	"reflect"
 	"testing"
+	"time"
 
 	"gopkg.in/irc.v4"
 
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/xirc"
 )
 
 var testServerPrefix = &irc.Prefix{Name: "soju-test-server"}
@@ -103,6 +106,26 @@ func expectMessage(t *testing.T, c ircConn, cmd string) *irc.Message {
 	return msg
 }
 
+func roundtrip(t *testing.T, c ircConn) []*irc.Message {
+	c.WriteMessage(&irc.Message{Command: "PING", Params: []string{"roundtrip"}})
+
+	var msgs []*irc.Message
+	for {
+		msg, err := c.ReadMessage()
+		if err != nil {
+			t.Fatalf("failed to read IRC message: %v", err)
+		}
+
+		if msg.Command == "PONG" {
+			break
+		}
+
+		msgs = append(msgs, msg)
+	}
+
+	return msgs
+}
+
 func registerDownstreamConn(t *testing.T, c ircConn, network *database.Network) {
 	c.WriteMessage(&irc.Message{
 		Command: "PASS",
@@ -159,7 +182,7 @@ func registerUpstreamConn(t *testing.T, c ircConn) {
 	})
 }
 
-func testServer(t *testing.T, db database.Database) {
+func testBroadcast(t *testing.T, db database.Database) {
 	user := createTestUser(t, db)
 	network, upstream := createTestUpstream(t, db, user)
 	defer upstream.Close()
@@ -202,14 +225,114 @@ func testServer(t *testing.T, db database.Database) {
 	}
 }
 
-func TestServer(t *testing.T) {
+func TestServer_broadcast(t *testing.T) {
 	t.Run("sqlite", func(t *testing.T) {
 		db := createTempSqliteDB(t)
-		testServer(t, db)
+		testBroadcast(t, db)
 	})
 
 	t.Run("postgres", func(t *testing.T) {
 		db := createTempPostgresDB(t)
-		testServer(t, db)
+		testBroadcast(t, db)
+	})
+}
+
+func testChatHistory(t *testing.T, msgStoreDriver, msgStorePath string) {
+	db := createTempSqliteDB(t)
+
+	user := createTestUser(t, db)
+	network, upstream := createTestUpstream(t, db, user)
+	defer upstream.Close()
+
+	srv := NewServer(db)
+
+	cfg := *srv.Config()
+	cfg.MsgStoreDriver = msgStoreDriver
+	cfg.MsgStorePath = msgStorePath
+	srv.SetConfig(&cfg)
+
+	if err := srv.Start(); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+	defer srv.Shutdown()
+
+	uc := mustAccept(t, upstream)
+	defer uc.Close()
+	registerUpstreamConn(t, uc)
+
+	texts := []string{
+		"Hiya!",
+		"How are you doing?",
+		"Can I take a sip from your glass of soju?",
+	}
+
+	baseTime := time.Date(2023, 05, 23, 6, 0, 0, 0, time.UTC)
+	for i, text := range texts {
+		msgTime := baseTime.Add(time.Duration(i) * time.Second)
+		uc.WriteMessage(&irc.Message{
+			Tags:    irc.Tags{"time": xirc.FormatServerTime(msgTime)},
+			Prefix:  &irc.Prefix{Name: "foo"},
+			Command: "PRIVMSG",
+			Params:  []string{testUsername, text},
+		})
+	}
+	roundtrip(t, uc)
+
+	dc := createTestDownstream(t, srv)
+	defer dc.Close()
+	registerDownstreamConn(t, dc, network)
+	roundtrip(t, dc) // drain post-connection-registration messages
+
+	testCases := []struct {
+		Name  string
+		After time.Time
+		Texts []string
+	}{
+		{
+			Name:  "all",
+			After: baseTime.Add(-time.Second),
+			Texts: texts,
+		},
+		{
+			Name:  "none",
+			After: baseTime.Add(time.Duration(len(texts)-1) * time.Second),
+			Texts: nil,
+		},
+		{
+			Name:  "all_but_first",
+			After: baseTime,
+			Texts: texts[1:],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			dc.WriteMessage(&irc.Message{
+				Command: "CHATHISTORY",
+				Params:  []string{"AFTER", "foo", "timestamp=" + xirc.FormatServerTime(tc.After), "100"},
+			})
+
+			var got []string
+			for _, msg := range roundtrip(t, dc) {
+				if msg.Command != "PRIVMSG" {
+					t.Fatalf("unexpected reply: %v", msg)
+				}
+				got = append(got, msg.Params[1])
+			}
+
+			if !reflect.DeepEqual(got, tc.Texts) {
+				t.Errorf("got %v, want %v", got, tc.Texts)
+			}
+		})
+	}
+}
+
+func TestServer_chatHistory(t *testing.T) {
+	t.Run("fs", func(t *testing.T) {
+		testChatHistory(t, "fs", t.TempDir())
+	})
+
+	t.Run("db", func(t *testing.T) {
+		testChatHistory(t, "db", "")
 	})
 }
