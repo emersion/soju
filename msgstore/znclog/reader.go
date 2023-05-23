@@ -16,8 +16,10 @@ var timestampPrefixLen = len("[01:02:03] ")
 func UnmarshalLine(line string, user *database.User, network *database.Network, entity string, ref time.Time, events bool) (*irc.Message, time.Time, error) {
 	var hour, minute, second int
 	_, err := fmt.Sscanf(line, "[%02d:%02d:%02d] ", &hour, &minute, &second)
-	if err != nil || len(line) < timestampPrefixLen {
+	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("malformed timestamp prefix: %v", err)
+	} else if len(line) < timestampPrefixLen {
+		return nil, time.Time{}, fmt.Errorf("malformed timestamp prefix: too short")
 	}
 	line = line[timestampPrefixLen:]
 
