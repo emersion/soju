@@ -689,7 +689,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		}
 
 		if err != nil {
-			dc.logger.Printf("SASL %v authentication error for nick %q: %v", credentials.mechanism, dc.nick, err)
+			dc.logger.Printf("SASL %v authentication error for nick %q: %v", credentials.mechanism, dc.registration.nick, err)
 			dc.endSASL(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.ERR_SASLFAIL,
