@@ -138,8 +138,8 @@ func (ln *retryListener) Accept() (net.Conn, error) {
 type Config struct {
 	Hostname                  string
 	Title                     string
-	LogDriver                 string
-	LogPath                   string
+	MsgStoreDriver            string
+	MsgStorePath              string
 	HTTPOrigins               []string
 	AcceptProxyIPs            config.IPSet
 	MaxUserNetworks           int

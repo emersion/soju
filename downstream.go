@@ -382,7 +382,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	// TODO: this is racy, we should only enable chathistory after
 	// authentication and then check that user.msgStore implements
 	// chatHistoryMessageStore
-	switch srv.Config().LogDriver {
+	switch srv.Config().MsgStoreDriver {
 	case "fs", "db":
 		dc.caps.Available["draft/chathistory"] = ""
 		dc.caps.Available["soju.im/search"] = ""

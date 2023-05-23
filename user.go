@@ -537,9 +537,9 @@ func newUser(srv *Server, record *database.User) *user {
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("user %q: ", record.Username)}
 
 	var msgStore msgstore.Store
-	switch srv.Config().LogDriver {
+	switch srv.Config().MsgStoreDriver {
 	case "fs":
-		msgStore = msgstore.NewFSStore(srv.Config().LogPath, record)
+		msgStore = msgstore.NewFSStore(srv.Config().MsgStorePath, record)
 	case "db":
 		msgStore = msgstore.NewDBStore(srv.db)
 	case "memory":
