@@ -666,6 +666,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			}
 
 			if err = auth.AuthPlain(ctx, dc.srv.db, username, password); err != nil {
+				err = fmt.Errorf("%v (username %q)", err, username)
 				break
 			}
 		case "OAUTHBEARER":
@@ -681,7 +682,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			}
 
 			if credentials.oauthBearer.Username != "" && credentials.oauthBearer.Username != username {
-				err = fmt.Errorf("username mismatch (server returned %q)", username)
+				err = fmt.Errorf("username mismatch (client provided %q, but server returned %q)", credentials.oauthBearer.Username, username)
 				break
 			}
 		default:
