@@ -175,6 +175,7 @@ type Server struct {
 		downstreamInMessagesTotal  prometheus.Counter
 
 		upstreamConnectErrorsTotal prometheus.Counter
+		workerPanicsTotal          prometheus.Counter
 	}
 
 	webPush *database.WebPushConfig
@@ -281,6 +282,11 @@ func (s *Server) registerMetrics() {
 	s.metrics.upstreamConnectErrorsTotal = factory.NewCounter(prometheus.CounterOpts{
 		Name: "soju_upstream_connect_errors_total",
 		Help: "Total number of upstream connection errors",
+	})
+
+	s.metrics.workerPanicsTotal = factory.NewCounter(prometheus.CounterOpts{
+		Name: "soju_worker_panics_total",
+		Help: "Total number of panics in worker goroutines",
 	})
 }
 
@@ -426,6 +432,7 @@ func (s *Server) addUserLocked(user *database.User) *user {
 		defer func() {
 			if err := recover(); err != nil {
 				s.Logger.Printf("panic serving user %q: %v\n%v", user.Username, err, string(debug.Stack()))
+				s.metrics.workerPanicsTotal.Inc()
 			}
 
 			s.lock.Lock()
