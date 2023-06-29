@@ -1,5 +1,5 @@
-git.sr.ht/~emersion/go-scfg v0.0.0-20231004133111-9dce55c8d63b h1:Lf4oYBOJVmbYzrfqWfXUvSpXQPNMgnbN0efn5A7bH3M=
-git.sr.ht/~emersion/go-scfg v0.0.0-20231004133111-9dce55c8d63b/go.mod h1:ybgvEJTIx5XbaspSviB3KNa6OdPmAZqDoSud7z8fFlw=
+git.sr.ht/~emersion/go-scfg v0.0.0-20231211181832-0b4e72d8ec3c h1:Cjy9/qASF8hogbKbWXgEQZxbYHrM9ksl76sGzsP8Zqo=
+git.sr.ht/~emersion/go-scfg v0.0.0-20231211181832-0b4e72d8ec3c/go.mod h1:ybgvEJTIx5XbaspSviB3KNa6OdPmAZqDoSud7z8fFlw=
 git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20230217131031-f2c8767594fc h1:+y3OijpLl4rgbFsqMBmYUTCsGCkxQUWpWaqfS8j9Ygc=
 git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20230217131031-f2c8767594fc/go.mod h1:PCl1xjl7iC6x35TKKubKRyo/3TT0dGI66jyNI6vmYnU=
 git.sr.ht/~sircmpwn/getopt v0.0.0-20191230200459-23622cc906b3/go.mod h1:wMEGFFFNuPos7vHmWXfszqImLppbc0wEhh6JBfJIUgw=
