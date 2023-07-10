@@ -71,19 +71,20 @@ func main() {
 			log.Fatalf("unable to get source networks for user: #%d %s", user.ID, user.Username)
 		}
 
-		for _, network := range networks {
-			log.Printf("Storing network: %s\n", network.Name)
+		for _, srcNetwork := range networks {
+			log.Printf("Storing network: %s\n", srcNetwork.Name)
+			destNetwork := srcNetwork
 
-			network.ID = 0
+			destNetwork.ID = 0
 
-			err := destinationdb.StoreNetwork(ctx, user.ID, &network)
+			err := destinationdb.StoreNetwork(ctx, user.ID, &destNetwork)
 			if err != nil {
-				log.Fatalf("unable to store network: #%d %s", network.ID, network.Name)
+				log.Fatalf("unable to store network: #%d %s", srcNetwork.ID, srcNetwork.Name)
 			}
 
-			channels, err := sourcedb.ListChannels(ctx, network.ID)
+			channels, err := sourcedb.ListChannels(ctx, srcNetwork.ID)
 			if err != nil {
-				log.Fatalf("unable to get source channels for network: #%d %s", network.ID, network.Name)
+				log.Fatalf("unable to get source channels for network: #%d %s", srcNetwork.ID, srcNetwork.Name)
 			}
 
 			for _, channel := range channels {
@@ -91,15 +92,15 @@ func main() {
 
 				channel.ID = 0
 
-				err := destinationdb.StoreChannel(ctx, network.ID, &channel)
+				err := destinationdb.StoreChannel(ctx, destNetwork.ID, &channel)
 				if err != nil {
 					log.Fatalf("unable to store channel: #%d %s", channel.ID, channel.Name)
 				}
 			}
 
-			deliveryReceipts, err := sourcedb.ListDeliveryReceipts(ctx, network.ID)
+			deliveryReceipts, err := sourcedb.ListDeliveryReceipts(ctx, srcNetwork.ID)
 			if err != nil {
-				log.Fatalf("unable to get source delivery receipts for network: #%d %s", network.ID, network.Name)
+				log.Fatalf("unable to get source delivery receipts for network: #%d %s", srcNetwork.ID, srcNetwork.Name)
 			}
 
 			drcpts := make(map[string][]database.DeliveryReceipt)
@@ -115,28 +116,28 @@ func main() {
 			}
 
 			for client, rcpts := range drcpts {
-				log.Printf("Storing delivery receipt for: %s.%s.%s", user.Username, network.Name, client)
-				err := destinationdb.StoreClientDeliveryReceipts(ctx, network.ID, client, rcpts)
+				log.Printf("Storing delivery receipt for: %s.%s.%s", user.Username, srcNetwork.Name, client)
+				err := destinationdb.StoreClientDeliveryReceipts(ctx, destNetwork.ID, client, rcpts)
 				if err != nil {
-					log.Fatalf("unable to store delivery receipts for network and client: %s %s", network.Name, client)
+					log.Fatalf("unable to store delivery receipts for network and client: %s %s", srcNetwork.Name, client)
 				}
 			}
 
 			// TODO: migrate read receipts as well
 
-			webPushSubscriptions, err := sourcedb.ListWebPushSubscriptions(ctx, user.ID, network.ID)
+			webPushSubscriptions, err := sourcedb.ListWebPushSubscriptions(ctx, user.ID, srcNetwork.ID)
 			if err != nil {
-				log.Fatalf("unable to get source web push subscriptions for user and network: %s %s", user.Username, network.Name)
+				log.Fatalf("unable to get source web push subscriptions for user and network: %s %s", user.Username, srcNetwork.Name)
 			}
 
 			for _, sub := range webPushSubscriptions {
-				log.Printf("Storing web push subscription: %s.%s.%d", user.Username, network.Name, sub.ID)
+				log.Printf("Storing web push subscription: %s.%s.%d", user.Username, srcNetwork.Name, sub.ID)
 
 				sub.ID = 0
 
-				err := destinationdb.StoreWebPushSubscription(ctx, user.ID, network.ID, &sub)
+				err := destinationdb.StoreWebPushSubscription(ctx, user.ID, destNetwork.ID, &sub)
 				if err != nil {
-					log.Fatalf("unable to store web push subscription for user and network: %s %s", user.Username, network.Name)
+					log.Fatalf("unable to store web push subscription for user and network: %s %s", user.Username, srcNetwork.Name)
 				}
 			}
 		}
