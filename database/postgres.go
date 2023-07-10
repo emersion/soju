@@ -928,31 +928,21 @@ func (db *PostgresDB) GetMessageLastID(ctx context.Context, networkID int64, nam
 	return msgID, nil
 }
 
-func (db *PostgresDB) StoreMessage(ctx context.Context, networkID int64, name string, msg *irc.Message) (int64, error) {
-	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+func (db *PostgresDB) StoreMessages(ctx context.Context, networkID int64, name string, msgs []*irc.Message) ([]int64, error) {
+	if len(msgs) == 0 {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(len(msgs))*sqliteQueryTimeout)
 	defer cancel()
 
-	var t time.Time
-	if tag, ok := msg.Tags["time"]; ok {
-		var err error
-		t, err = time.Parse(xirc.ServerTimeLayout, tag)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse message time tag: %v", err)
-		}
-	} else {
-		t = time.Now()
+	tx, err := db.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
 	}
+	defer tx.Rollback()
 
-	var text sql.NullString
-	switch msg.Command {
-	case "PRIVMSG", "NOTICE":
-		if len(msg.Params) > 1 {
-			text.Valid = true
-			text.String = msg.Params[1]
-		}
-	}
-
-	_, err := db.db.ExecContext(ctx, `
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO "MessageTarget" (network, target)
 		VALUES ($1, $2)
 		ON CONFLICT DO NOTHING`,
@@ -960,27 +950,56 @@ func (db *PostgresDB) StoreMessage(ctx context.Context, networkID int64, name st
 		name,
 	)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	var id int64
-	err = db.db.QueryRowContext(ctx, `
+	insertStmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO "Message" (target, raw, time, sender, text)
 		SELECT id, $1, $2, $3, $4
 		FROM "MessageTarget" as t
 		WHERE network = $5 AND target = $6
-		RETURNING id`,
-		msg.String(),
-		t,
-		msg.Name,
-		text,
-		networkID,
-		name,
-	).Scan(&id)
+		RETURNING id`)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return id, nil
+
+	ids := make([]int64, len(msgs))
+	for i, msg := range msgs {
+		var t time.Time
+		if tag, ok := msg.Tags["time"]; ok {
+			var err error
+			t, err = time.Parse(xirc.ServerTimeLayout, tag)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse message time tag: %w", err)
+			}
+		} else {
+			t = time.Now()
+		}
+
+		var text sql.NullString
+		switch msg.Command {
+		case "PRIVMSG", "NOTICE":
+			if len(msg.Params) > 1 {
+				text.Valid = true
+				text.String = msg.Params[1]
+			}
+		}
+
+		err = insertStmt.QueryRowContext(ctx,
+			msg.String(),
+			t,
+			msg.Name,
+			text,
+			networkID,
+			name,
+		).Scan(&ids[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	err = tx.Commit()
+	return ids, err
 }
 
 func (db *PostgresDB) ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTarget, error) {

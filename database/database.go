@@ -60,7 +60,7 @@ type Database interface {
 	DeleteWebPushSubscription(ctx context.Context, id int64) error
 
 	GetMessageLastID(ctx context.Context, networkID int64, name string) (int64, error)
-	StoreMessage(ctx context.Context, networkID int64, name string, msg *irc.Message) (int64, error)
+	StoreMessages(ctx context.Context, networkID int64, name string, msgs []*irc.Message) ([]int64, error)
 	ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTarget, error)
 	ListMessages(ctx context.Context, networkID int64, name string, options *MessageOptions) ([]*irc.Message, error)
 }

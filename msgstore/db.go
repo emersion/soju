@@ -81,11 +81,11 @@ func (ms *dbMessageStore) LoadLatestID(ctx context.Context, id string, options *
 }
 
 func (ms *dbMessageStore) Append(network *database.Network, entity string, msg *irc.Message) (string, error) {
-	id, err := ms.db.StoreMessage(context.TODO(), network.ID, entity, msg)
+	ids, err := ms.db.StoreMessages(context.TODO(), network.ID, entity, []*irc.Message{msg})
 	if err != nil {
 		return "", err
 	}
-	return formatDBMsgID(network.ID, entity, id), nil
+	return formatDBMsgID(network.ID, entity, ids[0]), nil
 }
 
 func (ms *dbMessageStore) ListTargets(ctx context.Context, network *database.Network, start, end time.Time, limit int, events bool) ([]ChatHistoryTarget, error) {

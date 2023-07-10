@@ -1192,31 +1192,21 @@ func (db *SqliteDB) GetMessageLastID(ctx context.Context, networkID int64, name 
 	return msgID, nil
 }
 
-func (db *SqliteDB) StoreMessage(ctx context.Context, networkID int64, name string, msg *irc.Message) (int64, error) {
-	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+func (db *SqliteDB) StoreMessages(ctx context.Context, networkID int64, name string, msgs []*irc.Message) ([]int64, error) {
+	if len(msgs) == 0 {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(len(msgs))*sqliteQueryTimeout)
 	defer cancel()
 
-	var t time.Time
-	if tag, ok := msg.Tags["time"]; ok {
-		var err error
-		t, err = time.Parse(xirc.ServerTimeLayout, tag)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse message time tag: %v", err)
-		}
-	} else {
-		t = time.Now()
+	tx, err := db.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
 	}
+	defer tx.Rollback()
 
-	var text sql.NullString
-	switch msg.Command {
-	case "PRIVMSG", "NOTICE":
-		if len(msg.Params) > 1 {
-			text.Valid = true
-			text.String = msg.Params[1]
-		}
-	}
-
-	res, err := db.db.ExecContext(ctx, `
+	res, err := tx.ExecContext(ctx, `
 		INSERT INTO MessageTarget(network, target)
 		VALUES (:network, :target)
 		ON CONFLICT DO NOTHING`,
@@ -1224,29 +1214,59 @@ func (db *SqliteDB) StoreMessage(ctx context.Context, networkID int64, name stri
 		sql.Named("target", name),
 	)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	res, err = db.db.ExecContext(ctx, `
+	insertStmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO Message(target, raw, time, sender, text)
 		SELECT id, :raw, :time, :sender, :text
 		FROM MessageTarget as t
-		WHERE network = :network AND target = :target`,
-		sql.Named("network", networkID),
-		sql.Named("target", name),
-		sql.Named("raw", msg.String()),
-		sql.Named("time", sqliteTime{t}),
-		sql.Named("sender", msg.Name),
-		sql.Named("text", text),
-	)
+		WHERE network = :network AND target = :target`)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return 0, err
+
+	ids := make([]int64, len(msgs))
+	for i, msg := range msgs {
+		var t time.Time
+		if tag, ok := msg.Tags["time"]; ok {
+			var err error
+			t, err = time.Parse(xirc.ServerTimeLayout, tag)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse message time tag: %w", err)
+			}
+		} else {
+			t = time.Now()
+		}
+
+		var text sql.NullString
+		switch msg.Command {
+		case "PRIVMSG", "NOTICE":
+			if len(msg.Params) > 1 {
+				text.Valid = true
+				text.String = msg.Params[1]
+			}
+		}
+
+		res, err = insertStmt.ExecContext(ctx,
+			sql.Named("network", networkID),
+			sql.Named("target", name),
+			sql.Named("raw", msg.String()),
+			sql.Named("time", sqliteTime{t}),
+			sql.Named("sender", msg.Name),
+			sql.Named("text", text),
+		)
+		if err != nil {
+			return nil, err
+		}
+		ids[i], err = res.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
 	}
-	return id, nil
+
+	err = tx.Commit()
+	return ids, err
 }
 
 func (db *SqliteDB) ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTarget, error) {

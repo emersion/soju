@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/irc.v4"
+
 	"git.sr.ht/~emersion/soju/database"
 	"git.sr.ht/~emersion/soju/msgstore"
 	"git.sr.ht/~emersion/soju/msgstore/znclog"
@@ -88,6 +90,7 @@ func migrateNetwork(ctx context.Context, db database.Database, user *database.Us
 				return fmt.Errorf("unable to open entry: %s", entryPath)
 			}
 			sc := bufio.NewScanner(entry)
+			var msgs []*irc.Message
 			for sc.Scan() {
 				msg, _, err := znclog.UnmarshalLine(sc.Text(), user, network, target, ref, true)
 				if err != nil {
@@ -95,13 +98,14 @@ func migrateNetwork(ctx context.Context, db database.Database, user *database.Us
 				} else if msg == nil {
 					continue
 				}
-				_, err = db.StoreMessage(ctx, network.ID, target, msg)
-				if err != nil {
-					return fmt.Errorf("unable to store message: %s: %s: %v", entryPath, sc.Text(), err)
-				}
+				msgs = append(msgs, msg)
 			}
 			if sc.Err() != nil {
 				return fmt.Errorf("unable to parse entry: %s: %v", entryPath, sc.Err())
+			}
+			_, err = db.StoreMessages(ctx, network.ID, target, msgs)
+			if err != nil {
+				return fmt.Errorf("unable to store messages: %s: %s: %v", entryPath, sc.Text(), err)
 			}
 			entry.Close()
 		}
