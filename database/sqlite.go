@@ -10,6 +10,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode"
 
 	"git.sr.ht/~emersion/soju/xirc"
 	"github.com/prometheus/client_golang/prometheus"
@@ -1362,7 +1363,7 @@ func (db *SqliteDB) ListMessages(ctx context.Context, networkID int64, name stri
 		sql.Named("after", sqliteTime{options.AfterTime}),
 		sql.Named("before", sqliteTime{options.BeforeTime}),
 		sql.Named("sender", options.Sender),
-		sql.Named("text", options.Text),
+		sql.Named("text", quoteFTSQuery(options.Text)),
 		sql.Named("limit", options.Limit),
 	)
 	if err != nil {
@@ -1397,4 +1398,47 @@ func (db *SqliteDB) ListMessages(ctx context.Context, networkID int64, name stri
 	}
 
 	return l, nil
+}
+
+var ftsQueryTokenEscaper = strings.NewReplacer(`"`, `""`)
+
+func quoteFTSQuery(query string) string {
+	// By default, FTS5 queries have a specific syntax, can include logical operators, ...
+	// In order to mirror the behavior of the other stores, we quote the query so that the string is matched as is.
+	// We could quote the whole string, e.g. `"foo baz"`, but then this would match the exact substring, and not the
+	// presence of the two tokens `foo` and `baz` in the line, like in `foo bar baz`, which would be nice to have.
+	// So, we need to quote each token, i.e. `"foo" "baz"`.
+	// In order to quote each token, we must split on "separators", then quote each token with `"`.
+	// The specification of a separator depends on the tokenizer used. We currently use the default tokenizer, which
+	// specifies separators as anything that is not \pL, \pN, \p{Co} (see below).
+	// We must additionally escape double quote characters in the tokens, with a simple replacer.
+
+	// https://www.sqlite.org/fts5.html#fts5_strings
+	// Within an FTS expression a string may be specified in one of two ways:
+	// * By enclosing it in double quotes (").
+	//   Within a string, any embedded double quote characters may be escaped SQL-style by adding a second double-quote
+	//   character.
+	// * As an FTS5 bareword [...] a string of one or more consecutive characters that are all [...].
+	//   Strings that include any other characters must be quoted.
+	// [...]
+	// FTS5 features three built-in tokenizer modules [...]:
+	// * The unicode61 tokenizer, based on the Unicode 6.1 standard. This is the default.
+	// [...]
+	// The unicode tokenizer classifies all unicode characters as either "separator" or "token" characters. [...]
+	// All unicode characters assigned to a general category beginning with "L" or "N" (letters and numbers,
+	// specifically) or to category "Co" ("other, private use") are considered tokens.
+	// All other characters are separators.
+	tokens := strings.FieldsFunc(query, func(r rune) bool {
+		return !unicode.In(r, unicode.L, unicode.N, unicode.Co)
+	})
+	var sb strings.Builder
+	for _, token := range tokens {
+		if sb.Len() > 0 {
+			sb.WriteRune(' ')
+		}
+		sb.WriteRune('"')
+		ftsQueryTokenEscaper.WriteString(&sb, token)
+		sb.WriteRune('"')
+	}
+	return sb.String()
 }
