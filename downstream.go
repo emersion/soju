@@ -227,13 +227,13 @@ var permanentDownstreamCaps = map[string]string{
 	"server-time":   "",
 	"setname":       "",
 
+	"draft/pre-away":    "",
 	"draft/read-marker": "",
 
 	"soju.im/account-required":        "",
 	"soju.im/bouncer-networks":        "",
 	"soju.im/bouncer-networks-notify": "",
 	"soju.im/no-implicit-names":       "",
-	"soju.im/pre-away":                "",
 	"soju.im/read":                    "",
 	"soju.im/webpush":                 "",
 }
