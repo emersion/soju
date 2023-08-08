@@ -1616,6 +1616,18 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		weAreInvited := uc.isOurNick(nick)
 
+		if weAreInvited {
+			joined := uc.channels.Get(channel) != nil
+			c := uc.network.channels.Get(channel)
+			if !joined && c != nil {
+				// Automatically join a saved channel when we are invited
+				for _, msg := range xirc.GenerateJoin([]string{c.Name}, []string{c.Key}) {
+					uc.SendMessage(ctx, msg)
+				}
+				break
+			}
+		}
+
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			if !weAreInvited && !dc.caps.IsEnabled("invite-notify") {
 				return
