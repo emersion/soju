@@ -258,7 +258,8 @@ character.
 		Instead of using certificate authorities to check the server's TLS
 		certificate, check whether the server certificate matches the provided
 		fingerprint. This can be used to connect to servers using self-signed
-		certificates. The fingerprint format is SHA512.
+		certificates. The fingerprint format is SHA512. An empty string
+		removes any previous fingerprint.
 
 	*-nick* <nickname>
 		Connect with the specified nickname. By default, the account's username

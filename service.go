@@ -530,7 +530,9 @@ func (fs *networkFlagSet) update(network *database.Network) error {
 		if _, err := hex.DecodeString(certFP); err != nil {
 			return fmt.Errorf("the certificate fingerprint must be hex-encoded")
 		}
-		if len(certFP) == 64 {
+		if len(certFP) == 0 {
+			network.CertFP = ""
+		} else if len(certFP) == 64 {
 			network.CertFP = "sha-256:" + certFP
 		} else if len(certFP) == 128 {
 			network.CertFP = "sha-512:" + certFP
