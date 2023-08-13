@@ -44,6 +44,10 @@ var permanentUpstreamCaps = map[string]bool{
 
 	"draft/account-registration": true,
 	"draft/extended-monitor":     true,
+
+	"solanum.chat/oper":         true,
+	"solanum.chat/realhost":     true,
+	"solanum.chat/identify-msg": true,
 }
 
 // storableMessageTags is the static list of message tags that will cause

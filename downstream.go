@@ -251,6 +251,10 @@ var needAllDownstreamCaps = map[string]string{
 	"multi-prefix":     "",
 
 	"draft/extended-monitor": "",
+
+	"solanum.chat/identify-msg": "",
+	"solanum.chat/oper":         "",
+	"solanum.chat/realhost":     "",
 }
 
 // passthroughIsupport is the set of ISUPPORT tokens that are directly passed
@@ -490,6 +494,14 @@ func (dc *downstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 				supported = dc.caps.IsEnabled("account-tag")
 			case "batch":
 				supported = dc.caps.IsEnabled("batch")
+			case "solanum.chat/identified":
+				supported = dc.caps.IsEnabled("solanum.chat/identify-msg")
+			case "solanum.chat/oper":
+				supported = dc.caps.IsEnabled("solanum.chat/oper")
+			case "solanum.chat/realhost":
+				supported = dc.caps.IsEnabled("solanum.chat/realhost")
+			case "solanum.chat/ip":
+				supported = dc.caps.IsEnabled("solanum.chat/realhost")
 			}
 			if !supported {
 				delete(msg.Tags, name)
