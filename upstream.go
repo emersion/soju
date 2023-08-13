@@ -1423,7 +1423,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		if firstTopicWhoTime && (c == nil || !c.Detached) {
 			uc.forwardMessage(ctx, msg)
 		}
-	case irc.RPL_LIST:
+	case irc.RPL_LISTSTART, irc.RPL_LIST:
 		dc, cmd := uc.currentPendingCommand("LIST")
 		if cmd == nil {
 			return fmt.Errorf("unexpected RPL_LIST: no matching pending LIST")
@@ -1763,8 +1763,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 
 		uc.forwardMsgByID(ctx, downstreamID, msg)
-	case irc.RPL_LISTSTART:
-		// Ignore
 	case "ERROR":
 		var text string
 		if err := parseMessageParams(msg, &text); err != nil {
