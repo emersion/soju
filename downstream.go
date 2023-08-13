@@ -487,7 +487,7 @@ func (dc *downstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 			case "time":
 				supported = dc.caps.IsEnabled("server-time")
 			case "account":
-				supported = dc.caps.IsEnabled("account")
+				supported = dc.caps.IsEnabled("account-tag")
 			case "batch":
 				supported = dc.caps.IsEnabled("batch")
 			}
