@@ -1696,7 +1696,9 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		uc.forwardMessage(ctx, msg)
 	case irc.RPL_BANLIST, irc.RPL_INVITELIST, irc.RPL_EXCEPTLIST, irc.RPL_ENDOFBANLIST, irc.RPL_ENDOFINVITELIST, irc.RPL_ENDOFEXCEPTLIST:
 		uc.forwardMsgByID(ctx, downstreamID, msg)
-	case irc.ERR_NOSUCHNICK:
+	case irc.ERR_NOSUCHNICK, irc.ERR_NOSUCHSERVER:
+		// one argument WHOIS variant errors with NOSUCHNICK
+		// two argument WHOIS variant errors with NOSUCHSERVER
 		var nick, reason string
 		if err := parseMessageParams(msg, nil, &nick, &reason); err != nil {
 			return err
