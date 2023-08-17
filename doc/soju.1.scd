@@ -45,9 +45,9 @@ file when it receives the HUP signal. The configuration options _listen_, _db_
 and _log_ cannot be reloaded.
 
 Administrators can broadcast a message to all bouncer users via _/notice
-$<hostname> <text>_, or via _/notice $\* <text>_ in multi-upstream mode. All
-currently connected bouncer users will receive the message from the special
-_BouncerServ_ service.
+$<hostname> <text>_, or via _/notice $\* <text>_ if the connection isn't bound
+to a particular network. All currently connected bouncer users will receive the
+message from the special _BouncerServ_ service.
 
 # OPTIONS
 
