@@ -24,8 +24,10 @@ setup one connection per server configured in soju, and indicate the network
 name in the username: "<username>/<network>". Then channels can be joined and
 parted as if you were directly connected to the upstream server.
 
-For per-client history to work, clients need to indicate their name. This can
-be done by adding a "@<client>" suffix to the username.
+For per-client history to work on clients which don't support the IRCv3
+_chathistory_ extension, clients need to indicate their name. This can be done
+by adding a "@<client>" suffix to the username.
+
 When joining a channel, the channel will be saved and automatically joined on
 the next connection. When registering or authenticating with NickServ, the
 credentials will be saved and automatically used on the next connection if the
