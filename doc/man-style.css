@@ -34,3 +34,22 @@ p {
 pre {
 	color: #434241;
 }
+
+@media (prefers-color-scheme: dark) {
+	body {
+		background-color: #111;
+		color: #eee;
+	}
+
+	a {
+		color: #70b5ff;
+	}
+
+	a:visited {
+		color: #1988ff;
+	}
+
+	pre {
+		color: #9d9d9d;
+	}
+}
