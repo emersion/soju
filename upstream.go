@@ -1282,14 +1282,15 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		if err := parseMessageParams(msg, nil, &name, &topic); err != nil {
 			return err
 		}
-		ch, err := uc.getChannel(name)
-		if err != nil {
-			return err
-		}
-		if msg.Command == irc.RPL_TOPIC {
-			ch.Topic = topic
+		ch := uc.channels.Get(name)
+		if ch == nil {
+			uc.forwardMsgByID(ctx, downstreamID, msg)
 		} else {
-			ch.Topic = ""
+			if msg.Command == irc.RPL_TOPIC {
+				ch.Topic = topic
+			} else {
+				ch.Topic = ""
+			}
 		}
 	case "TOPIC":
 		var name string
@@ -1367,9 +1368,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			modeStr = msg.Params[2]
 		}
 
-		ch, err := uc.getChannel(channel)
-		if err != nil {
-			return err
+		ch := uc.channels.Get(channel)
+		if ch == nil {
+			uc.forwardMsgByID(ctx, downstreamID, msg)
+			return nil
 		}
 
 		firstMode := ch.modes == nil
@@ -1388,9 +1390,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		ch, err := uc.getChannel(channel)
-		if err != nil {
-			return err
+		ch := uc.channels.Get(channel)
+		if ch == nil {
+			uc.forwardMsgByID(ctx, downstreamID, msg)
+			return nil
 		}
 
 		firstCreationTime := ch.creationTime == ""
@@ -1406,9 +1409,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 
-		ch, err := uc.getChannel(channel)
-		if err != nil {
-			return err
+		ch := uc.channels.Get(channel)
+		if ch == nil {
+			uc.forwardMsgByID(ctx, downstreamID, msg)
+			return nil
 		}
 
 		firstTopicWhoTime := ch.TopicWho == nil
