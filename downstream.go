@@ -2060,10 +2060,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		} else {
 			ch := uc.channels.Get(name)
 			if ch == nil {
-				return ircError{&irc.Message{
-					Command: irc.ERR_NOSUCHCHANNEL,
-					Params:  []string{dc.nick, name, "No such channel"},
-				}}
+				// we're not on that channel, pass command to upstream
+				uc.SendMessageLabeled(ctx, dc.id, msg)
+				return nil
 			}
 
 			if ch.modes == nil {
@@ -2109,12 +2108,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		} else { // getting topic
 			ch := uc.channels.Get(name)
 			if ch == nil {
-				return ircError{&irc.Message{
-					Command: irc.ERR_NOSUCHCHANNEL,
-					Params:  []string{dc.nick, name, "No such channel"},
-				}}
+				// we're not on that channel, pass command to upstream
+				uc.SendMessageLabeled(ctx, dc.id, msg)
+			} else {
+				sendTopic(ctx, dc, ch)
 			}
-			sendTopic(ctx, dc, ch)
 		}
 	case "LIST":
 		uc, err := dc.upstreamForCommand(msg.Command)
