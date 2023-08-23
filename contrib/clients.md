@@ -79,8 +79,7 @@ permissions).
 
 # [irssi]
 
-Assuming you want to connect irssi to your soju instance for one network
-(single-upstream mode), for example libera.chat:
+To connect irssi to a network, for example Libera Chat:
 
     /network add -user <soju user>/irc.libera.chat libera
     /server add -auto -tls -network libera <soju ip or hostname> <soju port> <soju password>
