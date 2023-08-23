@@ -93,7 +93,7 @@ func (info *WHOXInfo) set(k byte, v string) {
 	}
 }
 
-func GenerateWHOXReply(prefix *irc.Prefix, nick, fields string, info *WHOXInfo) *irc.Message {
+func GenerateWHOXReply(prefix *irc.Prefix, fields string, info *WHOXInfo) *irc.Message {
 	if fields == "" {
 		hostname := info.Hostname
 		if strings.HasPrefix(info.Hostname, ":") {
@@ -111,7 +111,7 @@ func GenerateWHOXReply(prefix *irc.Prefix, nick, fields string, info *WHOXInfo) 
 		return &irc.Message{
 			Prefix:  prefix,
 			Command: irc.RPL_WHOREPLY,
-			Params:  []string{nick, channel, info.Username, hostname, info.Server, info.Nickname, info.Flags, "0 " + info.Realname},
+			Params:  []string{"*", channel, info.Username, hostname, info.Server, info.Nickname, info.Flags, "0 " + info.Realname},
 		}
 	}
 
@@ -131,7 +131,7 @@ func GenerateWHOXReply(prefix *irc.Prefix, nick, fields string, info *WHOXInfo) 
 	return &irc.Message{
 		Prefix:  prefix,
 		Command: RPL_WHOSPCRPL,
-		Params:  append([]string{nick}, values...),
+		Params:  append([]string{"*"}, values...),
 	}
 }
 

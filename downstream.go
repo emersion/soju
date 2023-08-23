@@ -1507,7 +1507,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 		Command: irc.RPL_MYINFO,
 		Params:  []string{dc.nick, dc.srv.Config().Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
-	for _, msg := range xirc.GenerateIsupport(dc.srv.prefix(), dc.nick, isupport) {
+	for _, msg := range xirc.GenerateIsupport(dc.srv.prefix(), isupport) {
 		dc.SendMessage(ctx, msg)
 	}
 	if uc := dc.upstream(); uc != nil {
@@ -1531,7 +1531,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	dc.updateCasemapping()
 
 	if motd := dc.user.srv.Config().MOTD; motd != "" && dc.network == nil {
-		for _, msg := range xirc.GenerateMOTD(dc.srv.prefix(), dc.nick, motd) {
+		for _, msg := range xirc.GenerateMOTD(dc.srv.prefix(), motd) {
 			dc.SendMessage(ctx, msg)
 		}
 	} else {
@@ -2154,7 +2154,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, "*", "End of /WHO list"},
+				Params:  []string{"*", "*", "End of /WHO list"},
 			})
 			return nil
 		}
@@ -2189,11 +2189,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Account:  dc.user.Username,
 				Realname: dc.realname,
 			}
-			dc.SendMessage(ctx, xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
+			dc.SendMessage(ctx, xirc.GenerateWHOXReply(dc.srv.prefix(), fields, &info))
 			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
+				Params:  []string{"*", endOfWhoToken, "End of /WHO list"},
 			})
 			return nil
 		}
@@ -2216,11 +2216,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Account:  serviceNick,
 				Realname: serviceRealname,
 			}
-			dc.SendMessage(ctx, xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
+			dc.SendMessage(ctx, xirc.GenerateWHOXReply(dc.srv.prefix(), fields, &info))
 			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
+				Params:  []string{"*", endOfWhoToken, "End of /WHO list"},
 			})
 			return nil
 		}
@@ -2228,7 +2228,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
+				Params:  []string{"*", endOfWhoToken, "End of /WHO list"},
 			})
 			return nil
 		}
@@ -2254,12 +2254,12 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				if uc.isChannel(mask) {
 					info.Channel = mask
 				}
-				dc.SendMessage(ctx, xirc.GenerateWHOXReply(dc.srv.prefix(), dc.nick, fields, &info))
+				dc.SendMessage(ctx, xirc.GenerateWHOXReply(dc.srv.prefix(), fields, &info))
 			}
 			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: irc.RPL_ENDOFWHO,
-				Params:  []string{dc.nick, endOfWhoToken, "End of /WHO list"},
+				Params:  []string{"*", endOfWhoToken, "End of /WHO list"},
 			})
 			return nil
 		}
@@ -3469,7 +3469,7 @@ func sendNames(ctx context.Context, dc *downstreamConn, ch *upstreamChannel) {
 		members = append(members, s)
 	})
 
-	msgs := xirc.GenerateNamesReply(dc.srv.prefix(), dc.nick, ch.Name, ch.Status, members)
+	msgs := xirc.GenerateNamesReply(dc.srv.prefix(), ch.Name, ch.Status, members)
 	for _, msg := range msgs {
 		dc.SendMessage(ctx, msg)
 	}
