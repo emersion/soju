@@ -26,21 +26,22 @@ import (
 	"git.sr.ht/~emersion/soju/identd"
 )
 
-// TODO: make configurable
-var retryConnectMinDelay = time.Minute
-var retryConnectMaxDelay = 10 * time.Minute
-var retryConnectJitter = time.Minute
-var connectTimeout = 15 * time.Second
-var writeTimeout = 10 * time.Second
-var upstreamMessageDelay = 2 * time.Second
-var upstreamMessageBurst = 10
-var backlogTimeout = 10 * time.Second
-var handleDownstreamMessageTimeout = 10 * time.Second
-var downstreamRegisterTimeout = 30 * time.Second
-var webpushCheckSubscriptionDelay = 24 * time.Hour
-var webpushPruneSubscriptionDelay = 30 * 24 * time.Hour
-var chatHistoryLimit = 1000
-var backlogLimit = 4000
+var (
+	retryConnectMinDelay           = time.Minute
+	retryConnectMaxDelay           = 10 * time.Minute
+	retryConnectJitter             = time.Minute
+	connectTimeout                 = 15 * time.Second
+	writeTimeout                   = 10 * time.Second
+	upstreamMessageDelay           = 2 * time.Second
+	upstreamMessageBurst           = 10
+	backlogTimeout                 = 10 * time.Second
+	handleDownstreamMessageTimeout = 10 * time.Second
+	downstreamRegisterTimeout      = 30 * time.Second
+	webpushCheckSubscriptionDelay  = 24 * time.Hour
+	webpushPruneSubscriptionDelay  = 30 * 24 * time.Hour
+	chatHistoryLimit               = 1000
+	backlogLimit                   = 4000
+)
 
 var errWebPushSubscriptionExpired = fmt.Errorf("Web Push subscription expired")
 
