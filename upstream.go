@@ -199,6 +199,7 @@ type upstreamConn struct {
 	availableUserModes    string
 	availableChannelModes map[byte]channelModeType
 	availableChannelTypes string
+	availableStatusMsg    string
 	availableMemberships  []xirc.Membership
 	isupport              map[string]*string
 
@@ -373,6 +374,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 		batches:               make(map[string]upstreamBatch),
 		serverPrefix:          &irc.Prefix{Name: "*"},
 		availableChannelTypes: stdChannelTypes,
+		availableStatusMsg:    "",
 		availableChannelModes: stdChannelModes,
 		availableMemberships:  stdMemberships,
 		isupport:              make(map[string]*string),
@@ -631,6 +633,9 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				return err
 			}
 		}
+
+		// remove statusmsg sigils from target
+		target = strings.TrimLeft(target, uc.availableStatusMsg)
 
 		if uc.network.equalCasemap(msg.Prefix.Name, serviceNick) {
 			uc.logger.Printf("skipping %v from soju's service: %v", msg.Command, msg)
@@ -972,6 +977,12 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 					uc.availableChannelTypes = value
 				} else {
 					uc.availableChannelTypes = stdChannelTypes
+				}
+			case "STATUSMSG":
+				if !negate {
+					uc.availableStatusMsg = value
+				} else {
+					uc.availableStatusMsg = ""
 				}
 			case "PREFIX":
 				if !negate {
