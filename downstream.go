@@ -282,6 +282,7 @@ var passthroughIsupport = map[string]bool{
 	"NICKLEN":       true,
 	"PREFIX":        true,
 	"SAFELIST":      true,
+	"STATUSMSG":     true,
 	"TARGMAX":       true,
 	"TOPICLEN":      true,
 	"USERLEN":       true,
