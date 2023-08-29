@@ -2013,10 +2013,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		if dc.casemap(name) == dc.nickCM {
 			if modeStr != "" {
 				if uc := dc.upstream(); uc != nil {
-					uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
-						Command: "MODE",
-						Params:  []string{uc.nick, modeStr},
-					})
+					uc.SendMessageLabeled(ctx, dc.id, msg)
 				} else {
 					dc.SendMessage(ctx, &irc.Message{
 						Prefix:  dc.srv.prefix(),
