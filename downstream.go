@@ -2012,15 +2012,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		if dc.casemap(name) == dc.nickCM {
 			if modeStr != "" {
-				if uc := dc.upstream(); uc != nil {
-					uc.SendMessageLabeled(ctx, dc.id, msg)
-				} else {
-					dc.SendMessage(ctx, &irc.Message{
-						Prefix:  dc.srv.prefix(),
-						Command: irc.ERR_UMODEUNKNOWNFLAG,
-						Params:  []string{dc.nick, "Cannot change user mode on bouncer connection"},
-					})
+				uc, err := dc.upstreamForCommand(msg.Command)
+				if err != nil {
+					return err
 				}
+				uc.SendMessageLabeled(ctx, dc.id, msg)
 			} else {
 				var userMode string
 				if uc := dc.upstream(); uc != nil {
