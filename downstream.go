@@ -752,7 +752,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 
 		dc.SendMessage(ctx, generateAwayReply(dc.away != nil))
 	default:
-		dc.logger.Printf("unhandled message: %v", msg)
+		dc.logger.Debugf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
 	}
 	return nil
@@ -3318,7 +3318,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}}
 		}
 	default:
-		dc.logger.Printf("unhandled message: %v", msg)
+		dc.logger.Debugf("unhandled message: %v", msg)
 
 		// Only forward unknown commands in single-upstream mode
 		if dc.network == nil {

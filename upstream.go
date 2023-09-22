@@ -763,7 +763,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				})
 			}
 		default:
-			uc.logger.Printf("unhandled message: %v", msg)
+			uc.logger.Debugf("unhandled message: %v", msg)
 		}
 	case "AUTHENTICATE":
 		if uc.saslClient == nil {
@@ -1819,7 +1819,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 		uc.forwardMsgByID(ctx, downstreamID, msg)
 	default:
-		uc.logger.Printf("unhandled message: %v", msg)
+		uc.logger.Debugf("unhandled message: %v", msg)
 		uc.forwardMsgByID(ctx, downstreamID, msg)
 	}
 	return nil
