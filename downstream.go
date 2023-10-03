@@ -2491,8 +2491,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		uc.SendMessageLabeled(ctx, dc.id, msg)
 	case "AUTHENTICATE":
-		// Post-connection-registration AUTHENTICATE is unsupported in
-		// multi-upstream mode, or if the upstream doesn't support SASL
+		// Post-connection-registration AUTHENTICATE is only supported if an
+		// upstream is bound and supports SASL
 		uc := dc.upstream()
 		if uc == nil || !uc.caps.IsEnabled("sasl") {
 			return ircError{&irc.Message{
@@ -2604,7 +2604,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			uc.SendMessageLabeled(ctx, dc.id, msg)
 		}
 	case "MONITOR":
-		// MONITOR is unsupported in multi-upstream mode
 		uc := dc.upstream()
 		if uc == nil {
 			return newUnknownCommandError(msg.Command)
@@ -2719,8 +2718,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 		case "TARGETS":
 			if dc.network == nil {
-				// Either an unbound bouncer network, in which case we should return no targets,
-				// or a multi-upstream downstream, but we don't support CHATHISTORY TARGETS for those yet.
 				dc.SendBatch(ctx, "draft/chathistory-targets", nil, nil, func(batchRef string) {})
 				return nil
 			}
@@ -2810,7 +2807,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				history, err = store.LoadBeforeTime(ctx, bounds[0], bounds[1], &options)
 			}
 		case "TARGETS":
-			// TODO: support TARGETS in multi-upstream mode
 			targets, err := store.ListTargets(ctx, &network.Network, bounds[0], bounds[1], limit, eventPlayback)
 			if err != nil {
 				dc.logger.Printf("failed fetching targets for chathistory: %v", err)
