@@ -910,6 +910,18 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 }
 
 func (u *user) notifyBouncerNetworkState(netID int64, attrs irc.Tags) {
+	// Don't send state updates for removed networks
+	found := false
+	for _, net := range u.networks {
+		if net.ID == netID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return
+	}
+
 	netIDStr := fmt.Sprintf("%v", netID)
 	for _, dc := range u.downstreamConns {
 		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
