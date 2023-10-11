@@ -89,12 +89,24 @@ func (ms *dbMessageStore) Append(network *database.Network, entity string, msg *
 }
 
 func (ms *dbMessageStore) ListTargets(ctx context.Context, network *database.Network, start, end time.Time, limit int, events bool) ([]ChatHistoryTarget, error) {
-	l, err := ms.db.ListMessageLastPerTarget(ctx, network.ID, &database.MessageOptions{
-		AfterTime:  start,
-		BeforeTime: end,
-		Limit:      limit,
-		Events:     events,
-	})
+	var opts  *database.MessageOptions
+	if start.Before(end) {
+		opts = &database.MessageOptions{
+			AfterTime:  start,
+			BeforeTime: end,
+			Limit:      limit,
+			Events:     events,
+		}
+	} else {
+		opts = &database.MessageOptions{
+			AfterTime:  end,
+			BeforeTime: start,
+			Limit:      limit,
+			Events:     events,
+			TakeLast: true,
+		}
+	}
+	l, err := ms.db.ListMessageLastPerTarget(ctx, network.ID, opts);
 	if err != nil {
 		return nil, err
 	}
