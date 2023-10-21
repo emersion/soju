@@ -28,7 +28,7 @@ doc/sojuctl.1: doc/sojuctl.1.scd
 	$(SCDOC) <doc/sojuctl.1.scd >doc/sojuctl.1
 
 clean:
-	$(RM) -f $(commands) doc/soju.1
+	$(RM) -f $(commands) $(man_pages)
 install:
 	mkdir -p $(DESTDIR)$(PREFIX)/$(BINDIR)
 	mkdir -p $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
