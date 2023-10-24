@@ -267,6 +267,13 @@ character.
 		certificates. The fingerprint format is SHA512. An empty string
 		removes any previous fingerprint.
 
+		The following command can be used to fetch the certificate fingerprint
+		of an IRC server:
+
+		```
+		openssl s_client -connect irc.example.org:6697 </dev/null 2>/dev/null | openssl x509 -fingerprint -sha512 -noout -in /dev/stdin
+		```
+
 	*-nick* <nickname>
 		Connect with the specified nickname. By default, the account's username
 		is used.
