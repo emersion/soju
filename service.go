@@ -526,7 +526,7 @@ func (fs *networkFlagSet) update(network *database.Network) error {
 		network.Realname = *fs.Realname
 	}
 	if fs.CertFP != nil {
-		certFP := strings.ReplaceAll(*fs.CertFP, ":", "")
+		certFP := strings.ToLower(strings.ReplaceAll(*fs.CertFP, ":", ""))
 		if _, err := hex.DecodeString(certFP); err != nil {
 			return fmt.Errorf("the certificate fingerprint must be hex-encoded")
 		}
