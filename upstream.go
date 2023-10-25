@@ -49,7 +49,8 @@ var permanentUpstreamCaps = map[string]bool{
 // storableMessageTags is the static list of message tags that will cause
 // a TAGMSG to be stored.
 var storableMessageTags = map[string]bool{
-	"+react": true,
+	"+draft/react": true,
+	"+react":       true,
 }
 
 type registrationError struct {
@@ -2099,8 +2100,8 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 	}
 	if msg.Command == "TAGMSG" {
 		store := false
-		for tag := range storableMessageTags {
-			if _, ok := msg.Tags[tag]; ok {
+		for tag := range msg.Tags {
+			if storableMessageTags[tag] {
 				store = true
 				break
 			}
