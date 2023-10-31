@@ -163,8 +163,9 @@ type Network struct {
 
 func NewNetwork(addr string) *Network {
 	return &Network{
-		Addr:    addr,
-		Enabled: true,
+		Addr:     addr,
+		AutoAway: true,
+		Enabled:  true,
 	}
 }
 
