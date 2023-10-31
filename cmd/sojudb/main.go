@@ -74,13 +74,10 @@ func main() {
 			log.Fatalf("failed to hash password: %v", err)
 		}
 
-		user := database.User{
-			Username: username,
-			Password: string(hashed),
-			Admin:    *admin,
-			Enabled:  true,
-		}
-		if err := db.StoreUser(ctx, &user); err != nil {
+		user := database.NewUser(username)
+		user.Password = string(hashed)
+		user.Admin = *admin
+		if err := db.StoreUser(ctx, user); err != nil {
 			log.Fatalf("failed to create user: %v", err)
 		}
 	case "change-password":

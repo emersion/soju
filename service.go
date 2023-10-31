@@ -971,13 +971,11 @@ func handleUserCreate(ctx *serviceContext, params []string) error {
 		return fmt.Errorf("flag -password is required")
 	}
 
-	user := &database.User{
-		Username: *username,
-		Nick:     *nick,
-		Realname: *realname,
-		Admin:    *admin,
-		Enabled:  *enabled,
-	}
+	user := database.NewUser(*username)
+	user.Nick = *nick
+	user.Realname = *realname
+	user.Admin = *admin
+	user.Enabled = *enabled
 	if !*disablePassword {
 		if err := user.SetPassword(*password); err != nil {
 			return err

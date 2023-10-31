@@ -515,11 +515,8 @@ func (s *Server) getOrCreateUser(ctx context.Context, username string) (*user, e
 	}
 
 	// Can't find the user in the DB -- try to create it
-	record := database.User{
-		Username: username,
-		Enabled:  true,
-	}
-	user, err := s.createUser(ctx, &record)
+	record := database.NewUser(username)
+	user, err := s.createUser(ctx, record)
 	if err != nil {
 		return nil, fmt.Errorf("failed to automatically create user %q after successful authentication: %v", username, err)
 	}

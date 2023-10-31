@@ -98,6 +98,13 @@ type User struct {
 	DownstreamInteractedAt time.Time
 }
 
+func NewUser(username string) *User {
+	return &User{
+		Username: username,
+		Enabled:  true,
+	}
+}
+
 func (u *User) CheckPassword(password string) (upgraded bool, err error) {
 	// Password auth disabled
 	if u.Password == "" {

@@ -48,10 +48,7 @@ func createTempPostgresDB(t *testing.T) database.Database {
 }
 
 func createTestUser(t *testing.T, db database.Database) *database.User {
-	record := &database.User{
-		Username: testUsername,
-		Enabled:  true,
-	}
+	record := database.NewUser(testUsername)
 	if err := record.SetPassword(testPassword); err != nil {
 		t.Fatalf("failed to generate bcrypt hash: %v", err)
 	}
