@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 
-	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh/terminal"
 
 	"git.sr.ht/~emersion/soju/config"
@@ -69,14 +68,11 @@ func main() {
 			log.Fatalf("failed to read password: %v", err)
 		}
 
-		hashed, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
-		if err != nil {
-			log.Fatalf("failed to hash password: %v", err)
-		}
-
 		user := database.NewUser(username)
-		user.Password = string(hashed)
 		user.Admin = *admin
+		if err := user.SetPassword(password); err != nil {
+			log.Fatalf("failed to set user password: %v", err)
+		}
 		if err := db.StoreUser(ctx, user); err != nil {
 			log.Fatalf("failed to create user: %v", err)
 		}
@@ -97,12 +93,10 @@ func main() {
 			log.Fatalf("failed to read password: %v", err)
 		}
 
-		hashed, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
-		if err != nil {
-			log.Fatalf("failed to hash password: %v", err)
+		if err := user.SetPassword(password); err != nil {
+			log.Fatalf("failed to set user password: %v", err)
 		}
 
-		user.Password = string(hashed)
 		if err := db.StoreUser(ctx, user); err != nil {
 			log.Fatalf("failed to update password: %v", err)
 		}
@@ -114,7 +108,7 @@ func main() {
 	}
 }
 
-func readPassword() ([]byte, error) {
+func readPassword() (string, error) {
 	var password []byte
 	var err error
 	fd := int(os.Stdin.Fd())
@@ -123,7 +117,7 @@ func readPassword() ([]byte, error) {
 		fmt.Printf("Password: ")
 		password, err = terminal.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		fmt.Printf("\n")
 	} else {
@@ -132,16 +126,16 @@ func readPassword() ([]byte, error) {
 		scanner := bufio.NewScanner(os.Stdin)
 		if !scanner.Scan() {
 			if err := scanner.Err(); err != nil {
-				return nil, err
+				return "", err
 			}
-			return nil, io.ErrUnexpectedEOF
+			return "", io.ErrUnexpectedEOF
 		}
 		password = scanner.Bytes()
 
 		if len(password) == 0 {
-			return nil, fmt.Errorf("zero length password")
+			return "", fmt.Errorf("zero length password")
 		}
 	}
 
-	return password, nil
+	return string(password), nil
 }
