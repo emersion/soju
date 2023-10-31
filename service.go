@@ -577,10 +577,7 @@ func handleServiceNetworkCreate(ctx *serviceContext, params []string) error {
 		return fmt.Errorf("flag -addr is required")
 	}
 
-	record := &database.Network{
-		Addr:    *fs.Addr,
-		Enabled: true,
-	}
+	record := database.NewNetwork(*fs.Addr)
 	if err := fs.update(record); err != nil {
 		return err
 	}

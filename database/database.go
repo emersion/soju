@@ -161,6 +161,13 @@ type Network struct {
 	Enabled         bool
 }
 
+func NewNetwork(addr string) *Network {
+	return &Network{
+		Addr:    addr,
+		Enabled: true,
+	}
+}
+
 func (net *Network) GetName() string {
 	if net.Name != "" {
 		return net.Name

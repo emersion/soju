@@ -175,7 +175,8 @@ func main() {
 			if ok {
 				logger.Printf("updating existing network")
 			} else {
-				n = &database.Network{Name: netName}
+				n = database.NewNetwork("")
+				n.Name = netName
 				logger.Printf("creating new network")
 			}
 

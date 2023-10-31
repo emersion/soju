@@ -74,12 +74,8 @@ func createTestUpstream(t *testing.T, db database.Database, user *database.User)
 		t.Fatalf("failed to create TCP listener: %v", err)
 	}
 
-	network := &database.Network{
-		Name:    "testnet",
-		Addr:    "irc+insecure://" + ln.Addr().String(),
-		Nick:    user.Username,
-		Enabled: true,
-	}
+	network := database.NewNetwork("irc+insecure://" + ln.Addr().String())
+	network.Name = "testnet"
 	if err := db.StoreNetwork(context.Background(), user.ID, network); err != nil {
 		t.Fatalf("failed to store test network: %v", err)
 	}

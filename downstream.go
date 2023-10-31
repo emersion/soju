@@ -1403,13 +1403,12 @@ func (dc *downstreamConn) loadNetwork(ctx context.Context) error {
 			}}
 		}
 
+		record := database.NewNetwork(dc.registration.networkName)
+		record.Nick = nick
+
 		dc.logger.Printf("auto-saving network %q", dc.registration.networkName)
 		var err error
-		network, err = dc.user.createNetwork(ctx, &database.Network{
-			Addr:    dc.registration.networkName,
-			Nick:    nick,
-			Enabled: true,
-		})
+		network, err = dc.user.createNetwork(ctx, record)
 		if err != nil {
 			return err
 		}
@@ -3069,7 +3068,8 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 			attrs := irc.ParseTags(attrsStr)
 
-			record := &database.Network{Nick: dc.nick, Enabled: true}
+			record := database.NewNetwork("")
+			record.Nick = dc.nick
 			if err := updateNetworkAttrs(record, attrs, subcommand); err != nil {
 				return err
 			}
