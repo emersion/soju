@@ -106,7 +106,6 @@ func NewUser(username string) *User {
 }
 
 func (u *User) CheckPassword(password string) (upgraded bool, err error) {
-	// Password auth disabled
 	if u.Password == "" {
 		return false, fmt.Errorf("password auth disabled")
 	}
