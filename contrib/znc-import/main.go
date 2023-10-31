@@ -107,8 +107,6 @@ func main() {
 			log.Printf("user %q: updating existing user", username)
 		} else {
 			u = database.NewUser(username)
-			// "!!" is an invalid crypt format, thus disables password auth
-			u.Password = "!!"
 			usersCreated++
 			log.Printf("user %q: creating new user", username)
 		}
