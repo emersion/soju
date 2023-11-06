@@ -933,7 +933,7 @@ func (db *PostgresDB) StoreMessages(ctx context.Context, networkID int64, name s
 		return nil, nil
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(len(msgs))*sqliteQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(len(msgs))*postgresQueryTimeout)
 	defer cancel()
 
 	tx, err := db.db.BeginTx(ctx, nil)
