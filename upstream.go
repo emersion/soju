@@ -2191,9 +2191,13 @@ func (uc *upstreamConn) updateAway() {
 		return
 	}
 	if away {
+		reason := "Auto away"
+		if uc.caps.IsAvailable("draft/pre-away") {
+			reason = "*"
+		}
 		uc.SendMessage(ctx, &irc.Message{
 			Command: "AWAY",
-			Params:  []string{"Auto away"},
+			Params:  []string{reason},
 		})
 	} else {
 		uc.SendMessage(ctx, &irc.Message{
