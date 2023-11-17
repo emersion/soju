@@ -681,7 +681,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		if highlight || directMessage {
+		if !self && (highlight || directMessage) {
 			go uc.network.broadcastWebPush(msg)
 			if timestamp, err := time.Parse(xirc.ServerTimeLayout, string(msg.Tags["time"])); err == nil {
 				uc.network.pushTargets.Set(bufferName, timestamp)
