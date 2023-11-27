@@ -227,8 +227,9 @@ var permanentDownstreamCaps = map[string]string{
 	"server-time":   "",
 	"setname":       "",
 
-	"draft/pre-away":    "",
-	"draft/read-marker": "",
+	"draft/pre-away":          "",
+	"draft/read-marker":       "",
+	"draft/no-implicit-names": "",
 
 	"soju.im/account-required":        "",
 	"soju.im/bouncer-networks":        "",
@@ -3423,7 +3424,7 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 		}
 	}
 
-	if !dc.caps.IsEnabled("soju.im/no-implicit-names") {
+	if !dc.caps.IsEnabled("soju.im/no-implicit-names") && !dc.caps.IsEnabled("draft/no-implicit-names") {
 		sendNames(ctx, dc, ch)
 	}
 }

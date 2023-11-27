@@ -1,6 +1,6 @@
 # no-implicit-names
 
-This is a work-in-progress specification.
+This specification has been superseded by the IRC `draft/no-implicit-names` extension.
 
 ## Description
 
