@@ -137,7 +137,9 @@ The following directives are supported:
 	Supported drivers:
 
 	- _memory_ stores messages in memory. For each channel/user, only the
-	  latest 4K messages are kept in memory, older messages are discarded.
+	  latest 4K messages are kept in memory, older messages are discarded. This
+	  driver is very basic and doesn't support features such as the
+	  _chathistory_ extension and search.
 	- _fs_ stores messages on disk, in the same format as ZNC. _source_ is
 	  required and is the root directory path for the database. This on-disk
 	  format is lossy: some IRCv3 messages (e.g. TAGMSG) and all message tags
