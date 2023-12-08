@@ -25,11 +25,11 @@ like so:
   `/etc/letsencrypt/renewal-hooks/post/soju.sh` and add a command to reload
   soju, for instance:
 
-      #!/bin/sh
+      #!/bin/sh -eu
       systemctl reload soju
 
   Then mark the script as executable:
 
-      sudo chmod 755 /etc/letsencrypt/renewal-hooks/post/soju.sh
+      chmod 755 /etc/letsencrypt/renewal-hooks/post/soju.sh
 
 [Certbot]: https://certbot.eff.org/
