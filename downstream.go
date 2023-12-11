@@ -1690,6 +1690,9 @@ func (dc *downstreamConn) runUntilRegistered() error {
 	go func() {
 		<-ctx.Done()
 		if err := ctx.Err(); err == context.DeadlineExceeded {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
 			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.srv.prefix(),
 				Command: "ERROR",
