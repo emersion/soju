@@ -622,7 +622,8 @@ func (dc *downstreamConn) handleMessage(ctx context.Context, msg *irc.Message) e
 
 	switch msg.Command {
 	case "QUIT":
-		return dc.Close()
+		dc.conn.Shutdown(ctx)
+		return nil // TODO: stop handling commands
 	default:
 		if dc.registered {
 			return dc.handleMessageRegistered(ctx, msg)
@@ -1698,7 +1699,7 @@ func (dc *downstreamConn) runUntilRegistered() error {
 				Command: "ERROR",
 				Params:  []string{"Connection registration timed out"},
 			})
-			dc.Close()
+			dc.Shutdown(ctx)
 		}
 	}()
 

@@ -143,6 +143,10 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 
 		rl := rate.NewLimiter(rate.Every(options.RateLimitDelay), options.RateLimitBurst)
 		for msg := range outgoing {
+			if msg == nil {
+				break
+			}
+
 			if err := rl.Wait(ctx); err != nil {
 				break
 			}
@@ -221,6 +225,27 @@ func (c *conn) SendMessage(ctx context.Context, msg *irc.Message) {
 		// Success
 	case <-ctx.Done():
 		c.logger.Printf("failed to send message: %v", ctx.Err())
+	}
+}
+
+// Shutdown gracefully closes the connection, flushing any pending message.
+func (c *conn) Shutdown(ctx context.Context) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if c.closed {
+		return
+	}
+
+	select {
+	case c.outgoing <- nil:
+		// Success
+	case <-ctx.Done():
+		c.logger.Printf("failed to shutdown connection: %v", ctx.Err())
+		// Forcibly close the connection
+		if err := c.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			c.logger.Printf("failed to close connection: %v", err)
+		}
 	}
 }
 

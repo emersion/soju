@@ -469,7 +469,7 @@ func (s *Server) Handle(ic ircConn) {
 
 	id := atomic.AddUint64(&lastDownstreamID, 1)
 	dc := newDownstreamConn(s, ic, id)
-	defer dc.Close()
+	defer dc.Shutdown(context.TODO())
 
 	if shutdown {
 		dc.SendMessage(context.TODO(), &irc.Message{
