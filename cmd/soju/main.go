@@ -165,16 +165,13 @@ func main() {
 			if tlsCfg == nil {
 				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
 			}
-			host := u.Host
-			if _, _, err := net.SplitHostPort(host); err != nil {
-				host = host + ":6697"
-			}
+			addr := withDefaultPort(u.Host, "6697")
 			ircsTLSCfg := tlsCfg.Clone()
 			ircsTLSCfg.NextProtos = []string{"irc"}
 			lc := net.ListenConfig{
 				KeepAlive: downstreamKeepAlive,
 			}
-			l, err := lc.Listen(context.Background(), "tcp", host)
+			l, err := lc.Listen(context.Background(), "tcp", addr)
 			if err != nil {
 				log.Fatalf("failed to start TLS listener on %q: %v", listen, err)
 			}
@@ -186,14 +183,11 @@ func main() {
 				}
 			}()
 		case "irc+insecure":
-			host := u.Host
-			if _, _, err := net.SplitHostPort(host); err != nil {
-				host = host + ":6667"
-			}
+			addr := withDefaultPort(u.Host, "6667")
 			lc := net.ListenConfig{
 				KeepAlive: downstreamKeepAlive,
 			}
-			ln, err := lc.Listen(context.Background(), "tcp", host)
+			ln, err := lc.Listen(context.Background(), "tcp", addr)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
@@ -237,12 +231,8 @@ func main() {
 			if tlsCfg == nil {
 				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
 			}
-			addr := u.Host
-			if _, _, err := net.SplitHostPort(addr); err != nil {
-				addr = addr + ":https"
-			}
 			httpSrv := http.Server{
-				Addr:      addr,
+				Addr:      withDefaultPort(u.Host, "https"),
 				TLSConfig: tlsCfg,
 				Handler:   srv,
 			}
@@ -252,12 +242,8 @@ func main() {
 				}
 			}()
 		case "ws+insecure":
-			addr := u.Host
-			if _, _, err := net.SplitHostPort(addr); err != nil {
-				addr = addr + ":http"
-			}
 			httpSrv := http.Server{
-				Addr:    addr,
+				Addr:    withDefaultPort(u.Host, "http"),
 				Handler: srv,
 			}
 			go func() {
@@ -270,11 +256,8 @@ func main() {
 				srv.Identd = identd.New()
 			}
 
-			host := u.Host
-			if _, _, err := net.SplitHostPort(host); err != nil {
-				host = host + ":113"
-			}
-			ln, err := net.Listen("tcp", host)
+			addr := withDefaultPort(u.Host, "113")
+			ln, err := net.Listen("tcp", addr)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
@@ -339,12 +322,8 @@ func main() {
 			if tlsCfg == nil {
 				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
 			}
-			addr := u.Host
-			if _, _, err := net.SplitHostPort(addr); err != nil {
-				addr = addr + ":https"
-			}
 			httpSrv := http.Server{
-				Addr:      addr,
+				Addr:      withDefaultPort(u.Host, "https"),
 				TLSConfig: tlsCfg,
 				Handler:   httpMux,
 			}
@@ -354,12 +333,8 @@ func main() {
 				}
 			}()
 		case "http+insecure":
-			addr := u.Host
-			if _, _, err := net.SplitHostPort(addr); err != nil {
-				addr = addr + ":http"
-			}
 			httpSrv := http.Server{
-				Addr:    addr,
+				Addr:    withDefaultPort(u.Host, "http"),
 				Handler: httpMux,
 			}
 			go func() {
@@ -419,4 +394,11 @@ func proxyProtoListener(ln net.Listener, srv *soju.Server) net.Listener {
 		},
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+}
+
+func withDefaultPort(addr, port string) string {
+	if _, _, err := net.SplitHostPort(addr); err != nil {
+		addr += ":" + port
+	}
+	return addr
 }
