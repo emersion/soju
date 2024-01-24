@@ -104,6 +104,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		MsgStoreDriver:            raw.MsgStore.Driver,
 		MsgStorePath:              raw.MsgStore.Source,
 		HTTPOrigins:               raw.HTTPOrigins,
+		HTTPIngress:               raw.HTTPIngress,
 		AcceptProxyIPs:            raw.AcceptProxyIPs,
 		MaxUserNetworks:           raw.MaxUserNetworks,
 		UpstreamUserIPs:           raw.UpstreamUserIPs,

@@ -160,6 +160,11 @@ The following directives are supported:
 	By default, only the request host is authorized. Use this directive to
 	enable cross-origin WebSockets.
 
+*http-ingress* <url>
+	External URL on which HTTPS listeners are exposed.
+
+	By default, this is _https://<hostname>_.
+
 *accept-proxy-ip* <cidr...>
 	Allow the specified IPs to act as a proxy. Proxys have the ability to
 	overwrite the remote and local connection addresses (via the PROXY protocol,

@@ -84,6 +84,7 @@ type Server struct {
 	FileUpload *FileUpload
 
 	HTTPOrigins    []string
+	HTTPIngress    string
 	AcceptProxyIPs IPSet
 
 	MaxUserNetworks           int
@@ -109,6 +110,7 @@ func Defaults() *Server {
 		Auth: Auth{
 			Driver: "internal",
 		},
+		HTTPIngress:     "https://" + hostname,
 		MaxUserNetworks: -1,
 	}
 }
@@ -128,6 +130,7 @@ func Load(path string) (*Server, error) {
 		Auth                []string   `scfg:"auth"`
 		FileUpload          []string   `scfg:"file-upload"`
 		HTTPOrigin          []string   `scfg:"http-origin"`
+		HTTPIngress         string     `scfg:"http-ingress"`
 		AcceptProxyIP       []string   `scfg:"accept-proxy-ip"`
 		MaxUserNetworks     int        `scfg:"max-user-networks"`
 		UpstreamUserIP      []string   `scfg:"upstream-user-ip"`
@@ -216,6 +219,11 @@ func Load(path string) (*Server, error) {
 		srv.FileUpload = &FileUpload{driver, source}
 	}
 	srv.HTTPOrigins = raw.HTTPOrigin
+	if raw.HTTPIngress != "" {
+		srv.HTTPIngress = raw.HTTPIngress
+	} else {
+		srv.HTTPIngress = "https://" + srv.Hostname
+	}
 	for _, s := range raw.AcceptProxyIP {
 		if s == "localhost" {
 			srv.AcceptProxyIPs = append(srv.AcceptProxyIPs, loopbackIPs...)

@@ -143,6 +143,7 @@ type Config struct {
 	MsgStoreDriver            string
 	MsgStorePath              string
 	HTTPOrigins               []string
+	HTTPIngress               string
 	AcceptProxyIPs            config.IPSet
 	MaxUserNetworks           int
 	MOTD                      string
