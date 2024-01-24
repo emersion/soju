@@ -1432,7 +1432,7 @@ func handleServiceChannelDelete(ctx *serviceContext, params []string) error {
 		return fmt.Errorf("failed to delete channel: %v", err)
 	}
 
-	if uc := network.conn; uc != nil {
+	if uc := network.conn; uc != nil && uc.channels.Has(name) {
 		uc.SendMessage(ctx, &irc.Message{
 			Command: "PART",
 			Params:  []string{name},
