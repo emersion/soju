@@ -67,6 +67,10 @@ type Auth struct {
 	Driver, Source string
 }
 
+type FileUpload struct {
+	Driver, Source string
+}
+
 type Server struct {
 	Listen   []string
 	TLS      *TLS
@@ -74,9 +78,10 @@ type Server struct {
 	Title    string
 	MOTDPath string
 
-	DB       DB
-	MsgStore MsgStore
-	Auth     Auth
+	DB         DB
+	MsgStore   MsgStore
+	Auth       Auth
+	FileUpload *FileUpload
 
 	HTTPOrigins    []string
 	AcceptProxyIPs IPSet
@@ -121,6 +126,7 @@ func Load(path string) (*Server, error) {
 		MessageStore        []string   `scfg:"message-store"`
 		Log                 []string   `scfg:"log"`
 		Auth                []string   `scfg:"auth"`
+		FileUpload          []string   `scfg:"file-upload"`
 		HTTPOrigin          []string   `scfg:"http-origin"`
 		AcceptProxyIP       []string   `scfg:"accept-proxy-ip"`
 		MaxUserNetworks     int        `scfg:"max-user-networks"`
@@ -193,6 +199,21 @@ func Load(path string) (*Server, error) {
 			return nil, fmt.Errorf("directive auth: unknown driver %q", driver)
 		}
 		srv.Auth = Auth{driver, source}
+	}
+	if raw.FileUpload != nil {
+		driver, source, err := parseDriverSource("file-upload", raw.FileUpload)
+		if err != nil {
+			return nil, err
+		}
+		switch driver {
+		case "fs":
+			if source == "" {
+				return nil, fmt.Errorf("directive file-upload: driver %q requires a source", driver)
+			}
+		default:
+			return nil, fmt.Errorf("directive file-upload: unknown driver %q", driver)
+		}
+		srv.FileUpload = &FileUpload{driver, source}
 	}
 	srv.HTTPOrigins = raw.HTTPOrigin
 	for _, s := range raw.AcceptProxyIP {

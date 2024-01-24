@@ -26,6 +26,7 @@ import (
 	"git.sr.ht/~emersion/soju/auth"
 	"git.sr.ht/~emersion/soju/config"
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/fileupload"
 	"git.sr.ht/~emersion/soju/identd"
 )
 
@@ -89,6 +90,14 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		tlsCert.Store(&cert)
 	}
 
+	var fileUploader fileupload.Uploader
+	if raw.FileUpload.Driver != "" {
+		fileUploader, err = fileupload.New(raw.FileUpload.Driver, raw.FileUpload.Source)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create file uploader: %v", err)
+		}
+	}
+
 	cfg := &soju.Config{
 		Hostname:                  raw.Hostname,
 		Title:                     raw.Title,
@@ -102,6 +111,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		EnableUsersOnAuth:         raw.EnableUsersOnAuth,
 		MOTD:                      motd,
 		Auth:                      auth,
+		FileUploader:              fileUploader,
 	}
 	return raw, cfg, nil
 }
@@ -145,8 +155,20 @@ func main() {
 	srv.SetConfig(serverCfg)
 	srv.Logger = soju.NewLogger(log.Writer(), debug)
 
+	fileUploadHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cfg := srv.Config()
+		h := fileupload.Handler{
+			Uploader: cfg.FileUploader,
+			DB:       db,
+			Auth:     cfg.Auth,
+		}
+		h.ServeHTTP(w, r)
+	})
+
 	httpMux := http.NewServeMux()
 	httpMux.Handle("/socket", srv)
+	httpMux.Handle("/uploads", fileUploadHandler)
+	httpMux.Handle("/uploads/", fileUploadHandler)
 
 	for _, listen := range cfg.Listen {
 		listen := listen // copy

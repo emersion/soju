@@ -23,6 +23,7 @@ import (
 	"git.sr.ht/~emersion/soju/auth"
 	"git.sr.ht/~emersion/soju/config"
 	"git.sr.ht/~emersion/soju/database"
+	"git.sr.ht/~emersion/soju/fileupload"
 	"git.sr.ht/~emersion/soju/identd"
 )
 
@@ -149,6 +150,7 @@ type Config struct {
 	DisableInactiveUsersDelay time.Duration
 	EnableUsersOnAuth         bool
 	Auth                      auth.Authenticator
+	FileUploader              fileupload.Uploader
 }
 
 type Server struct {

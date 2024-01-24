@@ -1473,6 +1473,9 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	if dc.caps.IsEnabled("soju.im/webpush") {
 		isupport = append(isupport, "VAPID="+dc.srv.webPush.VAPIDKeys.Public)
 	}
+	if dc.srv.Config().FileUploader != nil {
+		isupport = append(isupport, "soju.im/FILEHOST=https://"+dc.srv.Config().Hostname+"/upload")
+	}
 
 	if uc := dc.upstream(); uc != nil {
 		// If upstream doesn't support message-tags, indicate that we'll drop
