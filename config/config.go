@@ -129,6 +129,8 @@ func Load(path string) (*Server, error) {
 		EnableUserOnAuth    string     `scfg:"enable-user-on-auth"`
 	}
 
+	raw.MaxUserNetworks = -1
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
