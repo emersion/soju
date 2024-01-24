@@ -10,7 +10,7 @@ Assuming you're running Linux and want to use the IPv6 prefix `2001:db8::/32`:
    as the destination to your bouncer.
 2. Enable `net.ipv6.ip_nonlocal_bind=1` with `sysctl`.
 3. Setup a local route for this prefix:
-   `ip route add local 2001:db8::/56 dev lo`
+   `ip route add local 2001:db8::/32 dev lo`
 4. Check network connectivity:
    `curl -6 --interface 2001:db8::42 https://emersion.fr`
 5. Configure soju to use this IP range: `upstream-user-ip 2001:db8::/32`
