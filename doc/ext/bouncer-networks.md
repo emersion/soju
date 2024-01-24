@@ -13,17 +13,7 @@ copyrights:
     email: "contact@emersion.fr"
 ---
 
-## Notes for implementing experimental vendor extension
-
-This is an experimental specification for a vendored extension.
-
-No guarantees are made regarding the stability of this extension.
-Backwards-incompatible changes can be made at any time without prior notice.
-
-Software implementing this work-in-progress specification MUST NOT use the
-unprefixed `bouncer-networks` CAP names. Instead, implementations SHOULD use
-the `soju.im/bouncer-networks` CAP names to be interoperable with other software
-implementing a compatible work-in-progress version.
+# bouncer-networks
 
 ## Description
 
