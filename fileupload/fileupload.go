@@ -17,6 +17,27 @@ import (
 
 const maxSize = 50 * 1024 * 1024 // 50 MiB
 
+// inlineMIMETypes contains MIME types which are allowed to be displayed inline
+// by the Web browser. This has security implications: we don't want the
+// browser to execute any kind of script. For instance, SVG images are
+// intentionally omitted.
+var inlineMIMETypes = map[string]bool{
+	"audio/aac":  true,
+	"audio/mp4":  true,
+	"audio/mpeg": true,
+	"audio/ogg":  true,
+	"audio/webm": true,
+	"image/apng": true,
+	"image/gif":  true,
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/webp": true,
+	"text/plain": true,
+	"video/mp4":  true,
+	"video/ogg":  true,
+	"video/webm": true,
+}
+
 type Uploader interface {
 	load(filename string) (basename string, modTime time.Time, content io.ReadSeekCloser, err error)
 	store(r io.Reader, username, mimeType, basename string) (outFilename string, err error)
@@ -78,7 +99,29 @@ func (h *Handler) fetch(resp http.ResponseWriter, req *http.Request) {
 	}
 	defer content.Close()
 
-	contentDisp := mime.FormatMediaType("attachment", map[string]string{
+	// Guess MIME type from extension, then from content
+	contentType := mime.TypeByExtension(path.Ext(basename))
+	if contentType == "" {
+		var buf [512]byte
+		n, _ := io.ReadFull(content, buf[:])
+		contentType = http.DetectContentType(buf[:n])
+		_, err := content.Seek(0, io.SeekStart) // rewind to output whole file
+		if err != nil {
+			http.Error(resp, "failed to seek file", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if contentType != "" {
+		resp.Header().Set("Content-Type", contentType)
+	}
+
+	contentDispMode := "attachment"
+	mimeType, _, _ := mime.ParseMediaType(contentType)
+	if inlineMIMETypes[mimeType] {
+		contentDispMode = "inline"
+	}
+	contentDisp := mime.FormatMediaType(contentDispMode, map[string]string{
 		"filename": basename,
 	})
 	resp.Header().Set("Content-Disposition", contentDisp)
