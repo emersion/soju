@@ -1474,7 +1474,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 		isupport = append(isupport, "VAPID="+dc.srv.webPush.VAPIDKeys.Public)
 	}
 	if dc.srv.Config().FileUploader != nil {
-		isupport = append(isupport, "soju.im/FILEHOST="+dc.srv.Config().HTTPIngress+"/upload")
+		isupport = append(isupport, "soju.im/FILEHOST="+dc.srv.Config().HTTPIngress+"/uploads")
 	}
 
 	if uc := dc.upstream(); uc != nil {
