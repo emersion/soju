@@ -16,7 +16,7 @@ copyrights:
 
 This is a work-in-progress specification.
 
-# Motivation
+## Motivation
 
 This specification offers a way for servers to advertise a hosting service for
 users to upload files (such as text or images), so they can post them on IRC.
