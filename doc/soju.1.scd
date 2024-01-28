@@ -153,6 +153,13 @@ The following directives are supported:
 
 	(_log_ is a deprecated alias for this directive.)
 
+*file-upload* <driver> [source]
+	Set the database location for uploaded files.
+
+	Supported drivers:
+
+	- _fs_ stores uploaded files on disk. _source_ is required.
+
 *http-origin* <patterns...>
 	List of allowed HTTP origins for WebSocket listeners. The parameters are
 	interpreted as shell patterns, see *glob*(7).
