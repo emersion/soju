@@ -91,7 +91,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 	}
 
 	var fileUploader fileupload.Uploader
-	if raw.FileUpload.Driver != "" {
+	if raw.FileUpload != nil {
 		fileUploader, err = fileupload.New(raw.FileUpload.Driver, raw.FileUpload.Source)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create file uploader: %v", err)
