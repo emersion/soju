@@ -156,6 +156,9 @@ The following directives are supported:
 *file-upload* <driver> [source]
 	Set the database location for uploaded files.
 
+	File upload requires setting up an HTTP listener (see _https://_ and
+	_http+insecure://_ URIs in the _listen_ directive).
+
 	Supported drivers:
 
 	- _fs_ stores uploaded files on disk. _source_ is required.
