@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -53,13 +54,54 @@ func New(driver, source string) (Uploader, error) {
 }
 
 type Handler struct {
-	Uploader Uploader
-	Auth     auth.Authenticator
-	DB       database.Database
+	Uploader    Uploader
+	Auth        auth.Authenticator
+	DB          database.Database
+	HTTPOrigins []string
+}
+
+func (h *Handler) checkOrigin(reqOrigin string) bool {
+	for _, origin := range h.HTTPOrigins {
+		match, err := path.Match(origin, reqOrigin)
+		if err != nil {
+			panic(err) // patterns are checked at config load time
+		} else if match {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *Handler) setCORS(resp http.ResponseWriter, req *http.Request) error {
+	resp.Header().Set("Access-Control-Allow-Credentials", "true")
+	resp.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Content-Disposition")
+	resp.Header().Set("Access-Control-Expose-Headers", "Location, Content-Disposition")
+
+	reqOrigin := req.Header.Get("Origin")
+	if reqOrigin == "" {
+		return nil
+	}
+	u, err := url.Parse(reqOrigin)
+	if err != nil {
+		return fmt.Errorf("invalid Origin header field: %v", err)
+	}
+
+	if !strings.EqualFold(u.Host, req.Host) && !h.checkOrigin(reqOrigin) {
+		return fmt.Errorf("unauthorized Origin")
+	}
+
+	resp.Header().Set("Access-Control-Allow-Origin", reqOrigin)
+	resp.Header().Set("Vary", "Origin")
+	return nil
 }
 
 func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	resp.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; script-src 'none';")
+
+	if err := h.setCORS(resp, req); err != nil {
+		http.Error(resp, err.Error(), http.StatusForbidden)
+		return
+	}
 
 	if h.Uploader == nil {
 		http.NotFound(resp, req)

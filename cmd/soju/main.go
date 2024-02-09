@@ -159,9 +159,10 @@ func main() {
 	fileUploadHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg := srv.Config()
 		h := fileupload.Handler{
-			Uploader: cfg.FileUploader,
-			DB:       db,
-			Auth:     cfg.Auth,
+			Uploader:    cfg.FileUploader,
+			DB:          db,
+			Auth:        cfg.Auth,
+			HTTPOrigins: cfg.HTTPOrigins,
 		}
 		h.ServeHTTP(w, r)
 	})
