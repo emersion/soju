@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -115,7 +116,7 @@ func Defaults() *Server {
 	}
 }
 
-func Load(path string) (*Server, error) {
+func Load(filename string) (*Server, error) {
 	var raw struct {
 		Listen []struct {
 			Addr string `scfg:",param"`
@@ -140,7 +141,7 @@ func Load(path string) (*Server, error) {
 
 	raw.MaxUserNetworks = -1
 
-	f, err := os.Open(path)
+	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -217,6 +218,11 @@ func Load(path string) (*Server, error) {
 			return nil, fmt.Errorf("directive file-upload: unknown driver %q", driver)
 		}
 		srv.FileUpload = &FileUpload{driver, source}
+	}
+	for _, origin := range raw.HTTPOrigin {
+		if _, err := path.Match(origin, origin); err != nil {
+			return nil, fmt.Errorf("directive http-origin: %v", err)
+		}
 	}
 	srv.HTTPOrigins = raw.HTTPOrigin
 	if raw.HTTPIngress != "" {
