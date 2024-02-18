@@ -115,7 +115,7 @@ See `/help cap` for more information.
 [IRCv3 support tables]: https://ircv3.net/software/clients
 [gamja]: https://sr.ht/~emersion/gamja/
 [goguma]: https://sr.ht/~emersion/goguma/
-[senpai]: https://sr.ht/~taiite/senpai/
+[senpai]: https://sr.ht/~delthas/senpai/
 [Weechat]: https://weechat.org/
 [soju.py]: https://weechat.org/scripts/source/soju.py.html/
 [read_marker.py]: https://weechat.org/scripts/source/read_marker.py.html/
