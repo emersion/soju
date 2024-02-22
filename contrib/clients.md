@@ -17,16 +17,15 @@ properly.
 
 ## Erc
 
-You need to explicitly set the username, which is the defcustom
-`erc-email-userid`.
+Create an interactive function for connecting:
 
 ```elisp
-(setq erc-email-userid "<username>/irc.libera.chat") ;; Example with Libera.Chat
 (defun run-erc ()
   (interactive)
   (erc-tls :server "<server>"
            :port 6697
            :nick "<nick>"
+           :user "<username>/irc.libera.chat" ;; Example with Libera.Chat
            :password "<password>"))
 ```
 
