@@ -21,6 +21,18 @@ const (
 	testPassword = testUsername
 )
 
+type testingLogger struct {
+	t *testing.T
+}
+
+func (tl testingLogger) Printf(format string, v ...interface{}) {
+	tl.t.Logf(format, v...)
+}
+
+func (tl testingLogger) Debugf(format string, v ...interface{}) {
+	tl.t.Logf(format, v...)
+}
+
 func createTempSqliteDB(t *testing.T) database.Database {
 	if !database.SqliteEnabled {
 		t.Skip("SQLite support is disabled")
@@ -181,6 +193,7 @@ func testBroadcast(t *testing.T, db database.Database) {
 	defer upstream.Close()
 
 	srv := NewServer(db)
+	srv.Logger = testingLogger{t}
 	if err := srv.Start(); err != nil {
 		t.Fatalf("failed to start server: %v", err)
 	}
@@ -238,6 +251,8 @@ func testChatHistory(t *testing.T, msgStoreDriver, msgStorePath string) {
 	defer upstream.Close()
 
 	srv := NewServer(db)
+
+	srv.Logger = testingLogger{t}
 
 	cfg := *srv.Config()
 	cfg.MsgStoreDriver = msgStoreDriver
