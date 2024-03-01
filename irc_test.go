@@ -12,6 +12,7 @@ func TestIsHighlight(t *testing.T) {
 		hl   bool
 	}{
 		{"noContains", "hi there Soju User!", false},
+		{"standalone", "SojuUser", true},
 		{"middle", "hi there SojuUser!", true},
 		{"start", "SojuUser: how are you doing?", true},
 		{"end", "maybe ask SojuUser", true},
@@ -20,6 +21,11 @@ func TestIsHighlight(t *testing.T) {
 		{"endWord", "and SojuUserSan is yet a different nick", false},
 		{"underscore", "and SojuUser_san has nothing to do with me", false},
 		{"zeroWidthSpace", "writing S\u200BojuUser shouldn't trigger a highlight", false},
+		{"url", "https://SojuUser.example", false},
+		{"startURL", "https://SojuUser.example is a nice website", false},
+		{"endURL", "check out my website: https://SojuUser.example", false},
+		{"parenthesizedURL", "see my website (https://SojuUser.example)", false},
+		{"afterURL", "see https://SojuUser.example (cc SojuUser)", true},
 	}
 
 	for _, tc := range testCases {

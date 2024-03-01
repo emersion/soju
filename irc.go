@@ -227,6 +227,26 @@ func isWordBoundary(r rune) bool {
 	}
 }
 
+func isURIPrefix(text string) bool {
+	if i := strings.LastIndexFunc(text, unicode.IsSpace); i >= 0 {
+		text = text[i:]
+	}
+
+	i := strings.Index(text, "://")
+	if i < 0 {
+		return false
+	}
+
+	// See RFC 3986 section 3
+	r, _ := utf8.DecodeLastRuneInString(text[:i])
+	switch r {
+	case '+', '-', '.':
+		return true
+	default:
+		return ('0' <= r && r <= '9') || ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z')
+	}
+}
+
 func isHighlight(text, nick string) bool {
 	if len(nick) == 0 {
 		panic("isHighlight called with empty nick")
@@ -240,7 +260,7 @@ func isHighlight(text, nick string) bool {
 
 		left, _ := utf8.DecodeLastRuneInString(text[:i])
 		right, _ := utf8.DecodeRuneInString(text[i+len(nick):])
-		if isWordBoundary(left) && isWordBoundary(right) {
+		if isWordBoundary(left) && isWordBoundary(right) && !isURIPrefix(text[:i]) {
 			return true
 		}
 
