@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,5 +93,5 @@ func (fs *fs) store(r io.Reader, username, mimeType, origBasename string) (outFi
 		return "", fmt.Errorf("failed to close file: %v", err)
 	}
 
-	return username + "/" + filepath.Base(f.Name()), nil
+	return url.PathEscape(username) + "/" + url.PathEscape(filepath.Base(f.Name())), nil
 }
