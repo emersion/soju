@@ -39,6 +39,23 @@ var inlineMIMETypes = map[string]bool{
 	"video/webm": true,
 }
 
+// Some MIME types have multiple possible extensions, and
+// mime.ExtensionsByType returns them out-of-order. We have to hardcode
+// a few MIME types to work around this unfortunately (e.g. to not use
+// ".jfif" for "image/jpeg").
+//
+// Note, this is not for registering new MIME types (use mime.AddExtensionType
+// for that purpose).
+var primaryExts = map[string]string{
+	"audio/aac":  "aac",
+	"audio/mp4":  "mp4",
+	"audio/mpeg": "mp3",
+	"audio/ogg":  "oga",
+	"image/jpeg": "jpeg",
+	"text/plain": "txt",
+	"video/mp4":  "mp4",
+}
+
 type Uploader interface {
 	load(filename string) (basename string, modTime time.Time, content io.ReadSeekCloser, err error)
 	store(r io.Reader, username, mimeType, basename string) (outFilename string, err error)
