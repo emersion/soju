@@ -43,7 +43,7 @@ func (fs *fs) store(r io.Reader, username, mimeType, origBasename string) (outFi
 	origBasename = filepath.Base(origBasename)
 
 	var suffix string
-	if origBasename == "" && mimeType != "" {
+	if filepath.Ext(origBasename) == "" && mimeType != "" {
 		exts, _ := mime.ExtensionsByType(mimeType)
 		if len(exts) > 0 {
 			suffix = exts[0]
