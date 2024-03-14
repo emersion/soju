@@ -1251,27 +1251,15 @@ func (u *user) FormatServerTime(t time.Time) string {
 	return xirc.FormatServerTime(t)
 }
 
-// localAddrForHost returns the local address to use when connecting to host.
+// localTCPAddr returns the local address to use when connecting to a host.
 // A nil address is returned when the OS should automatically pick one.
-func (u *user) localTCPAddrForHost(ctx context.Context, host string) (*net.TCPAddr, error) {
+func (u *user) localTCPAddr(remoteIP net.IP) (*net.TCPAddr, error) {
 	upstreamUserIPs := u.srv.Config().UpstreamUserIPs
 	if len(upstreamUserIPs) == 0 {
 		return nil, nil
 	}
 
-	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
-	if err != nil {
-		return nil, err
-	}
-
-	wantIPv6 := false
-	for _, ip := range ips {
-		if ip.To4() == nil {
-			wantIPv6 = true
-			break
-		}
-	}
-
+	wantIPv6 := remoteIP.To4() == nil
 	var ipNet *net.IPNet
 	for _, in := range upstreamUserIPs {
 		if wantIPv6 == (in.IP.To4() == nil) {

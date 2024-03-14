@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"strconv"
 	"strings"
@@ -373,17 +374,28 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 }
 
 func dialTCP(ctx context.Context, user *user, addr string) (net.Conn, error) {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
+	var dialer net.Dialer
+	upstreamUserIPs := user.srv.Config().UpstreamUserIPs
+	if len(upstreamUserIPs) > 0 || true {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		ipAddr, err := resolveIPAddr(ctx, host)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve host %q: %v", host, err)
+		}
+
+		localAddr, err := user.localTCPAddr(ipAddr.IP)
+		if err != nil {
+			return nil, fmt.Errorf("failed to pick local IP for remote host %q: %v", host, err)
+		}
+
+		addr = net.JoinHostPort(ipAddr.String(), port)
+		dialer.LocalAddr = localAddr
 	}
 
-	localAddr, err := user.localTCPAddrForHost(ctx, host)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pick local IP for remote host %q: %v", host, err)
-	}
-
-	dialer := net.Dialer{LocalAddr: localAddr}
 	return dialer.DialContext(ctx, "tcp", addr)
 }
 
@@ -2435,4 +2447,32 @@ func (uc *upstreamConn) shouldCacheUserInfo(nick string) bool {
 		found = found || ch.Members.Has(nick)
 	})
 	return found
+}
+
+// resolveIPAddr replaces the standard library's DNS resolver to randomize the
+// result order instead of always returning the same IP address. The bouncer
+// will often have bursts of connections to the same host (e.g. on startup) so
+// it's more important for our use-case to distribute the traffic among
+// available IP addresses than to find the fastest link.
+//
+// See: https://todo.sr.ht/~emersion/soju/221
+func resolveIPAddr(ctx context.Context, host string) (*net.IPAddr, error) {
+	ipAddrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prefer IPv6 if available, for per-user local IP addresses
+	ip6Addrs := make([]net.IPAddr, 0, len(ipAddrs))
+	for _, ipAddr := range ipAddrs {
+		if ipAddr.IP.To4() == nil {
+			ip6Addrs = append(ip6Addrs, ipAddr)
+		}
+	}
+	if len(ip6Addrs) > 0 {
+		ipAddrs = ip6Addrs
+	}
+
+	i := rand.Intn(len(ipAddrs))
+	return &ipAddrs[i], nil
 }
