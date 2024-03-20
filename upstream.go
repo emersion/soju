@@ -376,7 +376,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 func dialTCP(ctx context.Context, user *user, addr string) (net.Conn, error) {
 	var dialer net.Dialer
 	upstreamUserIPs := user.srv.Config().UpstreamUserIPs
-	if len(upstreamUserIPs) > 0 || true {
+	if len(upstreamUserIPs) > 0 {
 		host, port, err := net.SplitHostPort(addr)
 		if err != nil {
 			return nil, err
