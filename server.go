@@ -491,6 +491,7 @@ func (s *Server) Handle(ic ircConn) {
 
 	user, err := s.getOrCreateUser(context.TODO(), dc.registration.authUsername)
 	if err != nil {
+		dc.logger.Printf("failed to get/create user: %v", err)
 		dc.SendMessage(context.TODO(), &irc.Message{
 			Command: "ERROR",
 			Params:  []string{"Internal server error"},
