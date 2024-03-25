@@ -10,7 +10,7 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20231106173351-e73c9f7bad43
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.22
-	github.com/msteinert/pam v1.2.0
+	github.com/msteinert/pam/v2 v2.0.0
 	github.com/pires/go-proxyproto v0.7.0
 	github.com/prometheus/client_golang v1.18.0
 	golang.org/x/crypto v0.21.0

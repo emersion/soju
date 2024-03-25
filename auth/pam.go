@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/msteinert/pam"
+	"github.com/msteinert/pam/v2"
 
 	"git.sr.ht/~emersion/soju/database"
 )
@@ -35,6 +35,7 @@ func (pamAuth) AuthPlain(ctx context.Context, db database.Database, username, pa
 	if err != nil {
 		return fmt.Errorf("failed to start PAM conversation: %v", err)
 	}
+	defer t.End()
 
 	if err := t.Authenticate(0); err != nil {
 		return newInvalidCredentialsError(fmt.Errorf("PAM auth error: %v", err))
@@ -49,6 +50,10 @@ func (pamAuth) AuthPlain(ctx context.Context, db database.Database, username, pa
 		return fmt.Errorf("failed to get PAM user: %v", err)
 	} else if user != username {
 		return fmt.Errorf("PAM user doesn't match supplied username")
+	}
+
+	if err := t.End(); err != nil {
+		return fmt.Errorf("failed to end PAM conversation: %v", err)
 	}
 
 	return nil
