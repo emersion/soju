@@ -275,6 +275,16 @@ func main() {
 					log.Fatalf("serving %q: %v", listen, err)
 				}
 			}()
+		case "ws+unix":
+			ln, err := net.Listen("unix", u.Path)
+			if err != nil {
+				log.Fatalf("failed to start listener on %q: %v", listen, err)
+			}
+			go func() {
+				if err := http.Serve(ln, srv); err != nil {
+					log.Fatalf("serving %q: %v", listen, err)
+				}
+			}()
 		case "ident":
 			if srv.Identd == nil {
 				srv.Identd = identd.New()
@@ -363,6 +373,16 @@ func main() {
 			}
 			go func() {
 				if err := httpSrv.ListenAndServe(); err != nil {
+					log.Fatalf("serving %q: %v", listen, err)
+				}
+			}()
+		case "http+unix":
+			ln, err := net.Listen("unix", u.Path)
+			if err != nil {
+				log.Fatalf("failed to start listener on %q: %v", listen, err)
+			}
+			go func() {
+				if err := http.Serve(ln, httpMux); err != nil {
 					log.Fatalf("serving %q: %v", listen, err)
 				}
 			}()

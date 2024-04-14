@@ -92,10 +92,14 @@ The following directives are supported:
 	  and handles WebSocket requests at endpoint _/socket_
 	- _http+insecure://[host][:port]_ listens for plain-text HTTP connections
 	  (default port: 80) and handles WebSocket requests at endpoint _/socket_
+	- _http+unix://<path>_ listens for plain-text HTTP connections on a Unix
+	  domain socket and handles WebSocket requests at endpoint _/socket_
 	- _wss://[host][:port]_ listens for WebSocket connections over TLS (default
 	  port: 443)
 	- _ws+insecure://[host][:port]_ listens for plain-text WebSocket
 	  connections (default port: 80)
+	- _ws+unix://<path>_ listens for plain-text WebSocket connections on a Unix
+	  domain socket
 	- _ident://[host][:port]_ listens for plain-text ident connections (default
 	  port: 113)
 	- _http+prometheus://localhost:<port>_ listens for plain-text HTTP
