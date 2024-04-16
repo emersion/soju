@@ -103,7 +103,7 @@ func (h *Handler) setCORS(resp http.ResponseWriter, req *http.Request) error {
 		return fmt.Errorf("invalid Origin header field: %v", err)
 	}
 
-	if !strings.EqualFold(u.Host, req.Host) && !h.checkOrigin(reqOrigin) {
+	if !strings.EqualFold(u.Host, req.Host) && !h.checkOrigin(u.Host) {
 		return fmt.Errorf("unauthorized Origin")
 	}
 
