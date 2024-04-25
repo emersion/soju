@@ -1389,8 +1389,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			return err
 		}
 		modeStr := ""
+		var modeArgs []string
 		if len(msg.Params) > 2 {
 			modeStr = msg.Params[2]
+			modeArgs = msg.Params[3:]
 		}
 
 		ch := uc.channels.Get(channel)
@@ -1401,7 +1403,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		firstMode := ch.modes == nil
 		ch.modes = make(map[byte]string)
-		if err := applyChannelModes(ch, modeStr, msg.Params[3:]); err != nil {
+		if err := applyChannelModes(ch, modeStr, modeArgs); err != nil {
 			return err
 		}
 
