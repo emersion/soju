@@ -526,7 +526,8 @@ func (dc *downstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 	}
 	if msg.Prefix != nil && msg.Prefix.Name == "*" {
 		// We use "*" as a sentinel value to simplify upstream message handling
-		msg = msg.Copy()
+		msgCopy := *msg
+		msg = &msgCopy
 		msg.Prefix = nil
 	}
 
