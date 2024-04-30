@@ -82,7 +82,7 @@ func (js *joinSorter) Swap(i, j int) {
 	js.keys[i], js.keys[j] = js.keys[j], js.keys[i]
 }
 
-func GenerateIsupport(prefix *irc.Prefix, tokens []string) []*irc.Message {
+func GenerateIsupport(tokens []string) []*irc.Message {
 	maxTokens := maxMessageParams - 2 // 2 reserved params: nick + text
 
 	// TODO: take into account maxMessageLength as well
@@ -103,7 +103,6 @@ func GenerateIsupport(prefix *irc.Prefix, tokens []string) []*irc.Message {
 		}
 
 		msgs = append(msgs, &irc.Message{
-			Prefix:  prefix,
 			Command: irc.RPL_ISUPPORT,
 			Params:  append(append([]string{"*"}, encodedTokens...), "are supported"),
 		})
@@ -114,24 +113,21 @@ func GenerateIsupport(prefix *irc.Prefix, tokens []string) []*irc.Message {
 
 var isupportEncoder = strings.NewReplacer(" ", "\\x20", "\\", "\\x5C")
 
-func GenerateMOTD(prefix *irc.Prefix, motd string) []*irc.Message {
+func GenerateMOTD(motd string) []*irc.Message {
 	var msgs []*irc.Message
 	msgs = append(msgs, &irc.Message{
-		Prefix:  prefix,
 		Command: irc.RPL_MOTDSTART,
 		Params:  []string{"*", fmt.Sprintf("- Message of the Day -")},
 	})
 
 	for _, l := range strings.Split(motd, "\n") {
 		msgs = append(msgs, &irc.Message{
-			Prefix:  prefix,
 			Command: irc.RPL_MOTD,
 			Params:  []string{"*", l},
 		})
 	}
 
 	msgs = append(msgs, &irc.Message{
-		Prefix:  prefix,
 		Command: irc.RPL_ENDOFMOTD,
 		Params:  []string{"*", "End of /MOTD command."},
 	})
@@ -169,9 +165,8 @@ func GenerateMonitor(subcmd string, targets []string) []*irc.Message {
 	return msgs
 }
 
-func GenerateNamesReply(prefix *irc.Prefix, channel string, status ChannelStatus, members []string) []*irc.Message {
+func GenerateNamesReply(channel string, status ChannelStatus, members []string) []*irc.Message {
 	emptyNameReply := irc.Message{
-		Prefix:  prefix,
 		Command: irc.RPL_NAMREPLY,
 		Params:  []string{"*", string(status), channel, ""},
 	}
@@ -184,7 +179,6 @@ func GenerateNamesReply(prefix *irc.Prefix, channel string, status ChannelStatus
 		if buf.Len() != 0 && n > maxLength {
 			// There's not enough space for the next space + nick
 			msgs = append(msgs, &irc.Message{
-				Prefix:  prefix,
 				Command: irc.RPL_NAMREPLY,
 				Params:  []string{"*", string(status), channel, buf.String()},
 			})
@@ -199,14 +193,12 @@ func GenerateNamesReply(prefix *irc.Prefix, channel string, status ChannelStatus
 
 	if buf.Len() != 0 {
 		msgs = append(msgs, &irc.Message{
-			Prefix:  prefix,
 			Command: irc.RPL_NAMREPLY,
 			Params:  []string{"*", string(status), channel, buf.String()},
 		})
 	}
 
 	msgs = append(msgs, &irc.Message{
-		Prefix:  prefix,
 		Command: irc.RPL_ENDOFNAMES,
 		Params:  []string{"*", channel, "End of /NAMES list"},
 	})

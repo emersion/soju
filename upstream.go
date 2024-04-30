@@ -461,7 +461,6 @@ func (uc *upstreamConn) abortPendingCommands() {
 			switch pendingCmd.msg.Command {
 			case "LIST":
 				dc.SendMessage(ctx, &irc.Message{
-					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_LISTEND,
 					Params:  []string{dc.nick, "Command aborted"},
 				})
@@ -471,20 +470,17 @@ func (uc *upstreamConn) abortPendingCommands() {
 					mask = pendingCmd.msg.Params[0]
 				}
 				dc.SendMessage(ctx, &irc.Message{
-					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_ENDOFWHO,
 					Params:  []string{dc.nick, mask, "Command aborted"},
 				})
 			case "WHOIS":
 				nick := pendingCmd.msg.Params[len(pendingCmd.msg.Params)-1]
 				dc.SendMessage(ctx, &irc.Message{
-					Prefix:  dc.srv.prefix(),
 					Command: irc.RPL_ENDOFWHOIS,
 					Params:  []string{dc.nick, nick, "Command aborted"},
 				})
 			case "AUTHENTICATE":
 				dc.endSASL(ctx, &irc.Message{
-					Prefix:  dc.srv.prefix(),
 					Command: irc.ERR_SASLABORTED,
 					Params:  []string{dc.nick, "SASL authentication aborted"},
 				})
@@ -1017,7 +1013,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		uc.updateMonitor()
 
 		uc.forEachDownstream(func(dc *downstreamConn) {
-			msgs := xirc.GenerateIsupport(dc.srv.prefix(), downstreamIsupport)
+			msgs := xirc.GenerateIsupport(downstreamIsupport)
 			for _, msg := range msgs {
 				dc.SendMessage(ctx, msg)
 			}
@@ -1685,7 +1681,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				prefix := irc.ParsePrefix(target)
 				if dc.monitored.Has(prefix.Name) {
 					dc.SendMessage(ctx, &irc.Message{
-						Prefix:  dc.srv.prefix(),
 						Command: msg.Command,
 						Params:  []string{dc.nick, target},
 					})
@@ -1703,7 +1698,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			for _, target := range targets {
 				if dc.monitored.Has(target) {
 					dc.SendMessage(ctx, &irc.Message{
-						Prefix:  dc.srv.prefix(),
 						Command: msg.Command,
 						Params:  []string{dc.nick, limit, target},
 					})
