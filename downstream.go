@@ -752,7 +752,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			dc.away = nil
 		}
 
-		dc.SendMessage(ctx, generateAwayReply(dc.away != nil))
+		dc.SendMessage(ctx, generateAwayReply(dc.away != nil, dc.srv.prefix()))
 	default:
 		dc.logger.Debugf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
@@ -2583,7 +2583,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			dc.away = nil
 		}
 
-		dc.SendMessage(ctx, generateAwayReply(dc.away != nil))
+		dc.SendMessage(ctx, generateAwayReply(dc.away != nil, dc.srv.prefix()))
 
 		uc := dc.upstream()
 		if uc != nil {
