@@ -530,6 +530,12 @@ func (dc *downstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 		msg = &msgCopy
 		msg.Prefix = nil
 	}
+	if msg.Prefix == nil && isNumeric(msg.Command) {
+		// Numerics must always carry a source
+		msgCopy := *msg
+		msg = &msgCopy
+		msg.Prefix = dc.srv.prefix()
+	}
 
 	dc.srv.metrics.downstreamOutMessagesTotal.Inc()
 	dc.conn.SendMessage(ctx, msg)
