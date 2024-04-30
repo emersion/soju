@@ -926,7 +926,6 @@ func (u *user) notifyBouncerNetworkState(netID int64, attrs irc.Tags) {
 	for _, dc := range u.downstreamConns {
 		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
 			dc.SendMessage(context.TODO(), &irc.Message{
-				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"NETWORK", netIDStr, attrs.String()},
 			})
@@ -1130,7 +1129,6 @@ func (u *user) deleteNetwork(ctx context.Context, id int64) error {
 	for _, dc := range u.downstreamConns {
 		if dc.caps.IsEnabled("soju.im/bouncer-networks-notify") {
 			dc.SendMessage(ctx, &irc.Message{
-				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"NETWORK", idStr, "*"},
 			})

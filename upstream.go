@@ -486,7 +486,6 @@ func (uc *upstreamConn) abortPendingCommands() {
 				})
 			case "REGISTER", "VERIFY":
 				dc.SendMessage(ctx, &irc.Message{
-					Prefix:  dc.srv.prefix(),
 					Command: "FAIL",
 					Params:  []string{pendingCmd.msg.Command, "TEMPORARILY_UNAVAILABLE", pendingCmd.msg.Params[0], "Command aborted"},
 				})

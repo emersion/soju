@@ -548,7 +548,6 @@ func (dc *downstreamConn) SendBatch(ctx context.Context, typ string, params []st
 	if dc.caps.IsEnabled("batch") {
 		dc.SendMessage(ctx, &irc.Message{
 			Tags:    tags,
-			Prefix:  dc.srv.prefix(),
 			Command: "BATCH",
 			Params:  append([]string{"+" + ref, typ}, params...),
 		})
@@ -558,7 +557,6 @@ func (dc *downstreamConn) SendBatch(ctx context.Context, typ string, params []st
 
 	if dc.caps.IsEnabled("batch") {
 		dc.SendMessage(ctx, &irc.Message{
-			Prefix:  dc.srv.prefix(),
 			Command: "BATCH",
 			Params:  []string{"-" + ref},
 		})
@@ -801,7 +799,6 @@ func (dc *downstreamConn) handleCap(ctx context.Context, msg *irc.Message) error
 
 		// TODO: multi-line replies
 		dc.SendMessage(ctx, &irc.Message{
-			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
 			Params:  []string{dc.nick, "LS", strings.Join(caps, " ")},
 		})
@@ -822,7 +819,6 @@ func (dc *downstreamConn) handleCap(ctx context.Context, msg *irc.Message) error
 
 		// TODO: multi-line replies
 		dc.SendMessage(ctx, &irc.Message{
-			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
 			Params:  []string{dc.nick, "LIST", strings.Join(caps, " ")},
 		})
@@ -880,7 +876,6 @@ func (dc *downstreamConn) handleCap(ctx context.Context, msg *irc.Message) error
 			reply = "ACK"
 		}
 		dc.SendMessage(ctx, &irc.Message{
-			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
 			Params:  []string{dc.nick, reply, args[0]},
 		})
@@ -1003,7 +998,6 @@ func (dc *downstreamConn) handleAuthenticate(ctx context.Context, msg *irc.Messa
 
 		// TODO: multi-line messages
 		dc.SendMessage(ctx, &irc.Message{
-			Prefix:  dc.srv.prefix(),
 			Command: "AUTHENTICATE",
 			Params:  []string{challengeStr},
 		})
@@ -1043,7 +1037,6 @@ func (dc *downstreamConn) setSupportedCap(ctx context.Context, name, value strin
 	}
 
 	dc.SendMessage(ctx, &irc.Message{
-		Prefix:  dc.srv.prefix(),
 		Command: "CAP",
 		Params:  []string{dc.nick, "NEW", cap},
 	})
@@ -1058,7 +1051,6 @@ func (dc *downstreamConn) unsetSupportedCap(ctx context.Context, name string) {
 	}
 
 	dc.SendMessage(ctx, &irc.Message{
-		Prefix:  dc.srv.prefix(),
 		Command: "CAP",
 		Params:  []string{dc.nick, "DEL", name},
 	})
@@ -1548,7 +1540,6 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 				attrs := getNetworkAttrs(network)
 				dc.SendMessage(ctx, &irc.Message{
 					Tags:    irc.Tags{"batch": batchRef},
-					Prefix:  dc.srv.prefix(),
 					Command: "BOUNCER",
 					Params:  []string{"NETWORK", idStr, attrs.String()},
 				})
@@ -2789,7 +2780,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 					dc.SendMessage(ctx, &irc.Message{
 						Tags:    irc.Tags{"batch": batchRef},
-						Prefix:  dc.srv.prefix(),
 						Command: "CHATHISTORY",
 						Params:  []string{"TARGETS", target.Name, xirc.FormatServerTime(target.LatestMessage)},
 					})
@@ -3021,7 +3011,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					attrs := getNetworkAttrs(network)
 					dc.SendMessage(ctx, &irc.Message{
 						Tags:    irc.Tags{"batch": batchRef},
-						Prefix:  dc.srv.prefix(),
 						Command: "BOUNCER",
 						Params:  []string{"NETWORK", idStr, attrs.String()},
 					})
@@ -3056,7 +3045,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			dc.SendMessage(ctx, &irc.Message{
-				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"ADDNETWORK", fmt.Sprintf("%v", network.ID)},
 			})
@@ -3100,7 +3088,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			dc.SendMessage(ctx, &irc.Message{
-				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"CHANGENETWORK", idStr},
 			})
@@ -3127,7 +3114,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			dc.SendMessage(ctx, &irc.Message{
-				Prefix:  dc.srv.prefix(),
 				Command: "BOUNCER",
 				Params:  []string{"DELNETWORK", idStr},
 			})
@@ -3231,7 +3217,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			dc.SendMessage(ctx, &irc.Message{
-				Prefix:  dc.srv.prefix(),
 				Command: "WEBPUSH",
 				Params:  []string{"REGISTER", endpoint},
 			})
@@ -3253,7 +3238,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			oldSub := findWebPushSubscription(subs, endpoint)
 			if oldSub == nil {
 				dc.SendMessage(ctx, &irc.Message{
-					Prefix:  dc.srv.prefix(),
 					Command: "WEBPUSH",
 					Params:  []string{"UNREGISTER", endpoint},
 				})
@@ -3269,7 +3253,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			dc.SendMessage(ctx, &irc.Message{
-				Prefix:  dc.srv.prefix(),
 				Command: "WEBPUSH",
 				Params:  []string{"UNREGISTER", endpoint},
 			})
