@@ -799,6 +799,7 @@ func (dc *downstreamConn) handleCap(ctx context.Context, msg *irc.Message) error
 
 		// TODO: multi-line replies
 		dc.SendMessage(ctx, &irc.Message{
+			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
 			Params:  []string{dc.nick, "LS", strings.Join(caps, " ")},
 		})
@@ -819,6 +820,7 @@ func (dc *downstreamConn) handleCap(ctx context.Context, msg *irc.Message) error
 
 		// TODO: multi-line replies
 		dc.SendMessage(ctx, &irc.Message{
+			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
 			Params:  []string{dc.nick, "LIST", strings.Join(caps, " ")},
 		})
@@ -876,6 +878,7 @@ func (dc *downstreamConn) handleCap(ctx context.Context, msg *irc.Message) error
 			reply = "ACK"
 		}
 		dc.SendMessage(ctx, &irc.Message{
+			Prefix:  dc.srv.prefix(),
 			Command: "CAP",
 			Params:  []string{dc.nick, reply, args[0]},
 		})
@@ -1037,6 +1040,7 @@ func (dc *downstreamConn) setSupportedCap(ctx context.Context, name, value strin
 	}
 
 	dc.SendMessage(ctx, &irc.Message{
+		Prefix:  dc.srv.prefix(),
 		Command: "CAP",
 		Params:  []string{dc.nick, "NEW", cap},
 	})
@@ -1051,6 +1055,7 @@ func (dc *downstreamConn) unsetSupportedCap(ctx context.Context, name string) {
 	}
 
 	dc.SendMessage(ctx, &irc.Message{
+		Prefix:  dc.srv.prefix(),
 		Command: "CAP",
 		Params:  []string{dc.nick, "DEL", name},
 	})
