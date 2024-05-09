@@ -134,10 +134,6 @@ func main() {
 		cfg.Listen = []string{":6697"}
 	}
 
-	if err := bumpOpenedFileLimit(); err != nil {
-		log.Printf("failed to bump max number of opened files: %v", err)
-	}
-
 	db, err := database.Open(cfg.DB.Driver, cfg.DB.Source)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
