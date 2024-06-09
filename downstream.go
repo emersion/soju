@@ -291,7 +291,7 @@ var passthroughIsupport = map[string]bool{
 }
 
 type saslPlain struct {
-	Username, Password string
+	Identity, Username, Password string
 }
 
 type downstreamSASL struct {
@@ -332,10 +332,11 @@ type downstreamConn struct {
 	id uint64
 
 	// These don't change after connection registration
-	registered bool
-	user       *user
-	network    *network // can be nil
-	clientName string
+	registered    bool
+	user          *user
+	network       *network // can be nil
+	clientName    string
+	impersonating bool
 
 	nick     string
 	nickCM   string
@@ -662,6 +663,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		}
 
 		var username, clientName, networkName string
+		var impersonating bool
 		switch credentials.mechanism {
 		case "PLAIN":
 			username, clientName, networkName = unmarshalUsername(credentials.plain.Username)
@@ -676,6 +678,25 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			if err = auth.AuthPlain(ctx, dc.srv.db, username, password); err != nil {
 				err = fmt.Errorf("%v (username %q)", err, username)
 				break
+			}
+
+			if credentials.plain.Identity != "" && credentials.plain.Identity != username {
+				var u *database.User
+				u, err = dc.srv.db.GetUser(ctx, username)
+				if err != nil {
+					err = fmt.Errorf("%v (username %q)", err, username)
+					break
+				}
+				if !u.Admin {
+					err = fmt.Errorf("SASL impersonation only allowed for admin users")
+					break
+				}
+				username, clientName, networkName = unmarshalUsername(credentials.plain.Identity)
+				if _, err = dc.srv.db.GetUser(ctx, username); err != nil {
+					err = fmt.Errorf("%v (username %q)", err, username)
+					break
+				}
+				impersonating = true
 			}
 		case "OAUTHBEARER":
 			auth, ok := dc.srv.Config().Auth.(auth.OAuthBearerAuthenticator)
@@ -710,6 +731,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			panic(fmt.Errorf("username unset after SASL authentication"))
 		}
 		dc.setAuthUsername(username, clientName, networkName)
+		dc.impersonating = impersonating
 
 		// Technically we should send RPL_LOGGEDIN here. However we use
 		// RPL_LOGGEDIN to mirror the upstream connection status. Let's
@@ -931,10 +953,8 @@ func (dc *downstreamConn) handleAuthenticate(ctx context.Context, msg *irc.Messa
 		switch mech {
 		case "PLAIN":
 			server = sasl.NewPlainServer(sasl.PlainAuthenticator(func(identity, username, password string) error {
-				if identity != "" && identity != username {
-					return fmt.Errorf("SASL PLAIN identity not supported")
-				}
 				dc.sasl.plain = &saslPlain{
+					Identity: identity,
 					Username: username,
 					Password: password,
 				}
@@ -2505,6 +2525,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		switch credentials.mechanism {
 		case "PLAIN":
+			if credentials.plain.Identity != "" && credentials.plain.Identity != credentials.plain.Username {
+				return ircError{&irc.Message{
+					Command: irc.ERR_SASLFAIL,
+					Params:  []string{dc.nick, "SASL PLAIN identity not supported"},
+				}}
+			}
+
 			uc.logger.Printf("starting post-registration SASL PLAIN authentication with username %q", credentials.plain.Username)
 			uc.saslClient = sasl.NewPlainClient("", credentials.plain.Username, credentials.plain.Password)
 			uc.enqueueCommand(dc, &irc.Message{

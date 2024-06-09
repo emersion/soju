@@ -770,7 +770,9 @@ func (u *user) run() {
 				uc.updateAway()
 			})
 
-			u.bumpDownstreamInteractionTime(ctx)
+			if !dc.impersonating {
+				u.bumpDownstreamInteractionTime(ctx)
+			}
 		case eventDownstreamDisconnected:
 			dc := e.dc
 			ctx := context.TODO()
@@ -793,7 +795,9 @@ func (u *user) run() {
 				uc.updateMonitor()
 			})
 
-			u.bumpDownstreamInteractionTime(ctx)
+			if !dc.impersonating {
+				u.bumpDownstreamInteractionTime(ctx)
+			}
 		case eventDownstreamMessage:
 			msg, dc := e.msg, e.dc
 			if dc.isClosed() {
