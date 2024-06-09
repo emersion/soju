@@ -483,8 +483,10 @@ character.
 	*-network* <name>
 		Select a network. By default, the current network is selected, if any.
 
-*user status*
+*user status* [username]
 	Show a list of users on this server. Only admins can query this information.
+
+	If _username_ is specified, statistics are only displayed for this user.
 
 *user create* -username <username> -password <password> [options...]
 	Create a new soju user. Only admin users can create new accounts.
