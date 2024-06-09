@@ -279,6 +279,7 @@ func init() {
 		"user": {
 			children: serviceCommandSet{
 				"status": {
+					usage:  "[username]",
 					desc:   "show a list of users and their current status",
 					handle: handleUserStatus,
 					admin:  true,
@@ -900,23 +901,34 @@ func handleServiceSASLReset(ctx *serviceContext, params []string) error {
 }
 
 func handleUserStatus(ctx *serviceContext, params []string) error {
-	if len(params) != 0 {
-		return fmt.Errorf("expected no argument")
+	if len(params) > 1 {
+		return fmt.Errorf("expected 0 or 1 argument")
 	}
 
 	// Limit to a small amount of users to avoid sending
 	// thousands of messages on large instances.
 	users := make([]database.User, 0, 50)
+	var n int
 
-	ctx.srv.lock.Lock()
-	n := len(ctx.srv.users)
-	for _, user := range ctx.srv.users {
-		if len(users) == cap(users) {
-			break
+	if len(params) == 0 {
+		ctx.srv.lock.Lock()
+		n = len(ctx.srv.users)
+		for _, user := range ctx.srv.users {
+			if len(users) == cap(users) {
+				break
+			}
+			users = append(users, user.User)
 		}
-		users = append(users, user.User)
+		ctx.srv.lock.Unlock()
+	} else {
+		username := params[0]
+		u := ctx.srv.getUser(username)
+		if u == nil {
+			return fmt.Errorf("unknown username %q", username)
+		}
+		users = append(users, u.User)
+		n = 1
 	}
-	ctx.srv.lock.Unlock()
 
 	for _, user := range users {
 		var attrs []string
