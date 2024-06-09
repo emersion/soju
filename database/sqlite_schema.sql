@@ -7,7 +7,8 @@ CREATE TABLE User (
 	nick TEXT,
 	created_at TEXT NOT NULL,
 	enabled INTEGER NOT NULL DEFAULT 1,
-	downstream_interacted_at TEXT
+	downstream_interacted_at TEXT,
+	max_networks INTEGER NOT NULL DEFAULT -1
 );
 
 CREATE TABLE Network (

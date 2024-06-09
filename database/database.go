@@ -96,6 +96,7 @@ type User struct {
 	Admin                  bool
 	Enabled                bool
 	DownstreamInteractedAt time.Time
+	MaxNetworks            int
 }
 
 func NewUser(username string) *User {

@@ -524,6 +524,11 @@ character.
 		not connect to any of their networks, and downstream connections will
 		be immediately closed. By default, users are enabled.
 
+	*-max-networks* <max-networks>
+		Set a limit on the number of enabled networks this user can use. A limit
+		of 0 means no network, and -1 means to default to the global
+		_max-user-networks_ configuration value.
+
 *user update* [username] [options...]
 	Update a user. The options are the same as the _user create_ command.
 
@@ -535,8 +540,8 @@ character.
 	- The _-username_ flag is never valid, usernames are immutable.
 	- The _-nick_ and _-realname_ flag are only valid when updating the current
 	  user.
-	- The _-admin_ and _-enabled_ flags are only valid when updating another
-	  user.
+	- The _-admin_, _-enabled_ and _-max_networks_ flags are only valid when
+	  updating another user.
 
 *user delete* <username> [confirmation token]
 	Delete a soju user.

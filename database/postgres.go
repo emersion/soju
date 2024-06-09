@@ -113,6 +113,7 @@ var postgresMigrations = []string{
 		CREATE INDEX "MessageIndex" ON "Message" (target, time);
 		CREATE INDEX "MessageSearchIndex" ON "Message" USING GIN (text_search);
 	`,
+	`ALTER TABLE "User" ADD COLUMN max_networks INTEGER NOT NULL DEFAULT -1`,
 }
 
 type PostgresDB struct {
@@ -257,7 +258,7 @@ func (db *PostgresDB) ListUsers(ctx context.Context) ([]User, error) {
 
 	rows, err := db.db.QueryContext(ctx,
 		`SELECT id, username, password, admin, nick, realname, enabled,
-			downstream_interacted_at
+			downstream_interacted_at, max_networks
 		FROM "User"`)
 	if err != nil {
 		return nil, err
@@ -269,7 +270,7 @@ func (db *PostgresDB) ListUsers(ctx context.Context) ([]User, error) {
 		var user User
 		var password, nick, realname sql.NullString
 		var downstreamInteractedAt sql.NullTime
-		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt, &user.MaxNetworks); err != nil {
 			return nil, err
 		}
 		user.Password = password.String
@@ -294,11 +295,11 @@ func (db *PostgresDB) GetUser(ctx context.Context, username string) (*User, erro
 	var password, nick, realname sql.NullString
 	var downstreamInteractedAt sql.NullTime
 	row := db.db.QueryRowContext(ctx,
-		`SELECT id, password, admin, nick, realname, enabled, downstream_interacted_at
+		`SELECT id, password, admin, nick, realname, enabled, downstream_interacted_at, max_networks
 		FROM "User"
 		WHERE username = $1`,
 		username)
-	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt); err != nil {
+	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt, &user.MaxNetworks); err != nil {
 		return nil, err
 	}
 	user.Password = password.String
@@ -348,19 +349,19 @@ func (db *PostgresDB) StoreUser(ctx context.Context, user *User) error {
 	if user.ID == 0 {
 		err = db.db.QueryRowContext(ctx, `
 			INSERT INTO "User" (username, password, admin, nick, realname,
-				enabled, downstream_interacted_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+				enabled, downstream_interacted_at, max_networks)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id`,
 			user.Username, password, user.Admin, nick, realname, user.Enabled,
-			downstreamInteractedAt).Scan(&user.ID)
+			downstreamInteractedAt, user.MaxNetworks).Scan(&user.ID)
 	} else {
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE "User"
 			SET password = $1, admin = $2, nick = $3, realname = $4,
-				enabled = $5, downstream_interacted_at = $6
-			WHERE id = $7`,
+				enabled = $5, downstream_interacted_at = $6, max_networks = $7
+			WHERE id = $8`,
 			password, user.Admin, nick, realname, user.Enabled,
-			downstreamInteractedAt, user.ID)
+			downstreamInteractedAt, user.MaxNetworks, user.ID)
 	}
 	return err
 }

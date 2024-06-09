@@ -75,10 +75,11 @@ type eventBroadcast struct {
 type eventStop struct{}
 
 type eventUserUpdate struct {
-	password *string
-	admin    *bool
-	enabled  *bool
-	done     chan error
+	password    *string
+	admin       *bool
+	enabled     *bool
+	maxNetworks *int
+	done        chan error
 }
 
 type eventTryRegainNick struct {
@@ -823,6 +824,9 @@ func (u *user) run() {
 				if e.enabled != nil {
 					record.Enabled = *e.enabled
 				}
+				if e.maxNetworks != nil {
+					record.MaxNetworks = *e.maxNetworks
+				}
 				return nil
 			})
 
@@ -965,7 +969,10 @@ func (u *user) removeNetwork(network *network) {
 }
 
 func (u *user) canEnableNewNetwork() error {
-	max := u.srv.Config().MaxUserNetworks
+	max := u.MaxNetworks
+	if max < 0 {
+		max = u.srv.Config().MaxUserNetworks
+	}
 	if max < 0 {
 		return nil
 	}

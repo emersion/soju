@@ -242,6 +242,7 @@ var sqliteMigrations = []string{
 			INSERT INTO MessageFTS(rowid, text) VALUES (new.id, new.text);
 		END;
 	`,
+	"ALTER TABLE User ADD COLUMN max_networks INTEGER NOT NULL DEFAULT -1",
 }
 
 type SqliteDB struct {
@@ -342,7 +343,7 @@ func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {
 
 	rows, err := db.db.QueryContext(ctx,
 		`SELECT id, username, password, admin, nick, realname, enabled,
-			downstream_interacted_at
+			downstream_interacted_at, max_networks
 		FROM User`)
 	if err != nil {
 		return nil, err
@@ -354,7 +355,7 @@ func (db *SqliteDB) ListUsers(ctx context.Context) ([]User, error) {
 		var user User
 		var password, nick, realname sql.NullString
 		var downstreamInteractedAt sqliteTime
-		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Username, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt, &user.MaxNetworks); err != nil {
 			return nil, err
 		}
 		user.Password = password.String
@@ -380,11 +381,11 @@ func (db *SqliteDB) GetUser(ctx context.Context, username string) (*User, error)
 	var downstreamInteractedAt sqliteTime
 	row := db.db.QueryRowContext(ctx,
 		`SELECT id, password, admin, nick, realname, enabled,
-			downstream_interacted_at
+			downstream_interacted_at, max_networks
 		FROM User
 		WHERE username = ?`,
 		username)
-	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt); err != nil {
+	if err := row.Scan(&user.ID, &password, &user.Admin, &nick, &realname, &user.Enabled, &downstreamInteractedAt, &user.MaxNetworks); err != nil {
 		return nil, err
 	}
 	user.Password = password.String
@@ -434,6 +435,7 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 		sql.Named("enabled", user.Enabled),
 		sql.Named("now", sqliteTime{time.Now()}),
 		sql.Named("downstream_interacted_at", sqliteTime{user.DownstreamInteractedAt}),
+		sql.Named("max_networks", user.MaxNetworks),
 	}
 
 	var err error
@@ -442,7 +444,8 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 			UPDATE User
 			SET password = :password, admin = :admin, nick = :nick,
 				realname = :realname, enabled = :enabled,
-				downstream_interacted_at = :downstream_interacted_at
+				downstream_interacted_at = :downstream_interacted_at,
+				max_networks = :max_networks
 			WHERE username = :username`,
 			args...)
 	} else {
@@ -450,9 +453,9 @@ func (db *SqliteDB) StoreUser(ctx context.Context, user *User) error {
 		res, err = db.db.ExecContext(ctx, `
 			INSERT INTO
 			User(username, password, admin, nick, realname, created_at,
-				enabled, downstream_interacted_at)
+				enabled, downstream_interacted_at, max_networks)
 			VALUES (:username, :password, :admin, :nick, :realname, :now,
-				:enabled, :downstream_interacted_at)`,
+				:enabled, :downstream_interacted_at, :max_networks)`,
 			args...)
 		if err != nil {
 			return err

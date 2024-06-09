@@ -286,14 +286,14 @@ func init() {
 					global: true,
 				},
 				"create": {
-					usage:  "-username <username> -password <password> [-disable-password] [-admin true|false] [-nick <nick>] [-realname <realname>] [-enabled true|false]",
+					usage:  "-username <username> -password <password> [-disable-password] [-admin true|false] [-nick <nick>] [-realname <realname>] [-enabled true|false]  [-max-networks <max-networks>]",
 					desc:   "create a new soju user",
 					handle: handleUserCreate,
 					admin:  true,
 					global: true,
 				},
 				"update": {
-					usage:  "[username] [-password <password>] [-disable-password] [-admin true|false] [-nick <nick>] [-realname <realname>] [-enabled true|false]",
+					usage:  "[username] [-password <password>] [-disable-password] [-admin true|false] [-nick <nick>] [-realname <realname>] [-enabled true|false] [-max-networks <max-networks>]",
 					desc:   "update a user",
 					handle: handleUserUpdate,
 					global: true,
@@ -451,6 +451,26 @@ func (f boolPtrFlag) String() string {
 
 func (f boolPtrFlag) Set(s string) error {
 	v, err := strconv.ParseBool(s)
+	if err != nil {
+		return err
+	}
+	*f.ptr = &v
+	return nil
+}
+
+type intPtrFlag struct {
+	ptr **int
+}
+
+func (f intPtrFlag) String() string {
+	if f.ptr == nil || *f.ptr == nil {
+		return "<nil>"
+	}
+	return strconv.Itoa(**f.ptr)
+}
+
+func (f intPtrFlag) Set(s string) error {
+	v, err := strconv.Atoi(s)
 	if err != nil {
 		return err
 	}
@@ -957,6 +977,9 @@ func handleUserStatus(ctx *serviceContext, params []string) error {
 			return fmt.Errorf("could not get networks of user %q: %v", user.Username, err)
 		}
 		line += fmt.Sprintf(": %d networks", len(networks))
+		if user.MaxNetworks >= 0 {
+			line += fmt.Sprintf(" (%d max)", user.MaxNetworks)
+		}
 		ctx.print(line)
 	}
 	if n > len(users) {
@@ -975,6 +998,7 @@ func handleUserCreate(ctx *serviceContext, params []string) error {
 	realname := fs.String("realname", "", "")
 	admin := fs.Bool("admin", false, "")
 	enabled := fs.Bool("enabled", true, "")
+	maxNetworks := fs.Int("max-networks", -1, "")
 
 	if err := fs.Parse(params); err != nil {
 		return err
@@ -997,6 +1021,7 @@ func handleUserCreate(ctx *serviceContext, params []string) error {
 	user.Realname = *realname
 	user.Admin = *admin
 	user.Enabled = *enabled
+	user.MaxNetworks = *maxNetworks
 	if !*disablePassword {
 		if err := user.SetPassword(*password); err != nil {
 			return err
@@ -1021,6 +1046,7 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 	var password, nick, realname *string
 	var admin, enabled *bool
 	var disablePassword bool
+	var maxNetworks *int
 	fs := newFlagSet()
 	fs.Var(stringPtrFlag{&password}, "password", "")
 	fs.BoolVar(&disablePassword, "disable-password", false, "")
@@ -1028,6 +1054,7 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 	fs.Var(stringPtrFlag{&realname}, "realname", "")
 	fs.Var(boolPtrFlag{&admin}, "admin", "")
 	fs.Var(boolPtrFlag{&enabled}, "enabled", "")
+	fs.Var(intPtrFlag{&maxNetworks}, "max-networks", "")
 
 	username, params := popArg(params)
 	if err := fs.Parse(params); err != nil {
@@ -1075,10 +1102,11 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 
 		done := make(chan error, 1)
 		event := eventUserUpdate{
-			password: hashed,
-			admin:    admin,
-			enabled:  enabled,
-			done:     done,
+			password:    hashed,
+			admin:       admin,
+			enabled:     enabled,
+			maxNetworks: maxNetworks,
+			done:        done,
 		}
 		select {
 		case <-ctx.Done():
@@ -1098,6 +1126,9 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 		if enabled != nil {
 			return fmt.Errorf("cannot update -enabled of own user")
 		}
+		if maxNetworks != nil && !ctx.admin {
+			return fmt.Errorf("cannot update -max-networks of own user")
+		}
 
 		err := ctx.user.updateUser(ctx, func(record *database.User) error {
 			if password != nil {
@@ -1113,6 +1144,9 @@ func handleUserUpdate(ctx *serviceContext, params []string) error {
 			}
 			if realname != nil {
 				record.Realname = *realname
+			}
+			if maxNetworks != nil {
+				record.MaxNetworks = *maxNetworks
 			}
 			return nil
 		})
