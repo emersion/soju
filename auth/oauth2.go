@@ -82,7 +82,7 @@ func newOAuth2(authURL string) (Authenticator, error) {
 }
 
 func (auth *oauth2) AuthPlain(ctx context.Context, db database.Database, username, password string) error {
-	effectiveUsername, err := auth.AuthOAuthBearer(ctx, db, password)
+	effectiveUsername, err := auth.AuthOAuthBearer(ctx, db, password, username)
 	if err != nil {
 		return err
 	}
@@ -94,9 +94,12 @@ func (auth *oauth2) AuthPlain(ctx context.Context, db database.Database, usernam
 	return nil
 }
 
-func (auth *oauth2) AuthOAuthBearer(ctx context.Context, db database.Database, token string) (username string, err error) {
+func (auth *oauth2) AuthOAuthBearer(ctx context.Context, db database.Database, token string, username string) (string, error) {
 	reqValues := make(url.Values)
 	reqValues.Set("token", token)
+	if username != "" {
+		reqValues.Set("username", username)
+	}
 
 	reqBody := strings.NewReader(reqValues.Encode())
 

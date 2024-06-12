@@ -14,7 +14,7 @@ type PlainAuthenticator interface {
 }
 
 type OAuthBearerAuthenticator interface {
-	AuthOAuthBearer(ctx context.Context, db database.Database, token string) (username string, err error)
+	AuthOAuthBearer(ctx context.Context, db database.Database, token string, username string) (string, error)
 }
 
 func New(driver, source string) (Authenticator, error) {

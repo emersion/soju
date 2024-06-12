@@ -226,7 +226,7 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 			http.Error(resp, "Bearer scheme in Authorization header not supported", http.StatusBadRequest)
 			return
 		}
-		username, err = oauthAuth.AuthOAuthBearer(req.Context(), h.DB, param)
+		username, err = oauthAuth.AuthOAuthBearer(req.Context(), h.DB, param, "")
 	default:
 		http.Error(resp, "unsupported Authorization header scheme", http.StatusBadRequest)
 		return

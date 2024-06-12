@@ -705,7 +705,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 				break
 			}
 
-			username, err = auth.AuthOAuthBearer(ctx, dc.srv.db, credentials.oauthBearer.Token)
+			username, err = auth.AuthOAuthBearer(ctx, dc.srv.db, credentials.oauthBearer.Token, "")
 			if err != nil {
 				break
 			}
