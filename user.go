@@ -1022,6 +1022,9 @@ func (u *user) checkNetwork(record *database.Network) error {
 			return fmt.Errorf("%v:// URL must not have a path", url.Scheme)
 		}
 	case "irc+unix", "unix":
+		if !u.Admin {
+			return fmt.Errorf("non-admin users cannot add networks with a unix address")
+		}
 		if url.Host != "" {
 			return fmt.Errorf("%v:// URL must not have a host", url.Scheme)
 		}
