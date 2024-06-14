@@ -1,6 +1,7 @@
 package fileupload
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -59,14 +60,16 @@ var primaryExts = map[string]string{
 }
 
 type Uploader interface {
-	load(filename string) (basename string, modTime time.Time, content io.ReadSeekCloser, err error)
-	store(r io.Reader, username, mimeType, basename string) (outFilename string, err error)
+	load(ctx context.Context, filename string) (basename string, modTime time.Time, content io.ReadSeekCloser, err error)
+	store(ctx context.Context, r io.Reader, username, mimeType, basename string) (out string, err error)
 }
 
 func New(driver, source string) (Uploader, error) {
 	switch driver {
 	case "fs":
-		return &fs{source}, nil
+		return &fileuploadFS{source}, nil
+	case "http":
+		return &fileuploadHTTP{source}, nil
 	default:
 		return nil, fmt.Errorf("unknown file upload driver %q", driver)
 	}
@@ -153,7 +156,7 @@ func (h *Handler) fetch(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	basename, modTime, content, err := h.Uploader.load(filename)
+	basename, modTime, content, err := h.Uploader.load(req.Context(), filename)
 	if err != nil {
 		http.Error(resp, "failed to open file", http.StatusNotFound)
 		return
@@ -277,7 +280,7 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 		basename = path.Base(params["filename"])
 	}
 
-	var outFilename string
+	var out string
 	if req.ContentLength > maxSize {
 		// Check the Content-Length, best-effort, before we start reading from it.
 		// If the client sends us the length right away, we can signal to him immediately
@@ -287,7 +290,7 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 		}
 	} else {
 		r := http.MaxBytesReader(resp, req.Body, maxSize)
-		outFilename, err = h.Uploader.store(r, username, mimeType, basename)
+		out, err = h.Uploader.store(req.Context(), r, username, mimeType, basename)
 	}
 	if err != nil {
 		status := http.StatusInternalServerError
@@ -301,7 +304,15 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	resp.Header().Set("Location", "/uploads/"+outFilename)
+	u, err := url.Parse(out)
+	if err != nil {
+		http.Error(resp, "failed to write file", http.StatusInternalServerError)
+		return
+	}
+	baseURL := url.URL{Path: "/uploads/"}
+	out = baseURL.ResolveReference(u).String()
+
+	resp.Header().Set("Location", out)
 	resp.WriteHeader(http.StatusCreated)
 }
 

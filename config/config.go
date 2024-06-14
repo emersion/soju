@@ -210,7 +210,7 @@ func Load(filename string) (*Server, error) {
 			return nil, err
 		}
 		switch driver {
-		case "fs":
+		case "fs", "http":
 			if source == "" {
 				return nil, fmt.Errorf("directive file-upload: driver %q requires a source", driver)
 			}

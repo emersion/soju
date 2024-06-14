@@ -166,6 +166,13 @@ The following directives are supported:
 	Supported drivers:
 
 	- _fs_ stores uploaded files on disk. _source_ is required.
+	- _http_ stores uploaded files through an external HTTP service. _source_ is
+	  required and must be an HTTP URL. When receiving a file, soju will send an
+	  HTTP POST request to that URL, sending the file as is in the HTTP request
+	  body; additionally sending the uploader soju username in the
+	  _Soju-Username_ header. The HTTP server must respond with an HTTP 201 on
+	  success, with the _Location_ header being set to the URL of the uploaded
+	  file.
 
 *http-origin* <patterns...>
 	List of allowed HTTP origins for WebSocket listeners. The parameters are

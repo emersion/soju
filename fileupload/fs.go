@@ -1,6 +1,7 @@
 package fileupload
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"mime"
@@ -11,13 +12,13 @@ import (
 	"time"
 )
 
-type fs struct {
+type fileuploadFS struct {
 	dir string
 }
 
-var _ Uploader = (*fs)(nil)
+var _ Uploader = (*fileuploadFS)(nil)
 
-func (fs *fs) load(filename string) (basename string, modTime time.Time, content io.ReadSeekCloser, err error) {
+func (fs *fileuploadFS) load(ctx context.Context, filename string) (basename string, modTime time.Time, content io.ReadSeekCloser, err error) {
 	f, err := os.Open(filepath.Join(fs.dir, filepath.FromSlash(filename)))
 	if err != nil {
 		return "", time.Time{}, nil, err
@@ -40,9 +41,7 @@ func (fs *fs) load(filename string) (basename string, modTime time.Time, content
 	return basename, fi.ModTime(), f, nil
 }
 
-func (fs *fs) store(r io.Reader, username, mimeType, origBasename string) (outFilename string, err error) {
-	origBasename = filepath.Base(origBasename)
-
+func (fs *fileuploadFS) store(ctx context.Context, r io.Reader, username, mimeType, origBasename string) (out string, err error) {
 	var suffix string
 	if filepath.Ext(origBasename) == "" && mimeType != "" {
 		if ext, ok := primaryExts[mimeType]; ok {
