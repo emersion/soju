@@ -1122,7 +1122,7 @@ func (db *SqliteDB) StoreMessages(ctx context.Context, networkID int64, name str
 		case "PRIVMSG", "NOTICE":
 			if len(msg.Params) > 1 {
 				text.Valid = true
-				text.String = msg.Params[1]
+				text.String = stripANSI(msg.Params[1])
 			}
 		}
 
