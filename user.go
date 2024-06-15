@@ -89,8 +89,7 @@ type eventTryRegainNick struct {
 
 type eventUserRun struct {
 	params []string
-	print  chan string
-	ret    chan error
+	ch     chan userRunMsg
 }
 
 type deliveredClientMap map[string]string // client name -> msg ID
@@ -863,13 +862,13 @@ func (u *user) run() {
 					// but might be useful later when we add timeouts.
 					select {
 					case <-ctx.Done():
-					case e.print <- text:
+					case e.ch <- userRunMsg{message: text}:
 					}
 				},
 			}, e.params)
 			select {
 			case <-ctx.Done():
-			case e.ret <- err:
+			case e.ch <- userRunMsg{err: err}:
 			}
 		case eventStop:
 			for _, dc := range u.downstreamConns {

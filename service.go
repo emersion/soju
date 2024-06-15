@@ -1212,6 +1212,11 @@ func handleUserDelete(ctx *serviceContext, params []string) error {
 	return nil
 }
 
+type userRunMsg struct {
+	message string
+	err     error
+}
+
 func handleUserRun(ctx *serviceContext, params []string) error {
 	if len(params) < 2 {
 		return fmt.Errorf("expected at least two arguments")
@@ -1228,12 +1233,10 @@ func handleUserRun(ctx *serviceContext, params []string) error {
 		return fmt.Errorf("unknown username %q", username)
 	}
 
-	printCh := make(chan string, 1)
-	retCh := make(chan error, 1)
+	msgCh := make(chan userRunMsg, 1)
 	ev := eventUserRun{
 		params: params,
-		print:  printCh,
-		ret:    retCh,
+		ch:     msgCh,
 	}
 	select {
 	case <-ctx.Done():
@@ -1252,12 +1255,12 @@ func handleUserRun(ctx *serviceContext, params []string) error {
 			// TODO: Properly fix this condition by flushing the u.events queue
 			//       and running close(ev.print) in a defer
 			return fmt.Errorf("timeout executing command")
-		case text, ok := <-printCh:
-			if ok {
-				ctx.print(text)
+		case msg := <-msgCh:
+			if msg.message != "" {
+				ctx.print(msg.message)
+			} else {
+				return msg.err
 			}
-		case ret := <-retCh:
-			return ret
 		}
 	}
 }
