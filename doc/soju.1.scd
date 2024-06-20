@@ -381,8 +381,12 @@ character.
 		Only show channels for the specified network. By default, only the
 		channels in the current network are displayed.
 
-*channel update* <name> [options...]
-	Update the options of an existing channel.
+*channel create* <name> [options...]
+	Join a new channel.
+
+	Joining a channel should usually be done with a simple join from the client,
+	but this command can be used to join another user to a channel when used with
+	_user run_.
 
 	Options are:
 
@@ -451,6 +455,10 @@ character.
 
 		*default*
 			Currently same as *message*. This is the default behaviour.
+
+*channel update* <name> [options...]
+	Update the options of an existing channel. The options are the same as the
+	_network create_ command.
 
 *channel delete* <name>
 	Leave and forget a channel.

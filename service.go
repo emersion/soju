@@ -321,6 +321,11 @@ func init() {
 					desc:   "show a list of saved channels and their current status",
 					handle: handleServiceChannelStatus,
 				},
+				"create": {
+					usage:  "<name> [-detached <true|false>] [-relay-detached <default|none|highlight|message>] [-reattach-on <default|none|highlight|message>] [-detach-after <duration>] [-detach-on <default|none|highlight|message>]",
+					desc:   "create a channel",
+					handle: handleServiceChannelCreate,
+				},
 				"update": {
 					usage:  "<name> [-detached <true|false>] [-relay-detached <default|none|highlight|message>] [-reattach-on <default|none|highlight|message>] [-detach-after <duration>] [-detach-on <default|none|highlight|message>]",
 					desc:   "update a channel",
@@ -1425,6 +1430,58 @@ func stripNetworkSuffix(ctx *serviceContext, name string) (string, *network, err
 	}
 
 	return "", nil, fmt.Errorf("unknown network %q", netName)
+}
+
+func handleServiceChannelCreate(ctx *serviceContext, params []string) error {
+	if len(params) < 1 {
+		return fmt.Errorf("expected at least one argument")
+	}
+	name := params[0]
+
+	fs := newChannelFlagSet()
+	if err := fs.Parse(params[1:]); err != nil {
+		return err
+	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
+	}
+
+	name, network, err := stripNetworkSuffix(ctx, name)
+	if err != nil {
+		return err
+	}
+	if name == "" || strings.ContainsAny(name, illegalChanChars) {
+		return fmt.Errorf("invalid channel name: %v", name)
+	}
+	if network.conn != nil && !network.conn.isChannel(name) {
+		return fmt.Errorf("not a channel name: %v", name)
+	}
+	if network.channels.Get(name) != nil {
+		return fmt.Errorf("channel %q already exists", name)
+	}
+
+	ch := database.Channel{
+		Name: name,
+	}
+	if err := fs.update(&ch); err != nil {
+		return err
+	}
+
+	network.channels.Set(ch.Name, &ch)
+
+	if err := ctx.srv.db.StoreChannel(ctx, network.ID, &ch); err != nil {
+		return fmt.Errorf("failed to create channel: %v", err)
+	}
+
+	if network.conn != nil {
+		network.conn.SendMessage(ctx, &irc.Message{
+			Command: "JOIN",
+			Params:  []string{ch.Name},
+		})
+	}
+
+	ctx.print(fmt.Sprintf("created channel %q", name))
+	return nil
 }
 
 func handleServiceChannelUpdate(ctx *serviceContext, params []string) error {
