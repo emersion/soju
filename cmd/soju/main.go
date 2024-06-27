@@ -223,6 +223,9 @@ func main() {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
 			ln = proxyProtoListener(ln, srv)
+			if err := os.Chmod(u.Path, 0775); err != nil {
+				log.Printf("failed to chmod Unix IRC socket: %v", err)
+			}
 			go func() {
 				if err := srv.Serve(ln, srv.Handle); err != nil {
 					log.Printf("serving %q: %v", listen, err)
@@ -275,6 +278,9 @@ func main() {
 			ln, err := net.Listen("unix", u.Path)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
+			}
+			if err := os.Chmod(u.Path, 0775); err != nil {
+				log.Printf("failed to chmod Unix WS socket: %v", err)
 			}
 			go func() {
 				if err := http.Serve(ln, srv); err != nil {
@@ -376,6 +382,9 @@ func main() {
 			ln, err := net.Listen("unix", u.Path)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
+			}
+			if err := os.Chmod(u.Path, 0775); err != nil {
+				log.Printf("failed to chmod Unix HTTP socket: %v", err)
 			}
 			go func() {
 				if err := http.Serve(ln, httpMux); err != nil {
