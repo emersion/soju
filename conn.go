@@ -157,7 +157,7 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 				break
 			}
 		}
-		if err := c.conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := c.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			c.logger.Printf("failed to close connection: %v", err)
 		} else {
 			c.logger.Debugf("connection closed")
