@@ -2243,7 +2243,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					})
 
 					if i == -1 {
-						info.Flags = prefixes + info.Flags
+						info.Flags += prefixes
 					} else {
 						info.Flags = info.Flags[:i] + prefixes + info.Flags[i:]
 					}
