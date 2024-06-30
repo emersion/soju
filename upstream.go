@@ -1541,7 +1541,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				Hostname: host,
 				Server:   server,
 				Nickname: nick,
-				Flags:    flags,
+				Flags:    stripMemberPrefixes(flags, uc),
 				Realname: realname,
 			})
 		}
@@ -1564,13 +1564,14 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			if err != nil {
 				return err
 			}
+
 			if uc.shouldCacheUserInfo(info.Nickname) {
 				uc.cacheUserInfo(info.Nickname, &upstreamUser{
 					Nickname: info.Nickname,
 					Username: info.Username,
 					Hostname: info.Hostname,
 					Server:   info.Server,
-					Flags:    info.Flags,
+					Flags:    stripMemberPrefixes(info.Flags, uc),
 					Account:  info.Account,
 					Realname: info.Realname,
 				})

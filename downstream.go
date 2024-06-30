@@ -2230,6 +2230,23 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}
 				if uc.isChannel(mask) {
 					info.Channel = mask
+
+					// Set channel membership prefixes from cached NAMES reply
+					ch := uc.channels.Get(info.Channel)
+					memberships := ch.Members.Get(info.Nickname)
+					prefixes := formatMemberPrefix(*memberships, dc)
+
+					// Channel membership prefixes are listed after away status ('G'/'H')
+					// and optional server operator indicator ('*')
+					i := strings.IndexFunc(info.Flags, func(f rune) bool {
+						return f != 'G' && f != 'H' && f != '*'
+					})
+
+					if i == -1 {
+						info.Flags = prefixes + info.Flags
+					} else {
+						info.Flags = info.Flags[:i] + prefixes + info.Flags[i:]
+					}
 				}
 				dc.SendMessage(ctx, xirc.GenerateWHOXReply(fields, &info))
 			}

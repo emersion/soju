@@ -194,6 +194,19 @@ func formatMemberPrefix(ms xirc.MembershipSet, dc *downstreamConn) string {
 	return string(prefixes)
 }
 
+// Remove channel membership prefixes from flags
+func stripMemberPrefixes(flags string, uc *upstreamConn) string {
+	return strings.Map(func(r rune) rune {
+		for _, v := range uc.availableMemberships {
+			if byte(r) == v.Prefix {
+				return -1
+			}
+		}
+
+		return r
+	}, flags)
+}
+
 func parseMessageParams(msg *irc.Message, out ...*string) error {
 	if len(msg.Params) < len(out) {
 		return newNeedMoreParamsError(msg.Command)
