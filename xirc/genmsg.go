@@ -206,25 +206,25 @@ func GenerateNamesReply(channel string, status ChannelStatus, members []string) 
 }
 
 func GenerateSASL(resp []byte) []*irc.Message {
+	encoded := base64.StdEncoding.EncodeToString(resp)
+
 	// <= instead of < because we need to send a final empty response if
 	// the last chunk is exactly 400 bytes long
 	var msgs []*irc.Message
-	for i := 0; i <= len(resp); i += MaxSASLLength {
+	for i := 0; i <= len(encoded); i += MaxSASLLength {
 		j := i + MaxSASLLength
-		if j > len(resp) {
-			j = len(resp)
+		if j > len(encoded) {
+			j = len(encoded)
 		}
 
-		chunk := resp[i:j]
-
-		var respStr = "+"
-		if len(chunk) != 0 {
-			respStr = base64.StdEncoding.EncodeToString(chunk)
+		chunk := encoded[i:j]
+		if chunk == "" {
+			chunk = "+"
 		}
 
 		msgs = append(msgs, &irc.Message{
 			Command: "AUTHENTICATE",
-			Params:  []string{respStr},
+			Params:  []string{chunk},
 		})
 	}
 	return msgs
