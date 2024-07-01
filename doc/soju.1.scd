@@ -296,7 +296,7 @@ character.
 		of an IRC server:
 
 		```
-		openssl s_client -connect irc.example.org:6697 </dev/null 2>/dev/null | openssl x509 -fingerprint -sha512 -noout -in /dev/stdin
+		openssl s_client -connect irc.example.org:6697 -verify_quiet </dev/null | openssl x509 -fingerprint -sha512 -noout -in /dev/stdin
 		```
 
 	*-nick* <nickname>
