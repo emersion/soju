@@ -11,8 +11,8 @@ RUNDIR ?= /run
 sharedstatedir := /var/lib
 config_path := $(SYSCONFDIR)/soju/config
 admin_socket_path := $(RUNDIR)/soju/admin
-goldflags := -X 'git.sr.ht/~emersion/soju/config.DefaultPath=$(config_path)' \
-	-X 'git.sr.ht/~emersion/soju/config.DefaultUnixAdminPath=$(admin_socket_path)'
+goldflags := -X 'codeberg.org/emersion/soju/config.DefaultPath=$(config_path)' \
+	-X 'codeberg.org/emersion/soju/config.DefaultUnixAdminPath=$(admin_socket_path)'
 goflags := $(GOFLAGS) -ldflags="$(goldflags)"
 commands := soju sojuctl sojudb
 man_pages := doc/soju.1 doc/sojuctl.1

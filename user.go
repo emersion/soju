@@ -14,13 +14,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"git.sr.ht/~emersion/soju/xirc"
+	"codeberg.org/emersion/soju/xirc"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/database"
-	"git.sr.ht/~emersion/soju/msgstore"
+	"codeberg.org/emersion/soju/database"
+	"codeberg.org/emersion/soju/msgstore"
 )
 
 type UserUpdateFunc func(record *database.User) error

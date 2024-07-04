@@ -20,11 +20,11 @@ import (
 	"gopkg.in/irc.v4"
 	"nhooyr.io/websocket"
 
-	"git.sr.ht/~emersion/soju/auth"
-	"git.sr.ht/~emersion/soju/config"
-	"git.sr.ht/~emersion/soju/database"
-	"git.sr.ht/~emersion/soju/fileupload"
-	"git.sr.ht/~emersion/soju/identd"
+	"codeberg.org/emersion/soju/auth"
+	"codeberg.org/emersion/soju/config"
+	"codeberg.org/emersion/soju/database"
+	"codeberg.org/emersion/soju/fileupload"
+	"codeberg.org/emersion/soju/identd"
 )
 
 var (

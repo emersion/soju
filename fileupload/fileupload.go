@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"git.sr.ht/~emersion/soju/auth"
-	"git.sr.ht/~emersion/soju/database"
+	"codeberg.org/emersion/soju/auth"
+	"codeberg.org/emersion/soju/database"
 )
 
 const maxSize = 50 * 1024 * 1024 // 50 MiB

@@ -22,12 +22,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"git.sr.ht/~emersion/soju"
-	"git.sr.ht/~emersion/soju/auth"
-	"git.sr.ht/~emersion/soju/config"
-	"git.sr.ht/~emersion/soju/database"
-	"git.sr.ht/~emersion/soju/fileupload"
-	"git.sr.ht/~emersion/soju/identd"
+	"codeberg.org/emersion/soju"
+	"codeberg.org/emersion/soju/auth"
+	"codeberg.org/emersion/soju/config"
+	"codeberg.org/emersion/soju/database"
+	"codeberg.org/emersion/soju/fileupload"
+	"codeberg.org/emersion/soju/identd"
 )
 
 // TCP keep-alive interval for downstream TCP connections

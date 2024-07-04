@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"git.sr.ht/~emersion/soju/database"
+	"codeberg.org/emersion/soju/database"
 	"git.sr.ht/~sircmpwn/go-bare"
 	"gopkg.in/irc.v4"
 )

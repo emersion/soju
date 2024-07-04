@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/xirc"
+	"codeberg.org/emersion/soju/xirc"
 )
 
 // TODO: generalize and move helpers to the xirc package

@@ -1,7 +1,5 @@
 # [soju]
 
-[![builds.sr.ht status](https://builds.sr.ht/~emersion/soju/commits/master.svg)](https://builds.sr.ht/~emersion/soju/commits/master?)
-
 soju is a user-friendly IRC bouncer. soju connects to upstream IRC servers on
 behalf of the user to provide extra functionality. soju supports many features
 such as multiple users, numerous [IRCv3] extensions, chat history playback and
@@ -35,8 +33,8 @@ build with PAM authentication support, set `GOFLAGS="-tags=pam"`.
 
 ## Contributing
 
-Send patches on the [mailing list] or on [GitHub], report bugs on the
-[issue tracker]. Discuss in [#soju on Libera Chat][IRC channel].
+Send patches on [Codeberg] or on [GitHub], report bugs on the [issue tracker].
+Discuss in [#soju on Libera Chat][IRC channel].
 
 ## License
 
@@ -47,7 +45,7 @@ Copyright (C) 2020 The soju Contributors
 [soju]: https://soju.im
 [Getting started]: doc/getting-started.md
 [Man page]: https://soju.im/doc/soju.1.html
-[mailing list]: https://lists.sr.ht/~emersion/soju-dev
+[Codeberg]: https://codeberg.org/emersion/soju
 [GitHub]: https://github.com/emersion/soju
 [issue tracker]: https://todo.sr.ht/~emersion/soju
 [IRC channel]: ircs://irc.libera.chat/#soju

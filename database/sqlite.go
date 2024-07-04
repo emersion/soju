@@ -13,7 +13,7 @@ import (
 	"time"
 	"unicode"
 
-	"git.sr.ht/~emersion/soju/xirc"
+	"codeberg.org/emersion/soju/xirc"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	"gopkg.in/irc.v4"

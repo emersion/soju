@@ -10,8 +10,8 @@ import (
 
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/database"
-	"git.sr.ht/~emersion/soju/xirc"
+	"codeberg.org/emersion/soju/database"
+	"codeberg.org/emersion/soju/xirc"
 )
 
 var testServerPrefix = &irc.Prefix{Name: "soju-test-server"}

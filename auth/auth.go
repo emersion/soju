@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"git.sr.ht/~emersion/soju/database"
+	"codeberg.org/emersion/soju/database"
 )
 
 type Authenticator interface{}

@@ -11,8 +11,8 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	"git.sr.ht/~emersion/soju/config"
-	"git.sr.ht/~emersion/soju/database"
+	"codeberg.org/emersion/soju/config"
+	"codeberg.org/emersion/soju/database"
 )
 
 const usage = `usage: sojudb [-config path] <action> [options...]

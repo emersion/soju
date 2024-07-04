@@ -10,7 +10,7 @@ import (
 	"git.sr.ht/~sircmpwn/go-bare"
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/database"
+	"codeberg.org/emersion/soju/database"
 )
 
 type LoadMessageOptions struct {

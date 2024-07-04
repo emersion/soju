@@ -556,7 +556,7 @@ character.
 
 Maintained by Simon Ser <contact@emersion.fr>, who is assisted by other
 open-source contributors. For more information about soju development, see
-<https://sr.ht/~emersion/soju>.
+<https://soju.im>.
 
 # SEE ALSO
 

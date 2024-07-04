@@ -8,7 +8,7 @@ import (
 
 	"github.com/msteinert/pam/v2"
 
-	"git.sr.ht/~emersion/soju/database"
+	"codeberg.org/emersion/soju/database"
 )
 
 type pamAuth struct{}

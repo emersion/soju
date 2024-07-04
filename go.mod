@@ -1,4 +1,4 @@
-module git.sr.ht/~emersion/soju
+module codeberg.org/emersion/soju
 
 go 1.19
 

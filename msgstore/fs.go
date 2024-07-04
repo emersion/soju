@@ -14,9 +14,9 @@ import (
 	"git.sr.ht/~sircmpwn/go-bare"
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/database"
-	"git.sr.ht/~emersion/soju/msgstore/znclog"
-	"git.sr.ht/~emersion/soju/xirc"
+	"codeberg.org/emersion/soju/database"
+	"codeberg.org/emersion/soju/msgstore/znclog"
+	"codeberg.org/emersion/soju/xirc"
 )
 
 const (

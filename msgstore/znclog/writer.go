@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/xirc"
+	"codeberg.org/emersion/soju/xirc"
 )
 
 func MarshalLine(msg *irc.Message, t time.Time) string {

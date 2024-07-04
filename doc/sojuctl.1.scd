@@ -29,7 +29,7 @@ file. sojuctl needs to be run with write permissions on the soju admin socket.
 
 Maintained by Simon Ser <contact@emersion.fr>, who is assisted by other
 open-source contributors. For more information about soju development, see
-<https://sr.ht/~emersion/soju>.
+<https://soju.im>.
 
 # SEE ALSO
 

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.sr.ht/~emersion/soju/config"
+	"codeberg.org/emersion/soju/config"
 )
 
 const usage = `usage: sojuctl [-config path] <command>

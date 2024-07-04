@@ -12,8 +12,8 @@ import (
 	"strings"
 	"unicode"
 
-	"git.sr.ht/~emersion/soju/config"
-	"git.sr.ht/~emersion/soju/database"
+	"codeberg.org/emersion/soju/config"
+	"codeberg.org/emersion/soju/database"
 )
 
 const usage = `usage: znc-import [options...] <znc config path>

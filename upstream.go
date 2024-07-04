@@ -21,8 +21,8 @@ import (
 	"github.com/emersion/go-sasl"
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/database"
-	"git.sr.ht/~emersion/soju/xirc"
+	"codeberg.org/emersion/soju/database"
+	"codeberg.org/emersion/soju/xirc"
 )
 
 // permanentUpstreamCaps is the static list of upstream capabilities always

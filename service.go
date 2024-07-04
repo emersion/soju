@@ -17,7 +17,7 @@ import (
 
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/database"
+	"codeberg.org/emersion/soju/database"
 )
 
 const serviceNick = "BouncerServ"

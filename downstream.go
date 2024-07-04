@@ -17,10 +17,10 @@ import (
 	"github.com/emersion/go-sasl"
 	"gopkg.in/irc.v4"
 
-	"git.sr.ht/~emersion/soju/auth"
-	"git.sr.ht/~emersion/soju/database"
-	"git.sr.ht/~emersion/soju/msgstore"
-	"git.sr.ht/~emersion/soju/xirc"
+	"codeberg.org/emersion/soju/auth"
+	"codeberg.org/emersion/soju/database"
+	"codeberg.org/emersion/soju/msgstore"
+	"codeberg.org/emersion/soju/xirc"
 )
 
 type ircError struct {
