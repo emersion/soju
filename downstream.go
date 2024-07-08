@@ -328,7 +328,7 @@ func serverSASLMechanisms(srv *Server) []string {
 }
 
 type downstreamConn struct {
-	conn
+	*conn
 
 	id uint64
 
@@ -363,7 +363,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	options := connOptions{Logger: logger}
 	cm := xirc.CaseMappingASCII
 	dc := &downstreamConn{
-		conn:         *newConn(srv, ic, &options),
+		conn:         newConn(srv, ic, &options),
 		id:           id,
 		nick:         "*",
 		nickCM:       "*",

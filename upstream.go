@@ -191,7 +191,7 @@ type pendingUpstreamCommand struct {
 }
 
 type upstreamConn struct {
-	conn
+	*conn
 
 	network *network
 	user    *user
@@ -353,7 +353,7 @@ func connectToUpstream(ctx context.Context, network *network) (*upstreamConn, er
 
 	cm := stdCaseMapping
 	uc := &upstreamConn{
-		conn:                  *newConn(network.user.srv, newNetIRCConn(netConn), &options),
+		conn:                  newConn(network.user.srv, newNetIRCConn(netConn), &options),
 		network:               network,
 		user:                  network.user,
 		channels:              xirc.NewCaseMappingMap[*upstreamChannel](cm),
