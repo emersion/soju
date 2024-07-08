@@ -194,6 +194,10 @@ func (c *conn) Close() error {
 	return err
 }
 
+// Read reads an incoming message. It must be called from a single goroutine
+// at a time.
+//
+// io.EOF is returned when there are no more messages to read.
 func (c *conn) ReadMessage() (*irc.Message, error) {
 	msg, err := c.conn.ReadMessage()
 	if errors.Is(err, net.ErrClosed) {
