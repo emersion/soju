@@ -2153,8 +2153,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		// TODO: support mixed bouncer/upstream WHO queries
 		maskCM := dc.casemap(mask)
 		if dc.network == nil && maskCM == dc.nickCM {
-			// TODO: support AWAY (H/G) in self WHO reply
 			flags := "H"
+			if dc.away != nil {
+				flags = "G"
+			}
 			if dc.user.Admin {
 				flags += "*"
 			}
