@@ -3,7 +3,6 @@ package soju
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -185,7 +184,7 @@ func (c *conn) Close() error {
 	defer c.lock.Unlock()
 
 	if c.closed {
-		return fmt.Errorf("connection already closed")
+		return net.ErrClosed
 	}
 
 	err := c.conn.Close()
