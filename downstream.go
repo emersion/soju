@@ -2142,7 +2142,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		// Clients will use the first mask to match RPL_ENDOFWHO
 		endOfWhoToken := msg.Params[0]
 
-		// TODO: add support for WHOX mask2
 		mask := msg.Params[0]
 		var options string
 		if len(msg.Params) > 1 {
