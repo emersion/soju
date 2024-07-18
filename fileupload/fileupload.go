@@ -114,7 +114,7 @@ func (h *Handler) setCORS(resp http.ResponseWriter, req *http.Request) error {
 }
 
 func (h *Handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-	resp.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; script-src 'none';")
+	resp.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; script-src 'none'; media-src 'self';")
 
 	if err := h.setCORS(resp, req); err != nil {
 		http.Error(resp, err.Error(), http.StatusForbidden)
