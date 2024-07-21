@@ -24,20 +24,21 @@ const maxSize = 50 * 1024 * 1024 // 50 MiB
 // browser to execute any kind of script. For instance, SVG images are
 // intentionally omitted.
 var inlineMIMETypes = map[string]bool{
-	"audio/aac":  true,
-	"audio/mp4":  true,
-	"audio/mpeg": true,
-	"audio/ogg":  true,
-	"audio/webm": true,
-	"image/apng": true,
-	"image/gif":  true,
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/webp": true,
-	"text/plain": true,
-	"video/mp4":  true,
-	"video/ogg":  true,
-	"video/webm": true,
+	"application/pdf": true,
+	"audio/aac":       true,
+	"audio/mp4":       true,
+	"audio/mpeg":      true,
+	"audio/ogg":       true,
+	"audio/webm":      true,
+	"image/apng":      true,
+	"image/gif":       true,
+	"image/jpeg":      true,
+	"image/png":       true,
+	"image/webp":      true,
+	"text/plain":      true,
+	"video/mp4":       true,
+	"video/ogg":       true,
+	"video/webm":      true,
 }
 
 // Some MIME types have multiple possible extensions, and
