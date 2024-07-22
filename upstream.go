@@ -676,6 +676,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		self := uc.isOurNick(msg.Prefix.Name)
 
+		sendPushNotification := !self
 		ch := uc.network.channels.Get(bufferName)
 		highlight := false
 		if ch != nil && msg.Command != "TAGMSG" && !self {
@@ -687,9 +688,13 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			if ch.DetachOn == database.FilterMessage || ch.DetachOn == database.FilterDefault || (ch.DetachOn == database.FilterHighlight && highlight) {
 				uc.updateChannelAutoDetach(bufferName)
 			}
+
+			if ch.Detached && ch.RelayDetached == database.FilterNone {
+				sendPushNotification = false
+			}
 		}
 
-		if !self && (highlight || directMessage) {
+		if sendPushNotification && (highlight || directMessage) {
 			go uc.network.broadcastWebPush(msg)
 			if timestamp, err := time.Parse(xirc.ServerTimeLayout, string(msg.Tags["time"])); err == nil {
 				uc.network.pushTargets.Set(bufferName, timestamp)
