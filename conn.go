@@ -234,7 +234,6 @@ func (c *conn) SendMessage(ctx context.Context, msg *irc.Message) {
 // Shutdown gracefully closes the connection, flushing any pending message.
 func (c *conn) Shutdown(ctx context.Context) {
 	c.lock.Lock()
-	defer c.lock.Unlock()
 
 	if c.closed {
 		return
@@ -243,9 +242,11 @@ func (c *conn) Shutdown(ctx context.Context) {
 	select {
 	case c.outgoing <- nil:
 		// Success
+		c.lock.Unlock()
 	case <-ctx.Done():
 		c.logger.Printf("failed to shutdown connection: %v", ctx.Err())
 		// Forcibly close the connection
+		c.lock.Unlock() // c.Close() needs to take the lock
 		if err := c.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			c.logger.Printf("failed to close connection: %v", err)
 		}
