@@ -123,6 +123,7 @@ type conn struct {
 	closed     atomic.Bool
 	outgoingCh chan<- *irc.Message
 	closedCh   chan struct{}
+	rateLimit  bool
 }
 
 func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
@@ -133,6 +134,7 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 		logger:     options.Logger,
 		outgoingCh: outgoingCh,
 		closedCh:   make(chan struct{}),
+		rateLimit:  true,
 	}
 
 	go func() {
@@ -150,8 +152,10 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 				break
 			}
 
-			if err := rl.Wait(ctx); err != nil {
-				break
+			if c.rateLimit {
+				if err := rl.Wait(ctx); err != nil {
+					break
+				}
 			}
 
 			c.logger.Debugf("sent: %v", msg)

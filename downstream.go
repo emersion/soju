@@ -255,6 +255,12 @@ var needAllDownstreamCaps = map[string]string{
 	"draft/extended-monitor": "",
 }
 
+// permanentIsupport is the set of ISUPPORT tokens that are always passed
+// to downstream clients.
+var permanentIsupport = []string{
+	"soju.im/SAFERATE",
+}
+
 // passthroughIsupport is the set of ISUPPORT tokens that are directly passed
 // through from the upstream server to downstream clients.
 var passthroughIsupport = map[string]bool{
@@ -1467,6 +1473,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	dc.nickCM = dc.casemap(dc.nick)
 
 	var isupport []string
+	isupport = append(isupport, permanentIsupport...)
 	if dc.network != nil {
 		isupport = append(isupport, fmt.Sprintf("BOUNCER_NETID=%v", dc.network.ID))
 	} else {

@@ -1004,6 +1004,8 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				} else {
 					uc.availableMemberships = stdMemberships
 				}
+			case "SOJU.IM/SAFERATE":
+				uc.rateLimit = negate
 			}
 			if err != nil {
 				return err
