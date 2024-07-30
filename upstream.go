@@ -1950,8 +1950,8 @@ func (uc *upstreamConn) supportsSASL(mech string) bool {
 	}
 
 	mechanisms := strings.Split(v, ",")
-	for _, mech := range mechanisms {
-		if strings.EqualFold(mech, mech) {
+	for _, m := range mechanisms {
+		if strings.EqualFold(m, mech) {
 			return true
 		}
 	}
