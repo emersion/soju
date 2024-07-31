@@ -232,7 +232,7 @@ func main() {
 	}
 
 	if usersCreated > 0 {
-		log.Printf("warning: user passwords haven't been imported, please set them with `sojuctl change-password <username>`")
+		log.Printf("warning: user passwords haven't been imported, please set them with `sojudb change-password <username>`")
 	}
 
 	log.Printf("imported %v users, %v networks and %v channels", usersImported, networksImported, channelsImported)
