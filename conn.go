@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -120,20 +120,19 @@ type conn struct {
 	srv    *Server
 	logger Logger
 
-	lock     sync.Mutex
-	outgoing chan<- *irc.Message
-	closed   bool
-	closedCh chan struct{}
+	closed     atomic.Bool
+	outgoingCh chan<- *irc.Message
+	closedCh   chan struct{}
 }
 
 func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
-	outgoing := make(chan *irc.Message, 64)
+	outgoingCh := make(chan *irc.Message, 64)
 	c := &conn{
-		conn:     ic,
-		srv:      srv,
-		outgoing: outgoing,
-		logger:   options.Logger,
-		closedCh: make(chan struct{}),
+		conn:       ic,
+		srv:        srv,
+		logger:     options.Logger,
+		outgoingCh: outgoingCh,
+		closedCh:   make(chan struct{}),
 	}
 
 	go func() {
@@ -141,7 +140,12 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 		defer cancel()
 
 		rl := rate.NewLimiter(rate.Every(options.RateLimitDelay), options.RateLimitBurst)
-		for msg := range outgoing {
+		for {
+			var msg *irc.Message
+			select {
+			case msg = <-outgoingCh:
+			case <-c.closedCh:
+			}
 			if msg == nil {
 				break
 			}
@@ -157,14 +161,11 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 				break
 			}
 		}
-		if err := c.conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+
+		if err := c.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			c.logger.Printf("failed to close connection: %v", err)
 		} else {
 			c.logger.Debugf("connection closed")
-		}
-		// Drain the outgoing channel to prevent SendMessage from blocking
-		for range outgoing {
-			// This space is intentionally left blank
 		}
 	}()
 
@@ -173,23 +174,16 @@ func newConn(srv *Server, ic ircConn, options *connOptions) *conn {
 }
 
 func (c *conn) isClosed() bool {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	return c.closed
+	return c.closed.Load()
 }
 
 // Close closes the connection. It is safe to call from any goroutine.
 func (c *conn) Close() error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if c.closed {
+	if c.closed.Swap(true) {
 		return net.ErrClosed
 	}
 
 	err := c.conn.Close()
-	c.closed = true
-	close(c.outgoing)
 	close(c.closedCh)
 	return err
 }
@@ -216,16 +210,15 @@ func (c *conn) ReadMessage() (*irc.Message, error) {
 // If the connection is closed before the message is sent, SendMessage silently
 // drops the message.
 func (c *conn) SendMessage(ctx context.Context, msg *irc.Message) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if c.closed {
+	if c.closed.Load() {
 		return
 	}
 
 	select {
-	case c.outgoing <- msg:
+	case c.outgoingCh <- msg:
 		// Success
+	case <-c.closedCh:
+		// Ignore
 	case <-ctx.Done():
 		c.logger.Printf("failed to send message: %v", ctx.Err())
 	}
@@ -233,20 +226,18 @@ func (c *conn) SendMessage(ctx context.Context, msg *irc.Message) {
 
 // Shutdown gracefully closes the connection, flushing any pending message.
 func (c *conn) Shutdown(ctx context.Context) {
-	c.lock.Lock()
-
-	if c.closed {
+	if c.closed.Load() {
 		return
 	}
 
 	select {
-	case c.outgoing <- nil:
+	case c.outgoingCh <- nil:
 		// Success
-		c.lock.Unlock()
+	case <-c.closedCh:
+		// Ignore
 	case <-ctx.Done():
 		c.logger.Printf("failed to shutdown connection: %v", ctx.Err())
 		// Forcibly close the connection
-		c.lock.Unlock() // c.Close() needs to take the lock
 		if err := c.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			c.logger.Printf("failed to close connection: %v", err)
 		}
