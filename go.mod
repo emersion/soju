@@ -7,6 +7,7 @@ require (
 	git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20240124102820-f3a72e8b79b1
 	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9
 	github.com/SherClockHolmes/webpush-go v1.3.0
+	github.com/coder/websocket v1.8.12
 	github.com/emersion/go-sasl v0.0.0-20231106173351-e73c9f7bad43
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.22
@@ -17,7 +18,6 @@ require (
 	golang.org/x/time v0.5.0
 	gopkg.in/irc.v4 v4.0.0
 	modernc.org/sqlite v1.29.10
-	nhooyr.io/websocket v1.8.11
 )
 
 require (

@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
+	"github.com/coder/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"gopkg.in/irc.v4"
-	"nhooyr.io/websocket"
 
 	"codeberg.org/emersion/soju/auth"
 	"codeberg.org/emersion/soju/config"

@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/coder/websocket"
 	"golang.org/x/time/rate"
 	"gopkg.in/irc.v4"
-	"nhooyr.io/websocket"
 )
 
 // ircConn is a generic IRC connection. It's similar to net.Conn but focuses on
