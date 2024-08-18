@@ -562,6 +562,15 @@ func (s *Server) HandleAdmin(ic ircConn) {
 			break
 		}
 		switch msg.Command {
+		case "CAP", "NICK", "USER", "PASS":
+			// Ensure regular IRC clients cannot connect. This is important to
+			// e.g. prevent unprivileged soju users from connecting to the
+			// admin socket.
+			c.SendMessage(ctx, &irc.Message{
+				Command: "ERROR",
+				Params:  []string{"This is not a regular IRC server"},
+			})
+			return
 		case "BOUNCERSERV":
 			if len(msg.Params) < 1 {
 				c.SendMessage(ctx, &irc.Message{
