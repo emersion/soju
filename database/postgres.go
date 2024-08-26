@@ -804,8 +804,11 @@ func (db *PostgresDB) GetMessageLastID(ctx context.Context, networkID int64, nam
 
 	var msgID int64
 	row := db.db.QueryRowContext(ctx, `
-		SELECT m.id FROM "Message" AS m, "MessageTarget" as t
-		WHERE t.network = $1 AND t.target = $2 AND m.target = t.id
+		SELECT m.id FROM "Message" AS m
+		WHERE m.target = (ARRAY(
+			SELECT t.id FROM "MessageTarget" AS t
+			WHERE t.network = $1 AND t.target = $2
+		))[1]
 		ORDER BY m.time DESC LIMIT 1`,
 		networkID,
 		name,
@@ -901,31 +904,38 @@ func (db *PostgresDB) ListMessageLastPerTarget(ctx context.Context, networkID in
 		networkID,
 	}
 	query := `
-		SELECT t.target, MAX(m.time) AS latest
-		FROM "Message" m, "MessageTarget" t
-		WHERE m.target = t.id AND t.network = $1
+		SELECT t.target, l.latest
+		FROM "MessageTarget" t JOIN LATERAL (
+			SELECT m.target, m.time AS latest, m.text
+			FROM "Message" m
+			WHERE m.target = t.id
 	`
+
 	if !options.Events {
 		query += `AND m.text IS NOT NULL `
 	}
+
 	query += `
-		GROUP BY t.target
-		HAVING true
+
+			ORDER BY m.time DESC LIMIT 1
+		) AS l ON t.id = l.target
+		WHERE t.network = $1
 	`
+
 	if !options.AfterTime.IsZero() {
 		// compares time strings by lexicographical order
 		parameters = append(parameters, options.AfterTime)
-		query += fmt.Sprintf(`AND MAX(m.time) > $%d `, len(parameters))
+		query += fmt.Sprintf(`AND l.latest > $%d `, len(parameters))
 	}
 	if !options.BeforeTime.IsZero() {
 		// compares time strings by lexicographical order
 		parameters = append(parameters, options.BeforeTime)
-		query += fmt.Sprintf(`AND MAX(m.time) < $%d `, len(parameters))
+		query += fmt.Sprintf(`AND l.latest < $%d `, len(parameters))
 	}
 	if options.TakeLast {
-		query += `ORDER BY latest DESC `
+		query += `ORDER BY l.latest DESC `
 	} else {
-		query += `ORDER BY latest ASC `
+		query += `ORDER BY l.latest ASC `
 	}
 	parameters = append(parameters, options.Limit)
 	query += fmt.Sprintf(`LIMIT $%d`, len(parameters))
@@ -970,8 +980,12 @@ func (db *PostgresDB) ListMessages(ctx context.Context, networkID int64, name st
 	}
 	query := `
 		SELECT m.raw
-		FROM "Message" AS m, "MessageTarget" AS t
-		WHERE m.target = t.id AND t.network = $1 AND t.target = $2 `
+		FROM "Message" AS m
+		WHERE m.target = (ARRAY(
+			SELECT t.id
+			FROM "MessageTarget" AS t
+			WHERE t.network = $1 AND t.target = $2
+		))[1] `
 	if options.AfterID > 0 {
 		parameters = append(parameters, options.AfterID)
 		query += fmt.Sprintf(`AND m.id > $%d `, len(parameters))
