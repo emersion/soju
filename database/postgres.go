@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/emersion/soju/xirc"
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	"gopkg.in/irc.v4"
+
+	"codeberg.org/emersion/soju/xirc"
 )
 
 const postgresQueryTimeout = 5 * time.Second
@@ -114,6 +115,10 @@ var postgresMigrations = []string{
 		CREATE INDEX "MessageSearchIndex" ON "Message" USING GIN (text_search);
 	`,
 	`ALTER TABLE "User" ADD COLUMN max_networks INTEGER NOT NULL DEFAULT -1`,
+	`
+		ALTER TABLE "MessageTarget" ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;
+		ALTER TABLE "MessageTarget" ADD COLUMN muted BOOLEAN NOT NULL DEFAULT FALSE;
+	`,
 }
 
 type PostgresDB struct {
@@ -819,6 +824,44 @@ func (db *PostgresDB) GetMessageLastID(ctx context.Context, networkID int64, nam
 	return msgID, nil
 }
 
+func (db *PostgresDB) GetMessageTarget(ctx context.Context, networkID int64, target string) (*MessageTarget, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	mt := &MessageTarget{
+		Target: target,
+	}
+
+	row := db.db.QueryRowContext(ctx,
+		`SELECT id, pinned, muted FROM "MessageTarget" WHERE network = $1 AND target = $2`,
+		networkID, target)
+	if err := row.Scan(&mt.ID, &mt.Pinned, &mt.Muted); err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	return mt, nil
+}
+
+func (db *PostgresDB) StoreMessageTarget(ctx context.Context, networkID int64, mt *MessageTarget) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	var err error
+	if mt.ID != 0 {
+		_, err = db.db.ExecContext(ctx, `
+			UPDATE "MessageTarget"
+			SET pinned = $1, muted = $2
+			WHERE id = $3`,
+			mt.Pinned, mt.Muted, mt.ID)
+	} else {
+		err = db.db.QueryRowContext(ctx, `
+			INSERT INTO "MessageTarget" (network, target, pinned, muted)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id`,
+			networkID, mt.Target, mt.Pinned, mt.Muted).Scan(&mt.ID)
+	}
+	return err
+}
+
 func (db *PostgresDB) StoreMessages(ctx context.Context, networkID int64, name string, msgs []*irc.Message) ([]int64, error) {
 	if len(msgs) == 0 {
 		return nil, nil
@@ -893,7 +936,7 @@ func (db *PostgresDB) StoreMessages(ctx context.Context, networkID int64, name s
 	return ids, err
 }
 
-func (db *PostgresDB) ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTarget, error) {
+func (db *PostgresDB) ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTargetLast, error) {
 	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
 
@@ -936,9 +979,9 @@ func (db *PostgresDB) ListMessageLastPerTarget(ctx context.Context, networkID in
 	}
 	defer rows.Close()
 
-	var l []MessageTarget
+	var l []MessageTargetLast
 	for rows.Next() {
-		var mt MessageTarget
+		var mt MessageTargetLast
 		if err := rows.Scan(&mt.Name, &mt.LatestMessage); err != nil {
 			return nil, err
 		}
