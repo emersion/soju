@@ -228,6 +228,7 @@ var permanentDownstreamCaps = map[string]string{
 	"server-time":   "",
 	"setname":       "",
 
+	"draft/metadata-2":        "before-connect,max-keys=0,max-value-bytes=1",
 	"draft/pre-away":          "",
 	"draft/read-marker":       "",
 	"draft/no-implicit-names": "",
@@ -360,8 +361,9 @@ type downstreamConn struct {
 
 	lastBatchRef uint64
 
-	casemap   xirc.CaseMapping
-	monitored xirc.CaseMappingMap[struct{}]
+	casemap      xirc.CaseMapping
+	monitored    xirc.CaseMappingMap[struct{}]
+	metadataSubs map[string]struct{}
 }
 
 func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
@@ -378,6 +380,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		caps:         xirc.NewCapRegistry(),
 		casemap:      cm,
 		monitored:    xirc.NewCaseMappingMap[struct{}](cm),
+		metadataSubs: map[string]struct{}{},
 		registration: new(downstreamRegistration),
 	}
 	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
@@ -529,6 +532,9 @@ func (dc *downstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 		return
 	}
 	if msg.Command == "READ" && !dc.caps.IsEnabled("soju.im/read") {
+		return
+	}
+	if msg.Command == "METADATA" && !dc.caps.IsEnabled("draft/metadata-2") {
 		return
 	}
 	if msg.Prefix != nil && msg.Prefix.Name == "*" {
@@ -785,6 +791,18 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 		}
 
 		dc.SendMessage(ctx, generateAwayReply(dc.away != nil))
+	case "METADATA":
+		var subcommand string
+		if err := parseMessageParams(msg, nil, &subcommand); err != nil {
+			return err
+		}
+		if handled, err := dc.handleMetadataSub(ctx, msg); handled {
+			return err
+		}
+		return ircError{&irc.Message{
+			Command: "FAIL",
+			Params:  []string{"METADATA", "INVALID_PARAMS", subcommand, "Unknown command"},
+		}}
 	default:
 		dc.logger.Debugf("unhandled message: %v", msg)
 		return newUnknownCommandError(msg.Command)
@@ -1578,6 +1596,11 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 				})
 			}
 		})
+	}
+
+	if dc.caps.IsEnabled("draft/metadata-2") {
+		// No user-specific metadata
+		dc.SendBatch(ctx, "metadata", nil, nil, func(batchRef string) {})
 	}
 
 	dc.forEachUpstream(func(uc *upstreamConn) {
@@ -2733,6 +2756,105 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				})
 			})
 		}
+	case "METADATA":
+		var target, subcommand string
+		if err := parseMessageParams(msg, &target, &subcommand); err != nil {
+			return err
+		}
+		if handled, err := dc.handleMetadataSub(ctx, msg); handled {
+			return err
+		}
+		var mt *database.MessageTarget
+		if dc.network != nil && target != "*" {
+			targetCM := dc.network.casemap(target)
+			var err error
+			mt, err = dc.srv.db.GetMessageTarget(ctx, dc.network.ID, targetCM)
+			if err != nil {
+				dc.logger.Printf("failed to get the message target for %q: %v", target, err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"METADATA", "INTERNAL_ERROR", target, "Internal error"},
+				}}
+			}
+		}
+		switch subcommand {
+		case "LIST", "GET":
+			var m map[string]string
+			if mt != nil {
+				m = getMessageTargetMetadata(mt)
+			}
+			switch subcommand {
+			case "LIST":
+				dc.SendBatch(ctx, "metadata", nil, nil, func(batchRef string) {
+					for k, v := range m {
+						dc.SendMessage(ctx, &irc.Message{
+							Tags:    irc.Tags{"batch": batchRef},
+							Command: xirc.RPL_KEYVALUE,
+							Params:  []string{"*", target, k, "*", v},
+						})
+					}
+				})
+			case "GET":
+				dc.SendBatch(ctx, "metadata", nil, nil, func(batchRef string) {
+					for _, k := range msg.Params[2:] {
+						k = strings.ToLower(k)
+						v, ok := m[k]
+						if ok {
+							dc.SendMessage(ctx, &irc.Message{
+								Tags:    irc.Tags{"batch": batchRef},
+								Command: xirc.RPL_KEYVALUE,
+								Params:  []string{"*", target, k, "*", v},
+							})
+						} else {
+							dc.SendMessage(ctx, &irc.Message{
+								Tags:    irc.Tags{"batch": batchRef},
+								Command: "FAIL",
+								Params:  []string{"METADATA", "KEY_INVALID", k, "Invalid key"},
+							})
+						}
+					}
+				})
+			}
+		case "SET", "CLEAR":
+			m := make(map[string]*string)
+			switch subcommand {
+			case "SET":
+				var k string
+				if err := parseMessageParams(msg, nil, nil, &k); err != nil {
+					return err
+				}
+				k = strings.ToLower(k)
+				var v *string
+				if len(msg.Params) > 3 {
+					v = &msg.Params[3]
+				}
+				m[k] = v
+			case "CLEAR":
+				m["soju.im/pinned"] = nil
+				m["soju.im/muted"] = nil
+			}
+			switch subcommand {
+			case "SET":
+				dc.setMessageTargetMetadata(ctx, target, mt, m, "")
+			case "CLEAR":
+				dc.SendBatch(ctx, "metadata", nil, nil, func(batchRef string) {
+					dc.setMessageTargetMetadata(ctx, target, mt, m, batchRef)
+				})
+			}
+			if err := dc.srv.db.StoreMessageTarget(ctx, dc.network.ID, mt); err != nil {
+				dc.logger.Printf("failed to store the message target for %q: %v", target, err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"METADATA", "INTERNAL_ERROR", target, "Internal error"},
+				}}
+			}
+		default:
+			// TODO: support SYNC
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"METADATA", "INVALID_PARAMS", subcommand, "Unknown command"},
+			}}
+		}
 	case "CHATHISTORY":
 		var subcommand string
 		if err := parseMessageParams(msg, &subcommand); err != nil {
@@ -3375,6 +3497,54 @@ func (dc *downstreamConn) handleNickServPRIVMSG(ctx context.Context, uc *upstrea
 	}
 }
 
+func (dc *downstreamConn) handleMetadataSub(ctx context.Context, msg *irc.Message) (bool, error) {
+	var subcommand string
+	if err := parseMessageParams(msg, nil, &subcommand); err != nil {
+		return true, err
+	}
+	switch subcommand {
+	case "SUB", "UNSUB":
+		for _, k := range msg.Params[2:] {
+			k = strings.ToLower(k)
+			switch k {
+			case "soju.im/pinned":
+			case "soju.im/muted":
+			default:
+				dc.SendMessage(ctx, &irc.Message{
+					Command: "FAIL",
+					Params:  []string{msg.Command, "KEY_INVALID", k, "Invalid key"},
+				})
+				continue
+			}
+			switch subcommand {
+			case "SUB":
+				dc.metadataSubs[k] = struct{}{}
+				dc.SendMessage(ctx, &irc.Message{
+					Command: xirc.RPL_METADATASUBOK,
+					Params:  []string{"*", k},
+				})
+			case "UNSUB":
+				delete(dc.metadataSubs, k)
+				dc.SendMessage(ctx, &irc.Message{
+					Command: xirc.RPL_METADATAUNSUBOK,
+					Params:  []string{"*", k},
+				})
+			}
+		}
+		return true, nil
+	case "SUBS":
+		for k := range dc.metadataSubs {
+			dc.SendMessage(ctx, &irc.Message{
+				Command: xirc.RPL_METADATASUBS,
+				Params:  []string{"*", k},
+			})
+		}
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 func (dc *downstreamConn) listWebPushSubscriptions(ctx context.Context) ([]database.WebPushSubscription, error) {
 	var networkID int64
 	if dc.network != nil {
@@ -3382,6 +3552,112 @@ func (dc *downstreamConn) listWebPushSubscriptions(ctx context.Context) ([]datab
 	}
 
 	return dc.user.srv.db.ListWebPushSubscriptions(ctx, dc.user.ID, networkID)
+}
+
+func (dc *downstreamConn) sendChannelMetadata(ctx context.Context, target string) {
+	if !dc.caps.IsEnabled("draft/metadata-2") {
+		return
+	}
+	if dc.network != nil {
+		target = dc.network.casemap(target)
+	}
+	mt, err := dc.srv.db.GetMessageTarget(ctx, dc.network.ID, target)
+	if err != nil {
+		return
+	}
+	m := getMessageTargetMetadata(mt)
+	dc.SendBatch(ctx, "metadata", nil, nil, func(batchRef string) {
+		for k := range dc.metadataSubs {
+			v, ok := m[k]
+			if !ok {
+				continue
+			}
+			dc.SendMessage(ctx, &irc.Message{
+				Tags:    irc.Tags{"batch": batchRef},
+				Command: "METADATA",
+				Params:  []string{target, k, "*", v},
+			})
+		}
+	})
+}
+
+func (dc *downstreamConn) setMessageTargetMetadata(ctx context.Context, target string, mt *database.MessageTarget, m map[string]*string, batchRef string) {
+	var tags irc.Tags
+	if batchRef != "" {
+		tags = irc.Tags{"batch": batchRef}
+	}
+	for k, v := range m {
+		if mt == nil {
+			dc.SendMessage(ctx, &irc.Message{
+				Tags:    tags,
+				Command: "FAIL",
+				Params:  []string{"METADATA", "KEY_INVALID", k, "Invalid key"},
+			})
+			continue
+		}
+		var mv string
+		var ok bool
+		switch k {
+		case "soju.im/pinned":
+			mt.Pinned, mv, ok = parseMessageTargetMetadataBool(v)
+		case "soju.im/muted":
+			mt.Muted, mv, ok = parseMessageTargetMetadataBool(v)
+		default:
+			dc.SendMessage(ctx, &irc.Message{
+				Tags:    tags,
+				Command: "FAIL",
+				Params:  []string{"METADATA", "KEY_INVALID", k, "Invalid key"},
+			})
+			continue
+		}
+		if !ok {
+			dc.SendMessage(ctx, &irc.Message{
+				Tags:    tags,
+				Command: "FAIL",
+				Params:  []string{"METADATA", "VALUE_INVALID", "Invalid value"},
+			})
+			continue
+		}
+		dc.SendMessage(ctx, &irc.Message{
+			Tags:    tags,
+			Command: xirc.RPL_KEYVALUE,
+			Params:  []string{"*", target, k, "*", mv},
+		})
+		dc.network.forEachDownstream(func(dc *downstreamConn) {
+			dc.SendMessage(ctx, &irc.Message{
+				Command: "METADATA",
+				Params:  []string{target, k, "*", mv},
+			})
+		})
+	}
+}
+
+func parseMessageTargetMetadataBool(v *string) (b bool, s string, ok bool) {
+	if v == nil {
+		return false, "0", true
+	}
+	if *v == "1" {
+		return true, "1", true
+	}
+	if *v == "0" {
+		return false, "0", true
+	}
+	return false, "", false
+}
+
+func getMessageTargetMetadata(mt *database.MessageTarget) map[string]string {
+	m := make(map[string]string)
+	if mt.Pinned {
+		m["soju.im/pinned"] = "1"
+	} else {
+		m["soju.im/pinned"] = "0"
+	}
+	if mt.Muted {
+		m["soju.im/muted"] = "1"
+	} else {
+		m["soju.im/muted"] = "0"
+	}
+	return m
 }
 
 func findWebPushSubscription(subs []database.WebPushSubscription, endpoint string) *database.WebPushSubscription {
@@ -3460,6 +3736,8 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 	if !dc.caps.IsEnabled("soju.im/no-implicit-names") && !dc.caps.IsEnabled("draft/no-implicit-names") {
 		sendNames(ctx, dc, ch)
 	}
+
+	dc.sendChannelMetadata(ctx, ch.Name)
 }
 
 func sendTopic(ctx context.Context, dc *downstreamConn, ch *upstreamChannel) {
