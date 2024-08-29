@@ -804,12 +804,12 @@ func (db *PostgresDB) GetMessageLastID(ctx context.Context, networkID int64, nam
 
 	var msgID int64
 	row := db.db.QueryRowContext(ctx, `
-		SELECT m.id FROM "Message" AS m
-		WHERE m.target = (
-			SELECT t.id FROM "MessageTarget" AS t
-			WHERE t.network = $1 AND t.target = $2
+		SELECT id FROM "Message"
+		WHERE target = (
+			SELECT id FROM "MessageTarget"
+			WHERE network = $1 AND target = $2
 		)
-		ORDER BY m.time DESC LIMIT 1`,
+		ORDER BY time DESC LIMIT 1`,
 		networkID,
 		name,
 	)
@@ -979,42 +979,40 @@ func (db *PostgresDB) ListMessages(ctx context.Context, networkID int64, name st
 		name,
 	}
 	query := `
-		SELECT m.raw
-		FROM "Message" AS m
-		WHERE m.target = (
-			SELECT t.id
-			FROM "MessageTarget" AS t
-			WHERE t.network = $1 AND t.target = $2
+		SELECT raw FROM "Message"
+		WHERE target = (
+			SELECT id FROM "MessageTarget"
+			WHERE network = $1 AND target = $2
 		) `
 	if options.AfterID > 0 {
 		parameters = append(parameters, options.AfterID)
-		query += fmt.Sprintf(`AND m.id > $%d `, len(parameters))
+		query += fmt.Sprintf(`AND id > $%d `, len(parameters))
 	}
 	if !options.AfterTime.IsZero() {
 		// compares time strings by lexicographical order
 		parameters = append(parameters, options.AfterTime)
-		query += fmt.Sprintf(`AND m.time > $%d `, len(parameters))
+		query += fmt.Sprintf(`AND time > $%d `, len(parameters))
 	}
 	if !options.BeforeTime.IsZero() {
 		// compares time strings by lexicographical order
 		parameters = append(parameters, options.BeforeTime)
-		query += fmt.Sprintf(`AND m.time < $%d `, len(parameters))
+		query += fmt.Sprintf(`AND time < $%d `, len(parameters))
 	}
 	if options.Sender != "" {
 		parameters = append(parameters, options.Sender)
-		query += fmt.Sprintf(`AND m.sender = $%d `, len(parameters))
+		query += fmt.Sprintf(`AND sender = $%d `, len(parameters))
 	}
 	if options.Text != "" {
 		parameters = append(parameters, options.Text)
 		query += fmt.Sprintf(`AND text_search @@ plainto_tsquery('search_simple', $%d) `, len(parameters))
 	}
 	if !options.Events {
-		query += `AND m.text IS NOT NULL `
+		query += `AND text IS NOT NULL `
 	}
 	if options.TakeLast {
-		query += `ORDER BY m.time DESC `
+		query += `ORDER BY time DESC `
 	} else {
-		query += `ORDER BY m.time ASC `
+		query += `ORDER BY time ASC `
 	}
 	parameters = append(parameters, options.Limit)
 	query += fmt.Sprintf(`LIMIT $%d`, len(parameters))
