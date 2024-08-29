@@ -805,10 +805,10 @@ func (db *PostgresDB) GetMessageLastID(ctx context.Context, networkID int64, nam
 	var msgID int64
 	row := db.db.QueryRowContext(ctx, `
 		SELECT m.id FROM "Message" AS m
-		WHERE m.target = (ARRAY(
+		WHERE m.target = (
 			SELECT t.id FROM "MessageTarget" AS t
 			WHERE t.network = $1 AND t.target = $2
-		))[1]
+		)
 		ORDER BY m.time DESC LIMIT 1`,
 		networkID,
 		name,
@@ -981,11 +981,11 @@ func (db *PostgresDB) ListMessages(ctx context.Context, networkID int64, name st
 	query := `
 		SELECT m.raw
 		FROM "Message" AS m
-		WHERE m.target = (ARRAY(
+		WHERE m.target = (
 			SELECT t.id
 			FROM "MessageTarget" AS t
 			WHERE t.network = $1 AND t.target = $2
-		))[1] `
+		) `
 	if options.AfterID > 0 {
 		parameters = append(parameters, options.AfterID)
 		query += fmt.Sprintf(`AND m.id > $%d `, len(parameters))
