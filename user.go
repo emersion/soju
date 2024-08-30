@@ -218,9 +218,11 @@ func (net *network) runConn(ctx context.Context) error {
 	net.user.srv.metrics.upstreams.Add(1)
 	defer net.user.srv.metrics.upstreams.Add(-1)
 
-	done := ctx.Done()
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	done := ctx.Done() // This must not be subject to timeout
+	ctx, cancelTimeout := context.WithTimeout(ctx, time.Minute)
+	defer cancelTimeout()
 
 	uc, err := connectToUpstream(ctx, net)
 	if err != nil {
