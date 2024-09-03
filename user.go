@@ -849,7 +849,14 @@ func (u *user) run() {
 				Context: ctx,
 				user:    u,
 				srv:     u.srv,
-				admin:   u.Admin,
+				// Here we are setting an admin context on any user run command
+				// that is run.
+				// As a reminder, user run can only be run by an admin.
+				// This enables admins to run actions on a user with admin rights,
+				// for example to add a network past the user limit.
+				// Non-admin users cannot run user run, not even on themselves,
+				// so this cannot be used to escalate privileges.
+				admin: true,
 				print: func(text string) {
 					// Avoid blocking on e.print in case our context is canceled.
 					// This is a no-op right now because we use context.TODO(),
