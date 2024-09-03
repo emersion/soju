@@ -186,13 +186,18 @@ func (net *Network) GetName() string {
 func (net *Network) URL() (*url.URL, error) {
 	s := net.Addr
 	if !strings.Contains(s, "://") {
-		// This is a raw domain name, make it an URL with the default scheme
+		// This is a raw domain name, make it a URL with the default scheme
 		s = "ircs://" + s
 	}
 
 	u, err := url.Parse(s)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse upstream server URL: %v", err)
+	}
+	switch u.Scheme {
+	case "irc+unix", "unix":
+		u.Path = u.Host + u.Path
+		u.Host = ""
 	}
 
 	return u, nil

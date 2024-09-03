@@ -33,9 +33,8 @@ func run(ctx context.Context, cfg *config.Server, words []string) error {
 		if u.Scheme != "unix+admin" {
 			continue
 		}
-		if u.Path != "" {
-			path = u.Path
-		} else {
+		path = u.Host + u.Path
+		if path == "" {
 			path = config.DefaultUnixAdminPath
 		}
 		break

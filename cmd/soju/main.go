@@ -218,7 +218,7 @@ func main() {
 				}
 			}()
 		case "unix":
-			ln, err := net.Listen("unix", u.Path)
+			ln, err := net.Listen("unix", u.Host+u.Path)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
@@ -232,7 +232,7 @@ func main() {
 				}
 			}()
 		case "unix+admin":
-			path := u.Path
+			path := u.Host + u.Path
 			if path == "" {
 				path = config.DefaultUnixAdminPath
 			}
