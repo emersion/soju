@@ -1403,7 +1403,7 @@ func (dc *downstreamConn) loadNetwork(ctx context.Context) error {
 
 		dc.logger.Printf("auto-saving network %q", dc.registration.networkName)
 		var err error
-		network, err = dc.user.createNetwork(ctx, record)
+		network, err = dc.user.createNetwork(ctx, record, true)
 		if err != nil {
 			return err
 		}
@@ -1840,7 +1840,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				err = dc.srv.db.StoreNetwork(ctx, dc.user.ID, &record)
 			} else {
 				// This will disconnect then re-connect the upstream connection
-				_, err = dc.user.updateNetwork(ctx, &record)
+				_, err = dc.user.updateNetwork(ctx, &record, false)
 			}
 		} else {
 			err = dc.user.updateUser(ctx, func(record *database.User) error {
@@ -2520,7 +2520,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				record.SASL.External.CertBlob = nil
 				record.SASL.External.PrivKeyBlob = nil
 				record.SASL.Mechanism = ""
-				_, err := dc.user.updateNetwork(ctx, &record)
+				_, err := dc.user.updateNetwork(ctx, &record, false)
 				if err != nil {
 					dc.logger.Printf("failed to clear SASL credentials")
 					dc.endSASL(ctx, &irc.Message{
@@ -3059,7 +3059,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				record.Realname = ""
 			}
 
-			network, err := dc.user.createNetwork(ctx, record)
+			network, err := dc.user.createNetwork(ctx, record, true)
 			if err != nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",
@@ -3091,6 +3091,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 
 			record := net.Network // copy network record because we'll mutate it
+			wasEnabled := record.Enabled
 			if err := updateNetworkAttrs(&record, attrs, subcommand); err != nil {
 				return err
 			}
@@ -3102,7 +3103,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				record.Realname = ""
 			}
 
-			_, err = dc.user.updateNetwork(ctx, &record)
+			_, err = dc.user.updateNetwork(ctx, &record, !wasEnabled)
 			if err != nil {
 				return ircError{&irc.Message{
 					Command: "FAIL",

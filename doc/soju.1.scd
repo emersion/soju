@@ -189,7 +189,7 @@ The following directives are supported:
 	By default, all IPs are rejected.
 
 *max-user-networks* <limit>
-	Maximum number of networks per user. By default, there is no limit.
+	Maximum number of enabled networks per user. By default, there is no limit.
 
 *motd* <path>
 	Path to the MOTD file. The bouncer MOTD is sent to clients which aren't
@@ -311,6 +311,10 @@ character.
 	*-enabled* true|false
 		Enable or disable the network. If the network is disabled, the bouncer
 		won't connect to it. By default, the network is enabled.
+
+	*-ignore-limit* true|false
+		Ignore the max networks limit for this command.
+		Only admin users can ignore the limit.
 
 	*-connect-command* <command>
 		Send the specified quoted string as a raw IRC command right after

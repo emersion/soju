@@ -964,6 +964,23 @@ func (u *user) removeNetwork(network *network) {
 	panic("tried to remove a non-existing network")
 }
 
+func (u *user) canEnableNewNetwork() error {
+	max := u.srv.Config().MaxUserNetworks
+	if max < 0 {
+		return nil
+	}
+	n := 0
+	for _, network := range u.networks {
+		if network.Enabled {
+			n++
+		}
+	}
+	if n >= max {
+		return fmt.Errorf("maximum number of enabled networks reached")
+	}
+	return nil
+}
+
 func (u *user) checkNetwork(record *database.Network) error {
 	url, err := record.URL()
 	if err != nil {
@@ -1014,17 +1031,19 @@ func (u *user) checkNetwork(record *database.Network) error {
 	return nil
 }
 
-func (u *user) createNetwork(ctx context.Context, record *database.Network) (*network, error) {
+func (u *user) createNetwork(ctx context.Context, record *database.Network, enforceLimit bool) (*network, error) {
 	if record.ID != 0 {
 		panic("tried creating an already-existing network")
 	}
 
-	if err := u.checkNetwork(record); err != nil {
-		return nil, err
+	if enforceLimit && record.Enabled {
+		if err := u.canEnableNewNetwork(); err != nil {
+			return nil, err
+		}
 	}
 
-	if max := u.srv.Config().MaxUserNetworks; max >= 0 && len(u.networks) >= max {
-		return nil, fmt.Errorf("maximum number of networks reached")
+	if err := u.checkNetwork(record); err != nil {
+		return nil, err
 	}
 
 	network := newNetwork(u, record, nil)
@@ -1041,9 +1060,15 @@ func (u *user) createNetwork(ctx context.Context, record *database.Network) (*ne
 	return network, nil
 }
 
-func (u *user) updateNetwork(ctx context.Context, record *database.Network) (*network, error) {
+func (u *user) updateNetwork(ctx context.Context, record *database.Network, enforceLimit bool) (*network, error) {
 	if record.ID == 0 {
 		panic("tried updating a new network")
+	}
+
+	if enforceLimit && record.Enabled {
+		if err := u.canEnableNewNetwork(); err != nil {
+			return nil, err
+		}
 	}
 
 	// If the nickname/realname is reset to the default, just wipe the
@@ -1198,7 +1223,7 @@ func (u *user) updateUser(ctx context.Context, update UserUpdateFunc) error {
 
 		var netErr error
 		for _, net := range needUpdate {
-			if _, err := u.updateNetwork(ctx, &net); err != nil {
+			if _, err := u.updateNetwork(ctx, &net, false); err != nil {
 				netErr = err
 			}
 		}
