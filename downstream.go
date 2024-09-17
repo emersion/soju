@@ -259,6 +259,7 @@ var needAllDownstreamCaps = map[string]string{
 //
 // This is only effective in single-upstream mode.
 var passthroughIsupport = map[string]bool{
+	"ACCOUNTEXTBAN": true,
 	"AWAYLEN":       true,
 	"BOT":           true,
 	"CASEMAPPING":   true,
