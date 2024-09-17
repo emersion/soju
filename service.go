@@ -532,7 +532,7 @@ func (fs *networkFlagSet) update(network *database.Network) error {
 	}
 	if fs.Name != nil {
 		if *fs.Name == "*" {
-			return fmt.Errorf("the network name %q is reserved for multi-upstream mode", *fs.Name)
+			return fmt.Errorf("the network name %q is reserved", *fs.Name)
 		}
 		network.Name = *fs.Name
 	}

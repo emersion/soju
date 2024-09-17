@@ -256,8 +256,6 @@ var needAllDownstreamCaps = map[string]string{
 
 // passthroughIsupport is the set of ISUPPORT tokens that are directly passed
 // through from the upstream server to downstream clients.
-//
-// This is only effective in single-upstream mode.
 var passthroughIsupport = map[string]bool{
 	"ACCOUNTEXTBAN": true,
 	"AWAYLEN":       true,
@@ -3290,7 +3288,6 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 	default:
 		dc.logger.Debugf("unhandled message: %v", msg)
 
-		// Only forward unknown commands in single-upstream mode
 		if dc.network == nil {
 			return newUnknownCommandError(msg.Command)
 		}
