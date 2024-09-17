@@ -3,6 +3,7 @@ package fileupload
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -275,32 +276,32 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 		basename = path.Base(params["filename"])
 	}
 
-	r := &limitedReader{r: req.Body, n: maxSize}
-	outFilename, err := h.Uploader.store(r, username, mimeType, basename)
+	var outFilename string
+	if req.ContentLength > maxSize {
+		// Check the Content-Length, best-effort, before we start reading from it.
+		// If the client sends us the length right away, we can signal to him immediately
+		// that the file is too large, before it uploads the entire file.
+		err = &http.MaxBytesError{
+			Limit: maxSize,
+		}
+	} else {
+		r := http.MaxBytesReader(resp, req.Body, maxSize)
+		outFilename, err = h.Uploader.store(r, username, mimeType, basename)
+	}
 	if err != nil {
-		http.Error(resp, "failed to write file", http.StatusInternalServerError)
+		status := http.StatusInternalServerError
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			status = http.StatusRequestEntityTooLarge
+			resp.Header().Set("Connection", "close")
+			resp.Header().Set("Upload-Limit", fmt.Sprintf("maxsize=%v", maxBytesErr.Limit))
+		}
+		http.Error(resp, "failed to write file", status)
 		return
 	}
 
 	resp.Header().Set("Location", "/uploads/"+outFilename)
 	resp.WriteHeader(http.StatusCreated)
-}
-
-type limitedReader struct {
-	r io.Reader
-	n int64
-}
-
-func (lr *limitedReader) Read(p []byte) (n int, err error) {
-	if lr.n <= 0 {
-		return 0, fmt.Errorf("file too large")
-	}
-	if int64(len(p)) > lr.n {
-		p = p[0:lr.n]
-	}
-	n, err = lr.r.Read(p)
-	lr.n -= int64(n)
-	return n, err
 }
 
 func generateToken(n int) (string, error) {

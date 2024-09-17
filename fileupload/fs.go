@@ -54,7 +54,7 @@ func (fs *fs) store(r io.Reader, username, mimeType, origBasename string) (outFi
 
 	dir := filepath.Join(fs.dir, username)
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return "", fmt.Errorf("failed to create user upload directory: %v", err)
+		return "", fmt.Errorf("failed to create user upload directory: %w", err)
 	}
 
 	var f *os.File
@@ -65,7 +65,7 @@ func (fs *fs) store(r io.Reader, username, mimeType, origBasename string) (outFi
 		}
 		prefix, err := generateToken(tokenLen)
 		if err != nil {
-			return "", fmt.Errorf("failed to generate file base: %v", err)
+			return "", fmt.Errorf("failed to generate file base: %w", err)
 		}
 
 		basename := prefix
@@ -78,7 +78,7 @@ func (fs *fs) store(r io.Reader, username, mimeType, origBasename string) (outFi
 		if err == nil {
 			break
 		} else if !os.IsExist(err) {
-			return "", fmt.Errorf("failed to open file: %v", err)
+			return "", fmt.Errorf("failed to open file: %w", err)
 		}
 	}
 	if f == nil {
@@ -87,10 +87,10 @@ func (fs *fs) store(r io.Reader, username, mimeType, origBasename string) (outFi
 	defer f.Close()
 
 	if _, err := io.Copy(f, r); err != nil {
-		return "", fmt.Errorf("failed to write file: %v", err)
+		return "", fmt.Errorf("failed to write file: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		return "", fmt.Errorf("failed to close file: %v", err)
+		return "", fmt.Errorf("failed to close file: %w", err)
 	}
 
 	return url.PathEscape(username) + "/" + url.PathEscape(filepath.Base(f.Name())), nil
