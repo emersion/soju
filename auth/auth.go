@@ -21,6 +21,8 @@ func New(driver, source string) (Authenticator, error) {
 	switch driver {
 	case "internal":
 		return NewInternal(), nil
+	case "http":
+		return newHTTP(source)
 	case "oauth2":
 		return newOAuth2(source)
 	case "pam":

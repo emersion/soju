@@ -195,7 +195,7 @@ func Load(filename string) (*Server, error) {
 		switch driver {
 		case "internal", "pam":
 			// nothing to do
-		case "oauth2":
+		case "http", "oauth2":
 			if source == "" {
 				return nil, fmt.Errorf("directive auth: driver %q requires a source", driver)
 			}

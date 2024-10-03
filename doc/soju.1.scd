@@ -220,7 +220,7 @@ The following directives are supported:
 	disable and re-enable users during lengthy inactivity.
 
 	When external authentication is used (e.g. _auth oauth2_), bouncer users
-	are automatically created after successfull authentication.
+	are automatically created after successful authentication.
 
 *auth* <driver> ...
 	Set the authentication method. By default, internal authentication is used.
@@ -229,6 +229,11 @@ The following directives are supported:
 
 	*auth internal*
 		Use internal authentication.
+	*auth http* <url>
+		Use external HTTP basic authentication. An HTTP request is made against
+		the URL, passing the user credentials in an Authorization Basic header.
+		The credentials are considered valid on HTTP 200; invalid on HTTP 403;
+		and any other error code means an error occured.
 	*auth oauth2* <url>
 		Use external OAuth 2.0 authentication. The authorization server URL must
 		be provided. The client ID and client secret can be provided as username
