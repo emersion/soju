@@ -20,11 +20,10 @@ type oauth2 struct {
 }
 
 var (
-	_ PlainAuthenticator       = (*oauth2)(nil)
 	_ OAuthBearerAuthenticator = (*oauth2)(nil)
 )
 
-func newOAuth2(authURL string) (Authenticator, error) {
+func newOAuth2(authURL string) (*Authenticator, error) {
 	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 
@@ -74,24 +73,13 @@ func newOAuth2(authURL string) (Authenticator, error) {
 		}
 	}
 
-	return &oauth2{
-		introspectionURL: introspectionURL,
-		clientID:         clientID,
-		clientSecret:     clientSecret,
+	return &Authenticator{
+		OAuthBearer: &oauth2{
+			introspectionURL: introspectionURL,
+			clientID:         clientID,
+			clientSecret:     clientSecret,
+		},
 	}, nil
-}
-
-func (auth *oauth2) AuthPlain(ctx context.Context, db database.Database, username, password string) error {
-	effectiveUsername, err := auth.AuthOAuthBearer(ctx, db, password)
-	if err != nil {
-		return err
-	}
-
-	if username != effectiveUsername {
-		return newInvalidCredentialsError(fmt.Errorf("username mismatch (OAuth 2.0 server returned %q)", effectiveUsername))
-	}
-
-	return nil
 }
 
 func (auth *oauth2) AuthOAuthBearer(ctx context.Context, db database.Database, token string) (username string, err error) {

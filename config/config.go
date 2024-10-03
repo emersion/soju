@@ -81,7 +81,7 @@ type Server struct {
 
 	DB         DB
 	MsgStore   MsgStore
-	Auth       Auth
+	Auth       []Auth
 	FileUpload *FileUpload
 
 	HTTPOrigins    []string
@@ -108,9 +108,9 @@ func Defaults() *Server {
 		MsgStore: MsgStore{
 			Driver: "memory",
 		},
-		Auth: Auth{
+		Auth: []Auth{{
 			Driver: "internal",
-		},
+		}},
 		HTTPIngress:     "https://" + hostname,
 		MaxUserNetworks: -1,
 	}
@@ -121,22 +121,24 @@ func Load(filename string) (*Server, error) {
 		Listen []struct {
 			Addr string `scfg:",param"`
 		} `scfg:"listen"`
-		Hostname            string     `scfg:"hostname"`
-		Title               string     `scfg:"title"`
-		MOTD                string     `scfg:"motd"`
-		TLS                 *[2]string `scfg:"tls"`
-		DB                  *[2]string `scfg:"db"`
-		MessageStore        []string   `scfg:"message-store"`
-		Log                 []string   `scfg:"log"`
-		Auth                []string   `scfg:"auth"`
-		FileUpload          []string   `scfg:"file-upload"`
-		HTTPOrigin          []string   `scfg:"http-origin"`
-		HTTPIngress         string     `scfg:"http-ingress"`
-		AcceptProxyIP       []string   `scfg:"accept-proxy-ip"`
-		MaxUserNetworks     int        `scfg:"max-user-networks"`
-		UpstreamUserIP      []string   `scfg:"upstream-user-ip"`
-		DisableInactiveUser string     `scfg:"disable-inactive-user"`
-		EnableUserOnAuth    string     `scfg:"enable-user-on-auth"`
+		Hostname     string     `scfg:"hostname"`
+		Title        string     `scfg:"title"`
+		MOTD         string     `scfg:"motd"`
+		TLS          *[2]string `scfg:"tls"`
+		DB           *[2]string `scfg:"db"`
+		MessageStore []string   `scfg:"message-store"`
+		Log          []string   `scfg:"log"`
+		Auth         []struct {
+			Params []string `scfg:",param"`
+		} `scfg:"auth"`
+		FileUpload          []string `scfg:"file-upload"`
+		HTTPOrigin          []string `scfg:"http-origin"`
+		HTTPIngress         string   `scfg:"http-ingress"`
+		AcceptProxyIP       []string `scfg:"accept-proxy-ip"`
+		MaxUserNetworks     int      `scfg:"max-user-networks"`
+		UpstreamUserIP      []string `scfg:"upstream-user-ip"`
+		DisableInactiveUser string   `scfg:"disable-inactive-user"`
+		EnableUserOnAuth    string   `scfg:"enable-user-on-auth"`
 	}
 
 	raw.MaxUserNetworks = -1
@@ -187,8 +189,12 @@ func Load(filename string) (*Server, error) {
 		}
 		srv.MsgStore = MsgStore{driver, source}
 	}
-	if raw.Auth != nil {
-		driver, source, err := parseDriverSource("auth", raw.Auth)
+	if len(raw.Auth) != 0 {
+		// drop default auth if we are explicitly defining any auth
+		srv.Auth = nil
+	}
+	for _, auth := range raw.Auth {
+		driver, source, err := parseDriverSource("auth", auth.Params)
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +208,7 @@ func Load(filename string) (*Server, error) {
 		default:
 			return nil, fmt.Errorf("directive auth: unknown driver %q", driver)
 		}
-		srv.Auth = Auth{driver, source}
+		srv.Auth = append(srv.Auth, Auth{driver, source})
 	}
 	if raw.FileUpload != nil {
 		driver, source, err := parseDriverSource("file-upload", raw.FileUpload)

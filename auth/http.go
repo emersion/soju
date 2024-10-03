@@ -17,9 +17,11 @@ var (
 	_ PlainAuthenticator = (*httpAuth)(nil)
 )
 
-func newHTTP(url string) (Authenticator, error) {
-	return &httpAuth{
-		url: url,
+func newHTTP(url string) (*Authenticator, error) {
+	return &Authenticator{
+		Plain: &httpAuth{
+			url: url,
+		},
 	}, nil
 }
 

@@ -17,8 +17,10 @@ var (
 	_ PlainAuthenticator = (*pamAuth)(nil)
 )
 
-func newPAM() (Authenticator, error) {
-	return pamAuth{}, nil
+func newPAM() (*Authenticator, error) {
+	return &Authenticator{
+		Plain: pamAuth{},
+	}, nil
 }
 
 func (pamAuth) AuthPlain(ctx context.Context, db database.Database, username, password string) error {

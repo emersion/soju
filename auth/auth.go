@@ -7,7 +7,10 @@ import (
 	"codeberg.org/emersion/soju/database"
 )
 
-type Authenticator interface{}
+type Authenticator struct {
+	Plain       PlainAuthenticator
+	OAuthBearer OAuthBearerAuthenticator
+}
 
 type PlainAuthenticator interface {
 	AuthPlain(ctx context.Context, db database.Database, username, password string) error
@@ -17,7 +20,24 @@ type OAuthBearerAuthenticator interface {
 	AuthOAuthBearer(ctx context.Context, db database.Database, token string) (username string, err error)
 }
 
-func New(driver, source string) (Authenticator, error) {
+type OAuthPlainAuthenticator struct {
+	OAuthBearer OAuthBearerAuthenticator
+}
+
+func (auth OAuthPlainAuthenticator) AuthPlain(ctx context.Context, db database.Database, username, password string) error {
+	effectiveUsername, err := auth.OAuthBearer.AuthOAuthBearer(ctx, db, password)
+	if err != nil {
+		return err
+	}
+
+	if username != effectiveUsername {
+		return newInvalidCredentialsError(fmt.Errorf("username mismatch (OAuth 2.0 server returned %q)", effectiveUsername))
+	}
+
+	return nil
+}
+
+func New(driver, source string) (*Authenticator, error) {
 	switch driver {
 	case "internal":
 		return NewInternal(), nil

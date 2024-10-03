@@ -6,6 +6,6 @@ import (
 	"errors"
 )
 
-func newPAM() (Authenticator, error) {
+func newPAM() (*Authenticator, error) {
 	return nil, errors.New("PAM support is disabled")
 }

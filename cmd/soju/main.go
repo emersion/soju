@@ -77,9 +77,29 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		motd = strings.TrimSuffix(string(b), "\n")
 	}
 
-	auth, err := auth.New(raw.Auth.Driver, raw.Auth.Source)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create authenticator: %v", err)
+	var authenticator auth.Authenticator
+	for _, authCfg := range raw.Auth {
+		a, err := auth.New(authCfg.Driver, authCfg.Source)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create authenticator %v: %v", authCfg.Driver, err)
+		}
+		if a.Plain != nil {
+			if authenticator.Plain != nil {
+				return nil, nil, fmt.Errorf("failed to load authenticators: multiple plain authentication methods specified")
+			}
+			authenticator.Plain = a.Plain
+		}
+		if a.OAuthBearer != nil {
+			if authenticator.OAuthBearer != nil {
+				return nil, nil, fmt.Errorf("failed to load authenticators: multiple OAuth authentication methods specified")
+			}
+			authenticator.OAuthBearer = a.OAuthBearer
+		}
+	}
+	if authenticator.OAuthBearer != nil && authenticator.Plain == nil {
+		authenticator.Plain = auth.OAuthPlainAuthenticator{
+			OAuthBearer: authenticator.OAuthBearer,
+		}
 	}
 
 	if raw.TLS != nil {
@@ -92,6 +112,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 
 	var fileUploader fileupload.Uploader
 	if raw.FileUpload != nil {
+		var err error
 		fileUploader, err = fileupload.New(raw.FileUpload.Driver, raw.FileUpload.Source)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create file uploader: %v", err)
@@ -111,7 +132,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		DisableInactiveUsersDelay: raw.DisableInactiveUsersDelay,
 		EnableUsersOnAuth:         raw.EnableUsersOnAuth,
 		MOTD:                      motd,
-		Auth:                      auth,
+		Auth:                      &authenticator,
 		FileUploader:              fileUploader,
 	}
 	return raw, cfg, nil

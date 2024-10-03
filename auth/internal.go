@@ -9,8 +9,10 @@ import (
 
 type internal struct{}
 
-func NewInternal() PlainAuthenticator {
-	return internal{}
+func NewInternal() *Authenticator {
+	return &Authenticator{
+		Plain: internal{},
+	}
 }
 
 func (internal) AuthPlain(ctx context.Context, db database.Database, username, password string) error {

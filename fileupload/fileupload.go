@@ -77,7 +77,7 @@ func New(driver, source string) (Uploader, error) {
 
 type Handler struct {
 	Uploader    Uploader
-	Auth        auth.Authenticator
+	Auth        *auth.Authenticator
 	DB          database.Database
 	HTTPOrigins []string
 }
@@ -212,12 +212,13 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 	scheme, param, _ := strings.Cut(authz, " ")
 	switch strings.ToLower(scheme) {
 	case "basic":
-		plainAuth, ok := h.Auth.(auth.PlainAuthenticator)
-		if !ok {
+		plainAuth := h.Auth.Plain
+		if plainAuth == nil {
 			http.Error(resp, "Basic scheme in Authorization header not supported", http.StatusBadRequest)
 			return
 		}
 		var password string
+		var ok bool
 		username, password, ok = req.BasicAuth()
 		if !ok {
 			http.Error(resp, "invalid Authorization header", http.StatusBadRequest)
@@ -225,8 +226,8 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 		}
 		err = plainAuth.AuthPlain(req.Context(), h.DB, username, password)
 	case "bearer":
-		oauthAuth, ok := h.Auth.(auth.OAuthBearerAuthenticator)
-		if !ok {
+		oauthAuth := h.Auth.OAuthBearer
+		if oauthAuth == nil {
 			http.Error(resp, "Bearer scheme in Authorization header not supported", http.StatusBadRequest)
 			return
 		}
