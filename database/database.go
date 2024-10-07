@@ -101,8 +101,9 @@ type User struct {
 
 func NewUser(username string) *User {
 	return &User{
-		Username: username,
-		Enabled:  true,
+		Username:    username,
+		Enabled:     true,
+		MaxNetworks: -1,
 	}
 }
 
