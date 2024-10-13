@@ -202,6 +202,11 @@ func main() {
 					log.Printf("serving %q: %v", listen, err)
 				}
 			}()
+		case "irc":
+			if u.Hostname() != "localhost" {
+				log.Fatalf("Plain-text IRC listening host must be localhost unless marked as insecure")
+			}
+			fallthrough
 		case "irc+insecure":
 			addr := withDefaultPort(u.Host, "6667")
 			lc := net.ListenConfig{
@@ -264,6 +269,11 @@ func main() {
 					log.Fatalf("serving %q: %v", listen, err)
 				}
 			}()
+		case "ws":
+			if u.Hostname() != "localhost" {
+				log.Fatalf("Plain-text WebSocket listening host must be localhost unless marked as insecure")
+			}
+			fallthrough
 		case "ws+insecure":
 			httpSrv := http.Server{
 				Addr:    withDefaultPort(u.Host, "http"),
@@ -368,6 +378,11 @@ func main() {
 					log.Fatalf("serving %q: %v", listen, err)
 				}
 			}()
+		case "http":
+			if u.Hostname() != "localhost" {
+				log.Fatalf("Plain-text HTTP listening host must be localhost unless marked as insecure")
+			}
+			fallthrough
 		case "http+insecure":
 			httpSrv := http.Server{
 				Addr:    withDefaultPort(u.Host, "http"),
