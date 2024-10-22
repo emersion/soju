@@ -1484,7 +1484,8 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	}
 	if dc.network == nil {
 		isupport = append(isupport, "WHOX")
-		isupport = append(isupport, "CHANTYPES=") // channels are not supported
+		isupport = append(isupport, "CHANTYPES=")   // channels are not supported
+		isupport = append(isupport, "LINELEN=4096") // default bufio.Reader size
 	}
 	if _, ok := dc.user.msgStore.(msgstore.ChatHistoryStore); ok && dc.network != nil {
 		isupport = append(isupport, fmt.Sprintf("CHATHISTORY=%v", chatHistoryLimit))
