@@ -13,10 +13,11 @@ import (
 	"time"
 	"unicode"
 
-	"codeberg.org/emersion/soju/xirc"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	"gopkg.in/irc.v4"
+
+	"codeberg.org/emersion/soju/xirc"
 )
 
 const SqliteEnabled = true
@@ -243,6 +244,10 @@ var sqliteMigrations = []string{
 		END;
 	`,
 	"ALTER TABLE User ADD COLUMN max_networks INTEGER NOT NULL DEFAULT -1",
+	`
+		ALTER TABLE MessageTarget ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE MessageTarget ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;
+	`,
 }
 
 type SqliteDB struct {
@@ -1070,6 +1075,58 @@ func (db *SqliteDB) GetMessageLastID(ctx context.Context, networkID int64, name 
 	return msgID, nil
 }
 
+func (db *SqliteDB) GetMessageTarget(ctx context.Context, networkID int64, target string) (*MessageTarget, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	mt := &MessageTarget{
+		Target: target,
+	}
+
+	row := db.db.QueryRowContext(ctx, `
+		SELECT id, pinned, muted FROM MessageTarget WHERE network = :network AND target = :target`,
+		sql.Named("network", networkID),
+		sql.Named("target", target),
+	)
+	if err := row.Scan(&mt.ID, &mt.Pinned, &mt.Muted); err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	return mt, nil
+}
+
+func (db *SqliteDB) StoreMessageTarget(ctx context.Context, networkID int64, mt *MessageTarget) error {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	args := []interface{}{
+		sql.Named("id", mt.ID),
+		sql.Named("network", networkID),
+		sql.Named("target", mt.Target),
+		sql.Named("pinned", mt.Pinned),
+		sql.Named("muted", mt.Muted),
+	}
+
+	var err error
+	if mt.ID != 0 {
+		_, err = db.db.ExecContext(ctx, `
+			UPDATE MessageTarget SET pinned = :pinned, muted = :muted WHERE id = :id`,
+			args...)
+	} else {
+		var res sql.Result
+		res, err = db.db.ExecContext(ctx, `
+			INSERT INTO
+			MessageTarget(network, target, pinned, muted)
+			VALUES (:network, :target, :pinned, :muted)`,
+			args...)
+		if err != nil {
+			return err
+		}
+		mt.ID, err = res.LastInsertId()
+	}
+
+	return err
+}
+
 func (db *SqliteDB) StoreMessages(ctx context.Context, networkID int64, name string, msgs []*irc.Message) ([]int64, error) {
 	if len(msgs) == 0 {
 		return nil, nil
@@ -1147,7 +1204,7 @@ func (db *SqliteDB) StoreMessages(ctx context.Context, networkID int64, name str
 	return ids, err
 }
 
-func (db *SqliteDB) ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTarget, error) {
+func (db *SqliteDB) ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTargetLast, error) {
 	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
 
@@ -1193,9 +1250,9 @@ func (db *SqliteDB) ListMessageLastPerTarget(ctx context.Context, networkID int6
 	}
 	defer rows.Close()
 
-	var l []MessageTarget
+	var l []MessageTargetLast
 	for rows.Next() {
-		var mt MessageTarget
+		var mt MessageTargetLast
 		var ts sqliteTime
 		if err := rows.Scan(&mt.Name, &ts); err != nil {
 			return nil, err

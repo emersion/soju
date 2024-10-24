@@ -13,7 +13,7 @@ import (
 	"gopkg.in/irc.v4"
 )
 
-type MessageTarget struct {
+type MessageTargetLast struct {
 	Name          string
 	LatestMessage time.Time
 }
@@ -60,8 +60,10 @@ type Database interface {
 	DeleteWebPushSubscription(ctx context.Context, id int64) error
 
 	GetMessageLastID(ctx context.Context, networkID int64, name string) (int64, error)
+	GetMessageTarget(ctx context.Context, networkID int64, target string) (*MessageTarget, error)
+	StoreMessageTarget(ctx context.Context, networkID int64, mt *MessageTarget) error
 	StoreMessages(ctx context.Context, networkID int64, name string, msgs []*irc.Message) ([]int64, error)
-	ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTarget, error)
+	ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTargetLast, error)
 	ListMessages(ctx context.Context, networkID int64, name string, options *MessageOptions) ([]*irc.Message, error)
 }
 
@@ -285,6 +287,13 @@ type WebPushSubscription struct {
 		P256DH string
 		VAPID  string
 	}
+}
+
+type MessageTarget struct {
+	ID     int64
+	Target string
+	Pinned bool
+	Muted  bool
 }
 
 func toNullString(s string) sql.NullString {
