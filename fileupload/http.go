@@ -39,6 +39,14 @@ func (fs *fileuploadHTTP) store(ctx context.Context, r io.Reader, username, mime
 	if err != nil {
 		return "", err
 	}
+
+	if res.StatusCode >= 400 && res.StatusCode < 600 {
+		return "", &httpError{
+			Code:        res.StatusCode,
+			ContentType: res.Header.Get("Content-Type"),
+			Body:        res.Body,
+		}
+	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {

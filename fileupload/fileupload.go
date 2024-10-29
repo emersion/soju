@@ -59,6 +59,29 @@ var primaryExts = map[string]string{
 	"video/mp4":  "mp4",
 }
 
+type httpError struct {
+	Code        int
+	ContentType string
+	Body        io.Reader
+}
+
+func (h *httpError) Error() string {
+	return fmt.Sprintf("error %v: %v", h.Code, h.Body)
+}
+
+func (h *httpError) Write(w http.ResponseWriter) {
+	defer func() {
+		if c, ok := h.Body.(io.Closer); ok {
+			c.Close()
+		}
+	}()
+	if h.ContentType != "" {
+		w.Header().Set("Content-Type", h.ContentType)
+	}
+	w.WriteHeader(h.Code)
+	io.Copy(w, h.Body)
+}
+
 type Uploader interface {
 	load(ctx context.Context, filename string) (basename string, modTime time.Time, content io.ReadSeekCloser, err error)
 	store(ctx context.Context, r io.Reader, username, mimeType, basename string) (out string, err error)
@@ -158,6 +181,11 @@ func (h *Handler) fetch(resp http.ResponseWriter, req *http.Request) {
 
 	basename, modTime, content, err := h.Uploader.load(req.Context(), filename)
 	if err != nil {
+		var httpErr *httpError
+		if errors.As(err, &httpErr) {
+			httpErr.Write(resp)
+			return
+		}
 		http.Error(resp, "failed to open file", http.StatusNotFound)
 		return
 	}
@@ -294,6 +322,11 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 		out, err = h.Uploader.store(req.Context(), r, username, mimeType, basename)
 	}
 	if err != nil {
+		var httpErr *httpError
+		if errors.As(err, &httpErr) {
+			httpErr.Write(resp)
+			return
+		}
 		status := http.StatusInternalServerError
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {

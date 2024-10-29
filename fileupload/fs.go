@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -21,7 +22,10 @@ var _ Uploader = (*fileuploadFS)(nil)
 func (fs *fileuploadFS) load(ctx context.Context, filename string) (basename string, modTime time.Time, content io.ReadSeekCloser, err error) {
 	f, err := os.Open(filepath.Join(fs.dir, filepath.FromSlash(filename)))
 	if err != nil {
-		return "", time.Time{}, nil, err
+		return "", time.Time{}, nil, &httpError{
+			Code: http.StatusNotFound,
+			Body: strings.NewReader("file not found"),
+		}
 	}
 
 	fi, err := f.Stat()
