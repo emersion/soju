@@ -74,7 +74,7 @@ A new `WEBPUSH` command is introduced. It has a case-insensitive subcommand:
 
 The `REGISTER` subcommand creates a new Web Push subscription.
 
-    WEBPUSH REGISTER <endpoint> <keys>
+    WEBPUSH REGISTER <endpoint> <keys> [state]
 
 The `<endpoint>` is an URL pointing to a push server, which can be used to send push messages for this particular subscription.
 
@@ -84,6 +84,8 @@ The `<endpoint>` is an URL pointing to a push server, which can be used to send 
 - One shared key with the name `auth` set to a 16-byte client-generated authentication secret.
 
 If the server has advertised the `VAPID` ISUPPORT token, they MUST use this VAPID public key when sending push notifications. Servers MUST replace any previous subscription with the same `<endpoint>`.
+
+`[state]` is an optional opaque string passed back to the client in push notification payloads in a message tag.
 
 If the registration is successful, the server MUST reply with a `WEBPUSH REGISTER` message:
 
@@ -118,6 +120,10 @@ If the server cannot fullfill a client command due to an internal error, the `IN
 ```
 FAIL WEBPUSH INTERNAL_ERROR <command> <endpoint> <message>
 ```
+
+## `soju.im/webpush-state` Message Tag
+
+If the client provided a `[state]` parameter during registration, a `soju.im/webpush-state` tag is added to each push notification payload with the same value. This can be used by clients to find out which registration triggered a push notification.
 
 [RFC 8030]: https://datatracker.ietf.org/doc/html/rfc8030
 [RFC 8291]: https://datatracker.ietf.org/doc/html/rfc8291
