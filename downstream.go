@@ -1917,14 +1917,14 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if name == "" || strings.ContainsAny(name, illegalChanChars) {
 				dc.SendMessage(ctx, &irc.Message{
 					Command: irc.ERR_BADCHANMASK,
-					Params:  []string{name, "Invalid channel name"},
+					Params:  []string{dc.nick, name, "Invalid channel name"},
 				})
 				continue
 			}
 			if !uc.isChannel(name) {
 				dc.SendMessage(ctx, &irc.Message{
 					Command: irc.ERR_NOSUCHCHANNEL,
-					Params:  []string{name, "Not a channel name"},
+					Params:  []string{dc.nick, name, "Not a channel name"},
 				})
 				continue
 			}
