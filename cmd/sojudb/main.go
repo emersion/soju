@@ -17,6 +17,11 @@ import (
 
 const usage = `usage: sojudb [-config path] <action> [options...]
 
+Edit the soju database. Note, the soju daemon must be restarted after database
+changes.
+
+Commands:
+
   create-user <username> [-admin]  Create a new user
   change-password <username>       Change password for a user
   help                             Show this help message
