@@ -102,6 +102,10 @@ func newDeliveredStore(cm xirc.CaseMapping) deliveredStore {
 	return deliveredStore{xirc.NewCaseMappingMap[deliveredClientMap](cm)}
 }
 
+func (ds deliveredStore) Empty() bool {
+	return ds.m.Len() == 0
+}
+
 func (ds deliveredStore) HasTarget(target string) bool {
 	return ds.m.Get(target) != nil
 }

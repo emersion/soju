@@ -2151,7 +2151,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		return ""
 	}
 
-	if !uc.network.delivered.HasTarget(entity) {
+	if !uc.network.delivered.Empty() && !uc.network.delivered.HasTarget(entity) {
 		// This is the first message we receive from this target. Save the last
 		// message ID in delivery receipts, so that we can send the new message
 		// in the backlog if an offline client reconnects.
