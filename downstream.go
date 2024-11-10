@@ -1590,10 +1590,19 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 				return
 			}
 
+			params := []string{ch.Name}
+			if dc.caps.IsEnabled("extended-join") {
+				account := uc.account
+				if account == "" {
+					account = "*"
+				}
+				params = append(params, account, uc.realname)
+			}
+
 			dc.SendMessage(ctx, &irc.Message{
 				Prefix:  dc.prefix(),
 				Command: "JOIN",
-				Params:  []string{ch.Name},
+				Params:  params,
 			})
 
 			forwardChannel(ctx, dc, ch)
