@@ -1743,8 +1743,18 @@ func (dc *downstreamConn) runUntilRegistered() error {
 			return fmt.Errorf("failed to handle IRC command %q: %v", msg, err)
 		}
 
-		if dc.registration.nick != "" && dc.registration.username != "" && !dc.registration.negotiatingCaps {
-			return dc.register(ctx)
+		if dc.registration.nick == "" || dc.registration.username == "" || dc.registration.negotiatingCaps {
+			continue
+		}
+
+		if err := dc.register(ctx); err == nil {
+			break
+		} else if ircErr, ok := err.(ircError); ok {
+			ircErr.Message.Prefix = dc.srv.prefix()
+			dc.SendMessage(ctx, ircErr.Message)
+			return io.EOF
+		} else {
+			return fmt.Errorf("connection registration failed: %v", err)
 		}
 	}
 
