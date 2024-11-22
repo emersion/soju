@@ -60,6 +60,8 @@ message from the special _BouncerServ_ service.
 *-debug*
 	Enable debug logging (this will leak sensitive information such as
 	passwords).
+	This can be overriden at run time with the service command
+	_server debug_.
 
 *-listen* <uri>
 	Listening URI (default: ":6697"). Can be specified multiple times.
@@ -587,6 +589,10 @@ character.
 	Broadcast a notice. All currently connected bouncer users will receive the
 	message from the special _BouncerServ_ service. Only admins can broadcast a
 	notice.
+
+*server debug* <true|false>
+	Enable/disable debug logging (this will leak sensitive information).
+	This overrides any value passed to soju in _-debug_.
 
 # AUTHORS
 

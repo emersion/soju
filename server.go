@@ -51,23 +51,28 @@ type Logger interface {
 	Debugf(format string, v ...interface{})
 }
 
-type logger struct {
-	*log.Logger
-	debug bool
+type logger interface {
+	Printf(format string, v ...interface{})
 }
 
-func (l logger) Debugf(format string, v ...interface{}) {
-	if !l.debug {
+type DebugLogger struct {
+	logger
+	debug atomic.Bool
+}
+
+func (l *DebugLogger) Debugf(format string, v ...interface{}) {
+	if !l.debug.Load() {
 		return
 	}
-	l.Logger.Printf(format, v...)
+	l.logger.Printf(format, v...)
 }
 
-func NewLogger(out io.Writer, debug bool) Logger {
-	return logger{
-		Logger: log.New(out, "", log.LstdFlags),
-		debug:  debug,
+func NewLogger(out io.Writer, debug bool) *DebugLogger {
+	l := &DebugLogger{
+		logger: log.New(out, "", log.LstdFlags),
 	}
+	l.debug.Store(debug)
+	return l
 }
 
 type prefixLogger struct {
@@ -155,7 +160,7 @@ type Config struct {
 }
 
 type Server struct {
-	Logger          Logger
+	Logger          *DebugLogger
 	Identd          *identd.Identd        // can be nil
 	MetricsRegistry prometheus.Registerer // can be nil
 

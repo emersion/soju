@@ -29,10 +29,6 @@ func (tl testingLogger) Printf(format string, v ...interface{}) {
 	tl.t.Logf(format, v...)
 }
 
-func (tl testingLogger) Debugf(format string, v ...interface{}) {
-	tl.t.Logf(format, v...)
-}
-
 func createTempSqliteDB(t *testing.T) database.Database {
 	if !database.SqliteEnabled {
 		t.Skip("SQLite support is disabled")
@@ -187,13 +183,21 @@ func registerUpstreamConn(t *testing.T, c ircConn) {
 	})
 }
 
+func newDebugLogger(t *testing.T) *DebugLogger {
+	l := &DebugLogger{
+		logger: &testingLogger{t},
+	}
+	l.debug.Store(true)
+	return l
+}
+
 func testBroadcast(t *testing.T, db database.Database) {
 	user := createTestUser(t, db)
 	network, upstream := createTestUpstream(t, db, user)
 	defer upstream.Close()
 
 	srv := NewServer(db)
-	srv.Logger = testingLogger{t}
+	srv.Logger = newDebugLogger(t)
 	if err := srv.Start(); err != nil {
 		t.Fatalf("failed to start server: %v", err)
 	}
@@ -251,8 +255,7 @@ func testChatHistory(t *testing.T, msgStoreDriver, msgStorePath string) {
 	defer upstream.Close()
 
 	srv := NewServer(db)
-
-	srv.Logger = testingLogger{t}
+	srv.Logger = newDebugLogger(t)
 
 	cfg := *srv.Config()
 	cfg.MsgStoreDriver = msgStoreDriver

@@ -353,6 +353,13 @@ func init() {
 					admin:  true,
 					global: true,
 				},
+				"debug": {
+					usage:  "<true|false>",
+					desc:   "enable/disable debug logging to stderr (will leak sensitive information)",
+					handle: handleServiceServerDebug,
+					admin:  true,
+					global: true,
+				},
 			},
 			admin: true,
 		},
@@ -1608,4 +1615,25 @@ func handleServiceServerNotice(ctx *serviceContext, params []string) error {
 	ctx.print(fmt.Sprintf("sent to %v/%v downstream connections", sent, total))
 
 	return err
+}
+
+func handleServiceServerDebug(ctx *serviceContext, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+
+	enabled, err := strconv.ParseBool(params[0])
+	if err != nil {
+		return err
+	}
+
+	previous := ctx.srv.Logger.debug.Swap(enabled)
+	if previous != enabled {
+		if enabled {
+			ctx.srv.Logger.Printf("enabling debug logging")
+		} else {
+			ctx.srv.Logger.Printf("disabling debug logging")
+		}
+	}
+	return nil
 }
