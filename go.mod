@@ -8,16 +8,16 @@ require (
 	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9
 	github.com/SherClockHolmes/webpush-go v1.3.0
 	github.com/coder/websocket v1.8.12
-	github.com/emersion/go-sasl v0.0.0-20231106173351-e73c9f7bad43
+	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/lib/pq v1.10.9
-	github.com/mattn/go-sqlite3 v1.14.23
+	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/msteinert/pam/v2 v2.0.0
-	github.com/pires/go-proxyproto v0.7.0
-	github.com/prometheus/client_golang v1.20.4
-	golang.org/x/crypto v0.27.0
-	golang.org/x/time v0.6.0
+	github.com/pires/go-proxyproto v0.8.0
+	github.com/prometheus/client_golang v1.20.5
+	golang.org/x/crypto v0.29.0
+	golang.org/x/time v0.8.0
 	gopkg.in/irc.v4 v4.0.0
-	modernc.org/sqlite v1.29.10
+	modernc.org/sqlite v1.34.1
 )
 
 require (
@@ -35,12 +35,12 @@ require (
 	github.com/prometheus/common v0.59.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/term v0.24.0 // indirect
+	golang.org/x/exp v0.0.0-20231108232855-2478ac86f678 // indirect
+	golang.org/x/sys v0.27.0 // indirect
+	golang.org/x/term v0.26.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
-	modernc.org/gc/v2 v2.5.0 // indirect
-	modernc.org/gc/v3 v3.0.0-20240304020402-f0dba7c97c2b // indirect
-	modernc.org/libc v1.50.8 // indirect
+	modernc.org/gc/v3 v3.0.0-20241004144649-1aea3fae8852 // indirect
+	modernc.org/libc v1.61.0 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.8.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
