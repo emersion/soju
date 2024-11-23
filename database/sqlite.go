@@ -258,6 +258,10 @@ func OpenSqliteDB(source string) (Database, error) {
 	}
 	sqlSqliteDB.SetMaxOpenConns(1)
 
+	if _, err := sqlSqliteDB.Exec("PRAGMA foreign_keys = true"); err != nil {
+		return nil, fmt.Errorf("failed to enable SQLite foreign keys: %v", err)
+	}
+
 	db := &SqliteDB{db: sqlSqliteDB}
 	if err := db.upgrade(); err != nil {
 		sqlSqliteDB.Close()
