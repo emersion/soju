@@ -26,6 +26,9 @@ const sqliteQueryTimeout = 5 * time.Second
 const sqliteTimeLayout = "2006-01-02T15:04:05.000Z"
 const sqliteTimeFormat = "%Y-%m-%dT%H:%M:%fZ"
 
+// See https://kerkour.com/sqlite-for-servers
+const sqliteOptions = "_foreign_keys=true&_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL&_txlock=immediate"
+
 type sqliteTime struct {
 	time.Time
 }
@@ -250,16 +253,9 @@ type SqliteDB struct {
 }
 
 func OpenSqliteDB(source string) (Database, error) {
-	// Open the DB with cache=shared and SetMaxOpenConns(1) to allow usage from
-	// multiple goroutines
-	sqlSqliteDB, err := sql.Open(sqliteDriver, source+"?cache=shared")
+	sqlSqliteDB, err := sql.Open(sqliteDriver, source+"?"+sqliteOptions)
 	if err != nil {
 		return nil, err
-	}
-	sqlSqliteDB.SetMaxOpenConns(1)
-
-	if _, err := sqlSqliteDB.Exec("PRAGMA foreign_keys = true"); err != nil {
-		return nil, fmt.Errorf("failed to enable SQLite foreign keys: %v", err)
 	}
 
 	db := &SqliteDB{db: sqlSqliteDB}
@@ -275,7 +271,14 @@ func OpenTempSqliteDB() (Database, error) {
 	// :memory: will open a separate database for each new connection. Make
 	// sure the sql package only uses a single connection via SetMaxOpenConns.
 	// An alternative solution is to use "file::memory:?cache=shared".
-	return OpenSqliteDB(":memory:")
+	db, err := OpenSqliteDB(":memory:")
+	if err != nil {
+		return nil, err
+	}
+
+	db.(*SqliteDB).db.SetMaxOpenConns(1)
+
+	return db, nil
 }
 
 func (db *SqliteDB) Close() error {
