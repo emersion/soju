@@ -1145,6 +1145,12 @@ func (u *user) updateNetwork(ctx context.Context, record *database.Network, enfo
 	// otherwise they'll get closed
 	u.removeNetwork(network)
 
+	// Transfer network attributes that aren't in the record
+	updatedNetwork.delivered = network.delivered
+	updatedNetwork.pushTargets = network.pushTargets
+	updatedNetwork.lastError = network.lastError
+	updatedNetwork.updateCasemapping(network.casemap)
+
 	// The filesystem message store needs to be notified whenever the network
 	// is renamed
 	renameNetMsgStore, ok := u.msgStore.(msgstore.RenameNetworkStore)
