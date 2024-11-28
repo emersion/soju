@@ -687,7 +687,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 				break
 			}
 
-			if credentials.plain.Identity != "" && credentials.plain.Identity != username {
+			if credentials.plain.Identity != "" && credentials.plain.Identity != credentials.plain.Username {
 				var u *database.User
 				u, err = dc.srv.db.GetUser(ctx, username)
 				if err != nil {
