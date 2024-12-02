@@ -179,7 +179,9 @@ func Load(filename string) (*Server, error) {
 		}
 		switch driver {
 		case "memory", "db":
-			// nothing to do
+			if source != "" {
+				return nil, fmt.Errorf("directive message-store: driver %q requires zero parameters", driver)
+			}
 		case "fs":
 			if source == "" {
 				return nil, fmt.Errorf("directive message-store: driver %q requires a source", driver)
@@ -200,7 +202,9 @@ func Load(filename string) (*Server, error) {
 		}
 		switch driver {
 		case "internal", "pam":
-			// nothing to do
+			if source != "" {
+				return nil, fmt.Errorf("directive auth: driver %q requires zero parameters", driver)
+			}
 		case "http", "oauth2":
 			if source == "" {
 				return nil, fmt.Errorf("directive auth: driver %q requires a source", driver)
