@@ -8,3 +8,7 @@ import (
 )
 
 var sqliteDriver = "sqlite3"
+
+// See https://kerkour.com/sqlite-for-servers
+// Keep in sync with modernc counterpart.
+const sqliteOptions = "_foreign_keys=true&_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL&_txlock=immediate"

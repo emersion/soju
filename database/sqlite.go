@@ -26,9 +26,6 @@ const sqliteQueryTimeout = 5 * time.Second
 const sqliteTimeLayout = "2006-01-02T15:04:05.000Z"
 const sqliteTimeFormat = "%Y-%m-%dT%H:%M:%fZ"
 
-// See https://kerkour.com/sqlite-for-servers
-const sqliteOptions = "_foreign_keys=true&_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL&_txlock=immediate"
-
 type sqliteTime struct {
 	time.Time
 }
