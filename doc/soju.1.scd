@@ -93,14 +93,16 @@ The following directives are supported:
 	  port if omitted: 6667)
 	- _unix://<path>_ listens on a Unix domain socket
 	- _https://[host][:port]_ listens for HTTPS connections (default port: 443)
-	  and handles WebSocket requests at endpoint _/socket_
+	  and handles the following requests:
+		- _/socket_ for WebSocket
+		- _/uploads_ (and subdirectories) for file uploads
 	- _http://localhost[:port]_ listens for plain-text HTTP connections
-	  (default port: 80, host must be "localhost") and handles WebSocket
-	  requests at endpoint _/socket_
+	  (default port: 80, host must be "localhost") and handles requests like
+	  _https://_ does
 	- _http+insecure://[host][:port]_ listens for plain-text HTTP connections
-	  (default port: 80) and handles WebSocket requests at endpoint _/socket_
+	  (default port: 80) and handles requests like _https://_ does
 	- _http+unix://<path>_ listens for plain-text HTTP connections on a Unix
-	  domain socket and handles WebSocket requests at endpoint _/socket_
+	  domain socket and handles requests like _https://_ does
 	- _wss://[host][:port]_ listens for WebSocket connections over TLS (default
 	  port: 443)
 	- _ws://localhost[:port]_ listens for plain-text WebSocket connections
