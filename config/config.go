@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"git.sr.ht/~emersion/go-scfg"
+	"codeberg.org/emersion/go-scfg"
 )
 
 var (

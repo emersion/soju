@@ -3,7 +3,7 @@ module codeberg.org/emersion/soju
 go 1.19
 
 require (
-	git.sr.ht/~emersion/go-scfg v0.0.0-20240128091534-2ae16e782082
+	codeberg.org/emersion/go-scfg v0.1.0
 	git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20240124102820-f3a72e8b79b1
 	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9
 	github.com/SherClockHolmes/webpush-go v1.3.1-0.20250102224029-1d350302adf0
