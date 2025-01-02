@@ -347,12 +347,10 @@ func (s *Server) sendWebPush(ctx context.Context, sub *webpush.Subscription, vap
 		},
 		VAPIDPublicKey:  s.webPush.VAPIDKeys.Public,
 		VAPIDPrivateKey: s.webPush.VAPIDKeys.Private,
-		// TODO: switch back to an HTTP URL once this is merged:
-		// https://github.com/SherClockHolmes/webpush-go/pull/57
-		Subscriber: "webpush@soju.im",
-		TTL:        7 * 24 * 60 * 60, // seconds
-		Urgency:    urgency,
-		RecordSize: 2048,
+		Subscriber:      "https://soju.im",
+		TTL:             7 * 24 * 60 * 60, // seconds
+		Urgency:         urgency,
+		RecordSize:      2048,
 	}
 
 	if vapidPubKey != options.VAPIDPublicKey {
