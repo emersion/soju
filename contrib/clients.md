@@ -106,8 +106,8 @@ On WeeChat 3.2-, no IRCv3 capabilities are enabled by default. To enable them:
 See `/help cap` for more information.
 
 [IRCv3 support tables]: https://ircv3.net/software/clients
-[gamja]: https://sr.ht/~emersion/gamja/
-[goguma]: https://sr.ht/~emersion/goguma/
+[gamja]: https://codeberg.org/emersion/gamja
+[goguma]: https://codeberg.org/emersion/goguma
 [senpai]: https://sr.ht/~delthas/senpai/
 [Weechat]: https://weechat.org/
 [soju.py]: https://weechat.org/scripts/source/soju.py.html/
