@@ -106,7 +106,7 @@ func Defaults() *Server {
 			Source: "soju.db",
 		},
 		MsgStore: MsgStore{
-			Driver: "memory",
+			Driver: "db",
 		},
 		Auth: []Auth{{
 			Driver: "internal",
