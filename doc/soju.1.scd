@@ -150,21 +150,20 @@ The following directives are supported:
 	  <https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters>.
 
 *message-store* <driver> [source]
-	Set the database location for IRC messages. By default, an in-memory message
-	database is used.
+	Set the database location for IRC messages. By default, _db_ is used.
 
 	Supported drivers:
 
-	- _memory_ stores messages in memory. For each channel/user, only the
-	  latest 4K messages are kept in memory, older messages are discarded. This
-	  driver is very basic and doesn't support features such as the
-	  _chathistory_ extension and search.
+	- _db_ stores messages in the database. A full-text search index is used to
+	  speed up search queries.
 	- _fs_ stores messages on disk, in the same format as ZNC. _source_ is
 	  required and is the root directory path for the database. This on-disk
 	  format is lossy: some IRCv3 messages (e.g. TAGMSG) and all message tags
 	  are discarded.
-	- _db_ stores messages in the database. A full-text search index is used to
-	  speed up search queries.
+	- _memory_ stores messages in memory. For each channel/user, only the
+	  latest 4K messages are kept in memory, older messages are discarded. This
+	  driver is very basic and doesn't support features such as the
+	  _chathistory_ extension and search.
 
 	(_log_ is a deprecated alias for this directive.)
 
