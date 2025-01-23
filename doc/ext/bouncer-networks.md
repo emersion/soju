@@ -263,9 +263,9 @@ Listing networks:
 Adding a new network:
 
     C: BOUNCER ADDNETWORK name=OFTC;host=irc.oftc.net
-    S: BOUNCER NETWORK 44 name=OFTC;host=irc.oftc.net;status=connecting
+    S: BOUNCER NETWORK 44 name=OFTC;host=irc.oftc.net;state=connecting
     S: BOUNCER ADDNETWORK 44
-    S: BOUNCER NETWORK 44 status=connected
+    S: BOUNCER NETWORK 44 state=connected
 
 Changing an existing network:
 
