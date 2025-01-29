@@ -119,6 +119,28 @@ If the server cannot fullfill a client command due to an internal error, the `IN
 FAIL WEBPUSH INTERNAL_ERROR <command> <endpoint> <message>
 ```
 
+### Examples
+
+The server advertises its VAPID public key:
+
+```
+S: 005 emersion NETWORK=TestNet VAPID=BA1Hxzyi1RUM1b5wjxsn7nGxAszw2u61m164i3MrAIxHF6YK5h4SDYic-dRuU_RCPCfA5aq9ojSwk5Y2EmClBPs :are supported by this server
+```
+
+The client generates a public and private key, then registers a push endpoint:
+
+```
+C: WEBPUSH REGISTER https://example.org/YBJNBIMwwA_Ag8EtD47J4A p256dh=BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4;auth=BTBZMqHH6r4Tts7J_aSIgg
+S: WEBPUSH REGISTER https://example.org/YBJNBIMwwA_Ag8EtD47J4A
+```
+
+The client unregisters a push endpoint:
+
+```
+C: WEBPUSH UNREGISTER https://example.org/YBJNBIMwwA_Ag8EtD47J4A
+S: WEBPUSH UNREGISTER https://example.org/YBJNBIMwwA_Ag8EtD47J4A
+```
+
 [RFC 8030]: https://datatracker.ietf.org/doc/html/rfc8030
 [RFC 8291]: https://datatracker.ietf.org/doc/html/rfc8291
 [RFC 8292]: https://datatracker.ietf.org/doc/html/rfc8292
