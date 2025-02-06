@@ -163,7 +163,11 @@ func handleServiceCommand(ctx *serviceContext, words []string) error {
 		return fmt.Errorf("command %q not found", words[0])
 	}
 
-	return cmd.handle(ctx, params)
+	if err := cmd.handle(ctx, params); err == flag.ErrHelp {
+		return fmt.Errorf(`unsupported flag (type "help <command>" for a help message)`)
+	} else {
+		return err
+	}
 }
 
 func (cmds serviceCommandSet) Get(params []string) (*serviceCommand, []string, error) {
