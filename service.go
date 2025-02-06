@@ -164,7 +164,8 @@ func handleServiceCommand(ctx *serviceContext, words []string) error {
 	}
 
 	if err := cmd.handle(ctx, params); err == flag.ErrHelp {
-		return fmt.Errorf(`unsupported flag (type "help <command>" for a help message)`)
+		name := strings.Join(words[:len(words)-len(params)], " ")
+		return fmt.Errorf(`unsupported flag (type "help %v" for a help message)`, name)
 	} else {
 		return err
 	}
