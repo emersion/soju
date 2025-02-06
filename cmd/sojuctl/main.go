@@ -18,6 +18,8 @@ const usage = `usage: sojuctl [-config path] <command>
 `
 
 func init() {
+	log.SetFlags(0)
+
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), usage)
 	}
