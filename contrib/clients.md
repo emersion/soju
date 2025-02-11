@@ -61,6 +61,23 @@ excellent integration. goguma supports many IRCv3 features including chat
 history. goguma should seamlessly connect to all networks configured in soju via
 the `soju.im/bouncer-networks` extension.
 
+# [Halloy]
+
+Halloy has support for many IRCv3 features including chat history as of release 2025.1.
+
+Below is an example configuration to connect to soju networks:
+```toml
+[servers.liberachat]
+nickname = "network_nickname"
+username = "soju_username/irc.libera.chat@hostname"
+password = "soju_password"
+server = "soju_server_hostname"
+port = 6697
+chathistory = true
+```
+
+For more details, see the [guide on connecting to soju] and [server chathistory] found in the Halloy docs.
+
 # [Hexchat]
 
 Hexchat has support for a small set of IRCv3 capabilities. To prevent
@@ -112,6 +129,9 @@ See `/help cap` for more information.
 [Weechat]: https://weechat.org/
 [soju.py]: https://weechat.org/scripts/source/soju.py.html/
 [read_marker.py]: https://weechat.org/scripts/source/read_marker.py.html/
+[Halloy]: https://halloy.squidowl.org/index.html
+[guide on connecting to soju]: https://halloy.squidowl.org/guides/connect-with-soju.html
+[server chathistory]: https://halloy.squidowl.org/configuration/servers.html#chathistory
 [Hexchat]: https://hexchat.github.io/
 [hexchat password length fix]: https://github.com/hexchat/hexchat/commit/778047bc65e529804c3342ee0f3a8d5d7550fde5
 [Emacs]: https://www.gnu.org/software/emacs/
