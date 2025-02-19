@@ -9,9 +9,11 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/netip"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
@@ -45,6 +47,10 @@ var (
 )
 
 var errWebPushSubscriptionExpired = fmt.Errorf("Web Push subscription expired")
+
+var errWebPushToInternalIP = fmt.Errorf("cannot connect to internal IP address")
+
+var webPushHTTPClient webpush.HTTPClient = buildWebPushHTTPClient()
 
 type Logger interface {
 	Printf(format string, v ...interface{})
@@ -342,9 +348,7 @@ func (s *Server) sendWebPush(ctx context.Context, sub *webpush.Subscription, vap
 	}
 
 	options := webpush.Options{
-		HTTPClient: &http.Client{
-			Transport: userAgentHTTPTransport("soju"),
-		},
+		HTTPClient:      webPushHTTPClient,
 		VAPIDPublicKey:  s.webPush.VAPIDKeys.Public,
 		VAPIDPrivateKey: s.webPush.VAPIDKeys.Private,
 		Subscriber:      "https://soju.im",
@@ -802,9 +806,41 @@ func (s *Server) disableInactiveUsers(ctx context.Context) error {
 	return nil
 }
 
-type userAgentHTTPTransport string
+func buildWebPushHTTPClient() *http.Client {
+	// this is a dialer that can only connect to external IP addresses
+	dialer := &net.Dialer{
+		Control: func(network, address string, c syscall.RawConn) error {
+			ip, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			parsedIP, err := netip.ParseAddr(ip)
+			if err != nil {
+				return err
+			}
+			if parsedIP.IsLoopback() || parsedIP.IsMulticast() || parsedIP.IsPrivate() {
+				return errWebPushToInternalIP
+			}
+			return nil
+		},
+	}
 
-func (ua userAgentHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("User-Agent", string(ua))
-	return http.DefaultTransport.RoundTrip(req)
+	return &http.Client{
+		Transport: &userAgentHTTPTransport{
+			userAgent: "soju",
+			transport: http.Transport{
+				DialContext: dialer.DialContext,
+			},
+		},
+	}
+}
+
+type userAgentHTTPTransport struct {
+	userAgent string
+	transport http.Transport
+}
+
+func (ua *userAgentHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", ua.userAgent)
+	return ua.transport.RoundTrip(req)
 }

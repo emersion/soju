@@ -3389,7 +3389,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 			// Send a test Web Push message, to make sure the endpoint is valid
 			if updateSub {
-				if err := sanityCheckWebPushEndpoint(ctx, newSub.Endpoint); err != nil {
+				if err := sanityCheckWebPushEndpoint(newSub.Endpoint); err != nil {
 					dc.logger.Printf("failed to sanity check Web push endpoint %q: %v", newSub.Endpoint, err)
 					return ircError{&irc.Message{
 						Command: "FAIL",
@@ -3774,24 +3774,13 @@ func sendNames(ctx context.Context, dc *downstreamConn, ch *upstreamChannel) {
 	}
 }
 
-func sanityCheckWebPushEndpoint(ctx context.Context, endpoint string) error {
+func sanityCheckWebPushEndpoint(endpoint string) error {
 	u, err := url.Parse(endpoint)
 	if err != nil {
 		return err
 	}
 	if u.Scheme != "https" {
 		return fmt.Errorf("scheme must be HTTPS")
-	}
-
-	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", u.Host)
-	if err != nil {
-		return fmt.Errorf("DNS lookup failed: %v", err)
-	}
-
-	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsMulticast() || ip.IsPrivate() {
-			return fmt.Errorf("invalid IP %v", ip)
-		}
 	}
 
 	return nil
