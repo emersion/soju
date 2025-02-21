@@ -472,6 +472,9 @@ character.
 
 	Generates a 3072-bit RSA private key by default.
 
+	Note, reconnection to the upstream network is required to use the newly
+	generated certificate.
+
 	Options are:
 
 	*-network* <name>
@@ -504,6 +507,9 @@ character.
 *sasl set-plain* [options...] <username> <password>
 	Set SASL PLAIN credentials.
 
+	Note, reconnection to the upstream network is required to apply the new
+	settings.
+
 	Options are:
 
 	*-network* <name>
@@ -511,6 +517,9 @@ character.
 
 *sasl reset* [options...]
 	Disable SASL authentication and remove stored credentials.
+
+	Note, reconnection to the upstream network is required to apply the new
+	settings.
 
 	Options are:
 
