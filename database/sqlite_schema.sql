@@ -34,6 +34,8 @@ CREATE TABLE Network (
 	UNIQUE(user, name)
 );
 
+CREATE INDEX Network_user_index ON Network(user);
+
 CREATE TABLE Channel (
 	id INTEGER PRIMARY KEY,
 	network INTEGER NOT NULL,
@@ -49,6 +51,8 @@ CREATE TABLE Channel (
 	UNIQUE(network, name)
 );
 
+CREATE INDEX Channel_network_index ON Channel(network);
+
 CREATE TABLE DeliveryReceipt (
 	id INTEGER PRIMARY KEY,
 	network INTEGER NOT NULL,
@@ -59,6 +63,8 @@ CREATE TABLE DeliveryReceipt (
 	UNIQUE(network, target, client)
 );
 
+CREATE INDEX DeliveryReceipt_network_index ON DeliveryReceipt(network);
+
 CREATE TABLE ReadReceipt (
 	id INTEGER PRIMARY KEY,
 	network INTEGER NOT NULL,
@@ -67,6 +73,8 @@ CREATE TABLE ReadReceipt (
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, target)
 );
+
+CREATE INDEX ReadReceipt_network_index ON ReadReceipt(network);
 
 CREATE TABLE WebPushConfig (
 	id INTEGER PRIMARY KEY,
@@ -91,6 +99,9 @@ CREATE TABLE WebPushSubscription (
 	UNIQUE(network, endpoint)
 );
 
+CREATE INDEX WebPushSubscription_user_index ON WebPushSubscription(user);
+CREATE INDEX WebPushSubscription_network_index ON WebPushSubscription(network);
+
 CREATE TABLE Message (
 	id INTEGER PRIMARY KEY,
 	target INTEGER NOT NULL,
@@ -100,7 +111,9 @@ CREATE TABLE Message (
 	text TEXT,
 	FOREIGN KEY(target) REFERENCES MessageTarget(id)
 );
+
 CREATE INDEX MessageIndex ON Message(target, time);
+CREATE INDEX Message_target_index ON Message(target);
 
 CREATE TABLE MessageTarget (
 	id INTEGER PRIMARY KEY,
@@ -111,6 +124,8 @@ CREATE TABLE MessageTarget (
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, target)
 );
+
+CREATE INDEX MessageTarget_network_index ON MessageTarget(network);
 
 CREATE VIRTUAL TABLE MessageFTS USING fts5 (
 	text,

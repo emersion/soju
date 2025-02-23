@@ -119,6 +119,16 @@ var postgresMigrations = []string{
 		ALTER TABLE "MessageTarget" ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;
 		ALTER TABLE "MessageTarget" ADD COLUMN muted BOOLEAN NOT NULL DEFAULT FALSE;
 	`,
+	`
+		CREATE INDEX "Network_user_index" ON "Network" ("user");
+		CREATE INDEX "Channel_network_index" ON "Channel" (network);
+		CREATE INDEX "DeliveryReceipt_network_index" ON "DeliveryReceipt" (network);
+		CREATE INDEX "ReadReceipt_network_index" ON "ReadReceipt" (network);
+		CREATE INDEX "WebPushSubscription_user_index" ON "WebPushSubscription" ("user");
+		CREATE INDEX "WebPushSubscription_network_index" ON "WebPushSubscription" (network);
+		CREATE INDEX "MessageTarget_network_index" ON "MessageTarget" (network);
+		CREATE INDEX "Message_target_index" ON "MessageTarget" (target);
+	`,
 }
 
 type PostgresDB struct {

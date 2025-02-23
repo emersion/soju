@@ -248,6 +248,16 @@ var sqliteMigrations = []string{
 		ALTER TABLE MessageTarget ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
 		ALTER TABLE MessageTarget ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;
 	`,
+	`
+		CREATE INDEX Network_user_index ON Network(user);
+		CREATE INDEX Channel_network_index ON Channel(network);
+		CREATE INDEX DeliveryReceipt_network_index ON DeliveryReceipt(network);
+		CREATE INDEX ReadReceipt_network_index ON ReadReceipt(network);
+		CREATE INDEX WebPushSubscription_user_index ON WebPushSubscription(user);
+		CREATE INDEX WebPushSubscription_network_index ON WebPushSubscription(network);
+		CREATE INDEX Message_target_index ON Message(target);
+		CREATE INDEX MessageTarget_network_index ON MessageTarget(network);
+	`,
 }
 
 type SqliteDB struct {

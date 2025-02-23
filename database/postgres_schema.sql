@@ -35,6 +35,8 @@ CREATE TABLE "Network" (
 	UNIQUE("user", name)
 );
 
+CREATE INDEX "Network_user_index" ON "Network" ("user");
+
 CREATE TABLE "Channel" (
 	id SERIAL PRIMARY KEY,
 	network INTEGER NOT NULL REFERENCES "Network"(id) ON DELETE CASCADE,
@@ -49,6 +51,8 @@ CREATE TABLE "Channel" (
 	UNIQUE(network, name)
 );
 
+CREATE INDEX "Channel_network_index" ON "Channel" (network);
+
 CREATE TABLE "DeliveryReceipt" (
 	id SERIAL PRIMARY KEY,
 	network INTEGER NOT NULL REFERENCES "Network"(id) ON DELETE CASCADE,
@@ -58,6 +62,8 @@ CREATE TABLE "DeliveryReceipt" (
 	UNIQUE(network, target, client)
 );
 
+CREATE INDEX "DeliveryReceipt_network_index" ON "DeliveryReceipt" (network);
+
 CREATE TABLE "ReadReceipt" (
 	id SERIAL PRIMARY KEY,
 	network INTEGER NOT NULL REFERENCES "Network"(id) ON DELETE CASCADE,
@@ -65,6 +71,8 @@ CREATE TABLE "ReadReceipt" (
 	timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
 	UNIQUE(network, target)
 );
+
+CREATE INDEX "ReadReceipt_network_index" ON "ReadReceipt" (network);
 
 CREATE TABLE "WebPushConfig" (
 	id SERIAL PRIMARY KEY,
@@ -87,6 +95,9 @@ CREATE TABLE "WebPushSubscription" (
 	UNIQUE(network, endpoint)
 );
 
+CREATE INDEX "WebPushSubscription_user_index" ON "WebPushSubscription" ("user");
+CREATE INDEX "WebPushSubscription_network_index" ON "WebPushSubscription" (network);
+
 CREATE TABLE "MessageTarget" (
 	id SERIAL PRIMARY KEY,
 	network INTEGER NOT NULL REFERENCES "Network"(id) ON DELETE CASCADE,
@@ -95,6 +106,8 @@ CREATE TABLE "MessageTarget" (
 	muted BOOLEAN NOT NULL DEFAULT FALSE,
 	UNIQUE(network, target)
 );
+
+CREATE INDEX "MessageTarget_network_index" ON "MessageTarget" (network);
 
 CREATE TEXT SEARCH DICTIONARY search_simple_dictionary (
     TEMPLATE = pg_catalog.simple
@@ -111,4 +124,5 @@ CREATE TABLE "Message" (
 	text_search tsvector GENERATED ALWAYS AS (to_tsvector('@SCHEMA_PREFIX@search_simple', text)) STORED
 );
 CREATE INDEX "MessageIndex" ON "Message" (target, time);
+CREATE INDEX "Message_target_index" ON "MessageTarget" (target);
 CREATE INDEX "MessageSearchIndex" ON "Message" USING GIN (text_search);
