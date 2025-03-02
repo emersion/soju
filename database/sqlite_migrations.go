@@ -1,3 +1,5 @@
+//go:build !nosqlite
+
 package database
 
 var sqliteMigrations = []string{
