@@ -2816,6 +2816,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				})
 			}
 		case "SET", "CLEAR":
+			_, err := dc.upstreamForCommand(msg.Command)
+			if err != nil {
+				return err
+			}
+
 			m := make(map[string]*string)
 			switch subcommand {
 			case "SET":
