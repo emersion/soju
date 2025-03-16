@@ -39,7 +39,7 @@ func init() {
 }
 
 func migrateNetwork(ctx context.Context, db database.Database, user *database.User, network *database.Network) error {
-	log.Printf("Migrating logs for network: %s\n", network.Name)
+	log.Printf("Migrating logs for network: %s\n", network.GetName())
 
 	rootPath := filepath.Join(logRoot, msgstore.EscapeFilename(user.Username), msgstore.EscapeFilename(network.GetName()))
 	root, err := os.Open(rootPath)
@@ -146,7 +146,7 @@ func main() {
 
 		for _, network := range networks {
 			if err := migrateNetwork(ctx, db, &user, &network); err != nil {
-				log.Fatalf("migrating %v: %v", network.Name, err)
+				log.Fatalf("migrating %v: %v", network.GetName(), err)
 			}
 		}
 	}
