@@ -2841,12 +2841,14 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					dc.setMessageTargetMetadata(ctx, target, mt, m, batchRef)
 				})
 			}
-			if err := dc.srv.db.StoreMessageTarget(ctx, dc.network.ID, mt); err != nil {
-				dc.logger.Printf("failed to store the message target for %q: %v", target, err)
-				return ircError{&irc.Message{
-					Command: "FAIL",
-					Params:  []string{"METADATA", "INTERNAL_ERROR", target, "Internal error"},
-				}}
+			if mt != nil {
+				if err := dc.srv.db.StoreMessageTarget(ctx, dc.network.ID, mt); err != nil {
+					dc.logger.Printf("failed to store the message target for %q: %v", target, err)
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"METADATA", "INTERNAL_ERROR", target, "Internal error"},
+					}}
+				}
 			}
 		default:
 			// TODO: support SYNC
