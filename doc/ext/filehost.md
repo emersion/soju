@@ -47,3 +47,29 @@ support HEAD and GET requests on the uploaded file URI.
 
 Clients SHOULD gracefully handle other common HTTP status codes that could
 occur.
+
+## Examples
+
+Example isupport token:
+
+    :irc.example.org 005 seunghye soju.im/FILEHOST=https://irc.example.org/upload
+
+Example OPTIONS response:
+
+    HTTP/1.1 204 No Content
+    Allow: OPTIONS, POST
+    Accept-Post: image/*, video/*
+
+Example POST request:
+
+    POST /upload HTTP/1.1
+    Host: irc.example.org
+    Content-Type: image/jpeg
+    Content-Disposition: attachment; filename="picture.jpeg"
+    Content-Length: 4242
+    Authorization: Basic c2V1bmdoeWU6bm8=
+
+Example POST response:
+
+    HTTP/1.1 201 Created
+    Location: /upload/hoh5eFThae4e.jpeg
