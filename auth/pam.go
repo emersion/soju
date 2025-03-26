@@ -24,7 +24,7 @@ func newPAM() (*Authenticator, error) {
 }
 
 func (pamAuth) AuthPlain(ctx context.Context, db database.Database, username, password string) error {
-	t, err := pam.StartFunc("login", username, func(s pam.Style, msg string) (string, error) {
+	t, err := pam.StartFunc("soju", username, func(s pam.Style, msg string) (string, error) {
 		switch s {
 		case pam.PromptEchoOff:
 			return password, nil

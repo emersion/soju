@@ -37,5 +37,9 @@ install:
 	cp -f $(commands) $(DESTDIR)$(PREFIX)/$(BINDIR)
 	cp -f $(man_pages) $(DESTDIR)$(PREFIX)/$(MANDIR)/man1
 	[ -f $(DESTDIR)$(config_path) ] || cp -f config.in $(DESTDIR)$(config_path)
+	if go version -m soju | grep -E '^\s*build\s*-tags=' | grep -Eq '(=|,)pam($|,)'; then \
+	  mkdir -p $(DESTDIR)$(SYSCONFDIR)/pam.d; \
+	  cp -f auth/pam_config $(DESTDIR)$(SYSCONFDIR)/pam.d/soju; \
+	fi
 
 .PHONY: soju sojudb sojuctl clean install
