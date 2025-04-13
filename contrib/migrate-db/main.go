@@ -32,8 +32,8 @@ func main() {
 
 	ctx := context.Background()
 
-	source := strings.Split(flag.Arg(0), ":")
-	destination := strings.Split(flag.Arg(1), ":")
+	source := strings.SplitN(flag.Arg(0), ":", 2)
+	destination := strings.SplitN(flag.Arg(1), ":", 2)
 
 	if len(source) != 2 || len(destination) != 2 {
 		log.Fatalf("source or destination not properly specified: %s %s", flag.Arg(0), flag.Arg(1))

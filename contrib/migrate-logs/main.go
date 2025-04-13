@@ -119,7 +119,7 @@ func main() {
 	ctx := context.Background()
 
 	logRoot = flag.Arg(0)
-	dbParams := strings.Split(flag.Arg(1), ":")
+	dbParams := strings.SplitN(flag.Arg(1), ":", 2)
 
 	if len(dbParams) != 2 {
 		log.Fatalf("database not properly specified: %s", flag.Arg(1))
