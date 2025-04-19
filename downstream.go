@@ -1596,6 +1596,17 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 		dc.SendBatch(ctx, "metadata", nil, nil, func(batchRef string) {})
 	}
 
+	if dc.network != nil && dc.caps.IsEnabled("draft/metadata-2") {
+		messageTargets, err := dc.srv.db.ListMessageTargets(ctx, dc.network.ID)
+		if err != nil {
+			return fmt.Errorf("failed to list message targets: %v", err)
+		}
+
+		for _, mt := range messageTargets {
+			dc.sendTargetMetadata(ctx, &mt)
+		}
+	}
+
 	if uc := dc.upstream(); uc != nil {
 		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
 			if !ch.complete {
@@ -3499,6 +3510,31 @@ func (dc *downstreamConn) handleMetadataSub(ctx context.Context, msg *irc.Messag
 			switch subcommand {
 			case "SUB":
 				dc.metadataSubs[k] = struct{}{}
+
+				// Technically we are only required to send the METADATA of channels we are joined to, and users
+				// we are sharing a channel with or are MONITOR-ing, but it is easier to send all METADATA we are
+				// aware of, and the spec guarantees that servers MAY send these messages at any time.
+				if net := dc.network; net != nil {
+					messageTargets, err := dc.srv.db.ListMessageTargets(ctx, dc.network.ID)
+					if err != nil {
+						dc.logger.Printf("failed to list message targets for METADATA SUB: %v", err)
+						return true, ircError{&irc.Message{
+							Command: "FAIL",
+							Params:  []string{"METADATA", "INTERNAL_ERROR", "*", "Internal error"},
+						}}
+					}
+
+					for _, mt := range messageTargets {
+						m := getMessageTargetMetadata(&mt)
+						if v, ok := m[k]; ok {
+							dc.SendMessage(ctx, &irc.Message{
+								Command: "METADATA",
+								Params:  []string{mt.Target, k, "*", v},
+							})
+						}
+					}
+				}
+
 				dc.SendMessage(ctx, &irc.Message{
 					Command: xirc.RPL_METADATASUBOK,
 					Params:  []string{"*", k},
@@ -3534,15 +3570,8 @@ func (dc *downstreamConn) listWebPushSubscriptions(ctx context.Context) ([]datab
 	return dc.user.srv.db.ListWebPushSubscriptions(ctx, dc.user.ID, networkID)
 }
 
-func (dc *downstreamConn) sendChannelMetadata(ctx context.Context, target string) {
+func (dc *downstreamConn) sendTargetMetadata(ctx context.Context, mt *database.MessageTarget) {
 	if !dc.caps.IsEnabled("draft/metadata-2") {
-		return
-	}
-	if dc.network != nil {
-		target = dc.network.casemap(target)
-	}
-	mt, err := dc.srv.db.GetMessageTarget(ctx, dc.network.ID, target)
-	if err != nil {
 		return
 	}
 	m := getMessageTargetMetadata(mt)
@@ -3555,7 +3584,7 @@ func (dc *downstreamConn) sendChannelMetadata(ctx context.Context, target string
 			dc.SendMessage(ctx, &irc.Message{
 				Tags:    irc.Tags{"batch": batchRef},
 				Command: "METADATA",
-				Params:  []string{target, k, "*", v},
+				Params:  []string{mt.Target, k, "*", v},
 			})
 		}
 	})
@@ -3716,8 +3745,6 @@ func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel
 	if !dc.caps.IsEnabled("soju.im/no-implicit-names") && !dc.caps.IsEnabled("draft/no-implicit-names") {
 		sendNames(ctx, dc, ch)
 	}
-
-	dc.sendChannelMetadata(ctx, ch.Name)
 }
 
 func sendTopic(ctx context.Context, dc *downstreamConn, ch *upstreamChannel) {

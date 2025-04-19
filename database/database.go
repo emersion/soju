@@ -61,6 +61,7 @@ type Database interface {
 
 	GetMessageLastID(ctx context.Context, networkID int64, name string) (int64, error)
 	GetMessageTarget(ctx context.Context, networkID int64, target string) (*MessageTarget, error)
+	ListMessageTargets(ctx context.Context, networkID int64) ([]MessageTarget, error)
 	StoreMessageTarget(ctx context.Context, networkID int64, mt *MessageTarget) error
 	StoreMessages(ctx context.Context, networkID int64, name string, msgs []*irc.Message) ([]int64, error)
 	ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTargetLast, error)

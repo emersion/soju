@@ -910,6 +910,36 @@ func (db *SqliteDB) GetMessageTarget(ctx context.Context, networkID int64, targe
 	return mt, nil
 }
 
+func (db *SqliteDB) ListMessageTargets(ctx context.Context, networkID int64) ([]MessageTarget, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx, `
+		SELECT id, target, pinned, muted
+		FROM MessageTarget
+		WHERE network = ? AND (pinned OR muted)`,
+		networkID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var mts []MessageTarget
+	for rows.Next() {
+		var mt MessageTarget
+		err := rows.Scan(&mt.ID, &mt.Target, &mt.Pinned, &mt.Muted)
+		if err != nil {
+			return nil, err
+		}
+		mts = append(mts, mt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return mts, nil
+}
+
 func (db *SqliteDB) StoreMessageTarget(ctx context.Context, networkID int64, mt *MessageTarget) error {
 	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
