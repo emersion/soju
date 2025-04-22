@@ -8,7 +8,7 @@ Alternatively, you can compile it from source (see the [README]).
 To create an admin user and start soju, run these commands:
 
     sojudb create-user <soju username> -admin
-    soju -listen irc+insecure://127.0.0.1:6667
+    soju -listen irc://localhost:6667
 
 soju will listen for unencrypted IRC connections on the default port. This is
 enough for local experiments, but for a proper setup you will need to configure
