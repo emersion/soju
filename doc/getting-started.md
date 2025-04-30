@@ -2,8 +2,9 @@
 
 ## Server side
 
-Start by installing soju via your distribution's [package manager].
-Alternatively, you can compile it from source (see the [README]).
+Start by installing soju via your distribution's [package manager]. A container
+image is published as [`codeberg.org/emersion/soju`]. Alternatively, you can
+compile it from source (see the [README]).
 
 To create an admin user and start soju, run these commands:
 
@@ -55,6 +56,7 @@ and a workstation, you can setup each client to use the respective usernames
 `<soju username>/irc.libera.chat@workstation`.
 
 [package manager]: https://repology.org/project/soju/versions
+[`codeberg.org/emersion/soju`]: https://codeberg.org/emersion/-/packages/container/soju/latest
 [README]: ../README.md
 [man page]: https://soju.im/doc/soju.1.html#IRC_SERVICE
 [client list]: ../contrib/clients.md
