@@ -15,7 +15,6 @@ config file and the admin Unix socket. These can be customized via the
 `make install` will set up a default configuration file which:
 
 - Uses a SQLite3 database in `/var/lib/soju/main.db`.
-- Uses a filesystem message store in `/var/lib/soju/logs/`.
 - Enables the admin Unix socket (required for `sojuctl`).
 
 The default configuration file's template is stored in `config.in`.
