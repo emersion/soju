@@ -253,7 +253,8 @@ var needAllDownstreamCaps = map[string]string{
 	"message-tags":     "",
 	"multi-prefix":     "",
 
-	"draft/extended-monitor": "",
+	"draft/extended-monitor":  "",
+	"draft/message-redaction": "",
 }
 
 // permanentIsupport is the set of ISUPPORT tokens that are always passed
@@ -535,6 +536,9 @@ func (dc *downstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 		return
 	}
 	if msg.Command == "METADATA" && !dc.caps.IsEnabled("draft/metadata-2") {
+		return
+	}
+	if msg.Command == "REDACT" && !dc.caps.IsEnabled("draft/message-redaction") {
 		return
 	}
 	if msg.Prefix != nil && msg.Prefix.Name == "*" {
@@ -2407,9 +2411,11 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		}
 
 		uc.enqueueCommand(dc, msg)
-	case "PRIVMSG", "NOTICE", "TAGMSG":
+	case "PRIVMSG", "NOTICE", "TAGMSG", "REDACT":
+		isText := msg.Command == "PRIVMSG" || msg.Command == "NOTICE"
+
 		var targetsStr, text string
-		if msg.Command != "TAGMSG" {
+		if isText {
 			if err := parseMessageParams(msg, &targetsStr, &text); err != nil {
 				return err
 			}
@@ -2422,10 +2428,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		tags := copyClientTags(msg.Tags)
 
 		for _, name := range strings.Split(targetsStr, ",") {
-			params := []string{name}
-			if msg.Command != "TAGMSG" {
-				params = append(params, text)
-			}
+			params := append([]string{name}, msg.Params[1:]...)
 
 			if name == "$"+dc.srv.Config().Hostname || (name == "$*" && dc.network == nil) {
 				// "$" means a server mask follows. If it's the bouncer's

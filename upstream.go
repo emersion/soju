@@ -45,6 +45,7 @@ var permanentUpstreamCaps = map[string]bool{
 
 	"draft/account-registration": true,
 	"draft/extended-monitor":     true,
+	"draft/message-redaction":    true,
 }
 
 // storableMessageTags is the static list of message tags that will cause
@@ -631,9 +632,11 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			Params:  msg.Params,
 		})
 		return nil
-	case "NOTICE", "PRIVMSG", "TAGMSG":
+	case "NOTICE", "PRIVMSG", "TAGMSG", "REDACT":
+		isText := msg.Command == "NOTICE" || msg.Command == "PRIVMSG"
+
 		var target, text string
-		if msg.Command != "TAGMSG" {
+		if isText {
 			if err := parseMessageParams(msg, &target, &text); err != nil {
 				return err
 			}
@@ -678,7 +681,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		ch := uc.network.channels.Get(bufferName)
 		highlight := false
 		detached := false
-		if ch != nil && msg.Command != "TAGMSG" && !self {
+		if ch != nil && isText && !self {
 			if ch.Detached {
 				uc.handleDetachedMessage(ctx, ch, msg)
 			}
@@ -693,7 +696,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		if !self && !detached && msg.Command != "TAGMSG" && (highlight || directMessage) {
+		if !self && !detached && isText && (highlight || directMessage) {
 			go uc.network.broadcastWebPush(msg)
 			if timestamp, err := time.Parse(xirc.ServerTimeLayout, string(msg.Tags["time"])); err == nil {
 				uc.network.pushTargets.Set(bufferName, timestamp)
