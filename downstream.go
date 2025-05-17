@@ -2501,26 +2501,16 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				dc.handleNickServPRIVMSG(ctx, uc, text)
 			}
 
-			upstreamParams := []string{name}
-			if msg.Command != "TAGMSG" {
-				upstreamParams = append(upstreamParams, text)
-			}
-
 			uc.SendMessageLabeled(ctx, dc.id, &irc.Message{
 				Tags:    tags,
 				Command: msg.Command,
-				Params:  upstreamParams,
+				Params:  params,
 			})
 
 			// If the upstream supports echo message, we'll produce the message
 			// when it is echoed from the upstream.
 			// Otherwise, produce/log it here because it's the last time we'll see it.
 			if !uc.caps.IsEnabled("echo-message") {
-				echoParams := []string{name}
-				if msg.Command != "TAGMSG" {
-					echoParams = append(echoParams, text)
-				}
-
 				echoTags := tags.Copy()
 				echoTags["time"] = dc.user.FormatServerTime(time.Now())
 				if uc.account != "" {
@@ -2534,7 +2524,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						Host: uc.hostname,
 					},
 					Command: msg.Command,
-					Params:  echoParams,
+					Params:  params,
 				}
 				uc.produce(name, echoMsg, dc.id)
 			}
