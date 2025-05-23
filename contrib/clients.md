@@ -69,7 +69,7 @@ Below is an example configuration to connect to soju networks:
 ```toml
 [servers.liberachat]
 nickname = "network_nickname"
-username = "soju_username/irc.libera.chat@hostname"
+username = "soju_username/irc.libera.chat"
 password = "soju_password"
 server = "soju_server_hostname"
 port = 6697
