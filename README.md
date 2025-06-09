@@ -24,7 +24,8 @@ For end users, a `Makefile` is provided:
     make
     sudo make install
 
-For development, you can use `go run ./cmd/soju` as usual.
+For development, you can use `go run ./cmd/soju` as usual. See the
+[development setup] page.
 
 To link with the system libsqlite3, set `GOFLAGS="-tags=libsqlite3"`. To disable
 SQLite support, set `GOFLAGS="-tags=nosqlite"`. To use an alternative SQLite
@@ -45,6 +46,7 @@ Copyright (C) 2020 The soju Contributors
 [soju]: https://soju.im
 [Getting started]: doc/getting-started.md
 [Man page]: https://soju.im/doc/soju.1.html
+[development setup]: doc/dev-setup.md
 [Codeberg]: https://codeberg.org/emersion/soju
 [GitHub]: https://github.com/emersion/soju
 [issue tracker]: https://todo.sr.ht/~emersion/soju
