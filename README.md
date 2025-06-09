@@ -9,6 +9,7 @@ detached channels. It is well-suited for both small and large deployments.
 
 * [Getting started]
 * [Man page]
+* [User-contributed resources]
 
 ## Building and installing
 
@@ -46,6 +47,7 @@ Copyright (C) 2020 The soju Contributors
 [soju]: https://soju.im
 [Getting started]: doc/getting-started.md
 [Man page]: https://soju.im/doc/soju.1.html
+[User-contributed resources]: contrib/README.md
 [development setup]: doc/dev-setup.md
 [Codeberg]: https://codeberg.org/emersion/soju
 [GitHub]: https://github.com/emersion/soju
