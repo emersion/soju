@@ -6,15 +6,31 @@ Start by installing soju via your distribution's [package manager]. A container
 image is published as [`codeberg.org/emersion/soju`]. Alternatively, you can
 compile it from source (see the [README]).
 
-To create an admin user and start soju, run these commands:
+soju's configuration file (located at `/etc/soju/config`) needs to be adjusted
+to enable TLS. This can be done in several ways:
+
+- By setting up a reverse proxy which takes care of terminating TLS
+  connections, and configuring soju to listen on local unencrypted connections
+  on port 6667:
+
+      listen irc://localhost
+
+- By specifying the path to the TLS certificate in the soju configuration file:
+
+      tls <cert> <key>
+
+  The certificate must be readable by soju, and soju needs to be reloaded when
+  the certificate is renewed.
+
+Some [user-contributed guides] are available for popular reverse proxies and
+TLS certificate tools.
+
+Next, create an initial user:
 
     sojudb create-user <soju username> -admin
-    soju -listen irc://localhost:6667
 
-soju will listen for unencrypted IRC connections on the default port. This is
-enough for local experiments, but for a proper setup you will need to configure
-TLS (e.g. by setting up a reverse proxy, or by specifying the TLS certificates
-in the soju configuration file).
+Once TLS is set up and an initial user has been created, soju can be started
+(e.g. via systemd or another supervisor daemon).
 
 If you're migrating from ZNC, a tool is available to import users, networks and
 channels from a ZNC config file:
@@ -58,5 +74,6 @@ and a workstation, you can setup each client to use the respective usernames
 [package manager]: https://repology.org/project/soju/versions
 [`codeberg.org/emersion/soju`]: https://codeberg.org/emersion/-/packages/container/soju/latest
 [README]: ../README.md
+[user-contributed guides]: ../contrib/README.md
 [man page]: https://soju.im/doc/soju.1.html#IRC_SERVICE
 [client list]: ../contrib/clients.md
