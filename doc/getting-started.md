@@ -14,7 +14,7 @@ To create an admin user and start soju, run these commands:
 soju will listen for unencrypted IRC connections on the default port. This is
 enough for local experiments, but for a proper setup you will need to configure
 TLS (e.g. by setting up a reverse proxy, or by specifying the TLS certificates
-in the soju configuration file). Setting up on-disk chat logs is recommended.
+in the soju configuration file).
 
 If you're migrating from ZNC, a tool is available to import users, networks and
 channels from a ZNC config file:
