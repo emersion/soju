@@ -4,7 +4,7 @@ go 1.23.9
 
 require (
 	codeberg.org/emersion/go-scfg v0.1.0
-	git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20250706113457-213d0e8755e5
+	codeberg.org/emersion/go-sqlite3-fts5 v0.0.0-20250706114632-932c754e63a6
 	git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/coder/websocket v1.8.13

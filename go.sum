@@ -1,7 +1,7 @@
 codeberg.org/emersion/go-scfg v0.1.0 h1:6dnGU0ZI4gX+O5rMjwhoaySItzHG710eXL5TIQKl+uM=
 codeberg.org/emersion/go-scfg v0.1.0/go.mod h1:0nooW1ufBB4SlJEdTtiVN9Or+bnNM1icOkQ6Tbrq6O0=
-git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20250706113457-213d0e8755e5 h1:1p/YpbpaXZFUg/519qWxpWLvCX4uMuWaisP8DKCHPyc=
-git.sr.ht/~emersion/go-sqlite3-fts5 v0.0.0-20250706113457-213d0e8755e5/go.mod h1:W+na+JMhhelFn525wvV3enh0zvvhtZF8kndnRanLLq0=
+codeberg.org/emersion/go-sqlite3-fts5 v0.0.0-20250706114632-932c754e63a6 h1:6JZv87K0hX9zpn2DGZyDWmY8wbM4yKlDyRqfc1kaZnE=
+codeberg.org/emersion/go-sqlite3-fts5 v0.0.0-20250706114632-932c754e63a6/go.mod h1:eNejiMWGyk8J30JYCFyatxC+jN4F1oqxyLU9kyKVBwk=
 git.sr.ht/~sircmpwn/getopt v0.0.0-20191230200459-23622cc906b3/go.mod h1:wMEGFFFNuPos7vHmWXfszqImLppbc0wEhh6JBfJIUgw=
 git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9 h1:Ahny8Ud1LjVMMAlt8utUFKhhxJtwBAualvsbc/Sk7cE=
 git.sr.ht/~sircmpwn/go-bare v0.0.0-20210406120253-ab86bc2846d9/go.mod h1:BVJwbDfVjCjoFiKrhkei6NdGcZYpkDkdyCdg1ukytRA=
