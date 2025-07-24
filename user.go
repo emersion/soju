@@ -653,7 +653,7 @@ func (u *user) run() {
 				dc.updateSupportedCaps(ctx)
 
 				if !dc.caps.IsEnabled("soju.im/bouncer-networks") {
-					sendServiceNOTICE(dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
+					sendServiceNOTICE(ctx, dc, fmt.Sprintf("connected to %s", uc.network.GetName()))
 				}
 
 				dc.updateNick(ctx)
@@ -681,7 +681,7 @@ func (u *user) run() {
 
 			if !stopped && (net.lastError == nil || net.lastError.Error() != e.err.Error()) {
 				net.forEachDownstream(func(dc *downstreamConn) {
-					sendServiceNOTICE(dc, fmt.Sprintf("failed connecting/registering to %s: %v", net.GetName(), e.err))
+					sendServiceNOTICE(context.TODO(), dc, fmt.Sprintf("failed connecting/registering to %s: %v", net.GetName(), e.err))
 				})
 			}
 			net.lastError = e.err
@@ -692,7 +692,7 @@ func (u *user) run() {
 			uc := e.uc
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
-				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", uc.network.GetName(), e.err))
+				sendServiceNOTICE(context.TODO(), dc, fmt.Sprintf("disconnected from %s: %v", uc.network.GetName(), e.err))
 			})
 			uc.network.lastError = e.err
 			u.notifyBouncerNetworkState(uc.network.ID, irc.Tags{
@@ -764,7 +764,7 @@ func (u *user) run() {
 			u.numDownstreamConns.Add(1)
 
 			if network := dc.network; network != nil && network.lastError != nil {
-				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", network.GetName(), network.lastError))
+				sendServiceNOTICE(ctx, dc, fmt.Sprintf("disconnected from %s: %v", network.GetName(), network.lastError))
 			}
 
 			u.forEachUpstream(func(uc *upstreamConn) {
@@ -921,7 +921,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	if uc.network.lastError == nil {
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			if !dc.caps.IsEnabled("soju.im/bouncer-networks") {
-				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s", uc.network.GetName()))
+				sendServiceNOTICE(context.TODO(), dc, fmt.Sprintf("disconnected from %s", uc.network.GetName()))
 			}
 		})
 	}

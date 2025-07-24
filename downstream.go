@@ -1690,7 +1690,7 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 		for _, msg := range history {
 			if ch != nil && ch.Detached {
 				if net.detachedMessageNeedsRelay(ch, msg) {
-					dc.relayDetachedMessage(net, msg)
+					dc.relayDetachedMessage(ctx, net, msg)
 				}
 			} else {
 				msg.Tags["batch"] = batchRef
@@ -1700,7 +1700,7 @@ func (dc *downstreamConn) sendTargetBacklog(ctx context.Context, net *network, t
 	})
 }
 
-func (dc *downstreamConn) relayDetachedMessage(net *network, msg *irc.Message) {
+func (dc *downstreamConn) relayDetachedMessage(ctx context.Context, net *network, msg *irc.Message) {
 	if msg.Command != "PRIVMSG" && msg.Command != "NOTICE" {
 		return
 	}
@@ -1708,9 +1708,9 @@ func (dc *downstreamConn) relayDetachedMessage(net *network, msg *irc.Message) {
 	sender := msg.Prefix.Name
 	target, text := msg.Params[0], msg.Params[1]
 	if net.isHighlight(msg) {
-		sendServiceNOTICE(dc, fmt.Sprintf("highlight in %v: <%v> %v", target, sender, text))
+		sendServiceNOTICE(ctx, dc, fmt.Sprintf("highlight in %v: <%v> %v", target, sender, text))
 	} else {
-		sendServiceNOTICE(dc, fmt.Sprintf("message in %v: <%v> %v", target, sender, text))
+		sendServiceNOTICE(ctx, dc, fmt.Sprintf("message in %v: <%v> %v", target, sender, text))
 	}
 }
 
@@ -2464,10 +2464,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						srv:     dc.user.srv,
 						admin:   dc.user.Admin,
 						print: func(text string) {
-							sendServicePRIVMSG(dc, text)
+							sendServicePRIVMSG(ctx, dc, text)
 						},
 					}, text); err != nil {
-						sendServicePRIVMSG(dc, fmt.Sprintf("error: %v", err))
+						sendServicePRIVMSG(ctx, dc, fmt.Sprintf("error: %v", err))
 					}
 				}
 				continue

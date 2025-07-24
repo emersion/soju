@@ -1859,7 +1859,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 func (uc *upstreamConn) handleDetachedMessage(ctx context.Context, ch *database.Channel, msg *irc.Message) {
 	if uc.network.detachedMessageNeedsRelay(ch, msg) {
 		uc.forEachDownstream(func(dc *downstreamConn) {
-			dc.relayDetachedMessage(uc.network, msg)
+			dc.relayDetachedMessage(ctx, uc.network, msg)
 		})
 	}
 	if ch.ReattachOn == database.FilterMessage || (ch.ReattachOn == database.FilterHighlight && uc.network.isHighlight(msg)) {

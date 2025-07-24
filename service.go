@@ -55,16 +55,16 @@ type serviceCommand struct {
 	global   bool
 }
 
-func sendServiceNOTICE(dc *downstreamConn, text string) {
-	dc.SendMessage(context.TODO(), &irc.Message{
+func sendServiceNOTICE(ctx context.Context, dc *downstreamConn, text string) {
+	dc.SendMessage(ctx, &irc.Message{
 		Prefix:  servicePrefix,
 		Command: "NOTICE",
 		Params:  []string{dc.nick, text},
 	})
 }
 
-func sendServicePRIVMSG(dc *downstreamConn, text string) {
-	dc.SendMessage(context.TODO(), &irc.Message{
+func sendServicePRIVMSG(ctx context.Context, dc *downstreamConn, text string) {
+	dc.SendMessage(ctx, &irc.Message{
 		Prefix:  servicePrefix,
 		Command: "PRIVMSG",
 		Params:  []string{dc.nick, text},
