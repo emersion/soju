@@ -53,10 +53,10 @@ func (ms *dbMessageStore) Close() error {
 	return nil
 }
 
-func (ms *dbMessageStore) LastMsgID(network *database.Network, entity string, t time.Time) (string, error) {
+func (ms *dbMessageStore) LastMsgID(ctx context.Context, network *database.Network, entity string, t time.Time) (string, error) {
 	// TODO: what should we do with t?
 
-	id, err := ms.db.GetMessageLastID(context.TODO(), network.ID, entity)
+	id, err := ms.db.GetMessageLastID(ctx, network.ID, entity)
 	if err != nil {
 		return "", err
 	}
@@ -80,8 +80,8 @@ func (ms *dbMessageStore) LoadLatestID(ctx context.Context, id string, options *
 	return l, nil
 }
 
-func (ms *dbMessageStore) Append(network *database.Network, entity string, msg *irc.Message) (string, error) {
-	ids, err := ms.db.StoreMessages(context.TODO(), network.ID, entity, []*irc.Message{msg})
+func (ms *dbMessageStore) Append(ctx context.Context, network *database.Network, entity string, msg *irc.Message) (string, error) {
+	ids, err := ms.db.StoreMessages(ctx, network.ID, entity, []*irc.Message{msg})
 	if err != nil {
 		return "", err
 	}

@@ -2125,6 +2125,8 @@ func (uc *upstreamConn) SendMessageLabeled(ctx context.Context, downstreamID uin
 // The internal message ID is returned. If the message isn't recorded in the
 // log file, an empty string is returned.
 func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string) {
+	ctx := context.TODO()
+
 	if uc.user.msgStore == nil {
 		return ""
 	}
@@ -2157,7 +2159,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		// This is the first message we receive from this target. Save the last
 		// message ID in delivery receipts, so that we can send the new message
 		// in the backlog if an offline client reconnects.
-		lastID, err := uc.user.msgStore.LastMsgID(&uc.network.Network, entityCM, time.Now())
+		lastID, err := uc.user.msgStore.LastMsgID(ctx, &uc.network.Network, entityCM, time.Now())
 		if err != nil {
 			uc.logger.Printf("failed to log message: failed to get last message ID: %v", err)
 			return ""
@@ -2168,7 +2170,7 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 		})
 	}
 
-	msgID, err := uc.user.msgStore.Append(&uc.network.Network, entityCM, msg)
+	msgID, err := uc.user.msgStore.Append(ctx, &uc.network.Network, entityCM, msg)
 	if err != nil {
 		uc.logger.Printf("failed to append message to store: %v", err)
 		return ""

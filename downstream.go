@@ -1638,7 +1638,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 
 				// Fast-forward history to last message
 				targetCM := net.casemap(target)
-				lastID, err := dc.user.msgStore.LastMsgID(&net.Network, targetCM, time.Now())
+				lastID, err := dc.user.msgStore.LastMsgID(ctx, &net.Network, targetCM, time.Now())
 				if err != nil {
 					dc.logger.Printf("failed to get last message ID: %v", err)
 					return

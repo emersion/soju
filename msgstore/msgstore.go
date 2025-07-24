@@ -26,11 +26,11 @@ type Store interface {
 	// LastMsgID queries the last message ID for the given network, entity and
 	// date. The message ID returned may not refer to a valid message, but can be
 	// used in history queries.
-	LastMsgID(network *database.Network, entity string, t time.Time) (string, error)
+	LastMsgID(ctx context.Context, network *database.Network, entity string, t time.Time) (string, error)
 	// LoadLatestID queries the latest non-event messages for the given network,
 	// entity and date, up to a count of limit messages, sorted from oldest to newest.
 	LoadLatestID(ctx context.Context, id string, options *LoadMessageOptions) ([]*irc.Message, error)
-	Append(network *database.Network, entity string, msg *irc.Message) (id string, err error)
+	Append(ctx context.Context, network *database.Network, entity string, msg *irc.Message) (id string, err error)
 }
 
 type ChatHistoryTarget struct {

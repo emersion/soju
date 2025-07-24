@@ -318,6 +318,8 @@ func (net *network) stop() {
 }
 
 func (net *network) detach(ch *database.Channel) {
+	ctx := context.TODO()
+
 	if ch.Detached {
 		return
 	}
@@ -328,7 +330,7 @@ func (net *network) detach(ch *database.Channel) {
 
 	if net.user.msgStore != nil {
 		nameCM := net.casemap(ch.Name)
-		lastID, err := net.user.msgStore.LastMsgID(&net.Network, nameCM, time.Now())
+		lastID, err := net.user.msgStore.LastMsgID(ctx, &net.Network, nameCM, time.Now())
 		if err != nil {
 			net.logger.Printf("failed to get last message ID for channel %q: %v", ch.Name, err)
 		}
@@ -343,7 +345,7 @@ func (net *network) detach(ch *database.Channel) {
 	}
 
 	net.forEachDownstream(func(dc *downstreamConn) {
-		dc.SendMessage(context.TODO(), &irc.Message{
+		dc.SendMessage(ctx, &irc.Message{
 			Prefix:  dc.prefix(),
 			Command: "PART",
 			Params:  []string{ch.Name, "Detach"},

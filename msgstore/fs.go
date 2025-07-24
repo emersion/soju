@@ -125,7 +125,7 @@ func nextFSMsgID(network *database.Network, entity string, t time.Time, f *os.Fi
 	return formatFSMsgID(network.ID, entity, t, offset), nil
 }
 
-func (ms *fsMessageStore) LastMsgID(network *database.Network, entity string, t time.Time) (string, error) {
+func (ms *fsMessageStore) LastMsgID(ctx context.Context, network *database.Network, entity string, t time.Time) (string, error) {
 	p := ms.logPath(network, entity, t)
 	fi, err := os.Stat(p)
 	if os.IsNotExist(err) {
@@ -136,7 +136,7 @@ func (ms *fsMessageStore) LastMsgID(network *database.Network, entity string, t 
 	return formatFSMsgID(network.ID, entity, t, fi.Size()-1), nil
 }
 
-func (ms *fsMessageStore) Append(network *database.Network, entity string, msg *irc.Message) (string, error) {
+func (ms *fsMessageStore) Append(ctx context.Context, network *database.Network, entity string, msg *irc.Message) (string, error) {
 	var t time.Time
 	if tag, ok := msg.Tags["time"]; ok {
 		var err error

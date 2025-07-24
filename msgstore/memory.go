@@ -72,7 +72,7 @@ func (ms *memoryMessageStore) get(network *database.Network, entity string) *mes
 	return rb
 }
 
-func (ms *memoryMessageStore) LastMsgID(network *database.Network, entity string, t time.Time) (string, error) {
+func (ms *memoryMessageStore) LastMsgID(ctx context.Context, network *database.Network, entity string, t time.Time) (string, error) {
 	var seq uint64
 	k := ringBufferKey{networkID: network.ID, entity: entity}
 	if rb, ok := ms.buffers[k]; ok {
@@ -81,7 +81,7 @@ func (ms *memoryMessageStore) LastMsgID(network *database.Network, entity string
 	return formatMemoryMsgID(network.ID, entity, seq), nil
 }
 
-func (ms *memoryMessageStore) Append(network *database.Network, entity string, msg *irc.Message) (string, error) {
+func (ms *memoryMessageStore) Append(ctx context.Context, network *database.Network, entity string, msg *irc.Message) (string, error) {
 	switch msg.Command {
 	case "PRIVMSG", "NOTICE":
 		// Only append these messages, because LoadLatestID shouldn't return
