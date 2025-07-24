@@ -763,11 +763,9 @@ func (u *user) run() {
 			u.downstreamConns = append(u.downstreamConns, dc)
 			u.numDownstreamConns.Add(1)
 
-			dc.forEachNetwork(func(network *network) {
-				if network.lastError != nil {
-					sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", network.GetName(), network.lastError))
-				}
-			})
+			if network := dc.network; network != nil && network.lastError != nil {
+				sendServiceNOTICE(dc, fmt.Sprintf("disconnected from %s: %v", network.GetName(), network.lastError))
+			}
 
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.updateAway()
@@ -788,9 +786,9 @@ func (u *user) run() {
 				}
 			}
 
-			dc.forEachNetwork(func(net *network) {
-				net.storeClientDeliveryReceipts(ctx, dc.clientName)
-			})
+			if dc.network != nil {
+				dc.network.storeClientDeliveryReceipts(ctx, dc.clientName)
+			}
 
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.cancelPendingCommandsByDownstreamID(dc.id)

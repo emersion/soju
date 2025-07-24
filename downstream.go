@@ -412,12 +412,6 @@ func (dc *downstreamConn) prefix() *irc.Prefix {
 	}
 }
 
-func (dc *downstreamConn) forEachNetwork(f func(*network)) {
-	if dc.network != nil {
-		f(dc.network)
-	}
-}
-
 // upstream returns the upstream connection, if any. If there are zero upstream
 // connections, it returns nil.
 func (dc *downstreamConn) upstream() *upstreamConn {
@@ -1624,11 +1618,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 		})
 	}
 
-	dc.forEachNetwork(func(net *network) {
-		if dc.caps.IsEnabled("draft/chathistory") || dc.user.msgStore == nil {
-			return
-		}
-
+	if net := dc.network; net != nil && !dc.caps.IsEnabled("draft/chathistory") && dc.user.msgStore != nil {
 		// Only send history if we're the first connected client with that name
 		// for the network
 		firstClient := true
@@ -1656,7 +1646,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 				net.delivered.StoreID(target, dc.clientName, lastID)
 			})
 		}
-	})
+	}
 
 	return nil
 }
