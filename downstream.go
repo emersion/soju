@@ -418,18 +418,6 @@ func (dc *downstreamConn) forEachNetwork(f func(*network)) {
 	}
 }
 
-func (dc *downstreamConn) forEachUpstream(f func(*upstreamConn)) {
-	if dc.network == nil {
-		return
-	}
-	dc.user.forEachUpstream(func(uc *upstreamConn) {
-		if dc.network != nil && uc.network != dc.network {
-			return
-		}
-		f(uc)
-	})
-}
-
 // upstream returns the upstream connection, if any. If there are zero upstream
 // connections, it returns nil.
 func (dc *downstreamConn) upstream() *upstreamConn {
@@ -1114,11 +1102,11 @@ func (dc *downstreamConn) updateSupportedCaps(ctx context.Context) {
 	for cap := range needAllDownstreamCaps {
 		supportedCaps[cap] = true
 	}
-	dc.forEachUpstream(func(uc *upstreamConn) {
+	if uc := dc.upstream(); uc != nil {
 		for cap, supported := range supportedCaps {
 			supportedCaps[cap] = supported && uc.caps.IsEnabled(cap)
 		}
-	})
+	}
 
 	for cap, supported := range supportedCaps {
 		if supported {
@@ -1607,7 +1595,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 		dc.SendBatch(ctx, "metadata", nil, nil, func(batchRef string) {})
 	}
 
-	dc.forEachUpstream(func(uc *upstreamConn) {
+	if uc := dc.upstream(); uc != nil {
 		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
 			if !ch.complete {
 				return
@@ -1634,7 +1622,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 
 			forwardChannel(ctx, dc, ch)
 		})
-	})
+	}
 
 	dc.forEachNetwork(func(net *network) {
 		if dc.caps.IsEnabled("draft/chathistory") || dc.user.msgStore == nil {
