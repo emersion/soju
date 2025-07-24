@@ -317,9 +317,7 @@ func (net *network) stop() {
 	}
 }
 
-func (net *network) detach(ch *database.Channel) {
-	ctx := context.TODO()
-
+func (net *network) detach(ctx context.Context, ch *database.Channel) {
 	if ch.Detached {
 		return
 	}
@@ -715,7 +713,7 @@ func (u *user) run() {
 			if c == nil || c.Detached {
 				continue
 			}
-			uc.network.detach(c)
+			uc.network.detach(context.TODO(), c)
 			if err := uc.srv.db.StoreChannel(context.TODO(), uc.network.ID, c); err != nil {
 				u.logger.Printf("failed to store updated detached channel %q: %v", c.Name, err)
 			}

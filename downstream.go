@@ -2007,7 +2007,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			if strings.EqualFold(reason, "detach") {
 				ch := uc.network.channels.Get(name)
 				if ch != nil {
-					uc.network.detach(ch)
+					uc.network.detach(ctx, ch)
 				} else {
 					ch = &database.Channel{
 						Name:     name,

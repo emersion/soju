@@ -1526,7 +1526,7 @@ func handleServiceChannelUpdate(ctx *serviceContext, params []string) error {
 
 	if fs.Detached != nil && *fs.Detached != ch.Detached {
 		if *fs.Detached {
-			network.detach(ch)
+			network.detach(ctx, ch)
 		} else {
 			network.attach(ctx, ch)
 		}
