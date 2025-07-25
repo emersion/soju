@@ -602,7 +602,13 @@ func (u *user) run() {
 		close(u.done)
 	}()
 
-	networks, err := u.srv.db.ListNetworks(context.TODO(), u.ID)
+	ctx, cancel := context.WithCancel(context.TODO())
+	go func() {
+		<-u.done
+		cancel()
+	}()
+
+	networks, err := u.srv.db.ListNetworks(ctx, u.ID)
 	if err != nil {
 		u.logger.Printf("failed to list networks for user %q: %v", u.Username, err)
 		return
@@ -614,7 +620,7 @@ func (u *user) run() {
 
 	for _, record := range networks {
 		record := record
-		channels, err := u.srv.db.ListChannels(context.TODO(), record.ID)
+		channels, err := u.srv.db.ListChannels(ctx, record.ID)
 		if err != nil {
 			u.logger.Printf("failed to list channels for user %q, network %q: %v", u.Username, record.GetName(), err)
 			continue
@@ -624,7 +630,7 @@ func (u *user) run() {
 		u.networks = append(u.networks, network)
 
 		if u.hasPersistentMsgStore() {
-			receipts, err := u.srv.db.ListDeliveryReceipts(context.TODO(), record.ID)
+			receipts, err := u.srv.db.ListDeliveryReceipts(ctx, record.ID)
 			if err != nil {
 				u.logger.Printf("failed to load delivery receipts for user %q, network %q: %v", u.Username, network.GetName(), err)
 				return
@@ -639,6 +645,8 @@ func (u *user) run() {
 	}
 
 	for e := range u.events {
+		// TODO: set a timeout for event handling
+
 		switch e := e.(type) {
 		case eventUpstreamConnected:
 			uc := e.uc
@@ -648,7 +656,6 @@ func (u *user) run() {
 			uc.updateAway()
 			uc.updateMonitor()
 
-			ctx := context.TODO()
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateSupportedCaps(ctx)
 
@@ -668,7 +675,7 @@ func (u *user) run() {
 			})
 			uc.network.lastError = nil
 		case eventUpstreamDisconnected:
-			u.handleUpstreamDisconnected(e.uc)
+			u.handleUpstreamDisconnected(ctx, e.uc)
 		case eventUpstreamConnectionError:
 			net := e.net
 
@@ -679,7 +686,6 @@ func (u *user) run() {
 			default:
 			}
 
-			ctx := context.TODO()
 			if !stopped && (net.lastError == nil || net.lastError.Error() != e.err.Error()) {
 				net.forEachDownstream(func(dc *downstreamConn) {
 					sendServiceNOTICE(ctx, dc, fmt.Sprintf("failed connecting/registering to %s: %v", net.GetName(), e.err))
@@ -692,7 +698,6 @@ func (u *user) run() {
 		case eventUpstreamError:
 			uc := e.uc
 
-			ctx := context.TODO()
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				sendServiceNOTICE(ctx, dc, fmt.Sprintf("disconnected from %s: %v", uc.network.GetName(), e.err))
 			})
@@ -706,7 +711,7 @@ func (u *user) run() {
 				uc.logger.Printf("ignoring message on closed connection: %v", msg)
 				break
 			}
-			if err := uc.handleMessage(context.TODO(), msg); err != nil {
+			if err := uc.handleMessage(ctx, msg); err != nil {
 				uc.logger.Printf("failed to handle message %q: %v", msg, err)
 			}
 		case eventChannelDetach:
@@ -715,13 +720,12 @@ func (u *user) run() {
 			if c == nil || c.Detached {
 				continue
 			}
-			uc.network.detach(context.TODO(), c)
-			if err := uc.srv.db.StoreChannel(context.TODO(), uc.network.ID, c); err != nil {
+			uc.network.detach(ctx, c)
+			if err := uc.srv.db.StoreChannel(ctx, uc.network.ID, c); err != nil {
 				u.logger.Printf("failed to store updated detached channel %q: %v", c.Name, err)
 			}
 		case eventDownstreamConnected:
 			dc := e.dc
-			ctx := context.TODO()
 
 			if dc.network != nil {
 				dc.monitored.SetCaseMapping(dc.network.casemap)
@@ -778,7 +782,6 @@ func (u *user) run() {
 			}
 		case eventDownstreamDisconnected:
 			dc := e.dc
-			ctx := context.TODO()
 
 			for i := range u.downstreamConns {
 				if u.downstreamConns[i] == dc {
@@ -807,10 +810,10 @@ func (u *user) run() {
 				dc.logger.Printf("ignoring message on closed connection: %v", msg)
 				break
 			}
-			err := dc.handleMessage(context.TODO(), msg)
+			err := dc.handleMessage(ctx, msg)
 			if ircErr, ok := err.(ircError); ok {
 				ircErr.Message.Prefix = dc.srv.prefix()
-				dc.SendMessage(context.TODO(), ircErr.Message)
+				dc.SendMessage(ctx, ircErr.Message)
 			} else if err != nil {
 				dc.logger.Printf("failed to handle message %q: %v", msg, err)
 				dc.Close()
@@ -818,10 +821,10 @@ func (u *user) run() {
 		case eventBroadcast:
 			msg := e.msg
 			for _, dc := range u.downstreamConns {
-				dc.SendMessage(context.TODO(), msg)
+				dc.SendMessage(ctx, msg)
 			}
 		case eventUserUpdate:
-			e.done <- u.updateUser(context.TODO(), func(record *database.User) error {
+			e.done <- u.updateUser(ctx, func(record *database.User) error {
 				if e.password != nil {
 					record.Password = *e.password
 				}
@@ -847,7 +850,6 @@ func (u *user) run() {
 		case eventTryRegainNick:
 			e.uc.tryRegainNick(e.nick)
 		case eventUserRun:
-			ctx := context.TODO()
 			err := handleServiceCommand(&serviceContext{
 				Context: ctx,
 				user:    u,
@@ -862,8 +864,6 @@ func (u *user) run() {
 				admin: true,
 				print: func(text string) {
 					// Avoid blocking on e.print in case our context is canceled.
-					// This is a no-op right now because we use context.TODO(),
-					// but might be useful later when we add timeouts.
 					select {
 					case <-ctx.Done():
 					case e.ch <- userRunMsg{message: text}:
@@ -882,7 +882,7 @@ func (u *user) run() {
 				n.stop()
 
 				n.delivered.ForEachClient(func(clientName string) {
-					n.storeClientDeliveryReceipts(context.TODO(), clientName)
+					n.storeClientDeliveryReceipts(ctx, clientName)
 				})
 			}
 			return
@@ -892,7 +892,7 @@ func (u *user) run() {
 	}
 }
 
-func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
+func (u *user) handleUpstreamDisconnected(ctx context.Context, uc *upstreamConn) {
 	uc.network.conn = nil
 
 	uc.stopRegainNickTimer()
@@ -903,7 +903,7 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 	})
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
-		dc.updateSupportedCaps(context.TODO())
+		dc.updateSupportedCaps(ctx)
 	})
 
 	// If the network has been removed, don't send a state change notification
@@ -918,12 +918,12 @@ func (u *user) handleUpstreamDisconnected(uc *upstreamConn) {
 		return
 	}
 
-	u.notifyBouncerNetworkState(context.TODO(), uc.network.ID, irc.Tags{"state": "disconnected"})
+	u.notifyBouncerNetworkState(ctx, uc.network.ID, irc.Tags{"state": "disconnected"})
 
 	if uc.network.lastError == nil {
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			if !dc.caps.IsEnabled("soju.im/bouncer-networks") {
-				sendServiceNOTICE(context.TODO(), dc, fmt.Sprintf("disconnected from %s", uc.network.GetName()))
+				sendServiceNOTICE(ctx, dc, fmt.Sprintf("disconnected from %s", uc.network.GetName()))
 			}
 		})
 	}
@@ -1131,7 +1131,7 @@ func (u *user) updateNetwork(ctx context.Context, record *database.Network, enfo
 	network.stop()
 	if network.conn != nil {
 		// Note: this will set network.conn to nil
-		u.handleUpstreamDisconnected(network.conn)
+		u.handleUpstreamDisconnected(ctx, network.conn)
 	}
 
 	// Patch downstream connections to use our fresh updated network
