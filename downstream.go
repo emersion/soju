@@ -241,9 +241,9 @@ var permanentDownstreamCaps = map[string]string{
 	"soju.im/webpush":                 "",
 }
 
-// needAllDownstreamCaps is the list of downstream capabilities that
-// require support from all upstreams to be enabled.
-var needAllDownstreamCaps = map[string]string{
+// passthroughDownstreamCaps is the list of downstream capabilities that
+// require support from the upstream server to be enabled.
+var passthroughDownstreamCaps = map[string]string{
 	"account-notify":   "",
 	"account-tag":      "",
 	"away-notify":      "",
@@ -815,7 +815,7 @@ func (dc *downstreamConn) handleCap(ctx context.Context, msg *irc.Message) error
 			// Let downstream show everything it supports, and trim
 			// down the available capabilities when upstreams are
 			// known.
-			for k, v := range needAllDownstreamCaps {
+			for k, v := range passthroughDownstreamCaps {
 				dc.caps.Available[k] = v
 			}
 		}
@@ -1093,7 +1093,7 @@ func (dc *downstreamConn) unsetSupportedCap(ctx context.Context, name string) {
 
 func (dc *downstreamConn) updateSupportedCaps(ctx context.Context) {
 	supportedCaps := make(map[string]bool)
-	for cap := range needAllDownstreamCaps {
+	for cap := range passthroughDownstreamCaps {
 		supportedCaps[cap] = true
 	}
 	if uc := dc.upstream(); uc != nil {
@@ -1104,7 +1104,7 @@ func (dc *downstreamConn) updateSupportedCaps(ctx context.Context) {
 
 	for cap, supported := range supportedCaps {
 		if supported {
-			dc.setSupportedCap(ctx, cap, needAllDownstreamCaps[cap])
+			dc.setSupportedCap(ctx, cap, passthroughDownstreamCaps[cap])
 		} else {
 			dc.unsetSupportedCap(ctx, cap)
 		}
