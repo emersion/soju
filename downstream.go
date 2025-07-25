@@ -200,6 +200,26 @@ func updateNetworkAttrs(record *database.Network, attrs irc.Tags, subcommand str
 	return nil
 }
 
+type downstreamLabelContextKey struct{}
+
+type downstreamLabelContext struct {
+	label      string
+	batch      string
+	pendingMsg *irc.Message
+}
+
+func downstreamLabelContextWith(ctx context.Context, cmdCtx *downstreamLabelContext) context.Context {
+	return context.WithValue(ctx, downstreamLabelContextKey{}, cmdCtx)
+}
+
+func downstreamLabelContextFrom(ctx context.Context) *downstreamLabelContext {
+	if v := ctx.Value(downstreamLabelContextKey{}); v != nil {
+		return v.(*downstreamLabelContext)
+	} else {
+		return nil
+	}
+}
+
 // illegalNickChars is the list of characters forbidden in a nickname.
 //
 //   - ' ' and ':' break the IRC message wire format
@@ -250,6 +270,7 @@ var passthroughDownstreamCaps = map[string]string{
 	"chghost":          "",
 	"extended-join":    "",
 	"extended-monitor": "",
+	"labeled-response": "",
 	"message-tags":     "",
 	"multi-prefix":     "",
 
@@ -467,6 +488,11 @@ func (dc *downstreamConn) readMessages(ch chan<- event) error {
 	return nil
 }
 
+func (dc *downstreamConn) sendMessage(ctx context.Context, msg *irc.Message) {
+	dc.srv.metrics.downstreamOutMessagesTotal.Inc()
+	dc.conn.SendMessage(ctx, msg)
+}
+
 // SendMessage sends an outgoing message.
 //
 // This can only called from the user goroutine.
@@ -536,8 +562,31 @@ func (dc *downstreamConn) SendMessage(ctx context.Context, msg *irc.Message) {
 		msg.Prefix = dc.srv.prefix()
 	}
 
-	dc.srv.metrics.downstreamOutMessagesTotal.Inc()
-	dc.conn.SendMessage(ctx, msg)
+	if labelCtx := downstreamLabelContextFrom(ctx); labelCtx != nil {
+		if labelCtx.pendingMsg != nil {
+			dc.lastBatchRef++
+			labelCtx.batch = fmt.Sprintf("%v", dc.lastBatchRef)
+			dc.sendMessage(ctx, &irc.Message{
+				Tags:    irc.Tags{"label": labelCtx.label},
+				Command: "BATCH",
+				Params:  []string{"+" + labelCtx.batch, "labeled-response"},
+			})
+		} else if labelCtx.batch != "" {
+			if msg.Tags["batch"] == "" {
+				msgCopy := *msg
+				msg = &msgCopy
+				if msg.Tags == nil {
+					msg.Tags = make(irc.Tags)
+				}
+				msg.Tags["batch"] = labelCtx.batch
+			}
+			dc.sendMessage(ctx, msg)
+		} else {
+			labelCtx.pendingMsg = msg
+		}
+	} else {
+		dc.sendMessage(ctx, msg)
+	}
 }
 
 func (dc *downstreamConn) SendBatch(ctx context.Context, typ string, params []string, tags irc.Tags, f func(batchRef string)) {
@@ -624,10 +673,16 @@ func (dc *downstreamConn) handleMessage(ctx context.Context, msg *irc.Message) e
 	ctx, cancel = context.WithTimeout(ctx, handleDownstreamMessageTimeout)
 	defer cancel()
 
+	var labelCtx *downstreamLabelContext
+	if label, ok := msg.Tags["label"]; ok && dc.caps.IsEnabled("labeled-response") {
+		labelCtx = &downstreamLabelContext{label: label}
+		ctx = downstreamLabelContextWith(ctx, labelCtx)
+	}
+
 	switch msg.Command {
 	case "QUIT":
 		dc.conn.Shutdown(ctx)
-		return nil // TODO: stop handling commands
+		// TODO: stop handling commands
 	default:
 		var err error
 		if dc.registered {
@@ -638,10 +693,30 @@ func (dc *downstreamConn) handleMessage(ctx context.Context, msg *irc.Message) e
 		if ircErr, ok := err.(ircError); ok {
 			ircErr.Message.Prefix = dc.srv.prefix()
 			dc.SendMessage(ctx, ircErr.Message)
-			return nil
+		} else if err != nil {
+			return err
 		}
-		return err
 	}
+
+	if labelCtx != nil {
+		if labelCtx.pendingMsg != nil {
+			msg := labelCtx.pendingMsg.Copy()
+			msg.Tags["label"] = labelCtx.label
+			dc.sendMessage(ctx, msg)
+		} else if labelCtx.batch != "" {
+			dc.sendMessage(ctx, &irc.Message{
+				Command: "BATCH",
+				Params:  []string{"-" + labelCtx.batch},
+			})
+		} else {
+			dc.sendMessage(ctx, &irc.Message{
+				Command: "ACK",
+				Tags:    irc.Tags{"label": labelCtx.label},
+			})
+		}
+	}
+
+	return nil
 }
 
 func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *irc.Message) error {
