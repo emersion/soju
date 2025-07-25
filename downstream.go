@@ -629,11 +629,18 @@ func (dc *downstreamConn) handleMessage(ctx context.Context, msg *irc.Message) e
 		dc.conn.Shutdown(ctx)
 		return nil // TODO: stop handling commands
 	default:
+		var err error
 		if dc.registered {
-			return dc.handleMessageRegistered(ctx, msg)
+			err = dc.handleMessageRegistered(ctx, msg)
 		} else {
-			return dc.handleMessageUnregistered(ctx, msg)
+			err = dc.handleMessageUnregistered(ctx, msg)
 		}
+		if ircErr, ok := err.(ircError); ok {
+			ircErr.Message.Prefix = dc.srv.prefix()
+			dc.SendMessage(ctx, ircErr.Message)
+			return nil
+		}
+		return err
 	}
 }
 
@@ -1740,11 +1747,7 @@ func (dc *downstreamConn) runUntilRegistered() error {
 			return fmt.Errorf("failed to read IRC command: %w", err)
 		}
 
-		err = dc.handleMessage(ctx, msg)
-		if ircErr, ok := err.(ircError); ok {
-			ircErr.Message.Prefix = dc.srv.prefix()
-			dc.SendMessage(ctx, ircErr.Message)
-		} else if err != nil {
+		if err := dc.handleMessage(ctx, msg); err != nil {
 			return fmt.Errorf("failed to handle IRC command %q: %v", msg, err)
 		}
 

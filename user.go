@@ -810,11 +810,7 @@ func (u *user) run() {
 				dc.logger.Printf("ignoring message on closed connection: %v", msg)
 				break
 			}
-			err := dc.handleMessage(ctx, msg)
-			if ircErr, ok := err.(ircError); ok {
-				ircErr.Message.Prefix = dc.srv.prefix()
-				dc.SendMessage(ctx, ircErr.Message)
-			} else if err != nil {
+			if err := dc.handleMessage(ctx, msg); err != nil {
 				dc.logger.Printf("failed to handle message %q: %v", msg, err)
 				dc.Close()
 			}
