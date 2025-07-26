@@ -1018,7 +1018,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		uc.updateMonitor()
+		uc.updateMonitor(ctx)
 
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			msgs := xirc.GenerateIsupport(downstreamIsupport)
@@ -1123,7 +1123,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateNick(ctx)
 			})
-			uc.updateMonitor()
+			uc.updateMonitor(ctx)
 		}
 	case "SETNAME":
 		var newRealname string
@@ -2203,9 +2203,7 @@ func (uc *upstreamConn) produce(ctx context.Context, target string, msg *irc.Mes
 	})
 }
 
-func (uc *upstreamConn) updateAway() {
-	ctx := context.TODO()
-
+func (uc *upstreamConn) updateAway(ctx context.Context) {
 	if !uc.network.AutoAway {
 		return
 	}
@@ -2248,12 +2246,10 @@ func (uc *upstreamConn) updateChannelAutoDetach(name string) {
 	uch.updateAutoDetach(ch.DetachAfter)
 }
 
-func (uc *upstreamConn) updateMonitor() {
+func (uc *upstreamConn) updateMonitor(ctx context.Context) {
 	if _, ok := uc.isupport["MONITOR"]; !ok {
 		return
 	}
-
-	ctx := context.TODO()
 
 	add := make(map[string]struct{})
 	var addList []string
@@ -2354,9 +2350,7 @@ func (uc *upstreamConn) startRegainNickTimer() {
 	})
 }
 
-func (uc *upstreamConn) tryRegainNick(nick string) {
-	ctx := context.TODO()
-
+func (uc *upstreamConn) tryRegainNick(ctx context.Context, nick string) {
 	if uc.regainNickTimer == nil {
 		return
 	}

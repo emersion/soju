@@ -653,8 +653,8 @@ func (u *user) run() {
 
 			uc.network.conn = uc
 
-			uc.updateAway()
-			uc.updateMonitor()
+			uc.updateAway(ctx)
+			uc.updateMonitor(ctx)
 
 			uc.forEachDownstream(func(dc *downstreamConn) {
 				dc.updateSupportedCaps(ctx)
@@ -774,7 +774,7 @@ func (u *user) run() {
 			}
 
 			u.forEachUpstream(func(uc *upstreamConn) {
-				uc.updateAway()
+				uc.updateAway(ctx)
 			})
 
 			if !dc.impersonating {
@@ -797,8 +797,8 @@ func (u *user) run() {
 
 			u.forEachUpstream(func(uc *upstreamConn) {
 				uc.cancelPendingCommandsByDownstreamID(dc.id)
-				uc.updateAway()
-				uc.updateMonitor()
+				uc.updateAway(ctx)
+				uc.updateMonitor(ctx)
 			})
 
 			if !dc.impersonating {
@@ -844,7 +844,7 @@ func (u *user) run() {
 				}
 			}
 		case eventTryRegainNick:
-			e.uc.tryRegainNick(e.nick)
+			e.uc.tryRegainNick(ctx, e.nick)
 		case eventUserRun:
 			err := handleServiceCommand(&serviceContext{
 				Context: ctx,

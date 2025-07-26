@@ -2616,7 +2616,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		uc := dc.upstream()
 		if uc != nil {
-			uc.updateAway()
+			uc.updateAway(ctx)
 		}
 	case "INFO":
 		if dc.network == nil {
@@ -2696,10 +2696,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					dc.monitored.Del(target)
 				}
 			}
-			uc.updateMonitor()
+			uc.updateMonitor(ctx)
 		case "C": // clear
 			dc.monitored = xirc.NewCaseMappingMap[struct{}](uc.network.casemap)
-			uc.updateMonitor()
+			uc.updateMonitor(ctx)
 		case "L": // list
 			// TODO: be less lazy and pack the list
 			dc.monitored.ForEach(func(name string, _ struct{}) {
