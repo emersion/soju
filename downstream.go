@@ -2510,7 +2510,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					Command: msg.Command,
 					Params:  params,
 				}
-				uc.produce(name, echoMsg, dc.id)
+				uc.produce(context.TODO(), name, echoMsg, dc.id)
 			}
 
 			uc.updateChannelAutoDetach(name)

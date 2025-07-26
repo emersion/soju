@@ -660,7 +660,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		if !uc.registered || uc.network.equalCasemap(msg.Prefix.Name, uc.serverPrefix.Name) || target == "*" || strings.HasPrefix(target, "$") {
 			// This is a server message
-			uc.produce("", msg, 0)
+			uc.produce(ctx, "", msg, 0)
 			break
 		}
 
@@ -703,7 +703,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		uc.produce(bufferName, msg, downstreamID)
+		uc.produce(ctx, bufferName, msg, downstreamID)
 	case "CAP":
 		var subCmd string
 		if err := parseMessageParams(msg, nil, &subCmd); err != nil {
@@ -1109,7 +1109,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			if memberships != nil {
 				ch.Members.Del(msg.Prefix.Name)
 				ch.Members.Set(newNick, memberships)
-				uc.appendLog(ch.Name, msg)
+				uc.appendLog(ctx, ch.Name, msg)
 			}
 		})
 
@@ -1226,7 +1226,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 			chMsg := msg.Copy()
 			chMsg.Params[0] = ch
-			uc.produce(ch, chMsg, 0)
+			uc.produce(ctx, ch, chMsg, 0)
 		}
 	case "PART":
 		var channels string
@@ -1259,7 +1259,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 			chMsg := msg.Copy()
 			chMsg.Params[0] = ch
-			uc.produce(ch, chMsg, 0)
+			uc.produce(ctx, ch, chMsg, 0)
 		}
 	case "KICK":
 		var channel, user string
@@ -1288,7 +1288,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		uc.produce(channel, msg, 0)
+		uc.produce(ctx, channel, msg, 0)
 	case "QUIT":
 		if uc.isOurNick(msg.Prefix.Name) {
 			uc.logger.Printf("quit")
@@ -1297,7 +1297,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		uc.channels.ForEach(func(_ string, ch *upstreamChannel) {
 			if ch.Members.Has(msg.Prefix.Name) {
 				ch.Members.Del(msg.Prefix.Name)
-				uc.appendLog(ch.Name, msg)
+				uc.appendLog(ctx, ch.Name, msg)
 			}
 		})
 
@@ -1337,7 +1337,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		} else {
 			ch.Topic = ""
 		}
-		uc.produce(ch.Name, msg, 0)
+		uc.produce(ctx, ch.Name, msg, 0)
 	case "MODE":
 		var name, modeStr string
 		if err := parseMessageParams(msg, &name, &modeStr); err != nil {
@@ -1365,7 +1365,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				return err
 			}
 
-			uc.appendLog(ch.Name, msg)
+			uc.appendLog(ctx, ch.Name, msg)
 
 			c := uc.network.channels.Get(name)
 			if c == nil || !c.Detached {
@@ -2124,9 +2124,7 @@ func (uc *upstreamConn) SendMessageLabeled(ctx context.Context, downstreamID uin
 //
 // The internal message ID is returned. If the message isn't recorded in the
 // log file, an empty string is returned.
-func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string) {
-	ctx := context.TODO()
-
+func (uc *upstreamConn) appendLog(ctx context.Context, entity string, msg *irc.Message) (msgID string) {
 	if uc.user.msgStore == nil {
 		return ""
 	}
@@ -2185,17 +2183,16 @@ func (uc *upstreamConn) appendLog(entity string, msg *irc.Message) (msgID string
 // originID is the id of the downstream (origin) that sent the message. If it is not 0
 // and origin doesn't support echo-message, the message is forwarded to all
 // connections except origin.
-func (uc *upstreamConn) produce(target string, msg *irc.Message, originID uint64) {
+func (uc *upstreamConn) produce(ctx context.Context, target string, msg *irc.Message, originID uint64) {
 	var msgID string
 	if target != "" {
-		msgID = uc.appendLog(target, msg)
+		msgID = uc.appendLog(ctx, target, msg)
 	}
 
 	// Don't forward messages if it's a detached channel
 	ch := uc.network.channels.Get(target)
 	detached := ch != nil && ch.Detached
 
-	ctx := context.TODO()
 	uc.forEachDownstream(func(dc *downstreamConn) {
 		echo := dc.id == originID && msg.Prefix != nil && uc.isOurNick(msg.Prefix.Name)
 		if !detached && (!echo || dc.caps.IsEnabled("echo-message")) {
