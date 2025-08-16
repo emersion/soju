@@ -19,4 +19,4 @@ listen irc+insecure://localhost
 accept-proxy-ip localhost
 ```
 
-[tlstunnel]: https://git.sr.ht/~emersion/tlstunnel
+[tlstunnel]: https://codeberg.org/emersion/tlstunnel
