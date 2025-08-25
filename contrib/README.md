@@ -6,6 +6,7 @@ supported.
 - [Clients](clients.md)
 - TLS setup
   - [Certbot](certbot.md)
+  - [Caddy](caddy.md)
   - [Nginx](nginx.md)
   - [OpenBSD relayd](openbsd-relayd.md)
   - [tlstunnel](tlstunnel.md)
