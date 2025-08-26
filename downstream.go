@@ -2879,7 +2879,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 
 		network := dc.network
 		if network == nil {
-			return newChatHistoryError(subcommand, "Cannot fetch chat history on bouncer connection")
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"CHATHISTORY", "INVALID_TARGET", subcommand, target, "Cannot fetch chat history on bouncer connection"},
+			}}
 		}
 
 		target = network.casemap(target)
