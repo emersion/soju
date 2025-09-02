@@ -47,6 +47,25 @@ The only thing needed here is the general config:
 
 Then run `M-x irc`.
 
+## Circe
+
+Circe is not provided with Emacs and so must be installed using a package manager, such as `use-package`.
+
+```elisp
+(use-package circe
+  :custom
+  (circe-network-options
+   '(("Network"
+      :host "<server>"
+      :port 6697
+      :tls t
+      :nick "<nick>"
+      :sasl-username "<username>/irc.libera.chat" ;; Example with Libera.Chat 
+      :sasl-password "<password>")))))
+```
+
+Then run `M-x circe`
+
 # [gamja]
 
 gamja has been designed together with soju, so should have excellent
