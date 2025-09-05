@@ -73,6 +73,24 @@ integration. gamja supports many IRCv3 features including chat history.
 gamja also provides UI to manage soju networks via the
 `soju.im/bouncer-networks` extension.
 
+# [glirc]
+
+Although glirc has support for some IRCv3 features, it does not support the
+chathistory and the `soju.im/bouncer-networks` extensions as of version 2.41.
+Here's an example configuration that should make glirc work with soju:
+
+```
+defaults:
+  hostname: "soju_server_hostname"
+  nick: "network_nickname"
+  password: "soju_password"
+  port: 6697
+
+servers:
+  * name: "libera"
+    username: "soju_username/soju_network_name"
+```
+
 # [goguma]
 
 Much like gamja, goguma has been designed together with soju, so should have
@@ -155,3 +173,4 @@ See `/help cap` for more information.
 [hexchat password length fix]: https://github.com/hexchat/hexchat/commit/778047bc65e529804c3342ee0f3a8d5d7550fde5
 [Emacs]: https://www.gnu.org/software/emacs/
 [irssi]: https://irssi.org/
+[glirc]: https://github.com/glguy/irc-core
