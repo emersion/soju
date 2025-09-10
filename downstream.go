@@ -1724,6 +1724,7 @@ func (dc *downstreamConn) relayDetachedMessage(ctx context.Context, net *network
 func (dc *downstreamConn) runUntilRegistered() error {
 	ctx, cancel := context.WithTimeout(context.TODO(), downstreamRegisterTimeout)
 	defer cancel()
+	ctx = context.WithValue(ctx, auth.ContextDownstreamAddressKey, dc.conn.RemoteAddr().String())
 
 	// Close the connection with an error if the deadline is exceeded
 	go func() {

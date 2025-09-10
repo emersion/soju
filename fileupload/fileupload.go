@@ -252,7 +252,8 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 			http.Error(resp, "invalid Authorization header", http.StatusBadRequest)
 			return
 		}
-		err = plainAuth.AuthPlain(req.Context(), h.DB, username, password)
+		ctx := context.WithValue(req.Context(), auth.ContextDownstreamAddressKey, req.RemoteAddr)
+		err = plainAuth.AuthPlain(ctx, h.DB, username, password)
 	case "bearer":
 		oauthAuth := h.Auth.OAuthBearer
 		if oauthAuth == nil {

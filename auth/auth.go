@@ -7,6 +7,8 @@ import (
 	"codeberg.org/emersion/soju/database"
 )
 
+const ContextDownstreamAddressKey = "downstream-address"
+
 type Authenticator struct {
 	Plain       PlainAuthenticator
 	OAuthBearer OAuthBearerAuthenticator

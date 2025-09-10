@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 
 	"codeberg.org/emersion/soju/database"
@@ -31,6 +32,13 @@ func (auth *httpAuth) AuthPlain(ctx context.Context, db database.Database, usern
 		return fmt.Errorf("failed to create HTTP auth request: %v", err)
 	}
 	req.SetBasicAuth(username, password)
+
+	if addr, ok := ctx.Value(ContextDownstreamAddressKey).(string); ok && addr != "" {
+		forwarded := fmt.Sprintf("for=%q", addr)
+		forwardedForHost, _, _ := net.SplitHostPort(addr)
+		req.Header.Set("Forwarded", forwarded)
+		req.Header.Set("X-Forwarded-For", forwardedForHost)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
