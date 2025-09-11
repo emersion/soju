@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
 
 	"codeberg.org/emersion/soju/database"
 )
@@ -78,4 +80,16 @@ func newInvalidCredentialsError(err error) *Error {
 		InternalErr: err,
 		ExternalMsg: "Invalid credentials",
 	}
+}
+
+func setHTTPForwardedHeader(ctx context.Context, req *http.Request) {
+	addr, ok := ctx.Value(ContextDownstreamAddressKey).(string)
+	if !ok || addr == "" {
+		return
+	}
+
+	forwarded := fmt.Sprintf("for=%q", addr)
+	forwardedForHost, _, _ := net.SplitHostPort(addr)
+	req.Header.Set("Forwarded", forwarded)
+	req.Header.Set("X-Forwarded-For", forwardedForHost)
 }

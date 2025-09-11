@@ -233,6 +233,8 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	ctx := context.WithValue(req.Context(), auth.ContextDownstreamAddressKey, req.RemoteAddr)
+
 	var (
 		username string
 		err      error
@@ -252,7 +254,6 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 			http.Error(resp, "invalid Authorization header", http.StatusBadRequest)
 			return
 		}
-		ctx := context.WithValue(req.Context(), auth.ContextDownstreamAddressKey, req.RemoteAddr)
 		err = plainAuth.AuthPlain(ctx, h.DB, username, password)
 	case "bearer":
 		oauthAuth := h.Auth.OAuthBearer
@@ -260,7 +261,7 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 			http.Error(resp, "Bearer scheme in Authorization header not supported", http.StatusBadRequest)
 			return
 		}
-		username, err = oauthAuth.AuthOAuthBearer(req.Context(), h.DB, param)
+		username, err = oauthAuth.AuthOAuthBearer(ctx, h.DB, param)
 	default:
 		http.Error(resp, "unsupported Authorization header scheme", http.StatusBadRequest)
 		return
@@ -320,7 +321,7 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 		}
 	} else {
 		r := http.MaxBytesReader(resp, req.Body, maxSize)
-		out, err = h.Uploader.store(req.Context(), r, username, mimeType, basename)
+		out, err = h.Uploader.store(ctx, r, username, mimeType, basename)
 	}
 	if err != nil {
 		var httpErr *httpError

@@ -94,6 +94,7 @@ func (auth *oauth2) AuthOAuthBearer(ctx context.Context, db database.Database, t
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
+	setHTTPForwardedHeader(ctx, req)
 
 	if auth.clientID != "" {
 		req.SetBasicAuth(url.QueryEscape(auth.clientID), url.QueryEscape(auth.clientSecret))
