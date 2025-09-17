@@ -60,7 +60,7 @@ Circe is not provided with Emacs and so must be installed using a package manage
       :port 6697
       :tls t
       :nick "<nick>"
-      :sasl-username "<username>/irc.libera.chat" ;; Example with Libera.Chat 
+      :sasl-username "<username>/irc.libera.chat" ;; Example with Libera.Chat
       :sasl-password "<password>")))))
 ```
 
@@ -100,20 +100,23 @@ the `soju.im/bouncer-networks` extension.
 
 # [Halloy]
 
-Halloy has support for many IRCv3 features including chat history as of release 2025.1.
+Halloy has support for many IRCv3 features including chat history. As of release
+2025.9, it has full support for `soju.im/bouncer-networks`. When connecting to
+soju as a client authenticated with sasl, all bounced servers will be
+automatically added.
 
-Below is an example configuration to connect to soju networks:
+Below is an example configuration to connect to soju:
 ```toml
-[servers.liberachat]
-nickname = "network_nickname"
-username = "soju_username/irc.libera.chat"
+[servers.soju]
+nickname = "soju_username"
+server = "soju_hostname"
+[servers.soju.sasl.plain]
+username = "soju_username"
 password = "soju_password"
-server = "soju_server_hostname"
-port = 6697
-chathistory = true
 ```
 
-For more details, see the [guide on connecting to soju] and [server chathistory] found in the Halloy docs.
+For more details, see the [guide on connecting to soju] and [server chathistory]
+found in the Halloy docs.
 
 # [Hexchat]
 
