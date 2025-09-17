@@ -23,8 +23,9 @@ listen http+unix:///run/soju/http.sock
 …
 ```
 
-Then configure nginx to proxy all http traffic for the `/socket` prefix to that unix domain socket,
-by using the `proxy_pass` directives:
+Then configure nginx to proxy all http traffic for the `/socket` prefix to that
+unix domain socket, by using the `proxy_pass` directives. It is important to set
+`client_max_body_size` be unlimited (0) to enable large uploads from users.
 
 ```
 # /etc/nginx/sites-enabled/60-soju.conf
@@ -51,6 +52,7 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header Host $host;
+    client_max_body_size 0;
   }
 
   root /srv/gamja/;
