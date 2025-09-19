@@ -697,10 +697,24 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 
 		if !self && !detached && isText && (highlight || directMessage) {
-			go uc.network.broadcastWebPush(msg)
-			if timestamp, err := time.Parse(xirc.ServerTimeLayout, string(msg.Tags["time"])); err == nil {
-				uc.network.pushTargets.Set(bufferName, timestamp)
+			timestamp, err := time.Parse(xirc.ServerTimeLayout, msg.Tags["time"])
+			if err != nil {
+				// Cannot fail, was set above if unset or invalid.
+				panic("failed parsing event time")
 			}
+			targetCM := uc.network.casemap(bufferName)
+			time.AfterFunc(5*time.Second, func() {
+				r, err := uc.srv.db.GetReadReceipt(ctx, uc.network.ID, targetCM)
+				if err != nil {
+					uc.logger.Printf("failed to get the read receipt for %q: %v", bufferName, err)
+					return
+				}
+				if r != nil && !r.Timestamp.Before(timestamp) {
+					return
+				}
+				uc.network.broadcastWebPush(msg)
+			})
+			uc.network.pushTargets.Set(bufferName, timestamp)
 		}
 
 		uc.produce(ctx, bufferName, msg, downstreamID)
