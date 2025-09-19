@@ -696,7 +696,18 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		if !self && !detached && isText && (highlight || directMessage) {
+		sendWebPush := !self && !detached && isText && (highlight || directMessage)
+		if sendWebPush {
+			sourceCM := uc.network.casemap(msg.Prefix.Name)
+			mt, err := uc.srv.db.GetMessageTarget(ctx, uc.network.ID, sourceCM)
+			if err != nil {
+				uc.logger.Printf("failed to get the message target for %q: %v", sourceCM, err)
+			}
+			if mt != nil && mt.Muted {
+				sendWebPush = false
+			}
+		}
+		if sendWebPush {
 			timestamp, err := time.Parse(xirc.ServerTimeLayout, msg.Tags["time"])
 			if err != nil {
 				// Cannot fail, was set above if unset or invalid.
