@@ -254,6 +254,9 @@ func (h *Handler) store(resp http.ResponseWriter, req *http.Request) {
 			http.Error(resp, "invalid Authorization header", http.StatusBadRequest)
 			return
 		}
+		if i := strings.IndexAny(username, "/@"); i > 0 {
+			username = username[:i]
+		}
 		err = plainAuth.AuthPlain(ctx, h.DB, username, password)
 	case "bearer":
 		oauthAuth := h.Auth.OAuthBearer
