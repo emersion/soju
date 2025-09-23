@@ -121,6 +121,7 @@ CREATE TABLE MessageTarget (
 	target TEXT NOT NULL,
 	pinned INTEGER NOT NULL DEFAULT 0,
 	muted INTEGER NOT NULL DEFAULT 0,
+	blocked INTEGER NOT NULL DEFAULT 0,
 	FOREIGN KEY(network) REFERENCES Network(id),
 	UNIQUE(network, target)
 );

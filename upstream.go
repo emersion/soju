@@ -25,6 +25,8 @@ import (
 	"codeberg.org/emersion/soju/xirc"
 )
 
+const contextSourceBlockedKey = "source-blocked"
+
 // permanentUpstreamCaps is the static list of upstream capabilities always
 // requested when supported.
 var permanentUpstreamCaps = map[string]bool{
@@ -697,16 +699,22 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		}
 
 		sendWebPush := !self && !detached && isText && (highlight || directMessage)
-		if sendWebPush {
-			sourceCM := uc.network.casemap(msg.Prefix.Name)
-			mt, err := uc.srv.db.GetMessageTarget(ctx, uc.network.ID, sourceCM)
-			if err != nil {
-				uc.logger.Printf("failed to get the message target for %q: %v", sourceCM, err)
-			}
-			if mt != nil && mt.Muted {
+
+		sourceCM := uc.network.casemap(msg.Prefix.Name)
+		mt, err := uc.srv.db.GetMessageTarget(ctx, uc.network.ID, sourceCM)
+		if err != nil {
+			uc.logger.Printf("failed to get the message target for %q: %v", sourceCM, err)
+		}
+		if mt != nil {
+			if mt.Muted || mt.Blocked {
 				sendWebPush = false
 			}
+			if mt.Blocked {
+				// Used by uc.produce
+				ctx = context.WithValue(ctx, contextSourceBlockedKey, true)
+			}
 		}
+
 		if sendWebPush {
 			timestamp, err := time.Parse(xirc.ServerTimeLayout, msg.Tags["time"])
 			if err != nil {
@@ -1652,6 +1660,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		weAreInvited := uc.isOurNick(nick)
 
+		blocked := false
 		if weAreInvited {
 			joined := uc.channels.Get(channel) != nil
 			c := uc.network.channels.Get(channel)
@@ -1662,10 +1671,22 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				}
 				break
 			}
+
+			sourceCM := uc.network.casemap(msg.Prefix.Name)
+			mt, err := uc.srv.db.GetMessageTarget(ctx, uc.network.ID, sourceCM)
+			if err != nil {
+				uc.logger.Printf("failed to get the message target for %q: %v", sourceCM, err)
+			}
+			if mt != nil && mt.Blocked {
+				blocked = true
+			}
 		}
 
 		uc.forEachDownstream(func(dc *downstreamConn) {
 			if !weAreInvited && !dc.caps.IsEnabled("invite-notify") {
+				return
+			}
+			if blocked && !dc.metadataSubs["soju.im/blocked"] {
 				return
 			}
 			dc.SendMessage(ctx, msg)
@@ -2221,8 +2242,12 @@ func (uc *upstreamConn) produce(ctx context.Context, target string, msg *irc.Mes
 	// Don't forward messages if it's a detached channel
 	ch := uc.network.channels.Get(target)
 	detached := ch != nil && ch.Detached
+	blocked, _ := ctx.Value(contextSourceBlockedKey).(bool)
 
 	uc.forEachDownstream(func(dc *downstreamConn) {
+		if blocked && !dc.metadataSubs["soju.im/blocked"] {
+			return
+		}
 		echo := dc.id == originID && msg.Prefix != nil && uc.isOurNick(msg.Prefix.Name)
 		if !detached && (!echo || dc.caps.IsEnabled("echo-message")) {
 			dc.sendMessageWithID(ctx, msg, msgID)

@@ -746,9 +746,9 @@ func (db *PostgresDB) GetMessageTarget(ctx context.Context, networkID int64, tar
 	}
 
 	row := db.db.QueryRowContext(ctx,
-		`SELECT id, pinned, muted FROM "MessageTarget" WHERE network = $1 AND target = $2`,
+		`SELECT id, pinned, muted, blocked FROM "MessageTarget" WHERE network = $1 AND target = $2`,
 		networkID, target)
-	if err := row.Scan(&mt.ID, &mt.Pinned, &mt.Muted); err != nil && err != sql.ErrNoRows {
+	if err := row.Scan(&mt.ID, &mt.Pinned, &mt.Muted, &mt.Blocked); err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
 	return mt, nil
@@ -759,9 +759,9 @@ func (db *PostgresDB) ListMessageTargets(ctx context.Context, networkID int64) (
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
-		SELECT id, target, pinned, muted
+		SELECT id, target, pinned, muted, blocked
 		FROM "MessageTarget"
-		WHERE network = $1 AND (pinned OR muted)`, networkID)
+		WHERE network = $1 AND (pinned OR muted OR blocked)`, networkID)
 	if err != nil {
 		return nil, err
 	}
@@ -770,7 +770,7 @@ func (db *PostgresDB) ListMessageTargets(ctx context.Context, networkID int64) (
 	var mts []MessageTarget
 	for rows.Next() {
 		var mt MessageTarget
-		err := rows.Scan(&mt.ID, &mt.Target, &mt.Pinned, &mt.Muted)
+		err := rows.Scan(&mt.ID, &mt.Target, &mt.Pinned, &mt.Muted, &mt.Blocked)
 		if err != nil {
 			return nil, err
 		}
@@ -791,15 +791,15 @@ func (db *PostgresDB) StoreMessageTarget(ctx context.Context, networkID int64, m
 	if mt.ID != 0 {
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE "MessageTarget"
-			SET pinned = $1, muted = $2
-			WHERE id = $3`,
-			mt.Pinned, mt.Muted, mt.ID)
+			SET pinned = $1, muted = $2, blocked = $3
+			WHERE id = $4`,
+			mt.Pinned, mt.Muted, mt.Blocked, mt.ID)
 	} else {
 		err = db.db.QueryRowContext(ctx, `
-			INSERT INTO "MessageTarget" (network, target, pinned, muted)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO "MessageTarget" (network, target, pinned, muted, blocked)
+			VALUES ($1, $2, $3, $4, $5)
 			RETURNING id`,
-			networkID, mt.Target, mt.Pinned, mt.Muted).Scan(&mt.ID)
+			networkID, mt.Target, mt.Pinned, mt.Muted, mt.Blocked).Scan(&mt.ID)
 	}
 	return err
 }

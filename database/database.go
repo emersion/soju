@@ -291,10 +291,11 @@ type WebPushSubscription struct {
 }
 
 type MessageTarget struct {
-	ID     int64
-	Target string
-	Pinned bool
-	Muted  bool
+	ID      int64
+	Target  string
+	Pinned  bool
+	Muted   bool
+	Blocked bool
 }
 
 func toNullString(s string) sql.NullString {

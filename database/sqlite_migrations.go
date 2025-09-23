@@ -198,4 +198,5 @@ var sqliteMigrations = []string{
 		CREATE INDEX Message_target_index ON Message(target);
 		CREATE INDEX MessageTarget_network_index ON MessageTarget(network);
 	`,
+	`ALTER TABLE MessageTarget ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0`,
 }

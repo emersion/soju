@@ -900,11 +900,11 @@ func (db *SqliteDB) GetMessageTarget(ctx context.Context, networkID int64, targe
 	}
 
 	row := db.db.QueryRowContext(ctx, `
-		SELECT id, pinned, muted FROM MessageTarget WHERE network = :network AND target = :target`,
+		SELECT id, pinned, muted, blocked FROM MessageTarget WHERE network = :network AND target = :target`,
 		sql.Named("network", networkID),
 		sql.Named("target", target),
 	)
-	if err := row.Scan(&mt.ID, &mt.Pinned, &mt.Muted); err != nil && err != sql.ErrNoRows {
+	if err := row.Scan(&mt.ID, &mt.Pinned, &mt.Muted, &mt.Blocked); err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
 	return mt, nil
@@ -915,9 +915,9 @@ func (db *SqliteDB) ListMessageTargets(ctx context.Context, networkID int64) ([]
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
-		SELECT id, target, pinned, muted
+		SELECT id, target, pinned, muted, blocked
 		FROM MessageTarget
-		WHERE network = ? AND (pinned OR muted)`,
+		WHERE network = ? AND (pinned OR muted OR blocked)`,
 		networkID)
 	if err != nil {
 		return nil, err
@@ -927,7 +927,7 @@ func (db *SqliteDB) ListMessageTargets(ctx context.Context, networkID int64) ([]
 	var mts []MessageTarget
 	for rows.Next() {
 		var mt MessageTarget
-		err := rows.Scan(&mt.ID, &mt.Target, &mt.Pinned, &mt.Muted)
+		err := rows.Scan(&mt.ID, &mt.Target, &mt.Pinned, &mt.Muted, &mt.Blocked)
 		if err != nil {
 			return nil, err
 		}
@@ -950,19 +950,20 @@ func (db *SqliteDB) StoreMessageTarget(ctx context.Context, networkID int64, mt 
 		sql.Named("target", mt.Target),
 		sql.Named("pinned", mt.Pinned),
 		sql.Named("muted", mt.Muted),
+		sql.Named("blocked", mt.Blocked),
 	}
 
 	var err error
 	if mt.ID != 0 {
 		_, err = db.db.ExecContext(ctx, `
-			UPDATE MessageTarget SET pinned = :pinned, muted = :muted WHERE id = :id`,
+			UPDATE MessageTarget SET pinned = :pinned, muted = :muted, blocked = :blocked WHERE id = :id`,
 			args...)
 	} else {
 		var res sql.Result
 		res, err = db.db.ExecContext(ctx, `
 			INSERT INTO
-			MessageTarget(network, target, pinned, muted)
-			VALUES (:network, :target, :pinned, :muted)`,
+			MessageTarget(network, target, pinned, muted, blocked)
+			VALUES (:network, :target, :pinned, :muted, :blocked)`,
 			args...)
 		if err != nil {
 			return err

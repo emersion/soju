@@ -364,7 +364,7 @@ type downstreamConn struct {
 
 	casemap      xirc.CaseMapping
 	monitored    xirc.CaseMappingMap[struct{}]
-	metadataSubs map[string]struct{}
+	metadataSubs map[string]bool
 }
 
 func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
@@ -381,7 +381,7 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		caps:         xirc.NewCapRegistry(),
 		casemap:      cm,
 		monitored:    xirc.NewCaseMappingMap[struct{}](cm),
-		metadataSubs: map[string]struct{}{},
+		metadataSubs: map[string]bool{},
 		registration: new(downstreamRegistration),
 	}
 	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
@@ -2820,6 +2820,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			case "CLEAR":
 				m["soju.im/pinned"] = nil
 				m["soju.im/muted"] = nil
+				m["soju.im/blocked"] = nil
 			}
 			switch subcommand {
 			case "SET":
@@ -3504,6 +3505,7 @@ func (dc *downstreamConn) handleMetadataSub(ctx context.Context, msg *irc.Messag
 			switch k {
 			case "soju.im/pinned":
 			case "soju.im/muted":
+			case "soju.im/blocked":
 			default:
 				dc.SendMessage(ctx, &irc.Message{
 					Command: "FAIL",
@@ -3513,7 +3515,7 @@ func (dc *downstreamConn) handleMetadataSub(ctx context.Context, msg *irc.Messag
 			}
 			switch subcommand {
 			case "SUB":
-				dc.metadataSubs[k] = struct{}{}
+				dc.metadataSubs[k] = true
 
 				// Technically we are only required to send the METADATA of channels we are joined to, and users
 				// we are sharing a channel with or are MONITOR-ing, but it is easier to send all METADATA we are
@@ -3615,6 +3617,8 @@ func (dc *downstreamConn) setMessageTargetMetadata(ctx context.Context, target s
 			mt.Pinned, mv, ok = parseMessageTargetMetadataBool(v)
 		case "soju.im/muted":
 			mt.Muted, mv, ok = parseMessageTargetMetadataBool(v)
+		case "soju.im/blocked":
+			mt.Blocked, mv, ok = parseMessageTargetMetadataBool(v)
 		default:
 			dc.SendMessage(ctx, &irc.Message{
 				Tags:    tags,
@@ -3669,6 +3673,11 @@ func getMessageTargetMetadata(mt *database.MessageTarget) map[string]string {
 		m["soju.im/muted"] = "1"
 	} else {
 		m["soju.im/muted"] = "0"
+	}
+	if mt.Blocked {
+		m["soju.im/blocked"] = "1"
+	} else {
+		m["soju.im/blocked"] = "0"
 	}
 	return m
 }
