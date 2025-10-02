@@ -11,16 +11,16 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
-
-	"codeberg.org/emersion/soju/xirc"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"gopkg.in/irc.v4"
 
 	"codeberg.org/emersion/soju/database"
 	"codeberg.org/emersion/soju/msgstore"
+	"codeberg.org/emersion/soju/xirc"
 )
 
 type UserUpdateFunc func(record *database.User) error
@@ -152,12 +152,14 @@ type network struct {
 	logger  Logger
 	stopped chan struct{}
 
-	conn        *upstreamConn
-	channels    xirc.CaseMappingMap[*database.Channel]
-	delivered   deliveredStore
-	pushTargets xirc.CaseMappingMap[time.Time]
-	lastError   error
-	casemap     xirc.CaseMapping
+	conn      *upstreamConn
+	channels  xirc.CaseMappingMap[*database.Channel]
+	delivered deliveredStore
+	lastError error
+	casemap   xirc.CaseMapping
+
+	pushTargetsMutex sync.Mutex
+	pushTargets      xirc.CaseMappingMap[time.Time]
 }
 
 func newNetwork(user *user, record *database.Network, channels []database.Channel) *network {
@@ -409,7 +411,9 @@ func (net *network) updateCasemapping(newCasemap xirc.CaseMapping) {
 	net.casemap = newCasemap
 	net.channels.SetCaseMapping(newCasemap)
 	net.delivered.m.SetCaseMapping(newCasemap)
+	net.pushTargetsMutex.Lock()
 	net.pushTargets.SetCaseMapping(newCasemap)
+	net.pushTargetsMutex.Unlock()
 	if uc := net.conn; uc != nil {
 		uc.channels.SetCaseMapping(newCasemap)
 		uc.channels.ForEach(func(_ string, uch *upstreamChannel) {

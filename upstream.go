@@ -723,9 +723,13 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				if r != nil && !r.Timestamp.Before(timestamp) {
 					return
 				}
+
+				uc.network.pushTargetsMutex.Lock()
+				uc.network.pushTargets.Set(bufferName, timestamp)
+				uc.network.pushTargetsMutex.Unlock()
+
 				uc.network.broadcastWebPush(msg)
 			})
-			uc.network.pushTargets.Set(bufferName, timestamp)
 		}
 
 		uc.produce(ctx, bufferName, msg, downstreamID)

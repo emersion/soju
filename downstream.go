@@ -2047,7 +2047,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 					dc.logger.Printf("failed to delete channel %q: %v", name, err)
 				}
 
+				uc.network.pushTargetsMutex.Lock()
 				uc.network.pushTargets.Del(name)
+				uc.network.pushTargetsMutex.Unlock()
 			}
 		}
 	case "KICK":
@@ -3087,6 +3089,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			}
 		})
 
+		network.pushTargetsMutex.Lock()
 		if broadcast && network.pushTargets.Has(target) {
 			// TODO: only broadcast if draft/read-marker has been negotiated
 			if !r.Timestamp.Before(network.pushTargets.Get(target)) {
@@ -3097,6 +3100,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				Params:  []string{target, timestampStr},
 			})
 		}
+		network.pushTargetsMutex.Unlock()
 	case "SEARCH":
 		store, ok := dc.user.msgStore.(msgstore.SearchStore)
 		if !ok {
