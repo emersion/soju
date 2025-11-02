@@ -297,6 +297,8 @@ var passthroughIsupport = map[string]bool{
 	"USERLEN":       true,
 	"UTF8ONLY":      true,
 	"WHOX":          true,
+
+	"draft/ICON": true,
 }
 
 type saslPlain struct {
