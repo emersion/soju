@@ -996,12 +996,11 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			if strings.HasPrefix(token, "-") {
 				negate = true
 				token = token[1:]
-			} else if i := strings.IndexByte(token, '='); i >= 0 {
-				parameter = token[:i]
-				value = xirc.DecodeIsupportValue(token[i+1:])
-				hasValue = true
+			} else {
+				parameter, value, hasValue = strings.Cut(token, "=")
 			}
 			parameter = strings.ToUpper(parameter)
+			value = xirc.DecodeIsupportValue(value)
 
 			if hasValue {
 				uc.isupport[parameter] = &value
