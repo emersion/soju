@@ -998,7 +998,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				token = token[1:]
 			} else if i := strings.IndexByte(token, '='); i >= 0 {
 				parameter = token[:i]
-				value = token[i+1:]
+				value = xirc.DecodeIsupportValue(token[i+1:])
 				hasValue = true
 			}
 			parameter = strings.ToUpper(parameter)

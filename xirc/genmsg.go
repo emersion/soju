@@ -111,8 +111,6 @@ func GenerateIsupport(tokens []string) []*irc.Message {
 	return msgs
 }
 
-var isupportEncoder = strings.NewReplacer(" ", "\\x20", "\\", "\\x5C")
-
 func GenerateMOTD(motd string) []*irc.Message {
 	var msgs []*irc.Message
 	msgs = append(msgs, &irc.Message{

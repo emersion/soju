@@ -139,3 +139,12 @@ func (ms *MembershipSet) Remove(membership Membership) {
 		}
 	}
 }
+
+func DecodeIsupportValue(v string) string {
+	return isupportDecoder.Replace(v)
+}
+
+var (
+	isupportEncoder = strings.NewReplacer(" ", "\\x20", "\\", "\\x5C")
+	isupportDecoder = strings.NewReplacer("\\x20", " ", "\\x5C", "\\")
+)
