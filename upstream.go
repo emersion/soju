@@ -999,7 +999,12 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			} else {
 				parameter, value, hasValue = strings.Cut(token, "=")
 			}
-			parameter = strings.ToUpper(parameter)
+
+			if prefix, key, ok := strings.Cut(parameter, "/"); ok {
+				parameter = strings.ToLower(prefix) + "/" + strings.ToUpper(key)
+			} else {
+				parameter = strings.ToUpper(parameter)
+			}
 			value = xirc.DecodeIsupportValue(value)
 
 			if hasValue {
@@ -1042,7 +1047,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 				} else {
 					uc.availableMemberships = stdMemberships
 				}
-			case "SOJU.IM/SAFERATE":
+			case "soju.im/SAFERATE":
 				uc.rateLimit = negate
 			}
 			if err != nil {
