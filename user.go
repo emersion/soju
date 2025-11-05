@@ -1148,7 +1148,9 @@ func (u *user) updateNetwork(ctx context.Context, record *database.Network, enfo
 	// Transfer network attributes that aren't in the record
 	updatedNetwork.delivered = network.delivered
 	updatedNetwork.pushTargets = network.pushTargets
-	updatedNetwork.lastError = network.lastError
+	if updatedNetwork.Enabled {
+		updatedNetwork.lastError = network.lastError
+	}
 	updatedNetwork.updateCasemapping(network.casemap)
 
 	// The filesystem message store needs to be notified whenever the network
