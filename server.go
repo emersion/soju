@@ -151,6 +151,8 @@ func (ln *retryListener) Accept() (net.Conn, error) {
 type Config struct {
 	Hostname                  string
 	Title                     string
+	IconPath                  string
+	IconURL                   string
 	MsgStoreDriver            string
 	MsgStorePath              string
 	HTTPOrigins               []string

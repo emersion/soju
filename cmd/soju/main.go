@@ -77,6 +77,21 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		motd = strings.TrimSuffix(string(b), "\n")
 	}
 
+	var iconURL, iconPath string
+	if strings.Contains(raw.Icon, "://") {
+		if u, err := url.Parse(raw.Icon); err != nil {
+			return nil, nil, fmt.Errorf("invalid icon URL: %v", err)
+		} else if u.Scheme != "https" {
+			return nil, nil, fmt.Errorf("unsupported icon URL scheme: %v", u.Scheme)
+		}
+		iconURL = raw.Icon
+	} else {
+		if _, err := os.Stat(raw.Icon); err != nil {
+			return nil, nil, fmt.Errorf("failed to load icon: %v", err)
+		}
+		iconPath = raw.Icon
+	}
+
 	var authenticator auth.Authenticator
 	for _, authCfg := range raw.Auth {
 		a, err := auth.New(authCfg.Driver, authCfg.Source)
@@ -122,6 +137,8 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 	cfg := &soju.Config{
 		Hostname:                  raw.Hostname,
 		Title:                     raw.Title,
+		IconURL:                   iconURL,
+		IconPath:                  iconPath,
 		MsgStoreDriver:            raw.MsgStore.Driver,
 		MsgStorePath:              raw.MsgStore.Source,
 		HTTPOrigins:               raw.HTTPOrigins,
@@ -184,10 +201,20 @@ func main() {
 		h.ServeHTTP(w, r)
 	})
 
+	iconHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cfg := srv.Config()
+		if cfg.IconPath == "" {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, cfg.IconPath)
+	})
+
 	httpMux := http.NewServeMux()
 	httpMux.Handle("/socket", srv)
 	httpMux.Handle("/uploads", fileUploadHandler)
 	httpMux.Handle("/uploads/", fileUploadHandler)
+	httpMux.Handle("/icon", iconHandler)
 
 	var httpServers []*http.Server
 	for _, listen := range cfg.Listen {

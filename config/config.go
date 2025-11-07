@@ -77,6 +77,7 @@ type Server struct {
 	TLS      *TLS
 	Hostname string
 	Title    string
+	Icon     string
 	MOTDPath string
 
 	DB         DB
@@ -123,6 +124,7 @@ func Load(filename string) (*Server, error) {
 		} `scfg:"listen"`
 		Hostname     string     `scfg:"hostname"`
 		Title        string     `scfg:"title"`
+		Icon         string     `scfg:"icon"`
 		MOTD         string     `scfg:"motd"`
 		TLS          *[2]string `scfg:"tls"`
 		DB           *[2]string `scfg:"db"`
@@ -162,6 +164,7 @@ func Load(filename string) (*Server, error) {
 		srv.Hostname = raw.Hostname
 	}
 	srv.Title = raw.Title
+	srv.Icon = raw.Icon
 	srv.MOTDPath = raw.MOTD
 	if raw.TLS != nil {
 		srv.TLS = &TLS{CertPath: raw.TLS[0], KeyPath: raw.TLS[1]}

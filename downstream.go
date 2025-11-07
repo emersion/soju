@@ -1596,6 +1596,11 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	if dc.network == nil && srvConfig.Title != "" {
 		isupport = append(isupport, "NETWORK="+srvConfig.Title)
 	}
+	if dc.network == nil && srvConfig.IconURL != "" {
+		isupport = append(isupport, "draft/ICON="+srvConfig.IconURL)
+	} else if dc.network == nil && srvConfig.IconPath != "" {
+		isupport = append(isupport, "draft/ICON="+srvConfig.HTTPIngress+"/icon")
+	}
 	if dc.network == nil {
 		isupport = append(isupport, "WHOX")
 		isupport = append(isupport, "CHANTYPES=")   // channels are not supported

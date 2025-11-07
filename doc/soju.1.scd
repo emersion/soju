@@ -133,6 +133,11 @@ The following directives are supported:
 	Server title. This will be sent as the _ISUPPORT NETWORK_ value when clients
 	don't select a specific network.
 
+*icon* <url>
+	Server icon. Can be set to either a local path (in which case an HTTP
+	listener must be set up) or a full _https://_ URL. This will be sent as the
+	_ISUPPORT draft/ICON_ value when clients don't select a specific network.
+
 *tls* <cert> <key>
 	Enable TLS support. The certificate and the key files must be PEM-encoded.
 
