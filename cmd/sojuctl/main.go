@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"gopkg.in/irc.v4"
@@ -69,9 +70,9 @@ func run(ctx context.Context, cfg *config.Server, words []string) error {
 			if m.Param(0) == "OK" {
 				return nil
 			}
-			return fmt.Errorf(m.Trailing())
+			fallthrough
 		default:
-			return fmt.Errorf(m.Trailing())
+			return errors.New(m.Trailing())
 		}
 	}
 }
