@@ -1485,6 +1485,8 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	}
 	dc.nickCM = dc.casemap(dc.nick)
 
+	srvConfig := dc.srv.Config()
+
 	var isupport []string
 	isupport = append(isupport, permanentIsupport...)
 	if dc.network != nil {
@@ -1492,8 +1494,8 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	} else {
 		isupport = append(isupport, "BOT=B", "CASEMAPPING=ascii")
 	}
-	if title := dc.srv.Config().Title; dc.network == nil && title != "" {
-		isupport = append(isupport, "NETWORK="+title)
+	if dc.network == nil && srvConfig.Title != "" {
+		isupport = append(isupport, "NETWORK="+srvConfig.Title)
 	}
 	if dc.network == nil {
 		isupport = append(isupport, "WHOX")
@@ -1507,8 +1509,8 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	if dc.caps.IsEnabled("soju.im/webpush") {
 		isupport = append(isupport, "VAPID="+dc.srv.webPush.VAPIDKeys.Public)
 	}
-	if dc.srv.Config().FileUploader != nil {
-		isupport = append(isupport, "soju.im/FILEHOST="+dc.srv.Config().HTTPIngress+"/uploads")
+	if srvConfig.FileUploader != nil {
+		isupport = append(isupport, "soju.im/FILEHOST="+srvConfig.HTTPIngress+"/uploads")
 	}
 
 	if uc := dc.upstream(); uc != nil {
@@ -1537,11 +1539,11 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	})
 	dc.SendMessage(ctx, &irc.Message{
 		Command: irc.RPL_YOURHOST,
-		Params:  []string{dc.nick, "Your host is " + dc.srv.Config().Hostname},
+		Params:  []string{dc.nick, "Your host is " + srvConfig.Hostname},
 	})
 	dc.SendMessage(ctx, &irc.Message{
 		Command: irc.RPL_MYINFO,
-		Params:  []string{dc.nick, dc.srv.Config().Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
+		Params:  []string{dc.nick, srvConfig.Hostname, "soju", "aiwroO", "OovaimnqpsrtklbeI"},
 	})
 	for _, msg := range xirc.GenerateIsupport(isupport) {
 		dc.SendMessage(ctx, msg)
@@ -1564,7 +1566,7 @@ func (dc *downstreamConn) welcome(ctx context.Context, user *user) error {
 	dc.updateAccount(ctx)
 	dc.updateCasemapping()
 
-	if motd := dc.user.srv.Config().MOTD; motd != "" && dc.network == nil {
+	if motd := srvConfig.MOTD; motd != "" && dc.network == nil {
 		for _, msg := range xirc.GenerateMOTD(motd) {
 			dc.SendMessage(ctx, msg)
 		}
