@@ -85,7 +85,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 			return nil, nil, fmt.Errorf("unsupported icon URL scheme: %v", u.Scheme)
 		}
 		iconURL = raw.Icon
-	} else {
+	} else if raw.Icon != "" {
 		if _, err := os.Stat(raw.Icon); err != nil {
 			return nil, nil, fmt.Errorf("failed to load icon: %v", err)
 		}
