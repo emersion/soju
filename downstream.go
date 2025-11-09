@@ -2633,6 +2633,9 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				return err
 			}
 
+			// remove STATUSMSG sigils from target
+			name = strings.TrimLeft(name, uc.availableStatusMsg)
+
 			if msg.Command == "PRIVMSG" && uc.network.casemap(name) == "nickserv" {
 				dc.handleNickServPRIVMSG(ctx, uc, text)
 			}

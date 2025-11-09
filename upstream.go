@@ -699,7 +699,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			}
 		}
 
-		// remove statusmsg sigils from target
+		// remove STATUSMSG sigils from target
 		target = strings.TrimLeft(target, uc.availableStatusMsg)
 
 		if uc.network.equalCasemap(msg.Prefix.Name, serviceNick) {
