@@ -2114,27 +2114,6 @@ func (uc *upstreamConn) runUntilRegistered(ctx context.Context) error {
 		}
 	}
 
-	for _, command := range uc.network.ConnectCommands {
-		m, err := irc.ParseMessage(command)
-		if err != nil {
-			uc.logger.Printf("failed to parse connect command %q: %v", command, err)
-		} else {
-			uc.SendMessage(ctx, m)
-		}
-	}
-
-	// Connect commands usually send a message to NickServ or similar, which
-	// asynchronously informs the IRC server that the user is logged in. Some
-	// channels require the user to be logged in to be joined. Work around
-	// these old networks by leaving 3 seconds for the bot to react.
-	if len(uc.network.ConnectCommands) > 0 {
-		uc.logger.Debugf("sent %d connect command(s)", len(uc.network.ConnectCommands))
-		select {
-		case <-ctx.Done():
-		case <-time.After(3 * time.Second):
-		}
-	}
-
 	return nil
 }
 
