@@ -1018,18 +1018,6 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 		uc.registered = true
 		uc.serverPrefix = msg.Prefix
 		uc.logger.Printf("connection registered with nick %q", uc.nick)
-
-		if uc.network.channels.Len() > 0 {
-			var channels, keys []string
-			uc.network.channels.ForEach(func(_ string, ch *database.Channel) {
-				channels = append(channels, ch.Name)
-				keys = append(keys, ch.Key)
-			})
-
-			for _, msg := range xirc.GenerateJoin(channels, keys) {
-				uc.SendMessage(ctx, msg)
-			}
-		}
 	case irc.RPL_MYINFO:
 		if err := parseMessageParams(msg, nil, &uc.serverName, nil, &uc.availableUserModes, nil); err != nil {
 			return err

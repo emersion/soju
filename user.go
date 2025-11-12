@@ -254,6 +254,18 @@ func (net *network) runConn(ctx context.Context) error {
 		return fmt.Errorf("failed to register: %w", err)
 	}
 
+	if uc.network.channels.Len() > 0 {
+		var channels, keys []string
+		uc.network.channels.ForEach(func(_ string, ch *database.Channel) {
+			channels = append(channels, ch.Name)
+			keys = append(keys, ch.Key)
+		})
+
+		for _, msg := range xirc.GenerateJoin(channels, keys) {
+			uc.SendMessage(ctx, msg)
+		}
+	}
+
 	net.user.events <- eventUpstreamConnected{uc}
 	defer func() {
 		net.user.events <- eventUpstreamDisconnected{uc}
