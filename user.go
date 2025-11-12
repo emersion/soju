@@ -263,12 +263,26 @@ func (net *network) runConn(ctx context.Context) error {
 		}
 	}
 
-	// Connect commands usually send a message to NickServ or similar, which
-	// asynchronously informs the IRC server that the user is logged in. Some
-	// channels require the user to be logged in to be joined. Work around
-	// these old networks by leaving 3 seconds for the bot to react.
+	// Some channels require the user to be logged in to be joined
+	// which may need to happen asynchronously either via connect
+	// commands or CertFP without SASL EXTERNAL on networks that
+	// don't support this. Work around these old networks by
+	// leaving 3 seconds for the authentication to be processed.
+	var delay bool
+
 	if len(uc.network.ConnectCommands) > 0 {
 		uc.logger.Debugf("sent %d connect command(s)", len(uc.network.ConnectCommands))
+		// Connect commands usually send a message to NickServ or similar, which
+		// asynchronously informs the IRC server that the user is logged in.
+		delay = true
+	}
+
+	if uc.network.SASL.Mechanism == "EXTERNAL" && !uc.supportsSASL("EXTERNAL") {
+		uc.logger.Debugf("client certificate configured but the upstream doesn't advertise SASL EXTERNAL, delaying joining channels")
+		delay = true
+	}
+
+	if delay {
 		select {
 		case <-ctx.Done():
 		case <-time.After(3 * time.Second):
