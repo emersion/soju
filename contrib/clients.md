@@ -188,9 +188,9 @@ See `/help cap` for more information.
 [Weechat]: https://weechat.org/
 [soju.py]: https://weechat.org/scripts/source/soju.py.html/
 [read_marker.py]: https://weechat.org/scripts/source/read_marker.py.html/
-[Halloy]: https://halloy.squidowl.org/index.html
-[guide on connecting to soju]: https://halloy.squidowl.org/guides/connect-with-soju.html
-[server chathistory]: https://halloy.squidowl.org/configuration/servers.html#chathistory
+[Halloy]: https://halloy.chat/
+[guide on connecting to soju]: https://halloy.chat/guides/connect-with-soju.html
+[server chathistory]: https://halloy.chat/configuration/servers/#chathistory
 [Hexchat]: https://hexchat.github.io/
 [hexchat password length fix]: https://github.com/hexchat/hexchat/commit/778047bc65e529804c3342ee0f3a8d5d7550fde5
 [Emacs]: https://www.gnu.org/software/emacs/
