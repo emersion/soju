@@ -4,6 +4,19 @@ This page describes how to configure IRC clients to better integrate with soju.
 
 Also see the [IRCv3 support tables] for a more general list of clients.
 
+Below is a summary support table with chathistory and soju-specific IRC
+extensions.
+
+| Client       | [chathistory] | [bouncer-networks] | [filehost] | [metadata] | [search] | [webpush] |
+|--------------|---------------|--------------------|------------|------------|----------|-----------|
+| [gamja]      | ✓             | ✓                  | ✓          | ✗          | ✗        | ✗         |
+| [goguma]     | ✓             | ✓                  | ✓          | ✓          | ✗        | ✓         |
+| [Halloy]     | ✓             | ✓                  | ✗          | ✗          | ✗        | N/A       |
+| [senpai]     | ✓             | ✓                  | ✓          | ✓          | ✓        | N/A       |
+| [Weechat]    | ✗             | ✓ †                | ✗          | ✗          | ✗        | N/A       |
+
+† With a third-party plugin
+
 # catgirl
 
 catgirl doesn't implement cap-3.2, so many capabilities will be disabled.
@@ -163,6 +176,12 @@ On WeeChat 3.2-, no IRCv3 capabilities are enabled by default. To enable them:
 See `/help cap` for more information.
 
 [IRCv3 support tables]: https://ircv3.net/software/clients
+[chathistory]: https://ircv3.net/specs/extensions/chathistory
+[bouncer-networks]: ../doc/ext/bouncer-networks.md
+[filehost]: ../doc/ext/filehost.md
+[metadata]: ../doc/ext/metadata.md
+[search]: ../doc/ext/search.md
+[webpush]: ../doc/ext/webpush.md
 [gamja]: https://codeberg.org/emersion/gamja
 [goguma]: https://codeberg.org/emersion/goguma
 [senpai]: https://sr.ht/~delthas/senpai/
