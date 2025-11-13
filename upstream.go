@@ -624,8 +624,10 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 	}
 
 	var msgBatch *upstreamBatch
+	var batchName string
 	batchLabel := false
-	if batchName, ok := msg.Tags["batch"]; ok {
+	if bn, ok := msg.Tags["batch"]; ok {
+		batchName = bn
 		b, ok := uc.batches[batchName]
 		if !ok {
 			return fmt.Errorf("unexpected batch reference: batch was not defined: %q", batchName)
@@ -648,7 +650,7 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 			uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
 				ctx = downstreamLabelContextWith(ctx, dc.id, &downstreamLabelContext{
 					label: downstreamLabel,
-					batch: msg.Tags["batch"],
+					batch: batchName,
 				})
 			})
 		} else {
@@ -658,13 +660,13 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 					label: downstreamLabel,
 				})
 			})
+			defer func() {
+				uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
+					dc.FlushBatch(ctx)
+				})
+			}()
 		}
 	}
-	defer func() {
-		uc.forEachDownstreamByID(downstreamID, func(dc *downstreamConn) {
-			dc.FlushBatch(ctx)
-		})
-	}()
 
 	if msg.Prefix == nil {
 		msg.Prefix = uc.serverPrefix
