@@ -348,6 +348,12 @@ func (db *SqliteDB) DeleteUser(ctx context.Context, id int64) error {
 		return err
 	}
 
+	_, err = tx.ExecContext(ctx, `DELETE FROM DeviceCertificate
+		WHERE user = ?`, id)
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.ExecContext(ctx, `DELETE FROM Channel
 		WHERE id IN (
 			SELECT Channel.id
@@ -613,6 +619,78 @@ func (db *SqliteDB) DeleteChannel(ctx context.Context, id int64) error {
 	defer cancel()
 
 	_, err := db.db.ExecContext(ctx, "DELETE FROM Channel WHERE id = ?", id)
+	return err
+}
+
+func (db *SqliteDB) ListDeviceCertificates(ctx context.Context, userID int64) ([]DeviceCertificate, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx, `
+		SELECT id, label, fingerprint, last_used
+		FROM DeviceCertificate
+		WHERE user = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var certs []DeviceCertificate
+	for rows.Next() {
+		var cert DeviceCertificate
+		var lastUsed sqliteTime
+		if err := rows.Scan(&cert.ID, &cert.Label, &cert.Fingerprint, &lastUsed); err != nil {
+			return nil, err
+		}
+		cert.LastUsed = lastUsed.Time
+		certs = append(certs, cert)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return certs, nil
+}
+
+func (db *SqliteDB) StoreDeviceCertificate(ctx context.Context, userID int64, cert *DeviceCertificate) error {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	args := []interface{}{
+		sql.Named("label", cert.Label),
+		sql.Named("fingerprint", cert.Fingerprint),
+		sql.Named("last_used", sqliteTime{cert.LastUsed}),
+
+		sql.Named("id", cert.ID),  // only for UPDATE
+		sql.Named("user", userID), // only for INSERT
+	}
+
+	var err error
+	if cert.ID != 0 {
+		_, err = db.db.ExecContext(ctx, `
+			UPDATE DeviceCertificate
+			SET label = :label, fingerprint = :fingerprint, last_used = :last_used
+			WHERE id = :id`,
+			args...)
+	} else {
+		var res sql.Result
+		res, err = db.db.ExecContext(ctx, `
+			INSERT INTO DeviceCertificate(user, label, fingerprint, last_used)
+			VALUES (:user, :label, :fingerprint, :last_used)`,
+			args...)
+		if err != nil {
+			return err
+		}
+		cert.ID, err = res.LastInsertId()
+	}
+	return err
+}
+
+func (db *SqliteDB) DeleteDeviceCertificate(ctx context.Context, userID int64, fingerprint []byte) error {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	_, err := db.db.ExecContext(ctx, "DELETE FROM DeviceCertificate WHERE user = ? AND fingerprint = ?", userID, fingerprint)
 	return err
 }
 

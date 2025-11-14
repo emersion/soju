@@ -53,6 +53,14 @@ CREATE TABLE "Channel" (
 
 CREATE INDEX "Channel_network_index" ON "Channel" (network);
 
+CREATE TABLE "DeviceCertificate" (
+	id SERIAL PRIMARY KEY,
+	"user" INTEGER NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+	label TEXT NOT NULL,
+	fingerprint BYTEA NOT NULL UNIQUE,
+	last_used TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
 CREATE TABLE "DeliveryReceipt" (
 	id SERIAL PRIMARY KEY,
 	network INTEGER NOT NULL REFERENCES "Network"(id) ON DELETE CASCADE,

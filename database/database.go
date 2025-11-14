@@ -46,6 +46,10 @@ type Database interface {
 	StoreChannel(ctx context.Context, networKID int64, ch *Channel) error
 	DeleteChannel(ctx context.Context, id int64) error
 
+	ListDeviceCertificates(ctx context.Context, userID int64) ([]DeviceCertificate, error)
+	StoreDeviceCertificate(ctx context.Context, userID int64, cert *DeviceCertificate) error
+	DeleteDeviceCertificate(ctx context.Context, userID int64, fingerprint []byte) error
+
 	ListDeliveryReceipts(ctx context.Context, networkID int64) ([]DeliveryReceipt, error)
 	StoreClientDeliveryReceipts(ctx context.Context, networkID int64, client string, receipts []DeliveryReceipt) error
 
@@ -256,6 +260,13 @@ type Channel struct {
 	ReattachOn    MessageFilter
 	DetachAfter   time.Duration
 	DetachOn      MessageFilter
+}
+
+type DeviceCertificate struct {
+	ID          int64
+	Label       string
+	Fingerprint []byte // SHA-512 hash
+	LastUsed    time.Time
 }
 
 type DeliveryReceipt struct {

@@ -199,4 +199,14 @@ var sqliteMigrations = []string{
 		CREATE INDEX MessageTarget_network_index ON MessageTarget(network);
 	`,
 	`ALTER TABLE MessageTarget ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0`,
+	`
+		CREATE TABLE DeviceCertificate (
+			id INTEGER PRIMARY KEY,
+			user INTEGER NOT NULL,
+			label TEXT NOT NULL,
+			fingerprint BLOB NOT NULL UNIQUE,
+			last_used TEXT NOT NULL,
+			FOREIGN KEY(user) REFERENCES User(id)
+		);
+	`,
 }

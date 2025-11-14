@@ -467,6 +467,63 @@ func (db *PostgresDB) DeleteChannel(ctx context.Context, id int64) error {
 	return err
 }
 
+func (db *PostgresDB) ListDeviceCertificates(ctx context.Context, userID int64) ([]DeviceCertificate, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	rows, err := db.db.QueryContext(ctx, `
+		SELECT id, label, fingerprint, last_used
+		FROM "DeviceCertificate"
+		WHERE "user" = $1`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var certs []DeviceCertificate
+	for rows.Next() {
+		var cert DeviceCertificate
+		if err := rows.Scan(&cert.ID, &cert.Label, &cert.Fingerprint, &cert.LastUsed); err != nil {
+			return nil, err
+		}
+		certs = append(certs, cert)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return certs, nil
+}
+
+func (db *PostgresDB) StoreDeviceCertificate(ctx context.Context, userID int64, cert *DeviceCertificate) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	var err error
+	if cert.ID == 0 {
+		err = db.db.QueryRowContext(ctx, `
+			INSERT INTO "DeviceCertificate" ("user", label, fingerprint, last_used)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id`,
+			userID, cert.Label, cert.Fingerprint, cert.LastUsed).Scan(&cert.ID)
+	} else {
+		_, err = db.db.ExecContext(ctx, `
+			UPDATE "DeviceCertificate"
+			SET label = $1, fingerprint = $2, last_used = $3
+			WHERE id = $4`,
+			cert.Label, cert.Fingerprint, cert.LastUsed, cert.ID)
+	}
+	return err
+}
+
+func (db *PostgresDB) DeleteDeviceCertificate(ctx context.Context, userID int64, fingerprint []byte) error {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	_, err := db.db.ExecContext(ctx, `DELETE FROM "DeviceCertificate" WHERE "user" = $1 AND fingerprint = $2`, userID, fingerprint)
+	return err
+}
+
 func (db *PostgresDB) ListDeliveryReceipts(ctx context.Context, networkID int64) ([]DeliveryReceipt, error) {
 	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()

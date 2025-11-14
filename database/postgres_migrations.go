@@ -99,4 +99,13 @@ var postgresMigrations = []string{
 		CREATE INDEX "Message_target_index" ON "MessageTarget" (target);
 	`,
 	`ALTER TABLE "MessageTarget" ADD COLUMN blocked BOOLEAN NOT NULL DEFAULT FALSE`,
+	`
+		CREATE TABLE "DeviceCertificate" (
+			id SERIAL PRIMARY KEY,
+			"user" INTEGER NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+			label TEXT NOT NULL,
+			fingerprint BYTEA NOT NULL UNIQUE,
+			last_used TIMESTAMP WITH TIME ZONE NOT NULL
+		);
+	`,
 }

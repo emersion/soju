@@ -471,6 +471,24 @@ character.
 *channel delete* <name>
 	Leave and forget a channel.
 
+*device-certificate status*
+	Show a list of saved device certificates.
+
+*device-certificate create* [options...]
+	Create a new device certificate.
+
+	Options are:
+
+	*-fingerprint* <fingerprint>
+		The device certificate fingerprint, as a hex-encoded SHA-512 hash of the
+		certificate.
+
+	*-label* <label>
+		A short name for the device certificate, used for display.
+
+*device-certificate delete* <fingerprint>
+	Delete a device certificate.
+
 *certfp generate* [options...]
 	Generate self-signed certificate and use it for authentication (via SASL
 	EXTERNAL).

@@ -1,6 +1,7 @@
 package soju
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -340,6 +341,24 @@ func init() {
 					usage:  "<name>",
 					desc:   "delete a channel",
 					handle: handleServiceChannelDelete,
+				},
+			},
+		},
+		"device-certificate": {
+			children: serviceCommandSet{
+				"status": {
+					desc:   "show a list of device certificates",
+					handle: handleServiceDeviceCertificateStatus,
+				},
+				"create": {
+					usage:  "-fingerprint <fingerprint> -label <label>",
+					desc:   "create a new device certificate",
+					handle: handleServiceDeviceCertificateCreate,
+				},
+				"delete": {
+					usage:  "<fingerprint>",
+					desc:   "delete a device certificate",
+					handle: handleServiceDeviceCertificateDelete,
 				},
 			},
 		},
@@ -1567,6 +1586,109 @@ func handleServiceChannelDelete(ctx *serviceContext, params []string) error {
 	}
 
 	ctx.print(fmt.Sprintf("deleted channel %q", name))
+	return nil
+}
+
+const deviceCertificateDisplayBytes = 6
+
+func handleServiceDeviceCertificateStatus(ctx *serviceContext, params []string) error {
+	if len(params) != 0 {
+		return fmt.Errorf("expected no argument")
+	}
+
+	certs, err := ctx.srv.db.ListDeviceCertificates(ctx, ctx.user.ID)
+	if err != nil {
+		return fmt.Errorf("could not get device certificates: %v", err)
+	}
+
+	if len(certs) == 0 {
+		ctx.print("No device certificate configured.")
+		return nil
+	}
+
+	for _, cert := range certs {
+		h := strings.ToUpper(hex.EncodeToString(cert.Fingerprint[:deviceCertificateDisplayBytes]))
+		var sb strings.Builder
+		for i, r := range h {
+			if i > 0 && i%2 == 0 {
+				sb.WriteByte(':')
+			}
+			sb.WriteRune(r)
+		}
+		s := fmt.Sprintf("%v [%v] [%v]", sb.String(), cert.Label, cert.LastUsed.Format(time.DateTime))
+		ctx.print(s)
+	}
+	return nil
+}
+
+func handleServiceDeviceCertificateCreate(ctx *serviceContext, params []string) error {
+	fs := newFlagSet()
+	fingerprint := fs.String("fingerprint", "", "")
+	label := fs.String("label", "", "")
+
+	if err := fs.Parse(params); err != nil {
+		return err
+	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
+	}
+	if *fingerprint == "" {
+		return fmt.Errorf("flag -fingerprint is required")
+	}
+	if *label == "" {
+		return fmt.Errorf("flag -label is required")
+	}
+
+	h, err := hex.DecodeString(strings.ReplaceAll(*fingerprint, ":", ""))
+	if err != nil || len(h) != sha512.Size {
+		return fmt.Errorf("the certificate fingerprint must be hex-encoded SHA-512")
+	}
+
+	cert := database.DeviceCertificate{
+		Label:       *label,
+		Fingerprint: h,
+		LastUsed:    time.Now(),
+	}
+	if err := ctx.srv.db.StoreDeviceCertificate(ctx, ctx.user.ID, &cert); err != nil {
+		return fmt.Errorf("could not create device certificate: %v", err)
+	}
+
+	ctx.print(fmt.Sprintf("created device certificate %q", *fingerprint))
+	return nil
+}
+
+func handleServiceDeviceCertificateDelete(ctx *serviceContext, params []string) error {
+	if len(params) != 1 {
+		return fmt.Errorf("expected exactly one argument")
+	}
+	fingerprint := params[0]
+
+	h, err := hex.DecodeString(strings.ReplaceAll(fingerprint, ":", ""))
+	if err != nil || len(h) > sha512.Size || len(h) < deviceCertificateDisplayBytes {
+		return fmt.Errorf("the certificate fingerprint must be hex-encoded SHA-256")
+	}
+
+	certs, err := ctx.srv.db.ListDeviceCertificates(ctx, ctx.user.ID)
+	if err != nil {
+		return fmt.Errorf("could not get device certificate: %v", err)
+	}
+	var c *database.DeviceCertificate
+	for _, cert := range certs {
+		if bytes.HasPrefix(cert.Fingerprint, h) {
+			if c != nil {
+				return fmt.Errorf("multiple device certificates match this fingerprint prefix; pass the full fingerprint")
+			}
+			c = &cert
+		}
+	}
+	if c == nil {
+		return fmt.Errorf("no device certificate found for fingerprint %q", fingerprint)
+	}
+
+	if err := ctx.srv.db.DeleteDeviceCertificate(ctx, ctx.user.ID, c.Fingerprint); err != nil {
+		return fmt.Errorf("could not delete device certificate: %v", err)
+	}
+	ctx.print(fmt.Sprintf("deleted device certificate %q", fingerprint))
 	return nil
 }
 

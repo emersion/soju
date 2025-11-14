@@ -53,6 +53,15 @@ CREATE TABLE Channel (
 
 CREATE INDEX Channel_network_index ON Channel(network);
 
+CREATE TABLE DeviceCertificate (
+	id INTEGER PRIMARY KEY,
+	user INTEGER NOT NULL,
+	label TEXT NOT NULL,
+	fingerprint BLOB NOT NULL UNIQUE,
+	last_used TEXT NOT NULL,
+	FOREIGN KEY(user) REFERENCES User(id)
+);
+
 CREATE TABLE DeliveryReceipt (
 	id INTEGER PRIMARY KEY,
 	network INTEGER NOT NULL,
