@@ -37,6 +37,7 @@ type Database interface {
 	GetUser(ctx context.Context, username string) (*User, error)
 	StoreUser(ctx context.Context, user *User) error
 	DeleteUser(ctx context.Context, id int64) error
+	GetUsernameByID(ctx context.Context, id int64) (string, error)
 	ListInactiveUsernames(ctx context.Context, limit time.Time) ([]string, error)
 
 	ListNetworks(ctx context.Context, userID int64) ([]Network, error)
@@ -46,6 +47,7 @@ type Database interface {
 	StoreChannel(ctx context.Context, networKID int64, ch *Channel) error
 	DeleteChannel(ctx context.Context, id int64) error
 
+	GetDeviceCertificate(ctx context.Context, fingerprint []byte) (int64, *DeviceCertificate, error)
 	ListDeviceCertificates(ctx context.Context, userID int64) ([]DeviceCertificate, error)
 	StoreDeviceCertificate(ctx context.Context, userID int64, cert *DeviceCertificate) error
 	DeleteDeviceCertificate(ctx context.Context, userID int64, fingerprint []byte) error

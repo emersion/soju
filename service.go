@@ -37,9 +37,10 @@ var servicePrefix = &irc.Prefix{
 
 type serviceContext struct {
 	context.Context
-	nick    string   // optional
-	network *network // optional
-	user    *user    // optional
+	nick    string          // optional
+	network *network        // optional
+	user    *user           // optional
+	dc      *downstreamConn // optional
 	srv     *Server
 	admin   bool
 	print   func(string)
@@ -1632,8 +1633,22 @@ func handleServiceDeviceCertificateCreate(ctx *serviceContext, params []string) 
 	if fs.NArg() > 0 {
 		return fmt.Errorf("unexpected argument: %v", fs.Arg(0))
 	}
+	if *fingerprint == "" && ctx.dc != nil {
+		if cert := ctx.dc.conn.conn.GetPeerCertificate(); cert != nil {
+			h := sha512.Sum512(cert.Raw)
+			s := strings.ToUpper(hex.EncodeToString(h[:]))
+			var sb strings.Builder
+			for i, r := range s {
+				if i > 0 && i%2 == 0 {
+					sb.WriteByte(':')
+				}
+				sb.WriteRune(r)
+			}
+			*fingerprint = sb.String()
+		}
+	}
 	if *fingerprint == "" {
-		return fmt.Errorf("flag -fingerprint is required")
+		return fmt.Errorf("flag -fingerprint is required when no TLS client certificate is used")
 	}
 	if *label == "" {
 		return fmt.Errorf("flag -label is required")

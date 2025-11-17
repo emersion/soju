@@ -3,6 +3,7 @@ package soju
 import (
 	"bytes"
 	"context"
+	"crypto/sha512"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
@@ -417,7 +418,11 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 	for k, v := range permanentDownstreamCaps {
 		dc.caps.Available[k] = v
 	}
-	dc.caps.Available["sasl"] = strings.Join(serverSASLMechanisms(dc.srv), ",")
+	saslMechanisms := serverSASLMechanisms(dc.srv)
+	if ic.GetPeerCertificate() != nil {
+		saslMechanisms = append(saslMechanisms, "EXTERNAL")
+	}
+	dc.caps.Available["sasl"] = strings.Join(saslMechanisms, ",")
 	// TODO: this is racy, we should only enable chathistory after
 	// authentication and then check that user.msgStore implements
 	// chatHistoryMessageStore
@@ -821,6 +826,32 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 				err = fmt.Errorf("username mismatch (client provided %q, but server returned %q)", credentials.oauthBearer.Username, username)
 				break
 			}
+		case "EXTERNAL":
+			cert := dc.conn.conn.GetPeerCertificate()
+			if cert == nil {
+				err = fmt.Errorf("TLS client certificate not sent")
+				break
+			}
+			h := sha512.Sum512(cert.Raw)
+			var userID int64
+			var device *database.DeviceCertificate
+			userID, device, err = dc.srv.db.GetDeviceCertificate(ctx, h[:])
+			if err != nil {
+				break
+			}
+			if device == nil {
+				err = fmt.Errorf("Unknown TLS client certificate")
+				break
+			}
+			username, err = dc.srv.db.GetUsernameByID(ctx, userID)
+			if err != nil {
+				break
+			}
+			if username == "" {
+				break
+			}
+			device.LastUsed = time.Now()
+			err = dc.srv.db.StoreDeviceCertificate(ctx, userID, device)
 		default:
 			err = fmt.Errorf("unsupported SASL mechanism")
 		}
@@ -1086,6 +1117,10 @@ func (dc *downstreamConn) handleAuthenticate(ctx context.Context, msg *irc.Messa
 			}))
 		case "ANONYMOUS":
 			server = sasl.NewAnonymousServer(func(trace string) error {
+				return nil
+			})
+		case "EXTERNAL":
+			server = sasl.NewExternalServer(func(identity string) error {
 				return nil
 			})
 		default:
@@ -2616,6 +2651,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 						nick:    dc.nick,
 						network: dc.network,
 						user:    dc.user,
+						dc:      dc,
 						srv:     dc.user.srv,
 						admin:   dc.user.Admin,
 						print: func(text string) {

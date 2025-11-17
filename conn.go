@@ -2,6 +2,8 @@ package soju
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"io"
 	"net"
@@ -11,6 +13,7 @@ import (
 	"unicode"
 
 	"github.com/coder/websocket"
+	"github.com/pires/go-proxyproto"
 	"golang.org/x/time/rate"
 	"gopkg.in/irc.v4"
 )
@@ -25,14 +28,34 @@ type ircConn interface {
 	SetWriteDeadline(time.Time) error
 	RemoteAddr() net.Addr
 	LocalAddr() net.Addr
+	GetPeerCertificate() *x509.Certificate
+}
+
+type netConn net.Conn
+
+type netIRCConn struct {
+	*irc.Conn
+	netConn
+}
+
+func (nc netIRCConn) GetPeerCertificate() *x509.Certificate {
+	var c net.Conn = nc.netConn
+	if pc, ok := c.(*proxyproto.Conn); ok {
+		c = pc.Raw()
+	}
+	tc, ok := c.(*tls.Conn)
+	if !ok {
+		return nil
+	}
+	certs := tc.ConnectionState().PeerCertificates
+	if len(certs) == 0 {
+		return nil
+	}
+	return certs[0]
 }
 
 func newNetIRCConn(c net.Conn) ircConn {
-	type netConn net.Conn
-	return struct {
-		*irc.Conn
-		netConn
-	}{irc.NewConn(c), c}
+	return netIRCConn{irc.NewConn(c), c}
 }
 
 type websocketIRCConn struct {
@@ -97,6 +120,10 @@ func (wic *websocketIRCConn) LocalAddr() net.Addr {
 	// Behind a reverse HTTP proxy, we don't have access to the real listening
 	// address
 	return websocketAddr("")
+}
+
+func (wic *websocketIRCConn) GetPeerCertificate() *x509.Certificate {
+	return nil
 }
 
 type websocketAddr string

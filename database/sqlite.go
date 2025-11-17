@@ -216,6 +216,22 @@ func (db *SqliteDB) GetUser(ctx context.Context, username string) (*User, error)
 	return user, nil
 }
 
+func (db *SqliteDB) GetUsernameByID(ctx context.Context, id int64) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	var username string
+	row := db.db.QueryRowContext(ctx,
+		`SELECT username
+		FROM User
+		WHERE id = ?`,
+		id)
+	if err := row.Scan(&username); err != nil {
+		return "", err
+	}
+	return username, nil
+}
+
 func (db *SqliteDB) ListInactiveUsernames(ctx context.Context, limit time.Time) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
 	defer cancel()
@@ -620,6 +636,29 @@ func (db *SqliteDB) DeleteChannel(ctx context.Context, id int64) error {
 
 	_, err := db.db.ExecContext(ctx, "DELETE FROM Channel WHERE id = ?", id)
 	return err
+}
+
+func (db *SqliteDB) GetDeviceCertificate(ctx context.Context, fingerprint []byte) (int64, *DeviceCertificate, error) {
+	ctx, cancel := context.WithTimeout(ctx, sqliteQueryTimeout)
+	defer cancel()
+
+	var user int64
+	cert := &DeviceCertificate{
+		Fingerprint: fingerprint,
+	}
+	var lastUsed sqliteTime
+	err := db.db.QueryRowContext(ctx, `
+		SELECT user, id, label, last_used
+		FROM DeviceCertificate
+		WHERE fingerprint = ?`, fingerprint).Scan(&user, &cert.ID, &cert.Label, &lastUsed)
+	if err == sql.ErrNoRows {
+		return 0, nil, nil
+	}
+	if err != nil {
+		return 0, nil, err
+	}
+	cert.LastUsed = lastUsed.Time
+	return user, cert, nil
 }
 
 func (db *SqliteDB) ListDeviceCertificates(ctx context.Context, userID int64) ([]DeviceCertificate, error) {

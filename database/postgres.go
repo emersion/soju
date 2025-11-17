@@ -224,6 +224,22 @@ func (db *PostgresDB) GetUser(ctx context.Context, username string) (*User, erro
 	return user, nil
 }
 
+func (db *PostgresDB) GetUsernameByID(ctx context.Context, id int64) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	var username string
+	row := db.db.QueryRowContext(ctx,
+		`SELECT username
+		FROM "User"
+		WHERE id = $1`,
+		id)
+	if err := row.Scan(&username); err != nil {
+		return "", err
+	}
+	return username, nil
+}
+
 func (db *PostgresDB) ListInactiveUsernames(ctx context.Context, limit time.Time) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
 	defer cancel()
@@ -465,6 +481,27 @@ func (db *PostgresDB) DeleteChannel(ctx context.Context, id int64) error {
 
 	_, err := db.db.ExecContext(ctx, `DELETE FROM "Channel" WHERE id = $1`, id)
 	return err
+}
+
+func (db *PostgresDB) GetDeviceCertificate(ctx context.Context, fingerprint []byte) (int64, *DeviceCertificate, error) {
+	ctx, cancel := context.WithTimeout(ctx, postgresQueryTimeout)
+	defer cancel()
+
+	var user int64
+	cert := &DeviceCertificate{
+		Fingerprint: fingerprint,
+	}
+	err := db.db.QueryRowContext(ctx, `
+		SELECT "user", id, label, last_used
+		FROM "DeviceCertificate"
+		WHERE fingerprint = $1`, fingerprint).Scan(&user, &cert.ID, &cert.Label, &cert.LastUsed)
+	if err == sql.ErrNoRows {
+		return 0, nil, nil
+	}
+	if err != nil {
+		return 0, nil, err
+	}
+	return user, cert, nil
 }
 
 func (db *PostgresDB) ListDeviceCertificates(ctx context.Context, userID int64) ([]DeviceCertificate, error) {

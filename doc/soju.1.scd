@@ -481,7 +481,8 @@ character.
 
 	*-fingerprint* <fingerprint>
 		The device certificate fingerprint, as a hex-encoded SHA-512 hash of the
-		certificate.
+		certificate. Optional, defaults to the current TLS client certificate,
+		if any.
 
 	*-label* <label>
 		A short name for the device certificate, used for display.

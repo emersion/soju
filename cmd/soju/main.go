@@ -180,6 +180,7 @@ func main() {
 	var tlsCfg *tls.Config
 	if cfg.TLS != nil {
 		tlsCfg = &tls.Config{
+			ClientAuth: tls.RequestClientCert,
 			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 				return tlsCert.Load().(*tls.Certificate), nil
 			},
