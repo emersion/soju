@@ -3098,7 +3098,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		var target, limitStr string
 		var boundsStr [2]string
 		switch subcommand {
-		case "AFTER", "BEFORE", "LATEST":
+		case "AFTER", "BEFORE", "AROUND", "LATEST":
 			if err := parseMessageParams(msg, nil, &target, &boundsStr[0], &limitStr); err != nil {
 				return err
 			}
@@ -3193,6 +3193,36 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			history, err = store.LoadBeforeTime(ctx, time.Now(), bounds[0], &options)
 		case "AFTER":
 			history, err = store.LoadAfterTime(ctx, bounds[0], time.Now(), &options)
+		case "AROUND":
+			afterLimit := options.Limit / 2
+			beforeLimit := options.Limit - afterLimit
+
+			options.Limit = beforeLimit
+			before, err := store.LoadBeforeTime(ctx, bounds[0], time.Time{}, &options)
+			if err != nil {
+				break
+			}
+
+			var afterBound time.Time
+			if len(before) > 0 {
+				lastMsg := before[len(before)-1]
+				afterBound, err = time.Parse(xirc.ServerTimeLayout, lastMsg.Tags["time"])
+				if err != nil {
+					break
+				}
+			} else {
+				// There are no messages before, subtract an arbitrary amount
+				// of time to make the bound inclusive
+				afterBound = bounds[0].Add(-time.Second)
+			}
+
+			options.Limit = afterLimit
+			after, err := store.LoadAfterTime(ctx, afterBound, time.Now(), &options)
+			if err != nil {
+				break
+			}
+
+			history = append(before, after...)
 		case "BETWEEN":
 			if bounds[0].Before(bounds[1]) {
 				history, err = store.LoadAfterTime(ctx, bounds[0], bounds[1], &options)
