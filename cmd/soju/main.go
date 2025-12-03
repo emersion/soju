@@ -369,17 +369,18 @@ func main() {
 				}
 			}()
 		case "http+prometheus":
-			if srv.MetricsRegistry == nil {
-				srv.MetricsRegistry = prometheus.DefaultRegisterer
-			}
-
 			// Only allow localhost as listening host for security reasons.
-			// Users can always explicitly setup reverse proxies if desirable.
 			hostname, _, err := net.SplitHostPort(u.Host)
 			if err != nil {
 				log.Fatalf("invalid host in URI %q: %v", listen, err)
 			} else if hostname != "localhost" {
-				log.Fatalf("Prometheus listening host must be localhost")
+				log.Fatalf("Prometheus listening host must be localhost unless marked as insecure")
+			}
+
+			fallthrough
+		case "http+insecure+prometheus":
+			if srv.MetricsRegistry == nil {
+				srv.MetricsRegistry = prometheus.DefaultRegisterer
 			}
 
 			metricsHandler := promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{

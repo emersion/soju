@@ -115,6 +115,8 @@ The following directives are supported:
 	  port: 113)
 	- _http+prometheus://localhost:<port>_ listens for plain-text HTTP
 	  connections and serves Prometheus metrics (host must be "localhost")
+	- _http+insecure+prometheus://[host]:<port>_ listens for plain-text HTTP
+	  connections and serves Prometheus metrics
 	- _http+pprof://localhost:<port>_ listens for plain-text HTTP connections
 	  and serves pprof runtime profiling data (host must be "localhost"). For
 	  more information, see: <https://pkg.go.dev/net/http/pprof>.
