@@ -9,6 +9,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode"
 
 	_ "github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
@@ -955,8 +956,10 @@ func (db *PostgresDB) StoreMessages(ctx context.Context, networkID int64, name s
 			}
 		}
 
+		raw := msg.String()
+		raw = strings.ToValidUTF8(raw, string([]rune{unicode.ReplacementChar}))
 		err = insertStmt.QueryRowContext(ctx,
-			msg.String(),
+			raw,
 			t,
 			msg.Name,
 			text,
