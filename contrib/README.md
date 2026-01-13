@@ -19,6 +19,7 @@ supported.
   - [chathistorysync]: A synchronization tool for IRC chat history
   - [Convoyeur]: IRCv3 FILEHOST extension adapter to external file upload services
   - [s3ju]: Upload plugin for s3-compatible storage
+- [Hosted instances](hosted.md)
 
 [chathistorysync]: https://codeberg.org/emersion/chathistorysync
 [Convoyeur]: https://github.com/classabbyamp/convoyeur
