@@ -155,6 +155,14 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 	return raw, cfg, nil
 }
 
+func listenWithPerms(path string, permissions os.FileMode) (net.Listener, error) {
+	umask := int((^permissions) & 0777)
+	prevUmask := syscall.Umask(umask)
+	ln, err := net.Listen("unix", path)
+	syscall.Umask(prevUmask)
+	return ln, err
+}
+
 func main() {
 	var listen []string
 	flag.Var((*stringSliceFlag)(&listen), "listen", "listening address")
@@ -273,14 +281,11 @@ func main() {
 				}
 			}()
 		case "unix":
-			ln, err := net.Listen("unix", u.Host+u.Path)
+			ln, err := listenWithPerms(u.Host+u.Path, 0775)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
 			ln = proxyProtoListener(ln, srv)
-			if err := os.Chmod(u.Path, 0775); err != nil {
-				log.Printf("failed to chmod Unix IRC socket: %v", err)
-			}
 			go func() {
 				if err := srv.Serve(ln, srv.Handle); err != nil {
 					log.Printf("serving %q: %v", listen, err)
@@ -291,15 +296,11 @@ func main() {
 			if path == "" {
 				path = config.DefaultUnixAdminPath
 			}
-			ln, err := net.Listen("unix", path)
+			ln, err := listenWithPerms(path, 0600)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
 			}
 			ln = proxyProtoListener(ln, srv)
-			// TODO: this is racy
-			if err := os.Chmod(path, 0600); err != nil {
-				log.Fatalf("failed to chmod Unix admin socket: %v", err)
-			}
 			go func() {
 				if err := srv.Serve(ln, srv.HandleAdmin); err != nil {
 					log.Printf("serving %q: %v", listen, err)
@@ -337,12 +338,9 @@ func main() {
 				}
 			}()
 		case "ws+unix":
-			ln, err := net.Listen("unix", u.Path)
+			ln, err := listenWithPerms(u.Path, 0775)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
-			}
-			if err := os.Chmod(u.Path, 0775); err != nil {
-				log.Printf("failed to chmod Unix WS socket: %v", err)
 			}
 			httpSrv := &http.Server{Handler: srv}
 			httpServers = append(httpServers, httpSrv)
@@ -451,12 +449,9 @@ func main() {
 				}
 			}()
 		case "http+unix":
-			ln, err := net.Listen("unix", u.Path)
+			ln, err := listenWithPerms(u.Path, 0775)
 			if err != nil {
 				log.Fatalf("failed to start listener on %q: %v", listen, err)
-			}
-			if err := os.Chmod(u.Path, 0775); err != nil {
-				log.Printf("failed to chmod Unix HTTP socket: %v", err)
 			}
 			httpSrv := &http.Server{Handler: httpMux}
 			httpServers = append(httpServers, httpSrv)
