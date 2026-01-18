@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/pires/go-proxyproto"
+	"github.com/pires/go-proxyproto/tlvparse"
 	"golang.org/x/time/rate"
 	"gopkg.in/irc.v4"
 )
@@ -41,6 +42,9 @@ type netIRCConn struct {
 func (nc netIRCConn) GetPeerCertificate() *x509.Certificate {
 	var c net.Conn = nc.netConn
 	if pc, ok := c.(*proxyproto.Conn); ok {
+		if cert, _ := certFromProxyprotoConn(pc); cert != nil {
+			return cert
+		}
 		c = pc.Raw()
 	}
 	tc, ok := c.(*tls.Conn)
@@ -56,6 +60,30 @@ func (nc netIRCConn) GetPeerCertificate() *x509.Certificate {
 
 func newNetIRCConn(c net.Conn) ircConn {
 	return netIRCConn{irc.NewConn(c), c}
+}
+
+func certFromProxyprotoConn(c *proxyproto.Conn) (*x509.Certificate, error) {
+	header := c.ProxyHeader()
+	if header == nil {
+		return nil, nil
+	}
+
+	tlvs, err := header.TLVs()
+	if err != nil {
+		return nil, err
+	}
+
+	pp2ssl, ok := tlvparse.FindSSL(tlvs)
+	if !ok {
+		return nil, nil
+	}
+
+	raw, ok := pp2ssl.ClientCert()
+	if !ok {
+		return nil, nil
+	}
+
+	return x509.ParseCertificate(raw)
 }
 
 type websocketIRCConn struct {

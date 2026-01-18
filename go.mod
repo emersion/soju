@@ -12,7 +12,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/msteinert/pam/v2 v2.1.0
-	github.com/pires/go-proxyproto v0.8.1
+	github.com/pires/go-proxyproto v0.10.0
 	github.com/prometheus/client_golang v1.23.2
 	golang.org/x/crypto v0.46.0
 	golang.org/x/net v0.47.0
