@@ -238,20 +238,7 @@ func main() {
 			addr := withDefaultPort(u.Host, "6697")
 			ircsTLSCfg := tlsCfg.Clone()
 			ircsTLSCfg.NextProtos = []string{"irc"}
-			lc := net.ListenConfig{
-				KeepAlive: downstreamKeepAlive,
-			}
-			l, err := lc.Listen(context.Background(), "tcp", addr)
-			if err != nil {
-				log.Fatalf("failed to start TLS listener on %q: %v", listen, err)
-			}
-			ln := tls.NewListener(l, ircsTLSCfg)
-			ln = proxyProtoListener(ln, srv)
-			go func() {
-				if err := srv.Serve(ln, srv.Handle); err != nil {
-					log.Printf("serving %q: %v", listen, err)
-				}
-			}()
+			listenAndServeIRC(srv, listen, "tcp", addr, ircsTLSCfg)
 		case "irc":
 			if u.Hostname() != "localhost" {
 				log.Fatalf("Plain-text IRC listening host must be localhost unless marked as insecure")
@@ -259,115 +246,52 @@ func main() {
 			fallthrough
 		case "irc+insecure":
 			addr := withDefaultPort(u.Host, "6667")
-			lc := net.ListenConfig{
-				KeepAlive: downstreamKeepAlive,
-			}
-			ln, err := lc.Listen(context.Background(), "tcp", addr)
-			if err != nil {
-				log.Fatalf("failed to start listener on %q: %v", listen, err)
-			}
-			ln = proxyProtoListener(ln, srv)
-			go func() {
-				if err := srv.Serve(ln, srv.Handle); err != nil {
-					log.Printf("serving %q: %v", listen, err)
-				}
-			}()
+			listenAndServeIRC(srv, listen, "tcp", addr, nil)
 		case "unix":
-			ln, err := net.Listen("unix", u.Host+u.Path)
-			if err != nil {
-				log.Fatalf("failed to start listener on %q: %v", listen, err)
-			}
-			ln = proxyProtoListener(ln, srv)
-			if err := os.Chmod(u.Path, 0775); err != nil {
+			path := u.Host + u.Path
+			listenAndServeIRC(srv, listen, "unix", path, nil)
+			if err := os.Chmod(path, 0775); err != nil {
 				log.Printf("failed to chmod Unix IRC socket: %v", err)
 			}
-			go func() {
-				if err := srv.Serve(ln, srv.Handle); err != nil {
-					log.Printf("serving %q: %v", listen, err)
-				}
-			}()
 		case "unix+admin":
 			path := u.Host + u.Path
 			if path == "" {
 				path = config.DefaultUnixAdminPath
 			}
-			ln, err := net.Listen("unix", path)
-			if err != nil {
-				log.Fatalf("failed to start listener on %q: %v", listen, err)
-			}
-			ln = proxyProtoListener(ln, srv)
+			listenAndServeAdmin(srv, listen, path)
 			// TODO: this is racy
 			if err := os.Chmod(path, 0600); err != nil {
 				log.Fatalf("failed to chmod Unix admin socket: %v", err)
 			}
-			go func() {
-				if err := srv.Serve(ln, srv.HandleAdmin); err != nil {
-					log.Printf("serving %q: %v", listen, err)
-				}
-			}()
 		case "wss":
 			if tlsCfg == nil {
 				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
 			}
-			httpSrv := &http.Server{
-				Addr:      withDefaultPort(u.Host, "https"),
-				TLSConfig: tlsCfg,
-				Handler:   srv,
-			}
+			addr := withDefaultPort(u.Host, "https")
+			httpSrv := listenAndServeHTTP(srv, listen, "tcp", addr, tlsCfg)
 			httpServers = append(httpServers, httpSrv)
-			go func() {
-				if err := httpSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-					log.Fatalf("serving %q: %v", listen, err)
-				}
-			}()
 		case "ws":
 			if u.Hostname() != "localhost" {
 				log.Fatalf("Plain-text WebSocket listening host must be localhost unless marked as insecure")
 			}
 			fallthrough
 		case "ws+insecure":
-			httpSrv := &http.Server{
-				Addr:    withDefaultPort(u.Host, "http"),
-				Handler: srv,
-			}
+			addr := withDefaultPort(u.Host, "http")
+			httpSrv := listenAndServeHTTP(srv, listen, "tcp", addr, nil)
 			httpServers = append(httpServers, httpSrv)
-			go func() {
-				if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-					log.Fatalf("serving %q: %v", listen, err)
-				}
-			}()
 		case "ws+unix":
-			ln, err := net.Listen("unix", u.Path)
-			if err != nil {
-				log.Fatalf("failed to start listener on %q: %v", listen, err)
-			}
-			if err := os.Chmod(u.Path, 0775); err != nil {
+			path := u.Host + u.Path
+			httpSrv := listenAndServeHTTP(srv, listen, "unix", path, nil)
+			if err := os.Chmod(path, 0775); err != nil {
 				log.Printf("failed to chmod Unix WS socket: %v", err)
 			}
-			httpSrv := &http.Server{Handler: srv}
 			httpServers = append(httpServers, httpSrv)
-			go func() {
-				if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
-					log.Fatalf("serving %q: %v", listen, err)
-				}
-			}()
 		case "ident":
 			if srv.Identd == nil {
 				srv.Identd = identd.New()
 			}
-
 			addr := withDefaultPort(u.Host, "113")
-			ln, err := net.Listen("tcp", addr)
-			if err != nil {
-				log.Fatalf("failed to start listener on %q: %v", listen, err)
-			}
-			ln = proxyProtoListener(ln, srv)
-			ln = soju.NewRetryListener(ln)
-			go func() {
-				if err := srv.Identd.Serve(ln); err != nil {
-					log.Printf("serving %q: %v", listen, err)
-				}
-			}()
+			listenAndServeIdent(srv, "tcp", listen, addr)
 		case "http+prometheus":
 			// Only allow localhost as listening host for security reasons.
 			hostname, _, err := net.SplitHostPort(u.Host)
@@ -390,15 +314,8 @@ func main() {
 			})
 			metricsHandler = promhttp.InstrumentMetricHandler(prometheus.DefaultRegisterer, metricsHandler)
 
-			httpSrv := http.Server{
-				Addr:    u.Host,
-				Handler: metricsHandler,
-			}
-			go func() {
-				if err := httpSrv.ListenAndServe(); err != nil {
-					log.Fatalf("serving %q: %v", listen, err)
-				}
-			}()
+			httpSrv := listenAndServeHTTP(metricsHandler, listen, "tcp", u.Host, nil)
+			httpServers = append(httpServers, httpSrv)
 		case "http+pprof":
 			// Only allow localhost as listening host for security reasons.
 			// Users can always explicitly setup reverse proxies if desirable.
@@ -410,61 +327,31 @@ func main() {
 			}
 
 			// net/http/pprof registers its handlers in http.DefaultServeMux
-			httpSrv := http.Server{
-				Addr:    u.Host,
-				Handler: http.DefaultServeMux,
-			}
-			go func() {
-				if err := httpSrv.ListenAndServe(); err != nil {
-					log.Fatalf("serving %q: %v", listen, err)
-				}
-			}()
+			httpSrv := listenAndServeHTTP(http.DefaultServeMux, listen, "tcp", u.Host, nil)
+			httpServers = append(httpServers, httpSrv)
 		case "https":
 			if tlsCfg == nil {
 				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
 			}
-			httpSrv := &http.Server{
-				Addr:      withDefaultPort(u.Host, "https"),
-				TLSConfig: tlsCfg,
-				Handler:   httpMux,
-			}
+			addr := withDefaultPort(u.Host, "https")
+			httpSrv := listenAndServeHTTP(httpMux, listen, "tcp", addr, tlsCfg)
 			httpServers = append(httpServers, httpSrv)
-			go func() {
-				if err := httpSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-					log.Fatalf("serving %q: %v", listen, err)
-				}
-			}()
 		case "http":
 			if u.Hostname() != "localhost" {
 				log.Fatalf("Plain-text HTTP listening host must be localhost unless marked as insecure")
 			}
 			fallthrough
 		case "http+insecure":
-			httpSrv := &http.Server{
-				Addr:    withDefaultPort(u.Host, "http"),
-				Handler: httpMux,
-			}
+			addr := withDefaultPort(u.Host, "http")
+			httpSrv := listenAndServeHTTP(httpMux, listen, "tcp", addr, nil)
 			httpServers = append(httpServers, httpSrv)
-			go func() {
-				if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-					log.Fatalf("serving %q: %v", listen, err)
-				}
-			}()
 		case "http+unix":
-			ln, err := net.Listen("unix", u.Path)
-			if err != nil {
-				log.Fatalf("failed to start listener on %q: %v", listen, err)
-			}
-			if err := os.Chmod(u.Path, 0775); err != nil {
+			path := u.Host + u.Path
+			httpSrv := listenAndServeHTTP(httpMux, listen, "unix", path, nil)
+			if err := os.Chmod(path, 0775); err != nil {
 				log.Printf("failed to chmod Unix HTTP socket: %v", err)
 			}
-			httpSrv := &http.Server{Handler: httpMux}
 			httpServers = append(httpServers, httpSrv)
-			go func() {
-				if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
-					log.Fatalf("serving %q: %v", listen, err)
-				}
-			}()
 		default:
 			log.Fatalf("failed to listen on %q: unsupported scheme", listen)
 		}
@@ -505,6 +392,84 @@ func main() {
 			return
 		}
 	}
+}
+
+func listenAndServeIRC(srv *soju.Server, label, network, addr string, tlsConfig *tls.Config) {
+	lc := net.ListenConfig{
+		KeepAlive: downstreamKeepAlive,
+	}
+	ln, err := lc.Listen(context.Background(), network, addr)
+	if err != nil {
+		log.Fatalf("failed to start TLS listener on %q: %v", label, err)
+	}
+
+	if tlsConfig != nil {
+		ln = tls.NewListener(ln, tlsConfig)
+	}
+	ln = proxyProtoListener(ln, srv)
+
+	go func() {
+		if err := srv.Serve(ln, srv.Handle); err != nil {
+			log.Printf("serving %q: %v", label, err)
+		}
+	}()
+}
+
+func listenAndServeAdmin(srv *soju.Server, label, path string) {
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		log.Fatalf("failed to start listener on %q: %v", label, err)
+	}
+
+	ln = proxyProtoListener(ln, srv)
+
+	go func() {
+		if err := srv.Serve(ln, srv.HandleAdmin); err != nil {
+			log.Printf("serving %q: %v", label, err)
+		}
+	}()
+}
+
+func listenAndServeHTTP(h http.Handler, label, network, addr string, tlsConfig *tls.Config) *http.Server {
+	ln, err := net.Listen(network, addr)
+	if err != nil {
+		log.Fatalf("failed to start listener on %q: %v", label, err)
+	}
+
+	httpSrv := &http.Server{
+		TLSConfig: tlsConfig,
+		Handler:   h,
+	}
+
+	go func() {
+		var err error
+		if tlsConfig != nil {
+			err = httpSrv.ServeTLS(ln, "", "")
+		} else {
+			err = httpSrv.Serve(ln)
+		}
+		if err != nil && err != http.ErrServerClosed {
+			log.Printf("serving %q: %v", label, err)
+		}
+	}()
+
+	return httpSrv
+}
+
+func listenAndServeIdent(srv *soju.Server, label, network, addr string) {
+	ln, err := net.Listen(network, addr)
+	if err != nil {
+		log.Fatalf("failed to start listener on %q: %v", label, err)
+	}
+
+	ln = proxyProtoListener(ln, srv)
+	ln = soju.NewRetryListener(ln)
+
+	go func() {
+		if err := srv.Identd.Serve(ln); err != nil {
+			log.Printf("serving %q: %v", label, err)
+		}
+	}()
 }
 
 func proxyProtoListener(ln net.Listener, srv *soju.Server) net.Listener {
