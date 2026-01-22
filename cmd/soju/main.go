@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
+	h2proxy "github.com/pires/go-proxyproto/helper/http2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/net/http2"
@@ -449,9 +450,10 @@ func listenAndServeHTTP(srv *soju.Server, h http.Handler, label, network, addr s
 	h = h2c.NewHandler(h, new(http2.Server))
 
 	httpSrv := &http.Server{Handler: h}
+	h2Server := h2proxy.NewServer(httpSrv, nil)
 
 	go func() {
-		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		if err := h2Server.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Printf("serving %q: %v", label, err)
 		}
 	}()
