@@ -21,6 +21,8 @@ import (
 	"github.com/pires/go-proxyproto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"codeberg.org/emersion/soju"
 	"codeberg.org/emersion/soju/auth"
@@ -441,6 +443,8 @@ func listenAndServeHTTP(h http.Handler, label, network, addr string, tlsConfig *
 		httpsTLSConfig.NextProtos = []string{"h2", "http/1.1"}
 		ln = tls.NewListener(ln, httpsTLSConfig)
 	}
+
+	h = h2c.NewHandler(h, new(http2.Server))
 
 	httpSrv := &http.Server{Handler: h}
 

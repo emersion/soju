@@ -15,6 +15,7 @@ require (
 	github.com/pires/go-proxyproto v0.8.1
 	github.com/prometheus/client_golang v1.23.2
 	golang.org/x/crypto v0.46.0
+	golang.org/x/net v0.47.0
 	golang.org/x/time v0.14.0
 	gopkg.in/irc.v4 v4.0.0
 	modernc.org/sqlite v1.41.0
@@ -38,6 +39,7 @@ require (
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/term v0.38.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	modernc.org/libc v1.67.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
