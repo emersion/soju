@@ -268,7 +268,7 @@ func main() {
 				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
 			}
 			addr := withDefaultPort(u.Host, "https")
-			httpSrv := listenAndServeHTTP(srv, listen, "tcp", addr, tlsCfg)
+			httpSrv := listenAndServeHTTP(srv, srv, listen, "tcp", addr, tlsCfg)
 			httpServers = append(httpServers, httpSrv)
 		case "ws":
 			if u.Hostname() != "localhost" {
@@ -277,11 +277,11 @@ func main() {
 			fallthrough
 		case "ws+insecure":
 			addr := withDefaultPort(u.Host, "http")
-			httpSrv := listenAndServeHTTP(srv, listen, "tcp", addr, nil)
+			httpSrv := listenAndServeHTTP(srv, srv, listen, "tcp", addr, nil)
 			httpServers = append(httpServers, httpSrv)
 		case "ws+unix":
 			path := u.Host + u.Path
-			httpSrv := listenAndServeHTTP(srv, listen, "unix", path, nil)
+			httpSrv := listenAndServeHTTP(srv, srv, listen, "unix", path, nil)
 			if err := os.Chmod(path, 0775); err != nil {
 				log.Printf("failed to chmod Unix WS socket: %v", err)
 			}
@@ -314,7 +314,7 @@ func main() {
 			})
 			metricsHandler = promhttp.InstrumentMetricHandler(prometheus.DefaultRegisterer, metricsHandler)
 
-			httpSrv := listenAndServeHTTP(metricsHandler, listen, "tcp", u.Host, nil)
+			httpSrv := listenAndServeHTTP(srv, metricsHandler, listen, "tcp", u.Host, nil)
 			httpServers = append(httpServers, httpSrv)
 		case "http+pprof":
 			// Only allow localhost as listening host for security reasons.
@@ -327,14 +327,14 @@ func main() {
 			}
 
 			// net/http/pprof registers its handlers in http.DefaultServeMux
-			httpSrv := listenAndServeHTTP(http.DefaultServeMux, listen, "tcp", u.Host, nil)
+			httpSrv := listenAndServeHTTP(srv, http.DefaultServeMux, listen, "tcp", u.Host, nil)
 			httpServers = append(httpServers, httpSrv)
 		case "https":
 			if tlsCfg == nil {
 				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
 			}
 			addr := withDefaultPort(u.Host, "https")
-			httpSrv := listenAndServeHTTP(httpMux, listen, "tcp", addr, tlsCfg)
+			httpSrv := listenAndServeHTTP(srv, httpMux, listen, "tcp", addr, tlsCfg)
 			httpServers = append(httpServers, httpSrv)
 		case "http":
 			if u.Hostname() != "localhost" {
@@ -343,11 +343,11 @@ func main() {
 			fallthrough
 		case "http+insecure":
 			addr := withDefaultPort(u.Host, "http")
-			httpSrv := listenAndServeHTTP(httpMux, listen, "tcp", addr, nil)
+			httpSrv := listenAndServeHTTP(srv, httpMux, listen, "tcp", addr, nil)
 			httpServers = append(httpServers, httpSrv)
 		case "http+unix":
 			path := u.Host + u.Path
-			httpSrv := listenAndServeHTTP(httpMux, listen, "unix", path, nil)
+			httpSrv := listenAndServeHTTP(srv, httpMux, listen, "unix", path, nil)
 			if err := os.Chmod(path, 0775); err != nil {
 				log.Printf("failed to chmod Unix HTTP socket: %v", err)
 			}
@@ -432,7 +432,7 @@ func listenAndServeAdmin(srv *soju.Server, label, path string) {
 	}()
 }
 
-func listenAndServeHTTP(h http.Handler, label, network, addr string, tlsConfig *tls.Config) *http.Server {
+func listenAndServeHTTP(srv *soju.Server, h http.Handler, label, network, addr string, tlsConfig *tls.Config) *http.Server {
 	ln, err := net.Listen(network, addr)
 	if err != nil {
 		log.Fatalf("failed to start listener on %q: %v", label, err)
@@ -443,6 +443,8 @@ func listenAndServeHTTP(h http.Handler, label, network, addr string, tlsConfig *
 		httpsTLSConfig.NextProtos = []string{"h2", "http/1.1"}
 		ln = tls.NewListener(ln, httpsTLSConfig)
 	}
+	ln = proxyProtoListener(ln, srv)
+	// TODO: set http.Request.RemoteAddr depending on PROXY header
 
 	h = h2c.NewHandler(h, new(http2.Server))
 
