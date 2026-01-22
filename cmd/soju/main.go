@@ -236,9 +236,7 @@ func main() {
 				log.Fatalf("failed to listen on %q: missing TLS configuration", listen)
 			}
 			addr := withDefaultPort(u.Host, "6697")
-			ircsTLSCfg := tlsCfg.Clone()
-			ircsTLSCfg.NextProtos = []string{"irc"}
-			listenAndServeIRC(srv, listen, "tcp", addr, ircsTLSCfg)
+			listenAndServeIRC(srv, listen, "tcp", addr, tlsCfg)
 		case "irc":
 			if u.Hostname() != "localhost" {
 				log.Fatalf("Plain-text IRC listening host must be localhost unless marked as insecure")
@@ -404,7 +402,9 @@ func listenAndServeIRC(srv *soju.Server, label, network, addr string, tlsConfig 
 	}
 
 	if tlsConfig != nil {
-		ln = tls.NewListener(ln, tlsConfig)
+		ircsTLSConfig := tlsConfig.Clone()
+		ircsTLSConfig.NextProtos = []string{"irc"}
+		ln = tls.NewListener(ln, ircsTLSConfig)
 	}
 	ln = proxyProtoListener(ln, srv)
 
