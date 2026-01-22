@@ -436,19 +436,16 @@ func listenAndServeHTTP(h http.Handler, label, network, addr string, tlsConfig *
 		log.Fatalf("failed to start listener on %q: %v", label, err)
 	}
 
-	httpSrv := &http.Server{
-		TLSConfig: tlsConfig,
-		Handler:   h,
+	if tlsConfig != nil {
+		httpsTLSConfig := tlsConfig.Clone()
+		httpsTLSConfig.NextProtos = []string{"h2", "http/1.1"}
+		ln = tls.NewListener(ln, httpsTLSConfig)
 	}
 
+	httpSrv := &http.Server{Handler: h}
+
 	go func() {
-		var err error
-		if tlsConfig != nil {
-			err = httpSrv.ServeTLS(ln, "", "")
-		} else {
-			err = httpSrv.Serve(ln)
-		}
-		if err != nil && err != http.ErrServerClosed {
+		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Printf("serving %q: %v", label, err)
 		}
 	}()
