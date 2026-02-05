@@ -22,5 +22,5 @@ supported.
 - [Hosted instances](hosted.md)
 
 [chathistorysync]: https://codeberg.org/emersion/chathistorysync
-[Convoyeur]: https://github.com/classabbyamp/convoyeur
+[Convoyeur]: https://codeberg.org/classabbyamp/convoyeur
 [s3ju]: https://taavi.wtf/software/s3ju
