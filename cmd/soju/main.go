@@ -146,6 +146,7 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 		HTTPOrigins:               raw.HTTPOrigins,
 		HTTPIngress:               raw.HTTPIngress,
 		AcceptProxyIPs:            raw.AcceptProxyIPs,
+		AcceptProxyUnix:           raw.AcceptProxyUnix,
 		MaxUserNetworks:           raw.MaxUserNetworks,
 		UpstreamUserIPs:           raw.UpstreamUserIPs,
 		DisableInactiveUsersDelay: raw.DisableInactiveUsersDelay,
@@ -477,12 +478,15 @@ func proxyProtoListener(ln net.Listener, srv *soju.Server) net.Listener {
 	return &proxyproto.Listener{
 		Listener: ln,
 		Policy: func(upstream net.Addr) (proxyproto.Policy, error) {
-			tcpAddr, ok := upstream.(*net.TCPAddr)
-			if !ok {
-				return proxyproto.IGNORE, nil
-			}
-			if srv.Config().AcceptProxyIPs.Contains(tcpAddr.IP) {
-				return proxyproto.USE, nil
+			switch upstream := upstream.(type) {
+			case *net.TCPAddr:
+				if srv.Config().AcceptProxyIPs.Contains(upstream.IP) {
+					return proxyproto.USE, nil
+				}
+			case *net.UnixAddr:
+				if srv.Config().AcceptProxyUnix {
+					return proxyproto.USE, nil
+				}
 			}
 			return proxyproto.IGNORE, nil
 		},

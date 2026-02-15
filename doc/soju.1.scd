@@ -212,6 +212,15 @@ The following directives are supported:
 
 	By default, all IPs are rejected.
 
+*accept-proxy-unix* true|false
+	Allow proxy connections over Unix domain sockets. This is useful when
+	running soju behind a reverse proxy such as Nginx and using Unix domain
+	sockets for the upstream connections. Note that any local user with
+	write permissions on the soju socket will be able to forge their
+	connection origin when this option is enabled.
+
+	By default, proxy headers received over Unix domain sockets are untrusted.
+
 *max-user-networks* <limit>
 	Maximum number of enabled networks per user. By default, there is no limit.
 

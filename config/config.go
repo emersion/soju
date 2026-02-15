@@ -85,9 +85,10 @@ type Server struct {
 	Auth       []Auth
 	FileUpload *FileUpload
 
-	HTTPOrigins    []string
-	HTTPIngress    string
-	AcceptProxyIPs IPSet
+	HTTPOrigins     []string
+	HTTPIngress     string
+	AcceptProxyIPs  IPSet
+	AcceptProxyUnix bool
 
 	MaxUserNetworks           int
 	UpstreamUserIPs           []*net.IPNet
@@ -137,6 +138,7 @@ func Load(filename string) (*Server, error) {
 		HTTPOrigin          []string `scfg:"http-origin"`
 		HTTPIngress         string   `scfg:"http-ingress"`
 		AcceptProxyIP       []string `scfg:"accept-proxy-ip"`
+		AcceptProxyUnix     string   `scfg:"accept-proxy-unix"`
 		MaxUserNetworks     int      `scfg:"max-user-networks"`
 		UpstreamUserIP      []string `scfg:"upstream-user-ip"`
 		DisableInactiveUser string   `scfg:"disable-inactive-user"`
@@ -253,6 +255,13 @@ func Load(filename string) (*Server, error) {
 			return nil, fmt.Errorf("directive accept-proxy-ip: failed to parse CIDR: %v", err)
 		}
 		srv.AcceptProxyIPs = append(srv.AcceptProxyIPs, n)
+	}
+	if raw.AcceptProxyUnix != "" {
+		b, err := strconv.ParseBool(raw.AcceptProxyUnix)
+		if err != nil {
+			return nil, fmt.Errorf("directive accept-proxy-unix: %v", err)
+		}
+		srv.AcceptProxyUnix = b
 	}
 	srv.MaxUserNetworks = raw.MaxUserNetworks
 	var hasIPv4, hasIPv6 bool

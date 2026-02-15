@@ -158,6 +158,7 @@ type Config struct {
 	HTTPOrigins               []string
 	HTTPIngress               string
 	AcceptProxyIPs            config.IPSet
+	AcceptProxyUnix           bool
 	MaxUserNetworks           int
 	MOTD                      string
 	UpstreamUserIPs           []*net.IPNet
