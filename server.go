@@ -465,7 +465,7 @@ func (s *Server) addUserLocked(user *database.User) *user {
 
 var lastDownstreamID uint64
 
-func (s *Server) Handle(ic ircConn) {
+func (s *Server) serveConn(ic ircConn) {
 	defer func() {
 		if err := recover(); err != nil {
 			s.Logger.Printf("panic serving downstream %q: %v\n%v", ic.RemoteAddr(), err, string(debug.Stack()))
@@ -538,7 +538,7 @@ func (s *Server) getOrCreateUser(ctx context.Context, username string) (*user, e
 	return user, nil
 }
 
-func (s *Server) HandleAdmin(ic ircConn) {
+func (s *Server) serveConnAdmin(ic ircConn) {
 	defer func() {
 		if err := recover(); err != nil {
 			s.Logger.Printf("panic serving admin client %q: %v\n%v", ic.RemoteAddr(), err, string(debug.Stack()))
@@ -631,7 +631,7 @@ func (s *Server) HandleAdmin(ic ircConn) {
 	}
 }
 
-func (s *Server) Serve(ln net.Listener, handler func(ircConn)) error {
+func (s *Server) serve(ln net.Listener, serveConn func(ircConn)) error {
 	ln = &retryListener{
 		Listener: ln,
 		Logger:   &prefixLogger{logger: s.Logger, prefix: fmt.Sprintf("listener %v: ", ln.Addr())},
@@ -659,8 +659,16 @@ func (s *Server) Serve(ln net.Listener, handler func(ircConn)) error {
 			return fmt.Errorf("failed to accept connection: %v", err)
 		}
 
-		go handler(newNetIRCConn(conn))
+		go serveConn(newNetIRCConn(conn))
 	}
+}
+
+func (s *Server) Serve(ln net.Listener) error {
+	return s.serve(ln, s.serveConn)
+}
+
+func (s *Server) ServeAdmin(ln net.Listener) error {
+	return s.serve(ln, s.serveConnAdmin)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -681,7 +689,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	s.Handle(newWebsocketIRCConn(conn, req, acceptProxy))
+	s.serveConn(newWebsocketIRCConn(conn, req, acceptProxy))
 }
 
 type ServerStats struct {

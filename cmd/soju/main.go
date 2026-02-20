@@ -412,7 +412,7 @@ func listenAndServeIRC(srv *soju.Server, label, network, addr string, tlsConfig 
 	ln = proxyProtoListener(ln, srv)
 
 	go func() {
-		if err := srv.Serve(ln, srv.Handle); err != nil {
+		if err := srv.Serve(ln); err != nil {
 			log.Printf("serving %q: %v", label, err)
 		}
 	}()
@@ -427,7 +427,7 @@ func listenAndServeAdmin(srv *soju.Server, label, path string) {
 	ln = proxyProtoListener(ln, srv)
 
 	go func() {
-		if err := srv.Serve(ln, srv.HandleAdmin); err != nil {
+		if err := srv.ServeAdmin(ln); err != nil {
 			log.Printf("serving %q: %v", label, err)
 		}
 	}()
