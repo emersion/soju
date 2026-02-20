@@ -45,7 +45,9 @@ type netIRCConn struct {
 func (nc netIRCConn) GetPeerCertificate() *x509.Certificate {
 	var c net.Conn = nc.netConn
 	if pc, ok := c.(*proxyproto.Conn); ok {
-		if cert, _ := certFromProxyprotoConn(pc); cert != nil {
+		header := pc.ProxyHeader()
+		if header != nil {
+			cert, _ := certFromProxyprotoHeader(header)
 			return cert
 		}
 		c = pc.Raw()
@@ -65,12 +67,7 @@ func newNetIRCConn(c net.Conn) ircConn {
 	return netIRCConn{irc.NewConn(c), c}
 }
 
-func certFromProxyprotoConn(c *proxyproto.Conn) (*x509.Certificate, error) {
-	header := c.ProxyHeader()
-	if header == nil {
-		return nil, nil
-	}
-
+func certFromProxyprotoHeader(header *proxyproto.Header) (*x509.Certificate, error) {
 	tlvs, err := header.TLVs()
 	if err != nil {
 		return nil, err
