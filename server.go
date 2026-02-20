@@ -673,6 +673,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// TODO: accept proxy depending on AcceptProxyUnix
 	acceptProxy := false
 	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		if ip := net.ParseIP(host); ip != nil {
