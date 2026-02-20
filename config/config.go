@@ -72,11 +72,25 @@ type FileUpload struct {
 	Driver, Source string
 }
 
+type BasicServer struct {
+	Hostname                  string
+	Title                     string
+	MsgStore                  MsgStore
+	HTTPOrigins               []string
+	HTTPIngress               string
+	AcceptProxyIPs            IPSet
+	AcceptProxyUnix           bool
+	MaxUserNetworks           int
+	UpstreamUserIPs           []*net.IPNet
+	DisableInactiveUsersDelay time.Duration
+	EnableUsersOnAuth         bool
+}
+
 type Server struct {
+	BasicServer
+
 	Listen   []string
 	TLS      *TLS
-	Hostname string
-	Title    string
 	Icon     string
 	MOTDPath string
 
@@ -84,16 +98,6 @@ type Server struct {
 	MsgStore   MsgStore
 	Auth       []Auth
 	FileUpload *FileUpload
-
-	HTTPOrigins     []string
-	HTTPIngress     string
-	AcceptProxyIPs  IPSet
-	AcceptProxyUnix bool
-
-	MaxUserNetworks           int
-	UpstreamUserIPs           []*net.IPNet
-	DisableInactiveUsersDelay time.Duration
-	EnableUsersOnAuth         bool
 }
 
 func Defaults() *Server {
@@ -102,19 +106,21 @@ func Defaults() *Server {
 		hostname = "localhost"
 	}
 	return &Server{
-		Hostname: hostname,
+		BasicServer: BasicServer{
+			Hostname: hostname,
+			MsgStore: MsgStore{
+				Driver: "db",
+			},
+			HTTPIngress:     "https://" + hostname,
+			MaxUserNetworks: -1,
+		},
 		DB: DB{
 			Driver: "sqlite3",
 			Source: "soju.db",
 		},
-		MsgStore: MsgStore{
-			Driver: "db",
-		},
 		Auth: []Auth{{
 			Driver: "internal",
 		}},
-		HTTPIngress:     "https://" + hostname,
-		MaxUserNetworks: -1,
 	}
 }
 

@@ -148,22 +148,13 @@ func (ln *retryListener) Accept() (net.Conn, error) {
 }
 
 type Config struct {
-	Hostname                  string
-	Title                     string
-	IconPath                  string
-	IconURL                   string
-	MsgStore                  config.MsgStore
-	HTTPOrigins               []string
-	HTTPIngress               string
-	AcceptProxyIPs            config.IPSet
-	AcceptProxyUnix           bool
-	MaxUserNetworks           int
-	MOTD                      string
-	UpstreamUserIPs           []*net.IPNet
-	DisableInactiveUsersDelay time.Duration
-	EnableUsersOnAuth         bool
-	Auth                      *auth.Authenticator
-	FileUploader              fileupload.Uploader
+	config.BasicServer
+
+	IconPath     string
+	IconURL      string
+	MOTD         string
+	Auth         *auth.Authenticator
+	FileUploader fileupload.Uploader
 }
 
 type Server struct {
@@ -206,9 +197,11 @@ func NewServer(db database.Database) *Server {
 		stopCh:    make(chan struct{}),
 	}
 	srv.config.Store(&Config{
-		Hostname:        "localhost",
-		MaxUserNetworks: -1,
-		Auth:            auth.NewInternal(),
+		BasicServer: config.BasicServer{
+			Hostname:        "localhost",
+			MaxUserNetworks: -1,
+		},
+		Auth: auth.NewInternal(),
 	})
 	return srv
 }

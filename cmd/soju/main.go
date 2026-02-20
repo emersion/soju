@@ -137,22 +137,12 @@ func loadConfig() (*config.Server, *soju.Config, error) {
 	}
 
 	cfg := &soju.Config{
-		Hostname:                  raw.Hostname,
-		Title:                     raw.Title,
-		IconURL:                   iconURL,
-		IconPath:                  iconPath,
-		MsgStore:                  raw.MsgStore,
-		HTTPOrigins:               raw.HTTPOrigins,
-		HTTPIngress:               raw.HTTPIngress,
-		AcceptProxyIPs:            raw.AcceptProxyIPs,
-		AcceptProxyUnix:           raw.AcceptProxyUnix,
-		MaxUserNetworks:           raw.MaxUserNetworks,
-		UpstreamUserIPs:           raw.UpstreamUserIPs,
-		DisableInactiveUsersDelay: raw.DisableInactiveUsersDelay,
-		EnableUsersOnAuth:         raw.EnableUsersOnAuth,
-		MOTD:                      motd,
-		Auth:                      &authenticator,
-		FileUploader:              fileUploader,
+		BasicServer:  raw.BasicServer,
+		IconURL:      iconURL,
+		IconPath:     iconPath,
+		MOTD:         motd,
+		Auth:         &authenticator,
+		FileUploader: fileUploader,
 	}
 	return raw, cfg, nil
 }
