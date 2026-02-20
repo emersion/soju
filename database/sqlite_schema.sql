@@ -59,6 +59,7 @@ CREATE TABLE DeviceCertificate (
 	label TEXT NOT NULL,
 	fingerprint BLOB NOT NULL UNIQUE,
 	last_used TEXT NOT NULL,
+	last_ip TEXT NOT NULL,
 	FOREIGN KEY(user) REFERENCES User(id)
 );
 

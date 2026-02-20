@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -269,6 +270,19 @@ type DeviceCertificate struct {
 	Label       string
 	Fingerprint []byte // SHA-512 hash
 	LastUsed    time.Time
+	LastIP      string
+}
+
+func (cert *DeviceCertificate) MarkUsed(addr net.Addr) {
+	cert.LastUsed = time.Now()
+	switch a := addr.(type) {
+	case *net.TCPAddr:
+		cert.LastIP = a.IP.String()
+	case *net.UDPAddr:
+		cert.LastIP = a.IP.String()
+	default:
+		cert.LastIP = ""
+	}
 }
 
 type DeliveryReceipt struct {

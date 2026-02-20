@@ -108,4 +108,5 @@ var postgresMigrations = []string{
 			last_used TIMESTAMP WITH TIME ZONE NOT NULL
 		);
 	`,
+	`ALTER TABLE "DeviceCertificate" ADD COLUMN last_ip TEXT NOT NULL DEFAULT ''`,
 }

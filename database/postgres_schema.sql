@@ -58,7 +58,8 @@ CREATE TABLE "DeviceCertificate" (
 	"user" INTEGER NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
 	label TEXT NOT NULL,
 	fingerprint BYTEA NOT NULL UNIQUE,
-	last_used TIMESTAMP WITH TIME ZONE NOT NULL
+	last_used TIMESTAMP WITH TIME ZONE NOT NULL,
+	last_ip TEXT NOT NULL
 );
 
 CREATE TABLE "DeliveryReceipt" (

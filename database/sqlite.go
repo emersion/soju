@@ -648,9 +648,9 @@ func (db *SqliteDB) GetDeviceCertificate(ctx context.Context, fingerprint []byte
 	}
 	var lastUsed sqliteTime
 	err := db.db.QueryRowContext(ctx, `
-		SELECT user, id, label, last_used
+		SELECT user, id, label, last_used, last_ip
 		FROM DeviceCertificate
-		WHERE fingerprint = ?`, fingerprint).Scan(&user, &cert.ID, &cert.Label, &lastUsed)
+		WHERE fingerprint = ?`, fingerprint).Scan(&user, &cert.ID, &cert.Label, &lastUsed, &cert.LastIP)
 	if err == sql.ErrNoRows {
 		return 0, nil, nil
 	}
@@ -666,7 +666,7 @@ func (db *SqliteDB) ListDeviceCertificates(ctx context.Context, userID int64) ([
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
-		SELECT id, label, fingerprint, last_used
+		SELECT id, label, fingerprint, last_used, last_ip
 		FROM DeviceCertificate
 		WHERE user = ?`, userID)
 	if err != nil {
@@ -678,7 +678,7 @@ func (db *SqliteDB) ListDeviceCertificates(ctx context.Context, userID int64) ([
 	for rows.Next() {
 		var cert DeviceCertificate
 		var lastUsed sqliteTime
-		if err := rows.Scan(&cert.ID, &cert.Label, &cert.Fingerprint, &lastUsed); err != nil {
+		if err := rows.Scan(&cert.ID, &cert.Label, &cert.Fingerprint, &lastUsed, &cert.LastIP); err != nil {
 			return nil, err
 		}
 		cert.LastUsed = lastUsed.Time
@@ -699,6 +699,7 @@ func (db *SqliteDB) StoreDeviceCertificate(ctx context.Context, userID int64, ce
 		sql.Named("label", cert.Label),
 		sql.Named("fingerprint", cert.Fingerprint),
 		sql.Named("last_used", sqliteTime{cert.LastUsed}),
+		sql.Named("last_ip", cert.LastIP),
 
 		sql.Named("id", cert.ID),  // only for UPDATE
 		sql.Named("user", userID), // only for INSERT
@@ -708,14 +709,14 @@ func (db *SqliteDB) StoreDeviceCertificate(ctx context.Context, userID int64, ce
 	if cert.ID != 0 {
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE DeviceCertificate
-			SET label = :label, fingerprint = :fingerprint, last_used = :last_used
+			SET label = :label, fingerprint = :fingerprint, last_used = :last_used, last_ip = :last_ip
 			WHERE id = :id`,
 			args...)
 	} else {
 		var res sql.Result
 		res, err = db.db.ExecContext(ctx, `
-			INSERT INTO DeviceCertificate(user, label, fingerprint, last_used)
-			VALUES (:user, :label, :fingerprint, :last_used)`,
+			INSERT INTO DeviceCertificate(user, label, fingerprint, last_used, last_ip)
+			VALUES (:user, :label, :fingerprint, :last_used, :last_ip)`,
 			args...)
 		if err != nil {
 			return err

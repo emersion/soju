@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -1616,7 +1617,7 @@ func handleServiceDeviceCertificateStatus(ctx *serviceContext, params []string) 
 			}
 			sb.WriteRune(r)
 		}
-		s := fmt.Sprintf("%v [%v] [%v]", sb.String(), cert.Label, cert.LastUsed.Format(time.DateTime))
+		s := fmt.Sprintf("%v [%v] [%v] [%v]", sb.String(), cert.LastIP, cert.Label, cert.LastUsed.Format(time.DateTime))
 		ctx.print(s)
 	}
 	return nil
@@ -1662,8 +1663,12 @@ func handleServiceDeviceCertificateCreate(ctx *serviceContext, params []string) 
 	cert := database.DeviceCertificate{
 		Label:       *label,
 		Fingerprint: h,
-		LastUsed:    time.Now(),
 	}
+	var addr net.Addr
+	if ctx.dc != nil {
+		addr = ctx.dc.conn.RemoteAddr()
+	}
+	cert.MarkUsed(addr)
 	if err := ctx.srv.db.StoreDeviceCertificate(ctx, ctx.user.ID, &cert); err != nil {
 		return fmt.Errorf("could not create device certificate: %v", err)
 	}

@@ -850,7 +850,7 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 			if username == "" {
 				break
 			}
-			device.LastUsed = time.Now()
+			device.MarkUsed(dc.conn.RemoteAddr())
 			err = dc.srv.db.StoreDeviceCertificate(ctx, userID, device)
 		default:
 			err = fmt.Errorf("unsupported SASL mechanism")

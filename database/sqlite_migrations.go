@@ -209,4 +209,5 @@ var sqliteMigrations = []string{
 			FOREIGN KEY(user) REFERENCES User(id)
 		);
 	`,
+	`ALTER TABLE DeviceCertificate ADD COLUMN last_ip TEXT NOT NULL DEFAULT ''`,
 }

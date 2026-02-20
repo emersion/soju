@@ -493,9 +493,9 @@ func (db *PostgresDB) GetDeviceCertificate(ctx context.Context, fingerprint []by
 		Fingerprint: fingerprint,
 	}
 	err := db.db.QueryRowContext(ctx, `
-		SELECT "user", id, label, last_used
+		SELECT "user", id, label, last_used, last_ip
 		FROM "DeviceCertificate"
-		WHERE fingerprint = $1`, fingerprint).Scan(&user, &cert.ID, &cert.Label, &cert.LastUsed)
+		WHERE fingerprint = $1`, fingerprint).Scan(&user, &cert.ID, &cert.Label, &cert.LastUsed, &cert.LastIP)
 	if err == sql.ErrNoRows {
 		return 0, nil, nil
 	}
@@ -510,7 +510,7 @@ func (db *PostgresDB) ListDeviceCertificates(ctx context.Context, userID int64) 
 	defer cancel()
 
 	rows, err := db.db.QueryContext(ctx, `
-		SELECT id, label, fingerprint, last_used
+		SELECT id, label, fingerprint, last_used, last_ip
 		FROM "DeviceCertificate"
 		WHERE "user" = $1`, userID)
 	if err != nil {
@@ -521,7 +521,7 @@ func (db *PostgresDB) ListDeviceCertificates(ctx context.Context, userID int64) 
 	var certs []DeviceCertificate
 	for rows.Next() {
 		var cert DeviceCertificate
-		if err := rows.Scan(&cert.ID, &cert.Label, &cert.Fingerprint, &cert.LastUsed); err != nil {
+		if err := rows.Scan(&cert.ID, &cert.Label, &cert.Fingerprint, &cert.LastUsed, &cert.LastIP); err != nil {
 			return nil, err
 		}
 		certs = append(certs, cert)
@@ -540,16 +540,16 @@ func (db *PostgresDB) StoreDeviceCertificate(ctx context.Context, userID int64, 
 	var err error
 	if cert.ID == 0 {
 		err = db.db.QueryRowContext(ctx, `
-			INSERT INTO "DeviceCertificate" ("user", label, fingerprint, last_used)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO "DeviceCertificate" ("user", label, fingerprint, last_used, last_ip)
+			VALUES ($1, $2, $3, $4, $5)
 			RETURNING id`,
-			userID, cert.Label, cert.Fingerprint, cert.LastUsed).Scan(&cert.ID)
+			userID, cert.Label, cert.Fingerprint, cert.LastUsed, cert.LastIP).Scan(&cert.ID)
 	} else {
 		_, err = db.db.ExecContext(ctx, `
 			UPDATE "DeviceCertificate"
-			SET label = $1, fingerprint = $2, last_used = $3
-			WHERE id = $4`,
-			cert.Label, cert.Fingerprint, cert.LastUsed, cert.ID)
+			SET label = $1, fingerprint = $2, last_used = $3, last_ip = $4
+			WHERE id = $5`,
+			cert.Label, cert.Fingerprint, cert.LastUsed, cert.LastIP, cert.ID)
 	}
 	return err
 }
