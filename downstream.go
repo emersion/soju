@@ -6,6 +6,7 @@ import (
 	"crypto/sha512"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -3374,6 +3375,106 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				dc.SendMessage(ctx, msg)
 			}
 		})
+	case "CLIENTCERT":
+		var subcommand string
+		if err := parseMessageParams(msg, &subcommand); err != nil {
+			return err
+		}
+
+		switch strings.ToUpper(subcommand) {
+		case "LIST":
+			certs, err := dc.srv.db.ListDeviceCertificates(ctx, dc.user.ID)
+			if err != nil {
+				return err
+			}
+			dc.SendBatch(ctx, "soju.im/client-cert", nil, nil, func(batchRef string) {
+				for _, cert := range certs {
+					attrs := irc.Tags{
+						"time": cert.LastUsed.Format(xirc.ServerTimeLayout),
+						"ip":   cert.LastIP,
+						"name": cert.Label,
+					}
+					s := strings.ToUpper(hex.EncodeToString(cert.Fingerprint))
+					dc.SendMessage(ctx, &irc.Message{
+						Tags:    irc.Tags{"batch": batchRef},
+						Command: "CLIENTCERT",
+						Params:  []string{"LIST", s, attrs.String()},
+					})
+				}
+			})
+		case "CREATE":
+			var name string
+			if err := parseMessageParams(msg, nil, &name); err != nil {
+				return err
+			}
+
+			pc := dc.conn.conn.GetPeerCertificate()
+			if pc == nil {
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"CLIENTCERT", "NOCERT", "CREATE", "No TLS client certificate is used"},
+				}}
+			}
+			h := sha512.Sum512(pc.Raw)
+
+			cert := database.DeviceCertificate{
+				Label:       name,
+				Fingerprint: h[:],
+			}
+			cert.MarkUsed(dc.conn.RemoteAddr())
+			if err := dc.srv.db.StoreDeviceCertificate(ctx, dc.user.ID, &cert); err != nil && err != database.ErrDuplicateDeviceCertificate {
+				dc.logger.Printf("failed creating device certificate: %v", err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"CLIENTCERT", "INTERNAL_ERROR", "CREATE", "Could not create device certificate"},
+				}}
+			}
+			dc.SendMessage(ctx, &irc.Message{
+				Command: "CLIENTCERT",
+				Params:  []string{"CREATE"},
+			})
+		case "DELETE":
+			var fingerprint string
+			var h []byte
+			if len(msg.Params) > 1 {
+				var err error
+				fingerprint = msg.Params[1]
+				h, err = hex.DecodeString(fingerprint)
+				if err != nil || len(h) != sha512.Size {
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"CLIENTCERT", "INTERNAL_ERROR", "DELETE", "Invalid device certificate fingerprint"},
+					}}
+				}
+			} else {
+				if dc.conn.conn.GetPeerCertificate() == nil {
+					return ircError{&irc.Message{
+						Command: "FAIL",
+						Params:  []string{"CLIENTCERT", "NOCERT", "DELETE", "No TLS client certificate is used"},
+					}}
+				}
+				b := sha512.Sum512(dc.conn.conn.GetPeerCertificate().Raw)
+				h = b[:]
+				fingerprint = strings.ToUpper(hex.EncodeToString(h))
+			}
+
+			if err := dc.srv.db.DeleteDeviceCertificate(ctx, dc.user.ID, h); err != nil {
+				dc.logger.Printf("failed deleting device certificate: %v", err)
+				return ircError{&irc.Message{
+					Command: "FAIL",
+					Params:  []string{"CLIENTCERT", "INTERNAL_ERROR", "DELETE", "Could not delete device certificate"},
+				}}
+			}
+			dc.SendMessage(ctx, &irc.Message{
+				Command: "CLIENTCERT",
+				Params:  []string{"DELETE", fingerprint},
+			})
+		default:
+			return ircError{&irc.Message{
+				Command: "FAIL",
+				Params:  []string{"CLIENTCERT", "UNKNOWN_COMMAND", subcommand, "Unknown subcommand"},
+			}}
+		}
 	case "BOUNCER":
 		var subcommand string
 		if err := parseMessageParams(msg, &subcommand); err != nil {
