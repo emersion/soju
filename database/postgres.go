@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	"gopkg.in/irc.v4"
@@ -139,6 +139,14 @@ func (db *PostgresDB) upgrade() error {
 	}
 
 	return tx.Commit()
+}
+
+func (db *PostgresDB) isErrUnique(err error) bool {
+	var pe *pq.Error
+	if !errors.As(err, &pe) {
+		return false
+	}
+	return pe.Code.Name() == "unique_violation"
 }
 
 func (db *PostgresDB) Close() error {
@@ -550,6 +558,9 @@ func (db *PostgresDB) StoreDeviceCertificate(ctx context.Context, userID int64, 
 			SET label = $1, fingerprint = $2, last_used = $3, last_ip = $4
 			WHERE id = $5`,
 			cert.Label, cert.Fingerprint, cert.LastUsed, cert.LastIP, cert.ID)
+	}
+	if db.isErrUnique(err) {
+		return ErrDuplicateDeviceCertificate
 	}
 	return err
 }

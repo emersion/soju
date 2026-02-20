@@ -1669,7 +1669,9 @@ func handleServiceDeviceCertificateCreate(ctx *serviceContext, params []string) 
 		addr = ctx.dc.conn.RemoteAddr()
 	}
 	cert.MarkUsed(addr)
-	if err := ctx.srv.db.StoreDeviceCertificate(ctx, ctx.user.ID, &cert); err != nil {
+	if err := ctx.srv.db.StoreDeviceCertificate(ctx, ctx.user.ID, &cert); err == database.ErrDuplicateDeviceCertificate {
+		return fmt.Errorf("this device certificate fingerprint already exists")
+	} else if err != nil {
 		return fmt.Errorf("could not create device certificate: %v", err)
 	}
 

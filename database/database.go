@@ -14,6 +14,8 @@ import (
 	"gopkg.in/irc.v4"
 )
 
+var ErrDuplicateDeviceCertificate = fmt.Errorf("duplicate device certificate")
+
 type MessageTargetLast struct {
 	Name          string
 	LatestMessage time.Time
