@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"io"
 	"mime"
@@ -178,11 +179,32 @@ func (wic *websocketIRCConn) LocalAddr() net.Addr {
 }
 
 func (wic *websocketIRCConn) GetPeerCertificate() *x509.Certificate {
+	clientCert := wic.req.Header.Get("Client-Cert")
+	if clientCert != "" && wic.acceptProxy {
+		cert, _ := parseClientCert(clientCert)
+		return cert
+	}
+
 	certs := wic.req.TLS.PeerCertificates
 	if len(certs) == 0 {
 		return nil
 	}
 	return certs[0]
+}
+
+func parseClientCert(s string) (*x509.Certificate, error) {
+	s, prefixOK := strings.CutPrefix(s, ":")
+	s, suffixOK := strings.CutSuffix(s, ":")
+	if !prefixOK || !suffixOK {
+		return nil, errors.New("missing ':' delimiters around byte sequence")
+	}
+
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, err
+	}
+
+	return x509.ParseCertificate(b)
 }
 
 type websocketAddr string
