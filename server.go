@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"mime"
 	"net"
 	"net/http"
 	"net/netip"
@@ -674,38 +673,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	isProxy := false
+	acceptProxy := false
 	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
 		if ip := net.ParseIP(host); ip != nil {
-			isProxy = s.Config().AcceptProxyIPs.Contains(ip)
+			acceptProxy = s.Config().AcceptProxyIPs.Contains(ip)
 		}
 	}
 
-	// Only trust the Forwarded header field if this is a trusted proxy IP
-	// to prevent users from spoofing the remote address
-	remoteAddr := req.RemoteAddr
-	if isProxy {
-		forwarded := parseForwarded(req.Header)
-		if forwarded["for"] != "" {
-			remoteAddr = forwarded["for"]
-		}
-	}
-
-	s.Handle(newWebsocketIRCConn(conn, remoteAddr))
-}
-
-func parseForwarded(h http.Header) map[string]string {
-	forwarded := h.Get("Forwarded")
-	if forwarded == "" {
-		return map[string]string{
-			"for":   h.Get("X-Forwarded-For"),
-			"proto": h.Get("X-Forwarded-Proto"),
-			"host":  h.Get("X-Forwarded-Host"),
-		}
-	}
-	// Hack to easily parse header parameters
-	_, params, _ := mime.ParseMediaType("hack; " + forwarded)
-	return params
+	s.Handle(newWebsocketIRCConn(conn, req, acceptProxy))
 }
 
 type ServerStats struct {
