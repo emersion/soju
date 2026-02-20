@@ -152,8 +152,7 @@ type Config struct {
 	Title                     string
 	IconPath                  string
 	IconURL                   string
-	MsgStoreDriver            string
-	MsgStorePath              string
+	MsgStore                  config.MsgStore
 	HTTPOrigins               []string
 	HTTPIngress               string
 	AcceptProxyIPs            config.IPSet
