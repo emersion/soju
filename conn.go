@@ -178,7 +178,11 @@ func (wic *websocketIRCConn) LocalAddr() net.Addr {
 }
 
 func (wic *websocketIRCConn) GetPeerCertificate() *x509.Certificate {
-	return nil
+	certs := wic.req.TLS.PeerCertificates
+	if len(certs) == 0 {
+		return nil
+	}
+	return certs[0]
 }
 
 type websocketAddr string
