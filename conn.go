@@ -182,7 +182,12 @@ func (wic *websocketIRCConn) GetPeerCertificate() *x509.Certificate {
 		return cert
 	}
 
-	certs := wic.req.TLS.PeerCertificates
+	tlsState := wic.req.TLS
+	if tlsState == nil {
+		return nil
+	}
+
+	certs := tlsState.PeerCertificates
 	if len(certs) == 0 {
 		return nil
 	}
