@@ -260,6 +260,7 @@ var permanentDownstreamCaps = map[string]string{
 	"draft/pre-away":          "",
 	"draft/read-marker":       "",
 	"draft/no-implicit-names": "",
+	"draft/extended-isupport": "",
 
 	"soju.im/account-required":        "",
 	"soju.im/bouncer-networks":        "",
@@ -737,6 +738,13 @@ func (dc *downstreamConn) handleMessage(ctx context.Context, msg *irc.Message) e
 	case "QUIT":
 		dc.conn.Shutdown(ctx)
 		// TODO: stop handling commands
+	case "ISUPPORT":
+		if !dc.caps.IsEnabled("draft/extended-isupport") {
+			return newUnknownCommandError(msg.Command)
+		}
+		isupport := dc.buildIsupport()
+		sendIsupport(ctx, dc, isupport)
+		dc.isupport = isupport
 	default:
 		var err error
 		if dc.registered {
@@ -1288,11 +1296,7 @@ func (dc *downstreamConn) updateSupportedCaps(ctx context.Context) {
 	}
 }
 
-func (dc *downstreamConn) updateIsupport(ctx context.Context) {
-	if !dc.registered {
-		return
-	}
-
+func (dc *downstreamConn) buildIsupport() map[string]*string {
 	srvConfig := dc.srv.Config()
 	isupport := make(map[string]*string)
 	for k, v := range permanentIsupport {
@@ -1300,9 +1304,6 @@ func (dc *downstreamConn) updateIsupport(ctx context.Context) {
 	}
 	if dc.network != nil {
 		isupport["BOUNCER_NETID"] = newString(fmt.Sprintf("%v", dc.network.ID))
-	} else {
-		isupport["BOT"] = newString("B")
-		isupport["CASEMAPPING"] = newString("ascii")
 	}
 	if dc.network == nil && srvConfig.Title != "" {
 		isupport["NETWORK"] = newString(srvConfig.Title)
@@ -1312,20 +1313,24 @@ func (dc *downstreamConn) updateIsupport(ctx context.Context) {
 	} else if dc.network == nil && srvConfig.IconPath != "" {
 		isupport["draft/ICON"] = newString(srvConfig.HTTPIngress + "/icon")
 	}
-	if dc.network == nil {
-		isupport["WHOX"] = nil
-		isupport["CHANTYPES"] = newString("")   // channels are not supported
-		isupport["LINELEN"] = newString("4096") // default bufio.Reader size
-	}
-	if _, ok := dc.user.msgStore.(msgstore.ChatHistoryStore); ok && dc.network != nil {
-		isupport["CHATHISTORY"] = newString(fmt.Sprintf("%v", chatHistoryLimit))
-		isupport["MSGREFTYPES"] = newString("timestamp")
-	}
-	if dc.caps.IsEnabled("soju.im/webpush") {
-		isupport["VAPID"] = newString(dc.srv.webPush.VAPIDKeys.Public)
-	}
-	if srvConfig.FileUploader != nil {
-		isupport["soju.im/FILEHOST"] = newString(srvConfig.HTTPIngress + "/uploads")
+	if dc.user != nil {
+		if dc.network == nil {
+			isupport["BOT"] = newString("B")
+			isupport["CASEMAPPING"] = newString("ascii")
+			isupport["WHOX"] = nil
+			isupport["CHANTYPES"] = newString("")   // channels are not supported
+			isupport["LINELEN"] = newString("4096") // default bufio.Reader size
+		}
+		if _, ok := dc.user.msgStore.(msgstore.ChatHistoryStore); ok && dc.network != nil {
+			isupport["CHATHISTORY"] = newString(fmt.Sprintf("%v", chatHistoryLimit))
+			isupport["MSGREFTYPES"] = newString("timestamp")
+		}
+		if dc.caps.IsEnabled("soju.im/webpush") {
+			isupport["VAPID"] = newString(dc.srv.webPush.VAPIDKeys.Public)
+		}
+		if srvConfig.FileUploader != nil {
+			isupport["soju.im/FILEHOST"] = newString(srvConfig.HTTPIngress + "/uploads")
+		}
 	}
 
 	if uc := dc.upstream(); uc != nil {
@@ -1343,6 +1348,16 @@ func (dc *downstreamConn) updateIsupport(ctx context.Context) {
 			isupport[k] = v
 		}
 	}
+
+	return isupport
+}
+
+func (dc *downstreamConn) updateIsupport(ctx context.Context) {
+	if !dc.registered && !dc.caps.IsEnabled("draft/extended-isupport") {
+		return
+	}
+
+	isupport := dc.buildIsupport()
 
 	changed := make(map[string]*string)
 	for k, v := range isupport {
@@ -1363,9 +1378,7 @@ func (dc *downstreamConn) updateIsupport(ctx context.Context) {
 		changed["-"+k] = nil
 	}
 
-	for _, msg := range xirc.GenerateIsupport(changed) {
-		dc.SendMessage(ctx, msg)
-	}
+	sendIsupport(ctx, dc, changed)
 
 	dc.isupport = isupport
 }
@@ -4042,6 +4055,24 @@ func parseNickServCredentials(text, nick string) (username, password string, ok 
 		return "", "", false
 	}
 	return username, password, true
+}
+
+func sendIsupport(ctx context.Context, dc *downstreamConn, isupport map[string]*string) {
+	if dc.caps.IsEnabled("draft/extended-isupport") {
+		dc.SendBatch(ctx, "draft/isupport", nil, nil, func(batchRef string) {
+			for _, msg := range xirc.GenerateIsupport(isupport) {
+				if msg.Tags == nil {
+					msg.Tags = make(map[string]string)
+				}
+				msg.Tags["batch"] = batchRef
+				dc.SendMessage(ctx, msg)
+			}
+		})
+	} else {
+		for _, msg := range xirc.GenerateIsupport(isupport) {
+			dc.SendMessage(ctx, msg)
+		}
+	}
 }
 
 func forwardChannel(ctx context.Context, dc *downstreamConn, ch *upstreamChannel) {
