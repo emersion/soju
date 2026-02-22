@@ -433,6 +433,9 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		dc.caps.Available["draft/chathistory"] = ""
 		dc.caps.Available["soju.im/search"] = ""
 	}
+	if srvConfig.ClientCertAuth {
+		dc.caps.Available["soju.im/client-cert"] = ""
+	}
 	return dc
 }
 
