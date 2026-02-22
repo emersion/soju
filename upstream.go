@@ -1033,13 +1033,12 @@ func (uc *upstreamConn) handleMessage(ctx context.Context, msg *irc.Message) err
 
 		var downstreamIsupport []string
 		for _, token := range msg.Params[1 : len(msg.Params)-1] {
-			parameter := token
-			var negate, hasValue bool
-			var value string
-			if strings.HasPrefix(token, "-") {
-				negate = true
-				token = token[1:]
-			} else {
+			parameter, negate := strings.CutPrefix(token, "-")
+			var (
+				value    string
+				hasValue bool
+			)
+			if !negate {
 				parameter, value, hasValue = strings.Cut(token, "=")
 			}
 
