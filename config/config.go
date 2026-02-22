@@ -106,7 +106,6 @@ type Server struct {
 	MOTDPath string
 
 	DB         DB
-	MsgStore   MsgStore
 	Auth       []Auth
 	FileUpload *FileUpload
 }
