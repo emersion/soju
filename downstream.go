@@ -395,6 +395,7 @@ type downstreamConn struct {
 }
 
 func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
+	srvConfig := srv.Config()
 	remoteAddr := ic.RemoteAddr().String()
 	logger := &prefixLogger{srv.Logger, fmt.Sprintf("downstream %q: ", remoteAddr)}
 	options := connOptions{Logger: logger}
@@ -420,14 +421,14 @@ func newDownstreamConn(srv *Server, ic ircConn, id uint64) *downstreamConn {
 		dc.caps.Available[k] = v
 	}
 	saslMechanisms := serverSASLMechanisms(dc.srv)
-	if ic.GetPeerCertificate() != nil {
+	if srvConfig.ClientCertAuth && ic.GetPeerCertificate() != nil {
 		saslMechanisms = append(saslMechanisms, "EXTERNAL")
 	}
 	dc.caps.Available["sasl"] = strings.Join(saslMechanisms, ",")
 	// TODO: this is racy, we should only enable chathistory after
 	// authentication and then check that user.msgStore implements
 	// chatHistoryMessageStore
-	switch srv.Config().MsgStore.Driver {
+	switch srvConfig.MsgStore.Driver {
 	case "fs", "db":
 		dc.caps.Available["draft/chathistory"] = ""
 		dc.caps.Available["soju.im/search"] = ""
@@ -828,6 +829,10 @@ func (dc *downstreamConn) handleMessageUnregistered(ctx context.Context, msg *ir
 				break
 			}
 		case "EXTERNAL":
+			if !dc.srv.Config().ClientCertAuth {
+				err = fmt.Errorf("SASL EXTERNAL not supported")
+				break
+			}
 			cert := dc.conn.conn.GetPeerCertificate()
 			if cert == nil {
 				err = fmt.Errorf("TLS client certificate not sent")
@@ -3379,6 +3384,10 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		var subcommand string
 		if err := parseMessageParams(msg, &subcommand); err != nil {
 			return err
+		}
+
+		if !dc.srv.Config().ClientCertAuth {
+			return newUnknownCommandError(msg.Command)
 		}
 
 		switch strings.ToUpper(subcommand) {
