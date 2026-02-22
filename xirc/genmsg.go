@@ -82,7 +82,17 @@ func (js *joinSorter) Swap(i, j int) {
 	js.keys[i], js.keys[j] = js.keys[j], js.keys[i]
 }
 
-func GenerateIsupport(tokens []string) []*irc.Message {
+func GenerateIsupport(isupport map[string]*string) []*irc.Message {
+	tokens := make([]string, 0, len(isupport))
+	for k, v := range isupport {
+		if v != nil {
+			tokens = append(tokens, fmt.Sprintf("%v=%v", k, *v))
+		} else {
+			tokens = append(tokens, k)
+		}
+	}
+	sort.Strings(tokens)
+
 	maxTokens := maxMessageParams - 2 // 2 reserved params: nick + text
 
 	// TODO: take into account maxMessageLength as well
