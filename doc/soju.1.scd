@@ -276,6 +276,21 @@ The following directives are supported:
 	*auth pam*
 		Use PAM authentication.
 
+*client-cert-auth* true|false
+	Enable/disable client certificate authentication. By default, client
+	certificate authentication is disabled because it bypasses external
+	authentication methods and because it needs additional HTTP server
+	configuration.
+
+	When used behind a TCP reverse proxy, client certification authentication
+	needs the PROXY protocol to be used with _PP2_SUBTYPE_SSL_CLIENT_CERT_
+	support. When used behind an HTTP reverse proxy, client certificate
+	authentication needs the _Client-Cert_ header field to be populated (RFC
+	9440).
+
+	Warning, enabling this option without proper HTTP reverse proxy support
+	can result in broken setups where users can login but cannot upload files.
+
 # IRC SERVICE
 
 soju exposes an IRC service called *BouncerServ* to manage the bouncer.

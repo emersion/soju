@@ -1628,6 +1628,10 @@ func handleServiceDeviceCertificateCreate(ctx *serviceContext, params []string) 
 	fingerprint := fs.String("fingerprint", "", "")
 	label := fs.String("label", "", "")
 
+	if !ctx.srv.Config().ClientCertAuth {
+		return fmt.Errorf("client certification authentication is disabled")
+	}
+
 	if err := fs.Parse(params); err != nil {
 		return err
 	}

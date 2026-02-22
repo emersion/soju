@@ -84,6 +84,7 @@ type BasicServer struct {
 	UpstreamUserIPs           []*net.IPNet
 	DisableInactiveUsersDelay time.Duration
 	EnableUsersOnAuth         bool
+	ClientCertAuth            bool
 }
 
 type Server struct {
@@ -149,6 +150,7 @@ func Load(filename string) (*Server, error) {
 		UpstreamUserIP      []string `scfg:"upstream-user-ip"`
 		DisableInactiveUser string   `scfg:"disable-inactive-user"`
 		EnableUserOnAuth    string   `scfg:"enable-user-on-auth"`
+		ClientCertAuth      string   `scfg:"client-cert-auth"`
 	}
 
 	raw.MaxUserNetworks = -1
@@ -304,6 +306,13 @@ func Load(filename string) (*Server, error) {
 			return nil, fmt.Errorf("directive enable-user-on-auth: %v", err)
 		}
 		srv.EnableUsersOnAuth = b
+	}
+	if raw.ClientCertAuth != "" {
+		b, err := strconv.ParseBool(raw.ClientCertAuth)
+		if err != nil {
+			return nil, fmt.Errorf("directive client-cert-auth: %v", err)
+		}
+		srv.ClientCertAuth = b
 	}
 
 	return srv, nil

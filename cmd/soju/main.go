@@ -169,6 +169,10 @@ func main() {
 		log.Fatalf("failed to open database: %v", err)
 	}
 
+	srv := soju.NewServer(db)
+	srv.SetConfig(serverCfg)
+	srv.Logger = soju.NewLogger(log.Writer(), debug)
+
 	var tlsCfg *tls.Config
 	if cfg.TLS != nil {
 		tlsCfg = &tls.Config{
@@ -176,12 +180,15 @@ func main() {
 			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 				return tlsCert.Load().(*tls.Certificate), nil
 			},
+			GetConfigForClient: func(*tls.ClientHelloInfo) (*tls.Config, error) {
+				cfg := *tlsCfg // copy
+				if !srv.Config().ClientCertAuth {
+					cfg.ClientAuth = tls.NoClientCert
+				}
+				return &cfg, nil
+			},
 		}
 	}
-
-	srv := soju.NewServer(db)
-	srv.SetConfig(serverCfg)
-	srv.Logger = soju.NewLogger(log.Writer(), debug)
 
 	fileUploadHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg := srv.Config()
