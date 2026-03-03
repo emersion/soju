@@ -290,7 +290,8 @@ var passthroughDownstreamCaps = map[string]string{
 // permanentIsupport is the set of ISUPPORT tokens that are always passed
 // to downstream clients.
 var permanentIsupport = map[string]*string{
-	"soju.im/SAFERATE": nil,
+	"soju.im/SAFERATE":      nil,
+	"draft/ACCOUNTREQUIRED": nil,
 }
 
 // passthroughIsupport is the set of ISUPPORT tokens that are directly passed
