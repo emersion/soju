@@ -281,7 +281,7 @@ func main() {
 				srv.Identd = identd.New()
 			}
 			addr := withDefaultPort(u.Host, "113")
-			listenAndServeIdent(srv, "tcp", listen, addr)
+			listenAndServeIdent(srv, listen, "tcp", addr)
 		case "http+prometheus":
 			// Only allow localhost as listening host for security reasons.
 			hostname, _, err := net.SplitHostPort(u.Host)
