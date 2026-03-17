@@ -1333,6 +1333,11 @@ func (db *SqliteDB) ListMessages(ctx context.Context, networkID int64, name stri
 	return l, nil
 }
 
+func (db *SqliteDB) DeleteMessagesBefore(ctx context.Context, before time.Time) error {
+	_, err := db.db.ExecContext(ctx, "DELETE FROM Message WHERE time < ?", sqliteTime{before})
+	return err
+}
+
 var ftsQueryTokenEscaper = strings.NewReplacer(`"`, `""`)
 
 func quoteFTSQuery(query string) string {

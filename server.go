@@ -26,6 +26,7 @@ import (
 	"codeberg.org/emersion/soju/database"
 	"codeberg.org/emersion/soju/fileupload"
 	"codeberg.org/emersion/soju/identd"
+	"codeberg.org/emersion/soju/msgstore"
 )
 
 var (
@@ -240,6 +241,12 @@ func (s *Server) Start() error {
 	go func() {
 		defer s.stopWG.Done()
 		s.disableInactiveUsersLoop()
+	}()
+
+	s.stopWG.Add(1)
+	go func() {
+		defer s.stopWG.Done()
+		s.messageExpiryLoop()
 	}()
 
 	return nil
@@ -717,6 +724,29 @@ func (s *Server) disableInactiveUsersLoop() {
 	}
 }
 
+// messageExpiryLoop deletes expired messages if called, and then runs a loop
+// that deletes expired messages every 24 hours.
+func (s *Server) messageExpiryLoop() {
+	if err := s.deleteExpiredMessages(context.TODO()); err != nil {
+		s.Logger.Printf("failed to delete expired messages: %v", err)
+	}
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case <-ticker.C:
+		}
+
+		if err := s.deleteExpiredMessages(context.TODO()); err != nil {
+			s.Logger.Printf("failed to delete expired messages: %v", err)
+		}
+	}
+}
+
 func (s *Server) disableInactiveUsers(ctx context.Context) error {
 	delay := s.Config().DisableInactiveUsersDelay
 	if delay == 0 {
@@ -779,6 +809,35 @@ func (s *Server) disableInactiveUsers(ctx context.Context) error {
 			} else {
 				s.Logger.Printf("deleted inactive user %q", u.Username)
 			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) deleteExpiredMessages(ctx context.Context) error {
+	messageExpiry := s.Config().MessageExpiry
+	if messageExpiry == 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	before := time.Now().Add(-messageExpiry)
+
+	switch s.Config().MsgStore.Driver {
+	case "db":
+		if err := s.db.DeleteMessagesBefore(ctx, before); err != nil {
+			return fmt.Errorf("failed to delete expired messages from db: %w", err)
+		}
+	case "fs":
+		if err := msgstore.DeleteMessagesBefore(s.Config().MsgStore.Source, before); err != nil {
+			if errors.Is(err, msgstore.ErrCleanup) {
+				s.Logger.Printf("failed to cleanup empty log directories: %v", err)
+				break
+			}
+			return fmt.Errorf("failed to delete expired messages from disk: %w", err)
 		}
 	}
 

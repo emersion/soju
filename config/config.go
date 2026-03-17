@@ -83,6 +83,7 @@ type BasicServer struct {
 	MaxUserNetworks           int
 	UpstreamUserIPs           []*net.IPNet
 	DisableInactiveUsersDelay time.Duration
+	MessageExpiry             time.Duration
 	EnableUsersOnAuth         bool
 	ClientCertAuth            bool
 }
@@ -149,6 +150,7 @@ func Load(filename string) (*Server, error) {
 		MaxUserNetworks     int      `scfg:"max-user-networks"`
 		UpstreamUserIP      []string `scfg:"upstream-user-ip"`
 		DisableInactiveUser string   `scfg:"disable-inactive-user"`
+		MessageExpiry       string   `scfg:"message-expiry"`
 		EnableUserOnAuth    string   `scfg:"enable-user-on-auth"`
 		ClientCertAuth      string   `scfg:"client-cert-auth"`
 	}
@@ -299,6 +301,15 @@ func Load(filename string) (*Server, error) {
 			return nil, fmt.Errorf("directive disable-inactive-user: duration must be positive")
 		}
 		srv.DisableInactiveUsersDelay = dur
+	}
+	if raw.MessageExpiry != "" {
+		dur, err := parseDuration(raw.MessageExpiry)
+		if err != nil {
+			return nil, fmt.Errorf("directive message-expiry: %v", err)
+		} else if dur < 0 {
+			return nil, fmt.Errorf("directive message-expiry: duration must be positive")
+		}
+		srv.MessageExpiry = dur
 	}
 	if raw.EnableUserOnAuth != "" {
 		b, err := strconv.ParseBool(raw.EnableUserOnAuth)

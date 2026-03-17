@@ -75,6 +75,7 @@ type Database interface {
 	StoreMessages(ctx context.Context, networkID int64, name string, msgs []*irc.Message) ([]int64, error)
 	ListMessageLastPerTarget(ctx context.Context, networkID int64, options *MessageOptions) ([]MessageTargetLast, error)
 	ListMessages(ctx context.Context, networkID int64, name string, options *MessageOptions) ([]*irc.Message, error)
+	DeleteMessagesBefore(ctx context.Context, before time.Time) error
 }
 
 type MetricsCollectorDatabase interface {

@@ -3,8 +3,10 @@ package msgstore
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,6 +20,8 @@ import (
 	"codeberg.org/emersion/soju/msgstore/znclog"
 	"codeberg.org/emersion/soju/xirc"
 )
+
+var ErrCleanup = errors.New("msgstore cleanup error")
 
 const (
 	fsMessageStoreMaxFiles = 20
@@ -569,4 +573,111 @@ func isTimeBetween(t, start, end time.Time) bool {
 		end, start = start, end
 	}
 	return start.Before(t) && t.Before(end)
+}
+
+// DeleteMessagesBefore deletes log files with dates before the given cutoff date.
+func DeleteMessagesBefore(root string, before time.Time) error {
+	cutoff := before.Format("2006-01-02")
+
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if d.IsDir() {
+			return nil
+		}
+
+		name := d.Name()
+
+		// Skip non-log files
+		if !strings.HasSuffix(name, ".log") {
+			return nil
+		}
+
+		// Extract date from filename
+		if len(name) < 10 {
+			return nil
+		}
+		fileDate := name[:10]
+
+		// Skip if file date is on or after cutoff
+		// ISO 8601 can be compared lexicographically
+		if cutoff <= fileDate {
+			return nil
+		}
+
+		// Otherwise delete the file
+		return os.Remove(path)
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := cleanupEmptyDirs(root); err != nil {
+		return fmt.Errorf("%w: %w", ErrCleanup, err)
+	}
+
+	return nil
+}
+
+// cleanupEmptyDirs deletes empty directories under root.
+func cleanupEmptyDirs(root string) error {
+	// Recursively delete empty directories, but keep the root directory even if it's empty
+	_, err := cleanupEmptyDirsRecursively(root, true)
+	return err
+}
+
+// cleanupEmptyDirsRecursively deletes empty directories under dir, and returns whether dir is empty after cleanup
+func cleanupEmptyDirsRecursively(dir string, keep bool) (bool, error) {
+	f, err := os.Open(dir)
+	if err != nil {
+		return false, fmt.Errorf("failed to open %q: %w", dir, err)
+	}
+	defer f.Close()
+
+	// Assume the directory is empty until we find a non-directory entry
+	empty := true
+	var errs []error
+	for {
+		// Read directory entries in batches to avoid buffering large directories
+		entries, err := f.ReadDir(64)
+		if err != nil && err != io.EOF {
+			errs = append(errs, fmt.Errorf("failed to read %q: %w", dir, err))
+			empty = false
+			break
+		}
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				empty = false
+				continue
+			}
+
+			entryEmpty, err := cleanupEmptyDirsRecursively(filepath.Join(dir, entry.Name()), false)
+			if err != nil {
+				errs = append(errs, err)
+				empty = false
+				continue
+			}
+
+			// the current directory is only empty if all subdirectories are empty
+			empty = empty && entryEmpty
+		}
+
+		// f.ReadDir returns io.EOF at the end of the directory, break the loop
+		if err == io.EOF {
+			break
+		}
+	}
+
+	if empty && !keep {
+		if err := os.Remove(dir); err != nil {
+			errs = append(errs, fmt.Errorf("failed to remove %q: %w", dir, err))
+			empty = false
+		}
+	}
+
+	return empty, errors.Join(errs...)
 }

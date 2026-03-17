@@ -1142,6 +1142,11 @@ func (db *PostgresDB) ListMessages(ctx context.Context, networkID int64, name st
 	return l, nil
 }
 
+func (db *PostgresDB) DeleteMessagesBefore(ctx context.Context, before time.Time) error {
+	_, err := db.db.ExecContext(ctx, `DELETE FROM "Message" WHERE time < $1`, before)
+	return err
+}
+
 var postgresNetworksTotalDesc = prometheus.NewDesc("soju_networks_total", "Number of networks", []string{"hostname"}, nil)
 
 type postgresMetricsCollector struct {
