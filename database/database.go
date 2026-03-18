@@ -83,11 +83,18 @@ type MetricsCollectorDatabase interface {
 	RegisterMetrics(r prometheus.Registerer) error
 }
 
-func Open(driver, source string) (Database, error) {
+type Driver string
+
+const (
+	DriverSQLite3  = Driver("sqlite3")
+	DriverPostgres = Driver("postgres")
+)
+
+func Open(driver Driver, source string) (Database, error) {
 	switch driver {
-	case "sqlite3":
+	case DriverSQLite3:
 		return OpenSqliteDB(source)
-	case "postgres":
+	case DriverPostgres:
 		return OpenPostgresDB(source)
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %q", driver)

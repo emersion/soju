@@ -39,13 +39,13 @@ func main() {
 		log.Fatalf("source or destination not properly specified: %s %s", flag.Arg(0), flag.Arg(1))
 	}
 
-	sourcedb, err := database.Open(source[0], source[1])
+	sourcedb, err := database.Open(database.Driver(source[0]), source[1])
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
 	defer sourcedb.Close()
 
-	destinationdb, err := database.Open(destination[0], destination[1])
+	destinationdb, err := database.Open(database.Driver(destination[0]), destination[1])
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}

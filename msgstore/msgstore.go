@@ -13,6 +13,14 @@ import (
 	"codeberg.org/emersion/soju/database"
 )
 
+type Driver string
+
+const (
+	DriverMemory = Driver("memory")
+	DriverDB     = Driver("db")
+	DriverFS     = Driver("fs")
+)
+
 type LoadMessageOptions struct {
 	Network *database.Network
 	Entity  string

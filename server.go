@@ -827,11 +827,11 @@ func (s *Server) deleteExpiredMessages(ctx context.Context) error {
 	before := time.Now().Add(-messageExpiry)
 
 	switch s.Config().MsgStore.Driver {
-	case "db":
+	case msgstore.DriverDB:
 		if err := s.db.DeleteMessagesBefore(ctx, before); err != nil {
 			return fmt.Errorf("failed to delete expired messages from db: %w", err)
 		}
-	case "fs":
+	case msgstore.DriverFS:
 		if err := msgstore.DeleteMessagesBefore(s.Config().MsgStore.Source, before); err != nil {
 			if errors.Is(err, msgstore.ErrCleanup) {
 				s.Logger.Printf("failed to cleanup empty log directories: %v", err)

@@ -10,6 +10,11 @@ import (
 	"time"
 
 	"codeberg.org/emersion/go-scfg"
+
+	"codeberg.org/emersion/soju/auth"
+	"codeberg.org/emersion/soju/database"
+	"codeberg.org/emersion/soju/fileupload"
+	"codeberg.org/emersion/soju/msgstore"
 )
 
 var (
@@ -57,19 +62,23 @@ type TLS struct {
 }
 
 type DB struct {
-	Driver, Source string
+	Driver database.Driver
+	Source string
 }
 
 type MsgStore struct {
-	Driver, Source string
+	Driver msgstore.Driver
+	Source string
 }
 
 type Auth struct {
-	Driver, Source string
+	Driver auth.Driver
+	Source string
 }
 
 type FileUpload struct {
-	Driver, Source string
+	Driver fileupload.Driver
+	Source string
 }
 
 type BasicServer struct {
@@ -111,17 +120,17 @@ func Defaults() *Server {
 		BasicServer: BasicServer{
 			Hostname: hostname,
 			MsgStore: MsgStore{
-				Driver: "db",
+				Driver: msgstore.DriverDB,
 			},
 			HTTPIngress:     "https://" + hostname,
 			MaxUserNetworks: -1,
 		},
 		DB: DB{
-			Driver: "sqlite3",
+			Driver: database.DriverSQLite3,
 			Source: "soju.db",
 		},
 		Auth: []Auth{{
-			Driver: "internal",
+			Driver: auth.DriverInternal,
 		}},
 	}
 }
@@ -182,7 +191,14 @@ func Load(filename string) (*Server, error) {
 		srv.TLS = &TLS{CertPath: raw.TLS[0], KeyPath: raw.TLS[1]}
 	}
 	if raw.DB != nil {
-		srv.DB = DB{Driver: raw.DB[0], Source: raw.DB[1]}
+		driver := database.Driver(raw.DB[0])
+		switch driver {
+		case database.DriverSQLite3, database.DriverPostgres:
+			// ok
+		default:
+			return nil, fmt.Errorf("directive db: unknown driver %q", driver)
+		}
+		srv.DB = DB{Driver: driver, Source: raw.DB[1]}
 	}
 	if raw.MessageStore == nil {
 		raw.MessageStore = raw.Log
@@ -192,57 +208,57 @@ func Load(filename string) (*Server, error) {
 		if err != nil {
 			return nil, err
 		}
-		switch driver {
-		case "memory", "db":
+		switch msgstore.Driver(driver) {
+		case msgstore.DriverMemory, msgstore.DriverDB:
 			if source != "" {
 				return nil, fmt.Errorf("directive message-store: driver %q requires zero parameters", driver)
 			}
-		case "fs":
+		case msgstore.DriverFS:
 			if source == "" {
 				return nil, fmt.Errorf("directive message-store: driver %q requires a source", driver)
 			}
 		default:
 			return nil, fmt.Errorf("directive message-store: unknown driver %q", driver)
 		}
-		srv.MsgStore = MsgStore{driver, source}
+		srv.MsgStore = MsgStore{Driver: msgstore.Driver(driver), Source: source}
 	}
 	if len(raw.Auth) != 0 {
 		// drop default auth if we are explicitly defining any auth
 		srv.Auth = nil
 	}
-	for _, auth := range raw.Auth {
-		driver, source, err := parseDriverSource("auth", auth.Params)
+	for _, authCfg := range raw.Auth {
+		driver, source, err := parseDriverSource("auth", authCfg.Params)
 		if err != nil {
 			return nil, err
 		}
-		switch driver {
-		case "internal", "pam":
+		switch auth.Driver(driver) {
+		case auth.DriverInternal, auth.DriverPAM:
 			if source != "" {
 				return nil, fmt.Errorf("directive auth: driver %q requires zero parameters", driver)
 			}
-		case "http", "oauth2":
+		case auth.DriverHTTP, auth.DriverOAuth2:
 			if source == "" {
 				return nil, fmt.Errorf("directive auth: driver %q requires a source", driver)
 			}
 		default:
 			return nil, fmt.Errorf("directive auth: unknown driver %q", driver)
 		}
-		srv.Auth = append(srv.Auth, Auth{driver, source})
+		srv.Auth = append(srv.Auth, Auth{Driver: auth.Driver(driver), Source: source})
 	}
 	if raw.FileUpload != nil {
 		driver, source, err := parseDriverSource("file-upload", raw.FileUpload)
 		if err != nil {
 			return nil, err
 		}
-		switch driver {
-		case "fs", "http":
+		switch fileupload.Driver(driver) {
+		case fileupload.DriverFS, fileupload.DriverHTTP:
 			if source == "" {
 				return nil, fmt.Errorf("directive file-upload: driver %q requires a source", driver)
 			}
 		default:
 			return nil, fmt.Errorf("directive file-upload: unknown driver %q", driver)
 		}
-		srv.FileUpload = &FileUpload{driver, source}
+		srv.FileUpload = &FileUpload{Driver: fileupload.Driver(driver), Source: source}
 	}
 	for _, origin := range raw.HTTPOrigin {
 		if _, err := path.Match(origin, origin); err != nil {

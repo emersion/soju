@@ -595,11 +595,11 @@ func newUser(srv *Server, record *database.User) *user {
 
 	var msgStore msgstore.Store
 	switch srv.Config().MsgStore.Driver {
-	case "fs":
+	case msgstore.DriverFS:
 		msgStore = msgstore.NewFSStore(srv.Config().MsgStore.Source, record)
-	case "db":
+	case msgstore.DriverDB:
 		msgStore = msgstore.NewDBStore(srv.db)
-	case "memory":
+	case msgstore.DriverMemory:
 		msgStore = msgstore.NewMemoryStore()
 	}
 

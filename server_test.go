@@ -12,6 +12,7 @@ import (
 
 	"codeberg.org/emersion/soju/config"
 	"codeberg.org/emersion/soju/database"
+	"codeberg.org/emersion/soju/msgstore"
 	"codeberg.org/emersion/soju/xirc"
 )
 
@@ -248,7 +249,7 @@ func TestServer_broadcast(t *testing.T) {
 	})
 }
 
-func testChatHistory(t *testing.T, msgStoreDriver, msgStorePath string) {
+func testChatHistory(t *testing.T, msgStoreDriver msgstore.Driver, msgStorePath string) {
 	db := createTempSqliteDB(t)
 
 	user := createTestUser(t, db)
@@ -340,10 +341,10 @@ func testChatHistory(t *testing.T, msgStoreDriver, msgStorePath string) {
 
 func TestServer_chatHistory(t *testing.T) {
 	t.Run("fs", func(t *testing.T) {
-		testChatHistory(t, "fs", t.TempDir())
+		testChatHistory(t, msgstore.DriverFS, t.TempDir())
 	})
 
 	t.Run("db", func(t *testing.T) {
-		testChatHistory(t, "db", "")
+		testChatHistory(t, msgstore.DriverDB, "")
 	})
 }

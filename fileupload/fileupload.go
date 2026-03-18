@@ -87,11 +87,18 @@ type Uploader interface {
 	store(ctx context.Context, r io.Reader, username, mimeType, basename string) (out string, err error)
 }
 
-func New(driver, source string) (Uploader, error) {
+type Driver string
+
+const (
+	DriverFS   = Driver("fs")
+	DriverHTTP = Driver("http")
+)
+
+func New(driver Driver, source string) (Uploader, error) {
 	switch driver {
-	case "fs":
+	case DriverFS:
 		return &fileuploadFS{source}, nil
-	case "http":
+	case DriverHTTP:
 		return &fileuploadHTTP{source}, nil
 	default:
 		return nil, fmt.Errorf("unknown file upload driver %q", driver)

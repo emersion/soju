@@ -41,15 +41,24 @@ func (auth OAuthPlainAuthenticator) AuthPlain(ctx context.Context, db database.D
 	return nil
 }
 
-func New(driver, source string) (*Authenticator, error) {
+type Driver string
+
+const (
+	DriverInternal = Driver("internal")
+	DriverPAM      = Driver("pam")
+	DriverHTTP     = Driver("http")
+	DriverOAuth2   = Driver("oauth2")
+)
+
+func New(driver Driver, source string) (*Authenticator, error) {
 	switch driver {
-	case "internal":
+	case DriverInternal:
 		return NewInternal(), nil
-	case "http":
+	case DriverHTTP:
 		return newHTTP(source)
-	case "oauth2":
+	case DriverOAuth2:
 		return newOAuth2(source)
-	case "pam":
+	case DriverPAM:
 		return newPAM()
 	default:
 		return nil, fmt.Errorf("unknown auth driver %q", driver)

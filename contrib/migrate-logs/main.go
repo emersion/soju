@@ -125,7 +125,7 @@ func main() {
 		log.Fatalf("database not properly specified: %s", flag.Arg(1))
 	}
 
-	db, err := database.Open(dbParams[0], dbParams[1])
+	db, err := database.Open(database.Driver(dbParams[0]), dbParams[1])
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
