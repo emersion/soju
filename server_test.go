@@ -296,33 +296,48 @@ func testChatHistory(t *testing.T, msgStoreDriver msgstore.Driver, msgStorePath 
 	roundtrip(t, dc) // drain post-connection-registration messages
 
 	testCases := []struct {
-		Name  string
-		After time.Time
-		Texts []string
+		Name   string
+		After  time.Time
+		Around time.Time
+		Texts  []string
 	}{
 		{
-			Name:  "all",
+			Name:  "after_all",
 			After: baseTime.Add(-time.Second),
 			Texts: texts,
 		},
 		{
-			Name:  "none",
+			Name:  "after_none",
 			After: baseTime.Add(time.Duration(len(texts)-1) * time.Second),
 			Texts: nil,
 		},
 		{
-			Name:  "all_but_first",
+			Name:  "after_all_but_first",
 			After: baseTime,
 			Texts: texts[1:],
+		},
+		{
+			Name:   "around_all",
+			Around: baseTime.Add(time.Second),
+			Texts:  texts,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			dc.WriteMessage(&irc.Message{
-				Command: "CHATHISTORY",
-				Params:  []string{"AFTER", "foo", "timestamp=" + xirc.FormatServerTime(tc.After), "100"},
-			})
+			if !tc.After.IsZero() {
+				dc.WriteMessage(&irc.Message{
+					Command: "CHATHISTORY",
+					Params:  []string{"AFTER", "foo", "timestamp=" + xirc.FormatServerTime(tc.After), "100"},
+				})
+			} else if !tc.Around.IsZero() {
+				dc.WriteMessage(&irc.Message{
+					Command: "CHATHISTORY",
+					Params:  []string{"AROUND", "foo", "timestamp=" + xirc.FormatServerTime(tc.Around), "100"},
+				})
+			} else {
+				panic("no timestamp specified in test case")
+			}
 
 			var got []string
 			for _, msg := range roundtrip(t, dc) {
