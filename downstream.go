@@ -3181,7 +3181,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 		options := msgstore.LoadMessageOptions{
 			Network: &network.Network,
 			Entity:  target,
-			Limit:   limit,
+			Limit:   limit + 1,
 			Events:  eventPlayback,
 		}
 
@@ -3200,7 +3200,7 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				history, err = store.LoadBeforeTime(ctx, bounds[0], bounds[1], &options)
 			}
 		case "TARGETS":
-			targets, err := store.ListTargets(ctx, &network.Network, bounds[0], bounds[1], limit, eventPlayback)
+			targets, err := store.ListTargets(ctx, &network.Network, bounds[0], bounds[1], limit+1, eventPlayback)
 			if err != nil {
 				dc.logger.Printf("failed fetching targets for chathistory: %v", err)
 				return ircError{&irc.Message{
@@ -3209,7 +3209,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 				}}
 			}
 
-			dc.SendBatch(ctx, "draft/chathistory-targets", nil, nil, func(batchRef string) {
+			tags := make(map[string]string)
+			if len(targets) > limit {
+				tags["draft/chathistory-end"] = ""
+				targets = targets[:limit]
+			}
+
+			dc.SendBatch(ctx, "draft/chathistory-targets", nil, tags, func(batchRef string) {
 				for _, target := range targets {
 					if ch := network.channels.Get(target.Name); ch != nil && ch.Detached {
 						continue
@@ -3230,7 +3236,13 @@ func (dc *downstreamConn) handleMessageRegistered(ctx context.Context, msg *irc.
 			return newChatHistoryError(subcommand, target)
 		}
 
-		dc.SendBatch(ctx, "chathistory", []string{target}, nil, func(batchRef string) {
+		tags := make(map[string]string)
+		if len(history) > limit {
+			tags["draft/chathistory-end"] = ""
+			history = history[:limit]
+		}
+
+		dc.SendBatch(ctx, "chathistory", []string{target}, tags, func(batchRef string) {
 			for _, msg := range history {
 				msg.Tags["batch"] = batchRef
 				dc.SendMessage(ctx, msg)
